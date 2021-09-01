@@ -1,0 +1,131 @@
+#+TITLE: Emacs Easy Draw
+
+Emacs Easy Draw is a drawing tool that runs inside Emacs.
+
+[[file:./screenshot/edraw-screenshot.gif]]
+
+* Requirements
+- Emacs 27.2
+- Image support
+- SVG support
+- gzip and gunzip(or zlib support)
+- libxml support
+
+* Use In Org-Mode - edraw-org.el
+** Config
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'org
+  (require 'edraw-org)
+  (edraw-org-setup-default))
+#+end_src
+
+** Usage
+
+To start drawing, type ~[​[edraw:]]~ and type =C-c C-o= on the link.
+
+Draw something and type =C-c C-c= and the data will be saved in the buffer.
+
+** Link Notation
+
+#+begin_src org
+[​[edraw:file=./example.edraw.svg]​]
+
+[​[edraw:data=<base64data>​]
+
+[​[*Example][edraw:file=./example.edraw.svg]​]
+
+[​[*Example][edraw:data=<base64data>]​]
+#+end_src
+
+** Inline Images
+
+To toggle the inline display mode, type =M-x edraw-org-link-image-mode=
+
+** Edit Image
+
+To edit the image, do one of the following on the link:
+
+- =M-x edraw-org-edit-link=
+- =C-c C-o=
+- Right click on image
+
+** Export as HTML
+
+Customization Variables:
+
+- edraw-org-link-export-data-tag :: HTML tag used to export data links. (svg or img)
+- edraw-org-link-export-file-tag :: HTML tag used to export file links. (svg or img)
+
+* Edit a Single Edraw File - edraw-mode.el
+
+#+begin_src emacs-lisp
+(autoload 'edraw-mode "edraw-mode")
+(add-to-list 'auto-mode-alist '("\\.edraw\\.svg$" . edraw-mode))
+#+end_src
+
+NOTE: Setup later than other modes for .svg such as image-mode.
+
+Emacs Easy Draw can only handle a small subset of the SVG specification, but the files it outputs can be viewed in a browser or other software that can handle SVG.
+
+* Key bindings
+
+Most of the key bindings are displayed in menus and help echoes.
+
+The key bindings that are not displayed are as follows.
+
+- left, up, right, down : Move selected object
+- S-left, S-up, S-right, S-down: Move selected object (10px)
+- M-left, M-up, M-right, M-down: Move selected object (numerical input)
+
+* Emacs Lisp
+
+The following code is an example of inserting an editor into a buffer from Emacs Lisp.
+
+#+begin_src emacs-lisp
+(require 'edraw)
+
+(progn
+  (insert " ")
+  (let ((editor (edraw-editor
+                 ;; Make an overlay that covers " "
+                 ;; 'evaporate means automatic deletion
+                 :overlay (let ((overlay (make-overlay (1- (point)) (point))))
+                            (overlay-put overlay 'evaporate t)
+                            overlay)
+                 ;; Initial SVG
+                 :svg (let ((initial-svg (svg-create 400 300)))
+                        (dom-append-child
+                         initial-svg
+                         (dom-node 'g (list (cons 'id "edraw-body")) ;; g#edraw-body is the edit target area
+                                   (dom-node 'rect (list (cons 'x "100")
+                                                         (cons 'y "100")
+                                                         (cons 'width "200")
+                                                         (cons 'height "100")
+                                                         (cons 'fill "blue")))))
+                        initial-svg)
+                 ;; Function called when saving
+                 :document-writer (lambda (svg &rest _)
+                                    (pop-to-buffer "*svg output*")
+                                    (erase-buffer)
+                                    (edraw-svg-print
+                                     svg nil 'edraw-svg-print-attr-filter 0))
+                 ;; Add one item to the main menu
+                 :menu-filter (lambda (menu-type items &rest _)
+                                (pcase menu-type
+                                  ('main-menu
+                                   (append
+                                    items
+                                    `(((edraw-msg "Close") (lambda (editor) (edraw-close editor))))))
+                                  (_ items))))))
+    ;; Initialize editor
+    (edraw-initialize editor)
+    ;; Add key binding
+    (overlay-put (edraw-overlay editor)
+                 'keymap
+                 (let ((original-keymap (overlay-get (edraw-overlay editor) 'keymap))
+                       (km (make-sparse-keymap)))
+                   (set-keymap-parent km original-keymap)
+                   (define-key km (kbd "C-c C-c") (lambda () (interactive) (edraw-close (edraw-editor-at))))
+                   km))))
+#+end_src
