@@ -591,7 +591,7 @@
     ;; Remove unreferenced definitions
     (dolist (defref (edraw-svg-defrefs-defrefs defrefs))
       (when (edraw-svg-defref-empty-p defref)
-        (dom-remove-node def-node (edraw-svg-defref-def defref))))
+        (dom-remove-node defs-node (edraw-svg-defref-def defref))))
     (setcdr (edraw-svg-defrefs-head defrefs)
             (seq-remove 'edraw-svg-defref-empty-p
                         (edraw-svg-defrefs-defrefs defrefs)))
