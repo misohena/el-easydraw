@@ -1150,8 +1150,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   :abstract t)
 (cl-defmethod edraw-on-down-mouse-1 ((_tool edraw-editor-tool) _down-event))
 (cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
-(cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool) click-event))
-(cl-defmethod edraw-on-S-mouse-1 ((tool edraw-editor-tool) click-event))
+(cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-S-mouse-1 ((_tool edraw-editor-tool) _click-event))
 
 
 (cl-defmethod edraw-on-mouse-3 ((tool edraw-editor-tool) click-event)

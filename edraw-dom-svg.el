@@ -654,7 +654,7 @@
       (edraw-dom-remove-attr element
                              (intern prop-name)))))
 
-(defun edraw-svg-get-marker-property (element prop-name defrefs)
+(defun edraw-svg-get-marker-property (element prop-name _defrefs)
   (edraw-svg-defref-url-to-prop-value
    (dom-attr element (intern prop-name))))
 
