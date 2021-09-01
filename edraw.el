@@ -269,7 +269,9 @@
     ;;@todo Prevent updates when the editor is closed. closed?
     (edraw-update-image-timer-cancel editor)
     (setq image-update-timer nil)
-    (setq image (edraw-svg-to-image svg :scale 1.0))
+    (setq image (edraw-svg-to-image svg
+                                    ;;:scale 1.0 ;;Cancel image-scale
+                                    ))
     (overlay-put overlay 'display image)))
 
 ;;;;; Editor - SVG Structure
@@ -349,7 +351,9 @@
     (let ((body-g (edraw-svg-body editor))
           (fore-g (edraw-dom-get-by-id svg "edraw-ui-foreground"))
           (transform (format "scale(%s) translate(0.5 0.5)"
-                             (or scale image-scale))))
+                             (or scale
+                                 1.0;;image-scale
+                                 ))))
       (dom-set-attribute body-g 'transform transform)
       (dom-set-attribute fore-g 'transform transform))))
 
@@ -874,7 +878,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                (nth i edraw-editor-tool-list);;tool-id
                                current-tool-class-name))))
            ;; Create image
-           (image (edraw-svg-to-image svg :scale 1.0 :map image-map))
+           (image (edraw-svg-to-image svg
+                                      ;;:scale 1.0 ;;Cancel image-scale
+                                      :map image-map))
            ;; Create keymap
            (keymap
             (if edraw-editor-tool-map
@@ -893,17 +899,27 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defun edraw-editor-make-toolbar-button
     (svg x y w h image-scale icon key-id help-echo selected-p)
-  (let* ((x0 (floor (* image-scale x)))
-         (y0 (floor (* image-scale y)))
-         (x1 (ceiling (* image-scale (+ x w))))
-         (y1 (ceiling (* image-scale (+ y h)))))
-    (svg-rectangle svg x0 y0 (- x1 x0) (- y1 y0)
+  (let* ((display-scale 1.0)
+         (input-scale image-scale)
+         (x0 (floor x))
+         (y0 (floor y))
+         (x1 (ceiling (+ x w)))
+         (y1 (ceiling (+ y h))))
+    (svg-rectangle svg
+                   (* display-scale x0)
+                   (* display-scale y0)
+                   (* display-scale (- x1 x0))
+                   (* display-scale (- y1 y0))
                    :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
-    (dom-set-attribute icon 'transform (format "translate(%s %s)" x0 y0))
+    (dom-set-attribute
+     icon 'transform (format "scale(%s) translate(%s %s)" display-scale x0 y0))
     (dom-append-child svg icon)
 
     (list (cons 'rect
-                (cons (cons x0 y0) (cons x1 y1)))
+                (cons (cons (round (* input-scale x0))
+                            (round (* input-scale y0)))
+                      (cons (round (* input-scale x1))
+                            (round (* input-scale y1)))))
           key-id
           (list 'pointer 'hand
                 'help-echo help-echo))))
