@@ -75,8 +75,9 @@ Most of the key bindings are displayed in menus and help echoes.
 The key bindings that are not displayed are as follows.
 
 - left, up, right, down : Move selected object
-- S-left, S-up, S-right, S-down: Move selected object (10px)
-- M-left, M-up, M-right, M-down: Move selected object (numerical input)
+- S-left, S-up, S-right, S-down : Move selected object (10px)
+- M-left, M-up, M-right, M-down : Move selected object (numerical input)
+- Right-click on shape or anchor point : Show context menu
 
 * Emacs Lisp
 
