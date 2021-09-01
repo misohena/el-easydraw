@@ -1307,7 +1307,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
         (edraw-unselect-shape editor)
         (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
                (click-xy-snapped
-                (or (edraw-snap-text-to-back-shape-center tool click-xy)
+                (or (and snap-to-shape-center-p
+                         (edraw-snap-text-to-back-shape-center tool click-xy))
                     (edraw-snap-xy editor click-xy)))
                (shape (edraw-create-shape ;;notify modification
                        editor
