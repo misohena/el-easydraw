@@ -30,12 +30,12 @@
 
 (defconst edraw-detect-coding-system-p nil)
 
-(defun edraw-decode-coding-region (begin end)
+(defun edraw-decode-coding-region (begin end &optional coding-system)
   (decode-coding-region
    begin end
    (if edraw-detect-coding-system-p
        (detect-coding-region begin end t)
-     'utf-8)))
+     (or coding-system 'utf-8))))
 
 (defun edraw-shell-command-on-buffer (command)
   (let ((error-buffer "*edraw gzip error*"))
@@ -49,12 +49,12 @@
         (progn
           (set-buffer-multibyte nil)
           (zlib-decompress-region (point-min) (point-max))
-          (edraw-decode-coding-region (point-min) (point-max))
+          (edraw-decode-coding-region (point-min) (point-max) coding-system)
           (set-buffer-multibyte t))
       (let ((coding-system-for-read 'no-conversion)
             (coding-system-for-write 'no-conversion))
         (edraw-shell-command-on-buffer "gunzip")
-        (edraw-decode-coding-region (point-min) (point-max))))))
+        (edraw-decode-coding-region (point-min) (point-max) coding-system)))))
 
 (defun edraw-gzip-buffer (&optional coding-system)
   (let ((coding-system-for-read 'no-conversion)
