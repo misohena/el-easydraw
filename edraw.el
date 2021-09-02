@@ -96,6 +96,23 @@
   :group edraw-editor
   :type 'boolean)
 
+(defcustom edraw-editor-default-transparent-bg-visible nil
+  "non-nil means the transparent background is colored by default."
+  :group 'edraw-editor
+  :type 'boolean)
+(defcustom edraw-editor-transparent-bg-color1 "#ffffff"
+  "The first color of the transparent background."
+  :group 'edraw-editor
+  :type 'string)
+(defcustom edraw-editor-transparent-bg-color2 "#cccccc"
+  "The second color of the transparent background."
+  :group 'edraw-editor
+  :type 'string)
+(defcustom edraw-editor-transparent-bg-grid-size 8
+  "The grid interval of the transparent background."
+  :group 'edraw-editor
+  :type 'number)
+
 (defconst edraw-anchor-point-radius 3.5)
 (defconst edraw-handle-point-radius 3.0)
 (defconst edraw-anchor-point-input-radius (+ 1.0 edraw-anchor-point-radius))
@@ -121,6 +138,7 @@
     (define-key km "t" 'edraw-editor-select-tool-text)
     (define-key km "#" 'edraw-editor-toggle-grid-visible)
     (define-key km (kbd "M-#") 'edraw-editor-set-grid-interval)
+    (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
     (define-key km "ds" 'edraw-editor-set-size)
     (define-key km "db" 'edraw-editor-set-background)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
@@ -174,6 +192,8 @@
                           edraw-editor-default-grid-visible)
                     (cons 'grid-interval
                           edraw-editor-default-grid-interval)
+                    (cons 'transparent-bg-visible
+                          edraw-editor-default-transparent-bg-visible)
                     ))
    (default-shape-properties
      :initform (copy-tree edraw-default-shape-properties))
@@ -318,14 +338,33 @@
   "Allocate the elements needed for the editor to work in the svg tree."
   (with-slots (svg) editor
     ;; Document Elements
-    (edraw-initialize-svg-document editor)
-    ;; UI Elements
+    (edraw-initialize-svg-document editor) ;;set `svg'
+    ;; UI Elements (Background)
+    (edraw-ui-background-svg editor) ;;insert first
+    (edraw-ui-defs-svg editor) ;;insert first
+    (edraw-initialize-transparent-bg editor)
+    ;; UI Elements (Foreground)
     (let ((fore-g (edraw-dom-get-or-create svg 'g "edraw-ui-foreground")))
       (edraw-dom-get-or-create fore-g 'style "edraw-ui-style")
       (edraw-dom-get-or-create fore-g 'g "edraw-ui-grid"))
+
     (edraw-update-root-transform editor) ;; Document & UI
     (edraw-update-ui-style-svg editor)
     (edraw-update-grid editor)))
+
+(cl-defmethod edraw-ui-defs-svg ((editor edraw-editor))
+  (with-slots (svg) editor
+    (or (edraw-dom-get-by-id svg "edraw-ui-defs")
+        (let ((defs (dom-node 'defs (list (cons 'id "edraw-ui-defs")))))
+          (edraw-dom-insert-first svg defs)
+          defs))))
+
+(cl-defmethod edraw-ui-background-svg ((editor edraw-editor))
+  (with-slots (svg) editor
+    (or (edraw-dom-get-by-id svg "edraw-ui-background")
+        (let ((g (dom-node 'g (list (cons 'id "edraw-ui-background")))))
+          (edraw-dom-insert-first svg g)
+          g))))
 
 (cl-defmethod edraw-ui-foreground-svg ((editor edraw-editor))
   (with-slots (svg) editor
@@ -363,36 +402,45 @@
 
 (cl-defmethod edraw-update-root-transform ((editor edraw-editor))
   (with-slots (svg image-scale) editor
-    (let ((background (edraw-svg-background editor)) ;;element or nil
-          (body-g (edraw-svg-body editor))
-          (fore-g (edraw-dom-get-by-id svg "edraw-ui-foreground"))
-          (transform (format "scale(%s) translate(0.5 0.5)" image-scale)))
+    (let ((back-ui (edraw-ui-background-svg editor))
+          (background (edraw-svg-background editor)) ;;element or nil
+          (body (edraw-svg-body editor))
+          (fore-ui (edraw-ui-foreground-svg editor)))
       (when svg
         (dom-set-attribute svg 'width
                            (ceiling (* image-scale (edraw-width editor))))
         (dom-set-attribute svg 'height
                            (ceiling (* image-scale (edraw-height editor)))))
+      (when back-ui
+        (dom-set-attribute back-ui 'transform
+                           (format "scale(%s)" image-scale)))
       (when background
-        (dom-set-attribute background 'transform transform));;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
-      (when body-g
-        (dom-set-attribute body-g 'transform transform))
-      (when fore-g
-        (dom-set-attribute fore-g 'transform transform)))))
+        (dom-set-attribute background 'transform
+                           (format "scale(%s)" image-scale)));;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
+      (when body
+        (dom-set-attribute body 'transform
+                           (format "scale(%s)" image-scale)))
+      (when fore-ui
+        (dom-set-attribute fore-ui 'transform
+                           (format "scale(%s) translate(0.5 0.5)" image-scale))))))
 
 (defun edraw-editor-remove-root-transform (svg svg-document-size)
-    (let ((background (edraw-dom-get-by-id svg edraw-editor-svg-background-id))
-          (body-g (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
-          (fore-g (edraw-dom-get-by-id svg "edraw-ui-foreground")))
-      (when svg
-        (dom-set-attribute svg 'width (car svg-document-size))
-        (dom-set-attribute svg 'height (cdr svg-document-size)))
-      (when background
-        (edraw-dom-remove-attr background 'transform))
-      (when body-g
-        (edraw-dom-remove-attr body-g 'transform))
-      (when fore-g
-        (edraw-dom-remove-attr fore-g 'transform)))
-    svg)
+  (let ((back-ui (edraw-ui-background-svg editor))
+        (background (edraw-dom-get-by-id svg edraw-editor-svg-background-id))
+        (body (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
+        (fore-ui (edraw-ui-foreground-svg editor)))
+    (when svg
+      (dom-set-attribute svg 'width (car svg-document-size))
+      (dom-set-attribute svg 'height (cdr svg-document-size)))
+    (when back-ui
+      (edraw-dom-remove-attr back-ui 'transform))
+    (when background
+      (edraw-dom-remove-attr background 'transform))
+    (when body
+      (edraw-dom-remove-attr body 'transform))
+    (when fore-ui
+      (edraw-dom-remove-attr fore-ui 'transform)))
+  svg)
 
 (defun edraw-editor-remove-ui-element-from-svg (svg)
   ;;@todo remove :-edraw attributes
@@ -445,6 +493,73 @@
                   (edraw-get-setting editor 'grid-interval)))
     (edraw-update-grid editor)
     (edraw-invalidate-image editor)))
+
+;;;;; Editor - Transparent Background
+
+(cl-defmethod edraw-initialize-transparent-bg ((editor edraw-editor))
+  (dom-append-child
+   (edraw-ui-defs-svg editor)
+   (edraw-svg-ui-transparent-bg-pattern)))
+
+(cl-defmethod edraw-update-transparent-bg ((editor edraw-editor))
+  (let ((back-ui (edraw-ui-background-svg editor)))
+    (edraw-dom-remove-by-id back-ui "edraw-ui-transparent-bg")
+    (when (edraw-get-transparent-bg-visible editor)
+      (edraw-dom-insert-first
+       back-ui
+       (edraw-svg-ui-transparent-bg (edraw-width editor)
+                                    (edraw-height editor))))))
+
+(cl-defmethod edraw-get-transparent-bg-visible ((editor edraw-editor))
+  (edraw-get-setting editor 'transparent-bg-visible))
+
+(cl-defmethod edraw-set-transparent-bg-visible ((editor edraw-editor) visible)
+  (edraw-set-setting editor 'transparent-bg-visible visible)
+  (edraw-update-transparent-bg editor)
+  (edraw-invalidate-image editor)
+  visible)
+
+(edraw-editor-defcmd edraw-toggle-transparent-bg-visible)
+(cl-defmethod edraw-toggle-transparent-bg-visible ((editor edraw-editor))
+  (edraw-set-transparent-bg-visible
+   editor
+   (not (edraw-get-transparent-bg-visible editor))))
+
+(defun edraw-svg-ui-transparent-bg (width height)
+  "Create a svg element of transparent background."
+  (dom-node 'g '((id . "edraw-ui-transparent-bg"))
+            (dom-node 'rect
+                      `((x . 0) (y . 0) (width . ,width) (height . ,height)
+                        (fill . ,edraw-editor-transparent-bg-color1)
+                        (stroke . "none")))
+            (dom-node 'rect
+                      `((x . 0) (y . 0) (width . ,width) (height . ,height)
+                        (fill . "url(#edraw-ui-pattern-transparent-bg)")
+                        (stroke . "none")))))
+
+(defun edraw-svg-ui-transparent-bg-pattern ()
+  "Create a svg pattern of transparent background."
+  (dom-node 'pattern
+            `((id . "edraw-ui-pattern-transparent-bg")
+              (x . 0)
+              (y . 0)
+              (width . ,(* 2 edraw-editor-transparent-bg-grid-size))
+              (height . ,(* 2 edraw-editor-transparent-bg-grid-size))
+              (patternUnits . "userSpaceOnUse"))
+            (dom-node 'rect
+                      `((x . ,edraw-editor-transparent-bg-grid-size)
+                        (y . 0)
+                        (width . ,edraw-editor-transparent-bg-grid-size)
+                        (height . ,edraw-editor-transparent-bg-grid-size)
+                        (fill . ,edraw-editor-transparent-bg-color2)
+                        (stroke . "none")))
+            (dom-node 'rect
+                      `((x . 0)
+                        (y . ,edraw-editor-transparent-bg-grid-size)
+                        (width . ,edraw-editor-transparent-bg-grid-size)
+                        (height . ,edraw-editor-transparent-bg-grid-size)
+                        (fill . ,edraw-editor-transparent-bg-color2)
+                        (stroke . "none")))))
 
 ;;;;; Editor - Document
 
@@ -817,7 +932,8 @@
         ;;((edraw-msg "Scale...") edraw-editor-scale)
         ((edraw-msg "Clear...") edraw-editor-clear)))
       ((edraw-msg "View")
-       (;;((edraw-msg "Background") edraw-editor-toggle-background)
+       (((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
+         :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
         ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
          :button (:toggle . ,(edraw-get-grid-visible editor)))
         ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)))
