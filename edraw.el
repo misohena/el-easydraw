@@ -96,6 +96,7 @@
 (defvar edraw-editor-map
   (let ((km (make-sparse-keymap)))
     (define-key km [down-mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [double-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [mouse-3] 'edraw-editor-dispatch-event)
     (define-key km [S-down-mouse-1] 'edraw-editor-dispatch-event)
@@ -759,9 +760,9 @@
                 nil)
         (setf (alist-get (intern prop-name) (cdr (oref shape alist-head)))
               value)))))
-(cl-defmethod edraw-add-change-hook ((shape edraw-property-proxy-shape) function &rest args)
+(cl-defmethod edraw-add-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
   )
-(cl-defmethod edraw-remove-change-hook ((shape edraw-property-proxy-shape) function &rest args)
+(cl-defmethod edraw-remove-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
   )
 
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
@@ -900,6 +901,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (with-slots (tool) editor
     (when tool
       (edraw-on-mouse-1 tool down-event))))
+
+(cl-defmethod edraw-on-double-mouse-1 ((editor edraw-editor) down-event)
+  (with-slots (tool) editor
+    (when tool
+      (edraw-on-double-mouse-1 tool down-event))))
 
 (cl-defmethod edraw-on-S-mouse-1 ((editor edraw-editor) down-event)
   (with-slots (tool) editor
@@ -1253,7 +1259,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-S-mouse-1 ((_tool edraw-editor-tool) _click-event))
-
+(cl-defmethod edraw-on-double-mouse-1 ((_tool edraw-editor-tool) _click-event))
 
 (cl-defmethod edraw-on-mouse-3 ((tool edraw-editor-tool) click-event)
   (with-slots (editor) tool
@@ -1322,6 +1328,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
      ;; Unselect
      (t (edraw-unselect-shape editor)))))
+
+(cl-defmethod edraw-on-double-mouse-1 ((tool edraw-editor-tool-select)
+                                       click-event)
+  (with-slots (editor) tool
+    (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
+           (shape (car (edraw-find-shapes-by-xy editor click-xy))))
+      (when shape
+        (edraw-edit-properties shape)))))
 
 
 
