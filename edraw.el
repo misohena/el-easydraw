@@ -161,10 +161,8 @@
                     (cons 'grid-interval 20)
                     ;;(cons 'background-visible  t)
                     ))
-   ;; (stroke
-   ;;  :initform '((paint . "#888") (width . 2)))
-   ;; (fill
-   ;;  :initform '((paint . "#fff")))
+   (default-shape-properties
+     :initform (copy-tree edraw-default-shape-properties))
    (tool :initform nil :type (or null edraw-editor-tool))
    (selected-shape :initform nil :type (or null edraw-shape))
    (selected-anchor :initform nil :type (or null edraw-shape-point))
@@ -738,6 +736,56 @@
      (selected-shape
       (edraw-translate selected-shape xy)))))
 
+;;;;; Editor - Default Shape Properties
+
+(defclass edraw-property-proxy-shape ()
+  ((tag :initarg :tag)
+   (alist-head :initarg :alist-head) ;;('rect (prop . value) ...)
+   ))
+(cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
+  (edraw-svg-element-get-property-info-list-by-tag (oref shape tag)))
+(cl-defmethod edraw-get-property ((shape edraw-property-proxy-shape) prop-name)
+  (let ((value (alist-get (intern prop-name) (cdr (oref shape alist-head)))))
+    (if (numberp value)
+        (format "%s" value)
+      value)))
+(cl-defmethod edraw-set-properties ((shape edraw-property-proxy-shape) prop-list)
+  (dolist (prop prop-list)
+    (let ((prop-name (car prop))
+          (value (cdr prop)))
+      (if (null value)
+          (setf (alist-get (intern prop-name) (cdr (oref shape alist-head))
+                           nil 'remove)
+                nil)
+        (setf (alist-get (intern prop-name) (cdr (oref shape alist-head)))
+              value)))))
+(cl-defmethod edraw-add-change-hook ((shape edraw-property-proxy-shape) function &rest args)
+  )
+(cl-defmethod edraw-remove-change-hook ((shape edraw-property-proxy-shape) function &rest args)
+  )
+
+(cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
+  (with-slots (default-shape-properties) editor
+    (when-let ((alist-head (assq tag default-shape-properties)))
+      (edraw-property-editor-open
+       (edraw-property-proxy-shape :tag tag :alist-head alist-head)))))
+
+(defun edraw-editor-set-default-shape-props (&optional editor tag)
+  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+    (edraw-edit-default-shape-properties editor tag)))
+(defun edraw-editor-set-default-rect-props (&optional editor)
+  (interactive)
+  (edraw-editor-set-default-shape-props editor 'rect))
+(defun edraw-editor-set-default-ellipse-props (&optional editor)
+  (interactive)
+  (edraw-editor-set-default-shape-props editor 'ellipse))
+(defun edraw-editor-set-default-text-props (&optional editor)
+  (interactive)
+  (edraw-editor-set-default-shape-props editor 'text))
+(defun edraw-editor-set-default-path-props (&optional editor)
+  (interactive)
+  (edraw-editor-set-default-shape-props editor 'path))
+
 ;;;;; Editor - Main Menu
 
 (edraw-editor-defcmd edraw-main-menu)
@@ -759,6 +807,11 @@
         ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
          :button (:toggle . ,(edraw-get-grid-visible editor)))
         ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)))
+      ((edraw-msg "Shape's Defaults")
+       (((edraw-msg "Rect") edraw-editor-set-default-rect-props)
+        ((edraw-msg "Ellipse") edraw-editor-set-default-ellipse-props)
+        ((edraw-msg "Text") edraw-editor-set-default-text-props)
+        ((edraw-msg "Path") edraw-editor-set-default-path-props)))
       ;;((edraw-msg "Search Object") edraw-editor-search-object)
       ((edraw-msg "Save") edraw-editor-save
        :visible ,(not (null (oref editor document-writer)))
@@ -1368,12 +1421,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           (edraw-select-shape editor shape))))))
 
 (cl-defmethod edraw-snap-text-to-back-shape-center ((tool edraw-editor-tool-text) xy)
-  (with-slots (editor) tool
+  (with-slots (editor default-shape-properties) tool
     (when-let ((font-size (alist-get
                            'font-size
                            (alist-get
                             'text
-                            edraw-default-shape-properties)))
+                            default-shape-properties)))
                (shape (car (edraw-find-shapes-by-xy editor xy))))
       (when-let ((rect (ignore-errors (edraw-get-rect shape)))
                  (center (edraw-rect-center rect)))
@@ -1544,15 +1597,19 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (let* ((defrefs (oref editor defrefs))
          (shape (edraw-shape-from-element
                  (apply 'edraw-create-shape-svg-element
-                        defrefs parent tag props)
+                        defrefs
+                        (oref editor default-shape-properties)
+                        parent tag props)
                  editor)))
     (edraw-on-shape-changed shape 'shape-create)
     shape))
 
-(defun edraw-create-shape-svg-element (defrefs parent tag &rest props)
+(defun edraw-create-shape-svg-element (defrefs
+                                        default-shape-properties
+                                        parent tag &rest props)
   (let ((element (dom-node tag)))
     ;; Apply default properties
-    (let ((default-props (alist-get tag edraw-default-shape-properties)))
+    (let ((default-props (alist-get tag default-shape-properties)))
       (while default-props
         (let ((prop-name (caar default-props))
               (value (cdar default-props)))
