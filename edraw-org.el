@@ -490,7 +490,8 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
               ;; file
               (progn
                 (edraw-write-svg-to-file svg file-path file-gzip-p) ;;signal an error
-                (image-refresh (edraw-org-link-image-create link-props)))
+                (image-refresh (edraw-org-link-image-create link-props))
+                t)
             ;;data
             (setf (alist-get "data" link-props nil nil #'string=)
                   (edraw-encode-svg svg t data-gzip-p))
