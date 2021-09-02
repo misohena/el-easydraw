@@ -1760,9 +1760,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape))
   `(((edraw-msg "Select") edraw-select)
+    ((edraw-msg "Properties...") edraw-edit-properties)
     ((edraw-msg "Set")
-     (((edraw-msg "Properties...") edraw-edit-properties)
-      ((edraw-msg "Fill...") edraw-input-fill)
+     (((edraw-msg "Fill...") edraw-input-fill)
       ((edraw-msg "Stroke...") edraw-input-stroke)))
     ((edraw-msg "Z-Order")
      (((edraw-msg "Bring to Front") edraw-bring-to-front
