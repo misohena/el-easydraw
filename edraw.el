@@ -2545,23 +2545,31 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (require 'widget)
 (require 'wid-edit)
 
+(defgroup edraw-faces nil
+  "Faces used by edraw"
+  :prefix "edraw-"
+  :group 'faces)
+
 (defface edraw-widget-button
   '((((type x w32 ns) (class color))
      :box (:line-width 2 :style released-button)
      :background "lightgrey" :foreground "black"))
-  "")
+  "Widget button face."
+  :group 'edraw-faces)
 (defface edraw-widget-button-mouse
   '((((type x w32 ns) (class color))
      :box (:line-width 2 :style released-button)
      :background "grey90" :foreground "black")
     (t :inverse-video t))
-  "")
+  "Widget button mouse face."
+  :group 'edraw-faces)
 (defface edraw-widget-button-pressed
   '((((type x w32 ns) (class color))
      :box (:line-width 2 :style pressed-button)
      :background "lightgrey" :foreground "black")
     (t :inverse-video t))
-  "")
+  "Widget button pressed face."
+  :group 'edraw-faces)
 
 (defvar edraw-property-editor-buffer-name "*Easy Draw Properties*")
 
