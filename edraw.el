@@ -298,6 +298,10 @@
 ;; </svg>
 ;; ;; elements #edraw-ui-* are removed on save
 
+(defconst edraw-editor-svg-defs-id "edraw-defs")
+(defconst edraw-editor-svg-background-id "edraw-background")
+(defconst edraw-editor-svg-body-id "edraw-body")
+
 (cl-defmethod edraw-initialize-svg ((editor edraw-editor))
   "Allocate the elements needed for the editor to work in the svg tree."
   (with-slots (svg) editor
@@ -444,17 +448,15 @@
                                   (edraw-svg-attr-length svg 'height)))
 
     ;; #edraw-defs
-    (if-let ((defs-element (edraw-dom-get-by-id svg "edraw-defs")))
+    (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
         (setq defrefs (edraw-svg-defrefs-from-dom
                        defs-element (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
-      (setq defrefs (edraw-svg-defs-as-defrefs "edraw-defs"))
+      (setq defrefs (edraw-svg-defs-as-defrefs edraw-editor-svg-defs-id))
       (edraw-dom-insert-first svg
                               (edraw-svg-defrefs-defs defrefs)))
 
     ;; #edraw-body
     (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)))
-
-(defconst edraw-editor-svg-background-id "edraw-background")
 
 (defun edraw-create-document-svg ()
   (let* ((width (alist-get 'width edraw-default-document-properties))
@@ -467,8 +469,6 @@
                      :stroke "none"
                      :fill background))
     svg))
-
-(defconst edraw-editor-svg-body-id "edraw-body")
 
 (cl-defmethod edraw-svg-body ((editor edraw-editor))
   (edraw-dom-get-by-id (oref editor svg) edraw-editor-svg-body-id))
@@ -502,7 +502,7 @@
         (dom-set-attribute out-svg 'xmlns "http://www.w3.org/2000/svg")
         ;;(dom-set-attribute out-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
         ;; Remove empty defs
-        (when-let ((defs (car (dom-by-id out-svg "\\`edraw-defs\\'"))))
+        (when-let ((defs (edraw-dom-get-by-id out-svg edraw-editor-svg-defs-id)))
           (when (null (dom-children defs))
             (dom-remove-node out-svg defs)))
         (prog1
