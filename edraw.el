@@ -425,10 +425,10 @@
                            (format "scale(%s) translate(0.5 0.5)" image-scale))))))
 
 (defun edraw-editor-remove-root-transform (svg svg-document-size)
-  (let ((back-ui (edraw-ui-background-svg editor))
+  (let ((back-ui (edraw-dom-get-by-id svg "edraw-ui-background")) ;;Do not use (edraw-ui-background-svg editor)
         (background (edraw-dom-get-by-id svg edraw-editor-svg-background-id))
         (body (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
-        (fore-ui (edraw-ui-foreground-svg editor)))
+        (fore-ui (edraw-dom-get-by-id svg "edraw-ui-foreground"))) ;;Do not use (edraw-ui-foreground-svg editor)
     (when svg
       (dom-set-attribute svg 'width (car svg-document-size))
       (dom-set-attribute svg 'height (cdr svg-document-size)))
