@@ -668,7 +668,11 @@
     (when (and value
                (stringp value)
                (not (string= value "none")))
-      (edraw-svg-set-marker-property element prop-name value defrefs))))
+      (edraw-svg-set-marker-property
+       element
+       prop-name
+       (edraw-svg-defref-url-to-prop-value value)
+       defrefs))))
 
 
 
