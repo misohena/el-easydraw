@@ -877,7 +877,8 @@ If there is a handle point for the previous anchor point, it will be transferred
 (defmacro edraw-path-point-type (ppoint) `(aref ,ppoint 0))
 (defmacro edraw-path-point-cmd (ppoint) `(aref ,ppoint 1))
 (defmacro edraw-path-point-arg-index (ppoint) `(aref ,ppoint 2))
-(defmacro edraw-path-point-xy (ppoint) `(aref ,ppoint 3))
+;;(defmacro edraw-path-point-xy (ppoint) `(aref ,ppoint 3))
+(defun edraw-path-point-xy (ppoint) (aref ppoint 3))
 
 (defun edraw-path-point-transfer (ppoint cmd arg-index)
   "Change the related command of PPOINT to CMD.
