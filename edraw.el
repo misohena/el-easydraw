@@ -93,7 +93,7 @@
 
 (defcustom edraw-editor-default-grid-visible t
   "non-nil means grid lines are displayed by default."
-  :group edraw-editor
+  :group 'edraw-editor
   :type 'boolean)
 
 (defcustom edraw-editor-default-transparent-bg-visible nil
