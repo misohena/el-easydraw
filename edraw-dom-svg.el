@@ -612,11 +612,13 @@
                  (refX . "5")
                  (refY . "5")
                  (orient . "auto")
-                 ,@(when-let ((stroke (dom-attr element 'stroke)))
-                     (unless (equal stroke "none")
+                 (fill .
                        ;; @todo I want to use context-stroke and remove edraw-svg-update-marker-properties
                        ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
-                       (list (cons 'fill stroke)))))
+                       ,(let ((stroke (dom-attr element 'stroke)))
+                          (if (or (null stroke) (equal stroke "none"))
+                              "none" ;;stroke may change later
+                            stroke))))
                (dom-node 'path
                          ;; @todo I want to use auto-start-reverse
                          ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
@@ -630,11 +632,13 @@
                  (viewBox . "0 0 10 10")
                  (refX . "5")
                  (refY . "5")
-                 ,@(when-let ((stroke (dom-attr element 'stroke)))
-                     (unless (equal stroke "none")
+                 (fill .
                        ;; @todo I want to use context-stroke
                        ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
-                       (list (cons 'fill stroke)))))
+                       ,(let ((stroke (dom-attr element 'stroke)))
+                          (if (or (null stroke) (equal stroke "none"))
+                              "none" ;;stroke may change later
+                            stroke))))
                (dom-node 'circle
                          `((cx . "5") (cy . "5") (r . "4")))))))
 
