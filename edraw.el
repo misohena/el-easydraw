@@ -56,6 +56,11 @@
 
 ;;;;; Editor - Variables
 
+(defgroup edraw-editor nil
+  "Emacs Easy Draw Editor"
+  :prefix "edraw-editor-"
+  :group 'multimedia)
+
 (defvar edraw-default-document-properties
   '((width . 560)
     (height . 420)
@@ -80,9 +85,16 @@
      (font-size . 18)
      (text-anchor . "middle")
      (fill . "#222"))))
-(defvar edraw-default-grid-interval 20)
-(defvar edraw-default-grid-visible t)
-;;(defvar edraw-default-background-view t) ;;nil t mat color
+
+(defcustom edraw-editor-default-grid-interval 20
+  "The interval of grid lines."
+  :group 'edraw-editor
+  :type 'number)
+
+(defcustom edraw-editor-default-grid-visible t
+  "non-nil means grid lines are displayed by default."
+  :group edraw-editor
+  :type 'boolean)
 
 (defconst edraw-anchor-point-radius 3.5)
 (defconst edraw-handle-point-radius 3.0)
@@ -158,9 +170,10 @@
    (image)
    (image-update-timer :initform nil)
    (settings
-    :initform (list (cons 'grid-visible t)
-                    (cons 'grid-interval 20)
-                    ;;(cons 'background-visible  t)
+    :initform (list (cons 'grid-visible
+                          edraw-editor-default-grid-visible)
+                    (cons 'grid-interval
+                          edraw-editor-default-grid-interval)
                     ))
    (default-shape-properties
      :initform (copy-tree edraw-default-shape-properties))
