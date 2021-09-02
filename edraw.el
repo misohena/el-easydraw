@@ -146,6 +146,7 @@
 (defclass edraw-editor ()
   ((overlay :initarg :overlay :initform nil :reader edraw-overlay)
    (svg :initarg :svg :initform nil)
+   (svg-document-size)
    (defrefs)
    (document-writer :initarg :document-writer :initform nil)
    (menu-filter :initarg :menu-filter :initform nil)
@@ -270,8 +271,7 @@
     (edraw-update-image-timer-cancel editor)
     (setq image-update-timer nil)
     (setq image (edraw-svg-to-image svg
-                                    ;;:scale 1.0 ;;Cancel image-scale
-                                    ))
+                                    :scale 1.0)) ;;Cancel image-scale effect
     (overlay-put overlay 'display image)))
 
 ;;;;; Editor - SVG Structure
@@ -345,22 +345,43 @@
       (edraw-dom-remove-all-children style)
       (dom-append-child style edraw-editor-ui-style))))
 
-(cl-defmethod edraw-update-root-transform ((editor edraw-editor)
-                                           &optional scale)
+(cl-defmethod edraw-update-root-transform ((editor edraw-editor))
   (with-slots (svg image-scale) editor
-    (let ((body-g (edraw-svg-body editor))
+    (let ((background (edraw-svg-background editor)) ;;element or nil
+          (body-g (edraw-svg-body editor))
           (fore-g (edraw-dom-get-by-id svg "edraw-ui-foreground"))
-          (transform (format "scale(%s) translate(0.5 0.5)"
-                             (or scale
-                                 1.0;;image-scale
-                                 ))))
-      (dom-set-attribute body-g 'transform transform)
-      (dom-set-attribute fore-g 'transform transform))))
+          (transform (format "scale(%s) translate(0.5 0.5)" image-scale)))
+      (when svg
+        (dom-set-attribute svg 'width
+                           (ceiling (* image-scale (edraw-width editor))))
+        (dom-set-attribute svg 'height
+                           (ceiling (* image-scale (edraw-height editor)))))
+      (when background
+        (dom-set-attribute background 'transform transform));;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
+      (when body-g
+        (dom-set-attribute body-g 'transform transform))
+      (when fore-g
+        (dom-set-attribute fore-g 'transform transform)))))
+
+(defun edraw-editor-remove-root-transform (svg svg-document-size)
+    (let ((background (edraw-dom-get-by-id svg edraw-editor-svg-background-id))
+          (body-g (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
+          (fore-g (edraw-dom-get-by-id svg "edraw-ui-foreground")))
+      (when svg
+        (dom-set-attribute svg 'width (car svg-document-size))
+        (dom-set-attribute svg 'height (cdr svg-document-size)))
+      (when background
+        (edraw-dom-remove-attr background 'transform))
+      (when body-g
+        (edraw-dom-remove-attr body-g 'transform))
+      (when fore-g
+        (edraw-dom-remove-attr fore-g 'transform)))
+    svg)
 
 (defun edraw-editor-remove-ui-element-from-svg (svg)
   ;;@todo remove :-edraw attributes
   (let ((svg (copy-tree svg)))
-    (when-let ((body (edraw-dom-get-by-id svg "edraw-body")))
+    (when-let ((body (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
       (edraw-dom-remove-attr body 'transform))
 
     (dolist (elem (dom-by-id svg "^edraw-ui-"))
@@ -414,18 +435,24 @@
 ;; SVG
 
 (cl-defmethod edraw-initialize-svg-document ((editor edraw-editor))
-  (with-slots (svg defrefs) editor
+  (with-slots (svg svg-document-size defrefs) editor
     (when (null svg)
       (setq svg (edraw-create-document-svg)))
 
+    ;; Backup SVG Size
+    (setq svg-document-size (cons (edraw-svg-attr-length svg 'width)
+                                  (edraw-svg-attr-length svg 'height)))
+
+    ;; #edraw-defs
     (if-let ((defs-element (edraw-dom-get-by-id svg "edraw-defs")))
         (setq defrefs (edraw-svg-defrefs-from-dom
-                       defs-element (edraw-dom-get-by-id svg "edraw-body")))
+                       defs-element (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
       (setq defrefs (edraw-svg-defs-as-defrefs "edraw-defs"))
       (edraw-dom-insert-first svg
                               (edraw-svg-defrefs-defs defrefs)))
 
-    (edraw-dom-get-or-create svg 'g "edraw-body")))
+    ;; #edraw-body
+    (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)))
 
 (defconst edraw-editor-svg-background-id "edraw-background")
 
@@ -434,14 +461,17 @@
          (height (alist-get 'height edraw-default-document-properties))
          (background (alist-get 'background edraw-default-document-properties))
          (svg (svg-create width height)))
-    (svg-rectangle svg 0 0 width height
-                   :id edraw-editor-svg-background-id
-                   :stroke "none"
-                   :fill background)
+    (when (and background (not (equal background "none")))
+      (svg-rectangle svg 0 0 width height
+                     :id edraw-editor-svg-background-id
+                     :stroke "none"
+                     :fill background))
     svg))
 
+(defconst edraw-editor-svg-body-id "edraw-body")
+
 (cl-defmethod edraw-svg-body ((editor edraw-editor))
-  (edraw-dom-get-by-id (oref editor svg) "edraw-body"))
+  (edraw-dom-get-by-id (oref editor svg) edraw-editor-svg-body-id))
 
 ;; Modification
 
@@ -463,10 +493,11 @@
 
 (edraw-editor-defcmd edraw-save)
 (cl-defmethod edraw-save ((editor edraw-editor))
-  (with-slots (document-writer svg) editor
+  (with-slots (document-writer svg svg-document-size) editor
     (when (and document-writer
                (edraw-modified-p editor))
       (let ((out-svg (edraw-editor-remove-ui-element-from-svg svg)))
+        (edraw-editor-remove-root-transform out-svg svg-document-size)
         ;; Add xmlns
         (dom-set-attribute out-svg 'xmlns "http://www.w3.org/2000/svg")
         ;;(dom-set-attribute out-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
@@ -505,20 +536,16 @@
 ;;;;; Editor - Document - Size
 
 (cl-defmethod edraw-width ((editor edraw-editor))
-  (with-slots (svg) editor
-    (let ((value (edraw-svg-attr-length svg 'width)))
-      (if (stringp value) (string-to-number value) value))))
+  (car (oref editor svg-document-size)))
 
 (cl-defmethod edraw-height ((editor edraw-editor))
-  (with-slots (svg) editor
-    (let ((value (edraw-svg-attr-length svg 'height)))
-      (if (stringp value) (string-to-number value) value))))
+  (cdr (oref editor svg-document-size)))
 
 (cl-defmethod edraw-set-size ((editor edraw-editor) width height)
-  (with-slots (svg) editor
-    (dom-set-attribute svg 'width width)
-    (dom-set-attribute svg 'height height)
+  (with-slots (svg-document-size) editor
+    (setq svg-document-size (cons width height))
     (edraw-update-background editor)
+    (edraw-update-root-transform editor) ;;update <svg width= height=>
     (edraw-update-grid editor)
     (edraw-on-document-changed editor 'document-size)))
 
@@ -557,7 +584,9 @@
          (dom-node 'rect (list (cons 'fill fill)
                                (cons 'id edraw-editor-svg-background-id)))
          (edraw-svg-body editor))
-        (edraw-update-background editor)))
+        (edraw-update-background editor)
+        (edraw-update-root-transform editor) ;;update <rect transform=>
+        ))
     (edraw-on-document-changed editor 'document-background)))
 
 (defun edraw-editor-set-background (&optional editor)
@@ -846,11 +875,17 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            (num-tools (length edraw-editor-tool-list))
            (bar-h (+ tool-t (* step-y num-tools)))
            ;; Create SVG Root Element
-           (svg (let ((svg (svg-create bar-w bar-h)))
+           (root-g (dom-node
+                    'g
+                    (list (cons 'transform
+                                (format "scale(%s)" image-scale)))))
+           (svg (let ((svg (svg-create (round (* image-scale bar-w))
+                                       (round (* image-scale bar-h)))))
+                  (dom-append-child svg root-g)
                   (svg-gradient svg "icon-fg-gradient" 'linear
                                 '((0 . "rgba(255,255,255,0.5)")
                                   (100 . "rgba(255,255,255,0.0)")))
-                  (svg-rectangle svg 0 0 bar-w bar-h :fill "#888")
+                  (svg-rectangle root-g 0 0 bar-w bar-h :fill "#888")
                   svg))
            ;; Put buttons
            (current-tool-class-name
@@ -860,7 +895,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
              ;; main menu button
              (list
               (edraw-editor-make-toolbar-button
-               svg
+               root-g
                icon-l icon-t
                icon-w icon-h image-scale
                (edraw-editor-make-icon 'main-menu)
@@ -872,14 +907,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
              ;; tool buttons
              (cl-loop for i from 0 to (1- num-tools)
                       collect (edraw-editor-make-tool-button
-                               svg
+                               root-g
                                icon-l (+ tool-t icon-t (* i step-y))
                                icon-w icon-h image-scale
                                (nth i edraw-editor-tool-list);;tool-id
                                current-tool-class-name))))
            ;; Create image
            (image (edraw-svg-to-image svg
-                                      ;;:scale 1.0 ;;Cancel image-scale
+                                      :scale 1.0 ;;Cancel image-scale effect
                                       :map image-map))
            ;; Create keymap
            (keymap
@@ -898,36 +933,33 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                               'keymap keymap)))))
 
 (defun edraw-editor-make-toolbar-button
-    (svg x y w h image-scale icon key-id help-echo selected-p)
-  (let* ((display-scale 1.0)
-         (input-scale image-scale)
-         (x0 (floor x))
+    (parent x y w h image-scale icon key-id help-echo selected-p)
+  (let* ((x0 (floor x))
          (y0 (floor y))
          (x1 (ceiling (+ x w)))
          (y1 (ceiling (+ y h))))
-    (svg-rectangle svg
-                   (* display-scale x0)
-                   (* display-scale y0)
-                   (* display-scale (- x1 x0))
-                   (* display-scale (- y1 y0))
+    (svg-rectangle parent
+                   x0
+                   y0
+                   (- x1 x0)
+                   (- y1 y0)
                    :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
-    (dom-set-attribute
-     icon 'transform (format "scale(%s) translate(%s %s)" display-scale x0 y0))
-    (dom-append-child svg icon)
+    (dom-set-attribute icon 'transform (format "translate(%s %s)" x0 y0))
+    (dom-append-child parent icon)
 
     (list (cons 'rect
-                (cons (cons (round (* input-scale x0))
-                            (round (* input-scale y0)))
-                      (cons (round (* input-scale x1))
-                            (round (* input-scale y1)))))
+                (cons (cons (round (* image-scale x0))
+                            (round (* image-scale y0)))
+                      (cons (round (* image-scale x1))
+                            (round (* image-scale y1)))))
           key-id
           (list 'pointer 'hand
                 'help-echo help-echo))))
 
 (defun edraw-editor-make-tool-button
-    (svg x y w h image-scale tool-id selected-class-name)
+    (parent x y w h image-scale tool-id selected-class-name)
   (edraw-editor-make-toolbar-button
-   svg x y w h image-scale
+   parent x y w h image-scale
    (edraw-editor-make-tool-icon tool-id)
    (edraw-editor-make-tool-key-id tool-id)
    (edraw-editor-make-tool-help-echo tool-id)
