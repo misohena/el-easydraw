@@ -2488,6 +2488,24 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (require 'widget)
 (require 'wid-edit)
 
+(defface edraw-widget-button
+  '((((type x w32 ns) (class color))
+     :box (:line-width 2 :style released-button)
+     :background "lightgrey" :foreground "black"))
+  "")
+(defface edraw-widget-button-mouse
+  '((((type x w32 ns) (class color))
+     :box (:line-width 2 :style released-button)
+     :background "grey90" :foreground "black")
+    (t :inverse-video t))
+  "")
+(defface edraw-widget-button-pressed
+  '((((type x w32 ns) (class color))
+     :box (:line-width 2 :style pressed-button)
+     :background "lightgrey" :foreground "black")
+    (t :inverse-video t))
+  "")
+
 (defvar edraw-property-editor-buffer-name "*Easy Draw Properties*")
 
 (defvar edraw-property-editor-field-map
@@ -2537,19 +2555,25 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (remove-overlays)
     (use-local-map edraw-property-editor-local-map)
 
+    (setq-local widget-push-button-prefix "")
+    (setq-local widget-push-button-suffix "")
+    (setq-local widget-link-prefix "")
+    (setq-local widget-link-suffix "")
+    (setq-local widget-button-face 'edraw-widget-button)
+    (setq-local widget-button-pressed-face 'edraw-widget-button-pressed)
+    (setq-local widget-mouse-face 'edraw-widget-button-mouse)
+
     (widget-insert (edraw-msg "Properties") "\n")
 
     (edraw-insert-property-widgets pedit)
 
+    (widget-insert (make-string 2 ? ))
     (widget-create 'push-button :notify 'edraw-property-editor--apply
                    (edraw-msg "Apply"))
     (widget-insert " ")
     (widget-create 'push-button :notify 'edraw-property-editor--close
                    (edraw-msg "Close"))
-    (widget-insert (format (substitute-command-keys
-                            "   \\[edraw-property-editor--apply]: %s  \\[edraw-property-editor--close]: %s\n")
-                           (edraw-msg "Apply")
-                           (edraw-msg "Close")))
+    (widget-insert "\n")
     (widget-insert "\n")
 
     (widget-setup)
@@ -2562,7 +2586,13 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
         (fit-window-to-buffer nil max-height)
         (enlarge-window 1)))
 
-    (edraw-initialize-hooks pedit)))
+    (edraw-initialize-hooks pedit)
+
+    (message
+     (format (substitute-command-keys
+              "\\[edraw-property-editor--apply]: %s  \\[edraw-property-editor--close]: %s")
+             (edraw-msg "Apply")
+             (edraw-msg "Close")))))
 
 (cl-defmethod edraw-insert-property-widgets ((pedit edraw-property-editor))
   (with-slots (target widgets) pedit
@@ -2608,7 +2638,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (apply
      #'widget-create
      `(menu-choice
-       :format ,(format "%s: %%[[%s]%%] %%v" prop-name (edraw-msg "Choose"))
+       :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
        :value ,(edraw-prop-value-to-widget-value pedit prop-value prop-type)
        ,@(mapcar
           (lambda (item)
