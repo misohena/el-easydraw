@@ -1944,9 +1944,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-input-property-paint ((shape edraw-shape) prop-name)
   (let* ((curr-value (or (edraw-get-property shape prop-name) ""))
-         (new-value (read-string
-                     (format "%s (default %s): " prop-name curr-value)
-                     nil nil curr-value)))
+         (new-value (edraw-color-picker-read-color
+                     (format "%s: " prop-name curr-value)
+                     curr-value
+                     '("" "none")
+                     `((:color-name-scheme . 'web)))))
     (when (not (string= new-value curr-value))
       (edraw-set-properties
        shape
@@ -2832,6 +2834,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (`(or . ,_)
      (edraw-create-menu-choice-widget
       pedit prop-name prop-value prop-type prop-required))
+    ('paint
+     (edraw-create-paint-widget
+      pedit prop-name prop-value prop-type))
     (_
      (edraw-create-text-field-widget
       pedit prop-name prop-value prop-type))))
@@ -2867,6 +2872,29 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        :format (format "%s: %%v" prop-name)
        :value (edraw-prop-value-to-widget-value pedit prop-value prop-type))
     (widget-insert "\n")))
+
+(cl-defmethod edraw-create-paint-widget ((pedit edraw-property-editor)
+                                         prop-name prop-value prop-type)
+  (let (editable-field)
+    (widget-insert prop-name ": ")
+    (setq editable-field
+          (widget-create
+           'editable-field
+           :keymap edraw-property-editor-field-map
+           :size 13
+           :format (format "%%v" prop-name)
+           :value (edraw-prop-value-to-widget-value
+                   pedit prop-value prop-type)))
+    (widget-create
+     'push-button :notify
+     (lambda (&rest _ignore)
+       (widget-value-set
+        editable-field
+        (edraw-color-picker-read-color
+         nil (widget-value editable-field) t `((:color-name-scheme . 'web)))))
+     (edraw-msg "Color"))
+    (widget-insert "\n")
+    editable-field))
 
 (cl-defmethod edraw-prop-value-to-widget-value ((_pedit edraw-property-editor)
                                                 prop-value prop-type)
