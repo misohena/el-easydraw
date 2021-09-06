@@ -1231,12 +1231,9 @@ OVERLAY uses the display property to display the color PICKER."
                                       prompt initial-color allow-empty options)
   "Read a color from minibuffer or color picker."
   (interactive)
-  (let* ((overlay-br (let ((ov (make-overlay (point) (point) nil t nil)))
-                       (delete-overlay ov)
-                       (overlay-put ov 'before-string "\n")
-                       ov))
-         (overlay (let ((ov (make-overlay (point) (point) nil t nil)))
+  (let* ((overlay (let ((ov (make-overlay (point) (point) nil t nil)))
                     (delete-overlay ov)
+                    (overlay-put ov 'after-string "\n")
                     ov))
          (picker (edraw-color-picker-overlay
                   overlay 'before-string initial-color options))
@@ -1254,7 +1251,6 @@ OVERLAY uses the display property to display the color PICKER."
             (unless buffer
               (setq buffer (current-buffer))
               (move-overlay overlay (point-min) (point-min) buffer)
-              (move-overlay overlay-br (point-min) (point-min) buffer)
               (add-hook 'post-command-hook on-post-command nil t))))
          (minibuffer-setup-hook (cons on-minibuffer-setup
                                       minibuffer-setup-hook))
@@ -1298,7 +1294,6 @@ OVERLAY uses the display property to display the color PICKER."
         (let* ((max-mini-window-height 1.0)
                result)
           (while (null result)
-            (message "AA")
             (let ((input
                    (read-string
                     (or prompt
@@ -1315,13 +1310,11 @@ OVERLAY uses the display property to display the color PICKER."
                              (string-empty-p input))
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
-          (message "BB")
           (unless (string-empty-p result)
             (edraw-color-picker-add-to-recent-colors result))
           result)
       (edraw-close picker)
-      (delete-overlay overlay)
-      (delete-overlay overlay-br))))
+      (delete-overlay overlay))))
 
 
 ;;;; Color Utility
