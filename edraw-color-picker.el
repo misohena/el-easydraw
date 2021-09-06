@@ -1227,9 +1227,14 @@ OVERLAY uses the display property to display the color PICKER."
   t)
 
 (defun edraw-color-picker-read-color (&optional
-                                      prompt initial-color allow-empty options)
+                                      prompt initial-color
+                                      allow-strings options)
   "Read a color from minibuffer or color picker."
   (interactive)
+
+  (when (eq allow-strings t)
+    (setq allow-strings '(""))) ;;allow-empty
+
   (let* ((overlay (let ((ov (make-overlay (point) (point) nil t nil)))
                     (delete-overlay ov)
                     (overlay-put ov 'after-string "\n")
@@ -1290,27 +1295,44 @@ OVERLAY uses the display property to display the color PICKER."
     (edraw-add-hook picker 'color-change on-color-change)
 
     (unwind-protect
-        (let* ((max-mini-window-height 1.0)
-               result)
+        (let ((max-mini-window-height 1.0)
+              (actual-prompt
+               (or prompt
+                   (format
+                    "Color (%s name or %s%s): "
+                    (alist-get :color-name-scheme options 'emacs)
+                    (if (alist-get 'enable-opacity options t)
+                        "#RGBA" "#RGB")
+                    (if allow-strings
+                        (concat
+                         " or "
+                         (mapconcat
+                          (lambda (s) (if (string-empty-p s) "empty" s))
+                          allow-strings
+                          " or "))
+                      ""))))
+              (initial-input
+               (cond
+                ((cl-typep initial-color 'edraw-color)
+                 (edraw-color-picker-color-to-string initial-color
+                                                     options))
+                ((stringp initial-color)
+                 initial-color)
+                (t
+                 (edraw-color-picker-color-to-string
+                  (edraw-get-current-color picker) options))))
+              (result nil))
           (while (null result)
             (let ((input
-                   (read-string
-                    (or prompt
-                        (format
-                         "Color (%s name or %s%s): "
-                         (alist-get :color-name-scheme options 'emacs)
-                         (if (alist-get 'enable-opacity options t)
-                             "#RGBA" "#RGB")
-                         (if allow-empty " or empty" "")))
-                    (edraw-color-picker-color-to-string
-                     (edraw-get-current-color picker) options))))
-              (setq buffer nil)
-              (when (or (and allow-empty
-                             (string-empty-p input))
+                   (read-string actual-prompt initial-input)))
+              (setq buffer nil) ;;minibuffer is killed
+              (when (or (member input allow-strings)
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
-          (unless (string-empty-p result)
-            (edraw-color-picker-add-to-recent-colors result))
+          (when-let ((result-color
+                      (edraw-color-picker-color-from-string result options)))
+            ;; Avoid color name
+            (edraw-color-picker-add-to-recent-colors result-color))
           result)
       (edraw-close picker)
       (delete-overlay overlay))))
