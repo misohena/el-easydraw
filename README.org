@@ -130,3 +130,29 @@ The following code is an example of inserting an editor into a buffer from Emacs
                    (define-key km (kbd "C-c C-c") (lambda () (interactive) (edraw-close (edraw-editor-at))))
                    km))))
 #+end_src
+
+* Color Picker
+
+edraw-color-picker.el contains a color picker library and some commands.
+
+Show color picker in minibuffer:
+- (edraw-color-picker-read-color)
+
+Insert the selected color into the buffer:
+- (edraw-color-picker-insert-color)
+- (edraw-color-picker-replace-color-at-point)
+
+A function that opens a color picker near the point:
+- edraw-color-picker-open-near-point
+
+A function that displays a color picker using an overlay:
+- edraw-color-picker-overlay
+
+The core class of the color picker:
+- edraw-color-picker
+
+#+CAPTION: Show color picker in minibuffer
+[[file:./screenshot/color-picker-minibuffer.png]]
+
+#+CAPTION: Show color picker inline
+[[file:./screenshot/color-picker-inline.png]]
