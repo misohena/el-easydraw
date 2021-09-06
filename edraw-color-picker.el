@@ -909,9 +909,10 @@
 
 (cl-defmethod edraw-initialize ((picker edraw-color-picker)
                                 &optional options)
-  (let* ((model (edraw-color-picker-model-create
-                 (edraw-color-ensure
-                  (oref picker initial-color))))
+  (let* ((initial-color (edraw-color-picker-ensure-color
+                         (oref picker initial-color)
+                         options))
+         (model (edraw-color-picker-model-create initial-color))
          (padding 16)
          (padding-top 16)
          (padding-bottom 12)
@@ -944,6 +945,7 @@
                 (edraw-color-picker-areas-create-element areas))))
     (dom-append-child svg body)
 
+    (oset picker initial-color initial-color)
     (oset picker model model)
     (oset picker svg svg)
     (oset picker areas areas)
@@ -1028,10 +1030,7 @@ Specify one of 'display, 'before-string, or 'after-string."
                    :target-property (or target-property 'display)
                    :keymap (make-sparse-keymap)))
          (picker (edraw-color-picker
-                  :initial-color (edraw-color-ensure
-                                  (or initial-color
-                                      (car edraw-color-picker-recent-colors)
-                                      "#ff0000ff"))
+                  :initial-color initial-color
                   :display display)))
     (edraw-initialize display picker)
     (edraw-initialize picker options)
@@ -1357,6 +1356,12 @@ Valid options are:
           color
         nil))))
 
+(defun edraw-color-picker-ensure-color (obj options)
+  (if (cl-typep obj 'edraw-color)
+      obj
+    (or (if (stringp obj) (edraw-color-picker-color-from-string obj options))
+        (edraw-color-ensure (car edraw-color-picker-recent-colors))
+        (edraw-color-f 1 0 0 1))))
 
 
 (provide 'edraw-color-picker)

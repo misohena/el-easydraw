@@ -35,8 +35,12 @@
 (defun edraw-color-ensure (color)
   (cond
    ((cl-typep color 'edraw-color) color)
-   ((stringp color) (edraw-color-from-string color))
-   (t (error "Invalid color %s" color))))
+   ((stringp color)
+    (let ((result (edraw-color-from-string color)))
+      (unless result
+        (error "Invalid color `%s'" color))
+      result))
+   (t (error "Invalid color `%s'" color))))
 
 (defun edraw-color-rgb (r g b &optional a)
   (edraw-color
