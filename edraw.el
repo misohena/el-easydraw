@@ -1293,7 +1293,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                        (edraw-get-handle-points selected-anchor)
                        down-xy edraw-handle-point-input-radius))))
     (when handle
-      (edraw-editor-track-dragging
+      (edraw-track-dragging
        down-event
        (lambda (move-event)
          (setq moved-p t)
@@ -1319,7 +1319,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                        selected-shape
                        down-xy edraw-anchor-point-input-radius))))
     (when anchor
-      (edraw-editor-track-dragging
+      (edraw-track-dragging
        down-event
        (lambda (move-event)
          (setq moved-p t)
@@ -1345,7 +1345,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-select-shape editor shape)
 
       (let ((last-xy down-xy-snapped))
-        (edraw-editor-track-dragging
+        (edraw-track-dragging
          down-event
          (lambda (move-event)
            (setq moved-p t)
@@ -1488,7 +1488,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    'width 0
                    'height 0)))
 
-      (edraw-editor-track-dragging
+      (edraw-track-dragging
        down-event
        (lambda (move-event)
          (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
@@ -1519,7 +1519,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    'cx (car down-xy)
                    'cy (cdr down-xy))))
 
-      (edraw-editor-track-dragging
+      (edraw-track-dragging
        down-event
        (lambda (move-event)
          (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
@@ -1609,7 +1609,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           ;; Drag
           (let ((anchor-xy (edraw-get-xy anchor))
                 dragging-point)
-            (edraw-editor-track-dragging
+            (edraw-track-dragging
              down-event
              (lambda (move-event)
                (setq moved-p t)
@@ -1671,7 +1671,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           (edraw-select-anchor editor anchor-point)
 
           ;; Drag handle points of the new point
-          (edraw-editor-track-dragging
+          (edraw-track-dragging
            down-event
            (lambda (move-event)
              (let* ((move-xy
@@ -3007,108 +3007,6 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (when update-timer
       (cancel-timer update-timer)
       (setq update-timer nil))))
-
-
-
-;;;; Emacs UI Utility
-
-;;
-;;
-
-(defun edraw-editor-track-dragging (down-event on-move
-                                               &optional on-up on-leave)
-  (if (not (memq 'down (event-modifiers down-event)))
-      (error "down-event is not down event. %s" (event-modifiers down-event)))
-  (let* ((down-basic-type (event-basic-type down-event))
-         (down-position (event-start down-event))
-         (target-window (posn-window down-position))
-         (target-point (posn-point down-position))
-         (target-object (posn-object down-position)))
-
-    (track-mouse
-      (let (result)
-        (while (null result)
-          (let ((event (read-event)))
-            (cond
-             ;; mouse move
-             ((mouse-movement-p event)
-              ;; check same object
-              (if (and (eq (posn-window (event-start event))
-                           target-window)
-                       (= (posn-point (event-start event))
-                          target-point)
-                       (eq (car (posn-object (event-start event))) ;;ex: 'image
-                           (car target-object))) ;;ex: 'image
-                  (if on-move (funcall on-move event))
-                ;; out of target
-                (if on-up (funcall on-leave event))
-                (setq result event)))
-             ;; mouse up
-             ((and (eq (event-basic-type event) down-basic-type)
-                   (or (memq 'click (event-modifiers event))
-                       (memq 'drag (event-modifiers event))))
-              (if on-up (funcall on-up event))
-              (setq result event))
-             ;; otherwise
-             (t
-              (if on-up (funcall on-up event))
-              (setq result event)
-              (push (cons t event) unread-command-events)))))
-        result))))
-
-
-
-;;;; Hook Utility
-
-;; - Hooks deleted during callback will never be called.
-;; - Hooks added during the callback will never be called until next time.
-;; - To determine the equivalence when removing the hook, use the eq function
-;;  to determine the combination of the function and additional arguments.
-
-(defun edraw-hook-make ()
-  (cons 0 nil)) ;;(re-entry-count . function-list)
-
-(defun edraw-hook-add (hook function &rest args)
-  ;; push front only
-  (setcdr hook (cons (cons function args) (cdr hook))))
-
-(defun edraw-hook-remove (hook function &rest args)
-  (edraw-hook-mark-delete hook (cons function args))
-  (edraw-hook-sweep hook))
-
-(defun edraw-hook-mark-delete (hook function-args)
-  (let ((p (cdr hook)))
-    (while p
-      ;; eq function and eq args
-      (when (and (= (length function-args) (length (car p)))
-                 (cl-every 'eq function-args (car p)))
-        (setcar p nil))
-      (setq p (cdr p)))))
-
-(defun edraw-hook-sweep (hook)
-  (when (= (car hook) 0)
-    (setcdr hook (delq nil (cdr hook)))))
-
-(defun edraw-hook-call (hook &rest args)
-  (cl-incf (car hook))
-  (unwind-protect
-      (let ((p (cdr hook)))
-        (while p
-          (when (car p)
-            (apply (caar p) (append (cdar p) args)))
-          (setq p (cdr p))))
-    (cl-decf (car hook)))
-  (edraw-hook-sweep hook))
-
-
-
-;;;; Misc
-
-(defun edraw-alist-get-as-number (key alist default)
-  (let ((value (alist-get key alist default nil (if (stringp key) #'equal))))
-    (if (stringp value)
-        (string-to-number value)
-      value)))
 
 
 
