@@ -1955,7 +1955,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-edit-property-paint ((shape edraw-shape) prop-name)
   (let* ((curr-value (or (edraw-get-property shape prop-name) ""))
          (new-value (edraw-color-picker-read-color
-                     (format "%s: " prop-name curr-value)
+                     (format "%s: " prop-name)
                      curr-value
                      '("" "none")
                      `((:color-name-scheme . 'web)))))
@@ -2892,7 +2892,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            'editable-field
            :keymap edraw-property-editor-field-map
            :size 13
-           :format (format "%%v" prop-name)
+           :format "%v"
            :value (edraw-prop-value-to-widget-value
                    pedit prop-value prop-type)))
     (widget-create
