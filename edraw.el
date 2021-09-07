@@ -1394,6 +1394,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   ((editor
     :type (or null edraw-editor)))
   :abstract t)
+
+(cl-defmethod edraw-tool-type ((tool edraw-editor-tool))
+  (let ((name (symbol-name (eieio-object-class-name tool))))
+    (when (string-match "\\`edraw-editor-tool-\\(.*\\)\\'" name)
+      (intern (match-string 1 name)))))
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool))
+  nil)
 (cl-defmethod edraw-on-down-mouse-1 ((_tool edraw-editor-tool) _down-event))
 (cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
@@ -1483,6 +1491,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defclass edraw-editor-tool-rect (edraw-editor-tool)
   ()
   )
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-rect))
+  'rect)
+
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-rect)
                                      down-event)
   (with-slots (editor) tool
@@ -1516,6 +1528,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defclass edraw-editor-tool-ellipse (edraw-editor-tool)
   ()
   )
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-ellipse))
+  'ellipse)
+
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-ellipse)
                                      down-event)
   (with-slots (editor) tool
@@ -1547,6 +1563,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defclass edraw-editor-tool-text (edraw-editor-tool)
   ()
   )
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-text))
+  'text)
+
 (cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (edraw-put-text-shape tool click-event edraw-snap-text-to-shape-center))
 
@@ -1595,6 +1615,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   ((shape
     :initform nil
     :type (or null edraw-shape-path))))
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-path))
+  'path)
 
 (cl-defmethod edraw-on-unselected ((tool edraw-editor-tool-path))
   (edraw-clear tool)
