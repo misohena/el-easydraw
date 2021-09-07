@@ -124,20 +124,33 @@
 
 ;;;; Rectangle
 
-(defsubst edraw-rect-xywh (x y w h)
-  (cons
-   (cons x y)
-   (cons (+ x w) (+ y h))))
+(defmacro edraw-rect-left (rect) `(caar ,rect))
+(defmacro edraw-rect-top (rect) `(cdar ,rect))
+(defmacro edraw-rect-right (rect) `(cadr ,rect))
+(defmacro edraw-rect-bottom (rect) `(cddr ,rect))
 
 (defsubst edraw-rect (x0 y0 x1 y1)
   (cons
    (cons x0 y0)
    (cons x1 y1)))
 
+(defsubst edraw-rect-xywh (x y w h)
+  (cons
+   (cons x y)
+   (cons (+ x w) (+ y h))))
+
 (defun edraw-rect-pp (p0 p1)
   (cons
    (edraw-xy-clone p0)
    (edraw-xy-clone p1)))
+
+(defun edraw-rect-clone (rect)
+  (when rect
+    (edraw-rect
+     (edraw-rect-left rect)
+     (edraw-rect-top rect)
+     (edraw-rect-right rect)
+     (edraw-rect-bottom rect))))
 
 (defun edraw-aabb (&rest points)
   (when points
@@ -171,6 +184,23 @@
   (cons
    (* 0.5 (+ (caar rect) (cadr rect)))
    (* 0.5 (+ (cdar rect) (cddr rect)))))
+
+
+(defun edraw-rect-empty-p (rect)
+  (not (and rect
+            (< (edraw-rect-left rect) (edraw-rect-right rect))
+            (< (edraw-rect-top rect) (edraw-rect-bottom rect)))))
+
+(defun edraw-rect-union (r1 r2)
+  (cond
+   ((edraw-rect-empty-p r1) (edraw-rect-clone r2))
+   ((edraw-rect-empty-p r2) (edraw-rect-clone r1))
+   (t
+    (edraw-rect
+     (min (edraw-rect-left r1) (edraw-rect-left r2))
+     (min (edraw-rect-top r1) (edraw-rect-top r2))
+     (max (edraw-rect-right r1) (edraw-rect-right r2))
+     (max (edraw-rect-bottom r1) (edraw-rect-bottom r2))))))
 
 ;;;; Matrix
 
