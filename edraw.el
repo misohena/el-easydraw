@@ -34,6 +34,7 @@
 (require 'edraw-path)
 (require 'edraw-dom-svg)
 (require 'edraw-util)
+(require 'edraw-color-picker)
 
 ;;;; Editor
 

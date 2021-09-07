@@ -161,11 +161,6 @@
 ;;;; Area
 
 
-(defun edraw-color-picker-area-type-p (obj)
-  "Return non-nil, if OBJ is an object of type
-`edraw-color-picker-area' or one of its derived classes."
-  (cl-typep obj 'edraw-color-picker-area))
-
 (defclass edraw-color-picker-area ()
   ((name :initarg :name)
    (spacing :initarg :spacing :initform 0)
@@ -177,6 +172,11 @@
    (on-mouse :initarg :on-mouse :initform nil)
    (on-click :initarg :on-click :initform nil)
    ))
+
+(defun edraw-color-picker-area-type-p (obj)
+  "Return non-nil, if OBJ is an object of type
+`edraw-color-picker-area' or one of its derived classes."
+  (cl-typep obj 'edraw-color-picker-area))
 
 (cl-defmethod edraw-contains-point-p ((area edraw-color-picker-area) xy)
   (with-slots (left top width height) area
