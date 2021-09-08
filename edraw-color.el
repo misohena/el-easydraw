@@ -80,6 +80,9 @@
    ((< hue 4) (+ (* (- t2 t1) (- 4 hue)) t1))
    (t t1)))
 
+(defun edraw-color-equal-p (a b)
+  (equal a b))
+
 (cl-defmethod edraw-change-a ((color edraw-color) a)
   (edraw-color
    :r (oref color r)
