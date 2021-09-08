@@ -572,8 +572,9 @@
     (edraw-get-value color-result)))
 
 (cl-defmethod edraw-set-current-color ((model edraw-color-picker-model) color)
-  (with-slots (color-rgba-setter) model
-    (when (cl-typep color 'edraw-color)
+  (with-slots (color-rgba-setter color-result) model
+    (when (and (cl-typep color 'edraw-color)
+               (not (edraw-color-equal-p color (edraw-get-value color-result))))
       (edraw-set-value color-rgba-setter color))))
 
 (defun edraw-color-picker-model-create (initial-color)
@@ -1245,10 +1246,23 @@ OVERLAY uses the display property to display the color PICKER."
          (on-post-command
           (lambda ()
             (condition-case err
-                (when-let ((color (edraw-color-picker-color-from-string
-                                   (minibuffer-contents-no-properties)
-                                   options)))
-                  (edraw-set-current-color picker color))
+                (let ((picker-color (edraw-get-current-color picker))
+                      (minibuffer-color (edraw-color-picker-color-from-string
+                                         (minibuffer-contents-no-properties)
+                                         options)))
+                  (when (and
+                         ;; not equals string representation of picker color
+                         ;; (set by last on-color-change)
+                         (not (string= (minibuffer-contents-no-properties)
+                                       (edraw-color-picker-color-to-string
+                                        picker-color
+                                        options)))
+                         ;; is valid color
+                         minibuffer-color
+                         ;; not equals picker color
+                         (not (edraw-color-equal-p minibuffer-color
+                                                   picker-color)))
+                    (edraw-set-current-color picker minibuffer-color)))
               (error (message "err=%s" err)))))
          (on-minibuffer-setup
           (lambda ()
