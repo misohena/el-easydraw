@@ -921,7 +921,10 @@
    (alist-head :initarg :alist-head) ;;('rect (prop . value) ...)
    ))
 (cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
-  (edraw-svg-element-get-property-info-list-by-tag (oref shape tag)))
+  (seq-remove
+   (lambda (prop-info) (plist-get (cdr prop-info) :required))
+   (edraw-svg-element-get-property-info-list-by-tag (oref shape tag))))
+
 (cl-defmethod edraw-get-property ((shape edraw-property-proxy-shape) prop-name)
   (let ((value (alist-get (intern prop-name) (cdr (oref shape alist-head)))))
     (if (numberp value)
