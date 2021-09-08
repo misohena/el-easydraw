@@ -1134,15 +1134,17 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                 (cl-incf y spacing))
               (cl-decf y spacing)
               ;; stroke & fill (tool option)
-              (when (and current-tool (edraw-shape-type-to-create current-tool))
+              (when-let ((shape-type
+                          (and current-tool
+                               (edraw-shape-type-to-create current-tool))))
                 (cl-incf y 16)
                 (push (edraw-make-toolbar-color-button
-                       editor components-g x y 'stroke)
+                       editor components-g x y shape-type 'stroke)
                       image-map)
                 (cl-incf y icon-h)
                 (cl-incf y spacing)
                 (push (edraw-make-toolbar-color-button
-                       editor components-g x y 'fill)
+                       editor components-g x y shape-type 'fill)
                       image-map)
                 (cl-incf y icon-h)
                 ;;@todo add tool settings button
@@ -1344,6 +1346,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-make-toolbar-color-button ((editor edraw-editor)
                                                parent x y
+                                               shape-type
                                                prop-name)
   (with-slots (image-scale) editor
     (let* ((rect (if (eq prop-name 'stroke)
@@ -1399,7 +1402,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            icon
            key-id
            (edraw-editor-make-toolbar-help-echo
-            (edraw-msg (capitalize (symbol-name prop-name)))
+            (format "%s %s"
+                    (edraw-msg (capitalize (symbol-name shape-type)))
+                    (edraw-msg (capitalize (symbol-name prop-name))))
             key-id)
            nil))))))
 
