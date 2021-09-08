@@ -152,6 +152,7 @@
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
     (define-key km "ds" 'edraw-editor-set-size)
     (define-key km "db" 'edraw-editor-set-background)
+    (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<up>") 'edraw-editor-move-selected-by-arrow-key)
@@ -878,6 +879,17 @@
      (selected-shape
       (edraw-translate selected-shape xy)))))
 
+(edraw-editor-defcmd edraw-delete-selected)
+(cl-defmethod edraw-delete-selected ((editor edraw-editor))
+  (with-slots (selected-shape selected-anchor selected-handle) editor
+    (cond
+     (selected-handle
+      (edraw-delete-point selected-handle))
+     (selected-anchor
+      (edraw-delete-point selected-anchor))
+     (selected-shape
+      (edraw-remove selected-shape)))))
+
 ;;;;; Editor - Default Shape Properties
 
 (cl-defmethod edraw-get-default-shape-properties-by-tag ((editor edraw-editor)
@@ -986,6 +998,11 @@
         ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
          :button (:toggle . ,(edraw-get-grid-visible editor)))
         ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)))
+      ((edraw-msg "Selected Object")
+       (((edraw-msg "Delete") edraw-editor-delete-selected
+         :enable ,(not (null (or (edraw-selected-handle editor)
+                                 (edraw-selected-anchor editor)
+                                 (edraw-selected-shape editor)))))))
       ((edraw-msg "Shape's Defaults")
        (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
         ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
