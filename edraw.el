@@ -1966,9 +1966,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
   (nreverse ;;front to back
-   (cl-loop for node in (dom-children (edraw-svg-body editor))
-            when (edraw-svg-element-contains-point-p node xy)
-            collect (edraw-shape-from-element node editor))))
+   (delq nil
+         (cl-loop for node in (dom-children (edraw-svg-body editor))
+                  when (edraw-svg-element-contains-point-p node xy)
+                  collect (edraw-shape-from-element node editor 'noerror)))))
 
 (cl-defmethod edraw-find-shape-by-xy-and-menu ((editor edraw-editor)
                                                       xy)
@@ -2033,19 +2034,24 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (dom-append-child parent element))
     element))
 
-(defun edraw-shape-from-element (element editor)
+(defun edraw-shape-from-element (element editor &optional noerror-node-type)
   "Return the shape object for ELEMENT, creating a new one if needed."
-  (or
-   (dom-attr element :-edraw-shape)
-   (let ((shape (pcase (dom-tag element)
-                  ('rect (edraw-shape-rect-create element editor))
-                  ('ellipse (edraw-shape-ellipse-create element editor))
-                  ('circle (edraw-shape-circle-create element editor))
-                  ('text (edraw-shape-text-create element editor))
-                  ('path (edraw-shape-path-create element editor))
-                  (_ (error "Unsupported tag %s as shape" (dom-tag element))))))
-     (dom-set-attribute element :-edraw-shape shape)
-     shape)))
+  (if (not (edraw-dom-element-p element))
+      (unless noerror-node-type
+        (error "Unsupported node type %s" element))
+    (or
+     (dom-attr element :-edraw-shape)
+     (when-let ((shape (pcase (dom-tag element)
+                         ('rect (edraw-shape-rect-create element editor))
+                         ('ellipse (edraw-shape-ellipse-create element editor))
+                         ('circle (edraw-shape-circle-create element editor))
+                         ('text (edraw-shape-text-create element editor))
+                         ('path (edraw-shape-path-create element editor))
+                         (_ (unless noerror-node-type
+                              (error "Unsupported tag %s as shape"
+                                     (dom-tag element)))))))
+       (dom-set-attribute element :-edraw-shape shape)
+       shape))))
 
 (defun edraw-popup-shape-selection-menu (shapes)
   "Show a menu to select one from multiple shape objects."

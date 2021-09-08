@@ -29,6 +29,11 @@
 
 ;;;; DOM Utility
 
+(defun edraw-dom-element-p (node)
+  (and node
+       (listp node)
+       (not (null (car node)))
+       (symbolp (car node))))
 
 (defun edraw-dom-get-by-id (parent id)
   (car (dom-by-id parent (concat "\\`" (regexp-quote id) "\\'"))))
@@ -857,12 +862,13 @@
 (defconst edraw-pick-point-radius 2)
 
 (defun edraw-svg-element-contains-point-p (element xy)
-  (pcase (dom-tag element)
-    ('path (edraw-svg-path-contains-point-p element xy))
-    ('rect (edraw-svg-rect-contains-point-p element xy))
-    ('ellipse (edraw-svg-ellipse-contains-point-p element xy))
-    ('circle (edraw-svg-circle-contains-point-p element xy))
-    ('text (edraw-svg-text-contains-point-p element xy))))
+  (when (edraw-dom-element-p element)
+    (pcase (dom-tag element)
+      ('path (edraw-svg-path-contains-point-p element xy))
+      ('rect (edraw-svg-rect-contains-point-p element xy))
+      ('ellipse (edraw-svg-ellipse-contains-point-p element xy))
+      ('circle (edraw-svg-circle-contains-point-p element xy))
+      ('text (edraw-svg-text-contains-point-p element xy)))))
 
 (defun edraw-svg-path-contains-point-p (element xy)
   (let* ((fill (dom-attr element 'fill))
