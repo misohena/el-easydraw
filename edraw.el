@@ -1147,8 +1147,22 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                        editor components-g x y shape-type 'fill)
                       image-map)
                 (cl-incf y icon-h)
-                ;;@todo add tool settings button
-                )
+                (cl-incf y spacing)
+                (push (edraw-editor-make-toolbar-button
+                       components-g
+                       x y
+                       icon-w icon-h image-scale
+                       (edraw-editor-make-icon 'edit-tool-properties)
+                       'edraw-editor-edit-tool-properties
+                       (edraw-editor-make-toolbar-help-echo
+                        (format "%s %s"
+                                (edraw-msg (capitalize
+                                            (symbol-name shape-type)))
+                                (edraw-msg "Defaults"))
+                        'edraw-editor-edit-tool-properties)
+                       nil)
+                      image-map)
+                (cl-incf y icon-h))
 
               (nreverse image-map)))
            (bar-w (+ x icon-w padding))
@@ -1286,6 +1300,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (svg-rectangle g 3 4 24 2 :stroke-width 1 :stroke "none" :fill "#eee")
   (svg-rectangle g 3 11 24 2 :stroke-width 1 :stroke "none" :fill "#eee")
   (svg-rectangle g 3 18 24 2 :stroke-width 1 :stroke "none" :fill "#eee"))
+
+(defun edraw-icon-edit-tool-properties (g)
+  (svg-rectangle g  3  4  3 3 :stroke "none" :fill "#ccc")
+  (svg-rectangle g  9  4 18 3 :stroke "none" :fill "#ccc")
+  (svg-rectangle g  3 10  3 3 :stroke "none" :fill "#ccc")
+  (svg-rectangle g  9 10 18 3 :stroke "none" :fill "#ccc")
+  (svg-rectangle g  3 16  3 3 :stroke "none" :fill "#ccc")
+  (svg-rectangle g  9 16 18 3 :stroke "none" :fill "#ccc"))
 
 (defun edraw-editor-make-tool-icon (tool-id)
   (let ((g (dom-node 'g)))
@@ -1432,6 +1454,13 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defun edraw-editor-edit-tool-default-stroke ()
   (interactive)
   (edraw-editor-edit-selected-tool-default-shape-property 'stroke))
+
+(defun edraw-editor-edit-tool-properties ()
+  (interactive)
+  (when-let ((editor (edraw-editor-at-input last-input-event)))
+    (when-let ((selected-tool (edraw-selected-tool editor))
+               (shape-type (edraw-shape-type-to-create selected-tool)))
+      (edraw-edit-default-shape-properties editor shape-type))))
 
 
 
