@@ -27,10 +27,10 @@
 (require 'color)
 
 (defclass edraw-color ()
-  ((r :initarg :r)
-   (g :initarg :g)
-   (b :initarg :b)
-   (a :initarg :a :initform 1.0)))
+  ((r :initarg :r :accessor edraw-color-r)
+   (g :initarg :g :accessor edraw-color-g)
+   (b :initarg :b :accessor edraw-color-b)
+   (a :initarg :a :accessor edraw-color-a :initform 1.0)))
 
 (defun edraw-color-ensure (color)
   (cond
