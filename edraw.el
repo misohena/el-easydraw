@@ -2067,6 +2067,25 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (with-slots (editor) shape
     (edraw-svg-body editor)))
 
+;;;;;; Clone
+
+(cl-defmethod edraw-clone ((shape edraw-shape))
+  (with-slots (editor) shape
+    (when-let ((shape-type (edraw-shape-type shape)))
+      (let ((new-shape (edraw-create-shape
+                        editor
+                        (edraw-svg-body editor) ;;@todo
+                        shape-type)))
+        ;; Copy all properties
+        (edraw-set-properties
+         new-shape
+         (mapcar (lambda (prop-info)
+                   (let* ((prop-name (car prop-info))
+                          (value (edraw-get-property shape prop-name)))
+                     (cons prop-name value)))
+                 (edraw-get-property-info-list shape)))
+        new-shape))))
+
 ;;;;;; Hooks
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
@@ -2184,6 +2203,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                 (edraw-get-summary shape)))
     (edraw-remove shape)))
 
+(cl-defmethod edraw-duplicate-and-select ((shape edraw-shape))
+  (when-let ((new-shape (edraw-clone shape)))
+    (edraw-select new-shape)))
+
 (cl-defmethod edraw-edit-properties ((shape edraw-shape))
   (edraw-property-editor-open shape))
 
@@ -2220,10 +2243,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        :enable ,(not (edraw-back-p shape)))
       ((edraw-msg "Send to Back") edraw-send-to-back
        :enable ,(not (edraw-back-p shape)))))
-    ((edraw-msg "Delete...") edraw-delete-with-confirm)))
+    ((edraw-msg "Delete...") edraw-delete-with-confirm)
+    ((edraw-msg "Duplicate") edraw-duplicate-and-select)))
 
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-*)) )
+;;(cl-defmethod edraw-shape-type (edraw-shape-*) )
 
 
 
@@ -2335,6 +2360,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defclass edraw-shape-rect (edraw-shape-with-rect-boundary)
   ())
 
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-rect))
+  'rect)
+
 (cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-rect))
   (with-slots (element) shape
     (let ((x (or (edraw-svg-attr-coord element 'x) 0))
@@ -2386,6 +2414,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defclass edraw-shape-ellipse (edraw-shape-with-rect-boundary)
   ())
+
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-ellipse))
+  'ellipse)
 
 (cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-ellipse))
   (with-slots (element) shape
@@ -2442,6 +2473,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defclass edraw-shape-circle (edraw-shape-with-rect-boundary)
   ())
+
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-circle))
+  'circle)
 
 (cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-circle))
   (with-slots (element) shape
@@ -2545,6 +2579,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defclass edraw-shape-text (edraw-shape)
   ((anchor-points)))
 
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-text))
+  'text)
+
 (cl-defmethod edraw-get-anchor-points ((shape edraw-shape-text))
   (oref shape anchor-points))
 
@@ -2577,6 +2614,16 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defclass edraw-shape-path (edraw-shape)
   ((cmdlist)))
+
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-path))
+  'path)
+
+(cl-defmethod edraw-clone ((shape edraw-shape-path))
+  (let* ((new-shape (cl-call-next-method))
+         (d (edraw-path-cmdlist-to-string (oref shape cmdlist))))
+    (oset new-shape cmdlist (edraw-path-cmdlist-from-d d))
+    (dom-set-attribute (edraw-element new-shape) 'd d)
+    new-shape))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape-path))
   (let* ((items (copy-tree (cl-call-next-method)))
