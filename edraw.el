@@ -67,6 +67,9 @@
     (height . 420)
     (background . "#fff")))
 (defvar edraw-default-shape-properties
+  ;; To customize property, do the following:
+  ;; (with-eval-after-load "edraw"
+  ;;   (setf (alist-get 'font-family (alist-get 'text edraw-default-shape-properties)) "Yu Gothic"))
   '((rect
      (stroke . "none")
      (fill . "#ddd")
@@ -86,6 +89,11 @@
      (font-size . 18)
      (text-anchor . "middle")
      (fill . "#222"))))
+
+(defcustom edraw-editor-share-default-shape-properties nil
+  "non-nil means that the editors change edraw-default-shape-properties directly."
+  :group 'edraw-editor
+  :type 'boolean)
 
 (defcustom edraw-editor-default-grid-interval 20
   "The interval of grid lines."
@@ -199,7 +207,9 @@
                           edraw-editor-default-transparent-bg-visible)
                     ))
    (default-shape-properties
-     :initform (copy-tree edraw-default-shape-properties))
+     :initform (if edraw-editor-share-default-shape-properties
+                   edraw-default-shape-properties ;;@todo observe changes made by other editors
+                 (copy-tree edraw-default-shape-properties)))
    (tool :initform nil :type (or null edraw-editor-tool))
    (selected-shape :initform nil :type (or null edraw-shape))
    (selected-anchor :initform nil :type (or null edraw-shape-point))
