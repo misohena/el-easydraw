@@ -137,6 +137,8 @@
     (define-key km "e" 'edraw-editor-select-tool-ellipse)
     (define-key km "a" 'edraw-editor-select-tool-path)
     (define-key km "t" 'edraw-editor-select-tool-text)
+    (define-key km "F" 'edraw-editor-edit-tool-default-fill)
+    (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
     (define-key km "#" 'edraw-editor-toggle-grid-visible)
     (define-key km (kbd "M-#") 'edraw-editor-set-grid-interval)
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
@@ -892,7 +894,8 @@
   (with-slots (default-shape-properties) editor
     (when-let ((alist-head (assq tag default-shape-properties)))
       (edraw-property-editor-open
-       (edraw-property-proxy-shape :tag tag :alist-head alist-head)))))
+       (edraw-property-proxy-shape :tag tag :alist-head alist-head
+                                   :editor editor)))))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor tag)
   (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
@@ -919,7 +922,8 @@
 (defclass edraw-property-proxy-shape ()
   ((tag :initarg :tag)
    (alist-head :initarg :alist-head) ;;('rect (prop . value) ...)
-   ))
+   (editor :initarg :editor)))
+
 (cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
   (seq-remove
    (lambda (prop-info) (plist-get (cdr prop-info) :required))
@@ -940,7 +944,9 @@
                            nil 'remove)
                 nil)
         (setf (alist-get (intern prop-name) (cdr (oref shape alist-head)))
-              value)))))
+              value))))
+  ;; update toolbar (fill & stroke)
+  (edraw-update-toolbar (oref shape editor)))
 
 (cl-defmethod edraw-add-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
   )
@@ -1084,55 +1090,88 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defvar edraw-editor-tool-list '(select rect ellipse path text))
 (defvar edraw-editor-tool-map nil)
 
+(defconst edraw-editor-toolbar-button-w 30)
+(defconst edraw-editor-toolbar-button-h 24)
+
 (cl-defmethod edraw-update-toolbar ((editor edraw-editor))
   (with-slots (overlay image-scale (current-tool tool)) editor
-    (let* ((bar-w 38)
-           (step-y 28)
-           (icon-w 30)
-           (icon-h 24)
-           (icon-l (/ (- bar-w icon-w) 2))
-           (icon-t (/ (- step-y icon-h) 2))
-           (tool-t (/ (* step-y 3) 2))
-           (num-tools (length edraw-editor-tool-list))
-           (bar-h (+ tool-t (* step-y num-tools)))
-           ;; Create SVG Root Element
-           (root-g (dom-node
-                    'g
-                    (list (cons 'transform
-                                (format "scale(%s)" image-scale)))))
+    (let* (;; Put components
+           (icon-w edraw-editor-toolbar-button-w)
+           (icon-h edraw-editor-toolbar-button-h)
+           (components-g (dom-node 'g))
+           (current-tool-class-name
+            (and current-tool (eieio-object-class-name current-tool)))
+           (padding 4)
+           (x padding)
+           (y padding)
+           (spacing 4)
+           (image-map
+            (let (image-map)
+              ;; main menu button
+              (push (edraw-editor-make-toolbar-button
+                     components-g
+                     x y
+                     icon-w icon-h image-scale
+                     (edraw-editor-make-icon 'main-menu)
+                     'edraw-editor-main-menu
+                     (edraw-editor-make-toolbar-help-echo
+                      (edraw-msg "Main Menu")
+                      'edraw-editor-main-menu)
+                     nil)
+                    image-map)
+              (cl-incf y icon-h)
+              (cl-incf y 16) ;;spacing
+              ;; tool buttons
+              (dolist (tool-id edraw-editor-tool-list)
+                (push (edraw-editor-make-tool-button
+                       components-g
+                       x y
+                       icon-w icon-h image-scale
+                       tool-id
+                       current-tool-class-name)
+                      image-map)
+                (cl-incf y icon-h)
+                (cl-incf y spacing))
+              (cl-decf y spacing)
+              ;; stroke & fill (tool option)
+              (when (and current-tool (edraw-shape-type-to-create current-tool))
+                (cl-incf y 16)
+                (push (edraw-make-toolbar-color-button
+                       editor components-g x y 'stroke)
+                      image-map)
+                (cl-incf y icon-h)
+                (cl-incf y spacing)
+                (push (edraw-make-toolbar-color-button
+                       editor components-g x y 'fill)
+                      image-map)
+                (cl-incf y icon-h)
+                ;;@todo add tool settings button
+                )
+
+              (nreverse image-map)))
+           (bar-w (+ x icon-w padding))
+           (bar-h (+ y padding))
+
+           ;; Create SVG Element
            (svg (let ((svg (svg-create (round (* image-scale bar-w))
                                        (round (* image-scale bar-h)))))
-                  (dom-append-child svg root-g)
                   (svg-gradient svg "icon-fg-gradient" 'linear
                                 '((0 . "rgba(255,255,255,0.5)")
                                   (100 . "rgba(255,255,255,0.0)")))
-                  (svg-rectangle root-g 0 0 bar-w bar-h :fill "#888")
-                  svg))
-           ;; Put buttons
-           (current-tool-class-name
-            (and current-tool (eieio-object-class-name current-tool)))
-           (image-map
-            (nconc
-             ;; main menu button
-             (list
-              (edraw-editor-make-toolbar-button
-               root-g
-               icon-l icon-t
-               icon-w icon-h image-scale
-               (edraw-editor-make-icon 'main-menu)
-               'edraw-main-menu
-               (edraw-editor-make-toolbar-help-echo
-                (edraw-msg "Main Menu")
-                'edraw-editor-main-menu)
-               nil))
-             ;; tool buttons
-             (cl-loop for i from 0 to (1- num-tools)
-                      collect (edraw-editor-make-tool-button
-                               root-g
-                               icon-l (+ tool-t icon-t (* i step-y))
-                               icon-w icon-h image-scale
-                               (nth i edraw-editor-tool-list);;tool-id
-                               current-tool-class-name))))
+                  (dom-append-child
+                   svg
+                   (dom-node
+                    'defs nil
+                    (edraw-svg-ui-transparent-bg-pattern)))
+                  (let ((root-g
+                         (dom-node
+                          'g
+                          (list (cons 'transform
+                                      (format "scale(%s)" image-scale))))))
+                    (dom-append-child svg root-g)
+                    (svg-rectangle root-g 0 0 bar-w bar-h :fill "#888")
+                    (dom-append-child root-g components-g)
+                    svg)))
            ;; Create image
            (image (edraw-svg-to-image svg
                                       :scale 1.0 ;;Cancel image-scale effect
@@ -1141,11 +1180,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            (keymap
             (if edraw-editor-tool-map
                 edraw-editor-tool-map
-              (setq edraw-editor-tool-map
-                    (edraw-editor-make-tool-map edraw-editor-tool-list))
-              (define-key edraw-editor-tool-map
-                [edraw-main-menu mouse-1] 'edraw-editor-main-menu)
-              edraw-editor-tool-map)))
+              (let ((km (make-sparse-keymap)))
+                (dolist (hot-spot image-map)
+                  (let ((key-id (nth 1 hot-spot)))
+                    (define-key km (vector key-id 'mouse-1) key-id)))
+                km))))
       ;; Put IMAGE to the left side of the editor overlay
       (overlay-put overlay
                    'before-string (propertize "*"
@@ -1177,6 +1216,21 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           (list 'pointer 'hand
                 'help-echo help-echo))))
 
+(defun edraw-editor-make-toolbar-help-echo (title command)
+  (let* (;; single key only
+         (key-event (car
+                     (seq-find (lambda (item) (eq (cdr item) command))
+                               (cdr edraw-editor-map))))
+         (key-str (cond
+                   ((null key-event) nil)
+                   ((symbolp key-event) (symbol-name key-event))
+                   ((integerp key-event) (char-to-string key-event)))))
+    (concat
+     title ;;localized msg
+     (if key-str (concat " (" key-str ")")))))
+
+
+
 (defun edraw-editor-make-tool-button
     (parent x y w h image-scale tool-id selected-class-name)
   (edraw-editor-make-toolbar-button
@@ -1186,48 +1240,23 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    (edraw-editor-make-tool-help-echo tool-id)
    (eq (edraw-editor-make-tool-class-name tool-id) selected-class-name)))
 
-(defun edraw-editor-make-tool-key-id (tool-id)
-  (intern (format "edraw-tool-%s" tool-id)))
-
 (defun edraw-editor-make-tool-class-name (tool-id)
   (intern (format "edraw-editor-tool-%s" tool-id)))
 
-(defun edraw-editor-make-tool (tool-id)
-  (funcall (edraw-editor-make-tool-class-name tool-id)))
+(defun edraw-editor-make-tool-key-id (tool-id)
+  (edraw-editor-tool-select-function-name tool-id))
 
 (defun edraw-editor-make-tool-click-function (tool-id)
-  (lambda (event) (interactive "e")
-    (when-let ((editor (edraw-editor-at-input event)))
-      (edraw-select-tool editor (edraw-editor-make-tool tool-id)))))
-
-(defun edraw-editor-make-tool-map (tool-list)
-  (let ((km (make-sparse-keymap)))
-    (dolist (tool-id tool-list)
-      (define-key km
-        (vector (edraw-editor-make-tool-key-id tool-id) 'mouse-1)
-        (edraw-editor-make-tool-click-function tool-id)))
-    km))
+  (edraw-editor-tool-select-function-name tool-id))
 
 (defun edraw-editor-make-tool-help-echo (tool-id)
   (edraw-editor-make-toolbar-help-echo
    (edraw-msg (symbol-name tool-id))
    (edraw-editor-tool-select-function-name tool-id)))
 
-(defun edraw-editor-make-toolbar-help-echo (title command)
-  (let* (;; single key only
-         (key-event (car
-                     (seq-find (lambda (item) (eq (cdr item) command))
-                               (cdr edraw-editor-map))))
-         (key-str (cond
-                   ((symbolp key-event) (symbol-name key-event))
-                   ((integerp key-event) (char-to-string key-event)))))
-    (concat
-     title ;;localized msg
-     (if key-str (concat " (" key-str ")")))))
 
-(defun edraw-editor-define-tool-select-functions ()
-  (dolist (tool-id edraw-editor-tool-list)
-    (edraw-editor-define-tool-select-function tool-id)))
+(defun edraw-editor-make-tool (tool-id)
+  (funcall (edraw-editor-make-tool-class-name tool-id)))
 
 (defun edraw-editor-tool-select-function-name (tool-id)
   (intern (format "edraw-editor-select-tool-%s" tool-id)))
@@ -1237,6 +1266,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (lambda () (interactive)
       (when-let ((editor (edraw-editor-at-input last-input-event)))
         (edraw-select-tool editor (edraw-editor-make-tool tool-id))))))
+
+(defun edraw-editor-define-tool-select-functions ()
+  (dolist (tool-id edraw-editor-tool-list)
+    (edraw-editor-define-tool-select-function tool-id)))
 
 (edraw-editor-define-tool-select-functions) ;;defun edraw-editor-select-tool-*
 
@@ -1308,6 +1341,92 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;;       (svg-rectangle svg 0 0 40 24 :fill "#888")
 ;;       (dom-append-child svg (edraw-editor-make-icon (intern name)))
 ;;       (svg-image svg)))))
+
+(cl-defmethod edraw-make-toolbar-color-button ((editor edraw-editor)
+                                               parent x y
+                                               prop-name)
+  (with-slots (image-scale) editor
+    (let* ((rect (if (eq prop-name 'stroke)
+                     '((0 . 6) . (30 . 18))
+                   '((3 . 3) . (27 . 21))))
+           (ix (caar rect))
+           (iy (cdar rect))
+           (iw (- (cadr rect) (caar rect)))
+           (ih (- (cddr rect) (cdar rect)))
+           (tag-value (edraw-get-selected-tool-default-shape-property
+                       editor prop-name)))
+      (if (null tag-value)
+          (svg-rectangle parent ix iy iw ih :fill "none" :stroke "#666" :stroke-width "1")
+        (let* ((value (cdr tag-value))
+               (none-p (or (null value) (string= value "none")))
+               (icon (let ((g (dom-node 'g)))
+                       (cond
+                        (none-p
+                         (svg-rectangle
+                          g ix iy iw ih
+                          :fill "none" :stroke "#666" :stroke-width "1")
+                         (dom-append-child
+                          g
+                          (dom-node
+                           'path
+                           `((d . ,(concat
+                                    "M"
+                                    (mapconcat #'number-to-string
+                                               (list ix iy
+                                                     (+ ix 2) iy
+                                                     (+ ix iw) (+ iy ih -2)
+                                                     (+ ix iw) (+ iy ih)
+                                                     (+ ix iw -2) (+ iy ih)
+                                                     ix (+ iy 2)) " ")
+                                    "Z"))
+                             (fill . "#f003")))))
+                        (t
+                         (svg-rectangle g ix iy iw ih
+                                        :fill "#fff" :stroke "#444"
+                                        :stroke-width "1")
+                         (svg-rectangle g ix iy iw ih
+                                        :fill
+                                        "url(#edraw-ui-pattern-transparent-bg")
+                         (svg-rectangle g ix iy iw ih :fill value)))
+                       g))
+               (key-id (intern (format "edraw-editor-edit-tool-default-%s"
+                                       prop-name))))
+          (edraw-editor-make-toolbar-button
+           parent
+           x y
+           edraw-editor-toolbar-button-w edraw-editor-toolbar-button-h
+           image-scale
+           icon
+           key-id
+           (edraw-editor-make-toolbar-help-echo
+            (edraw-msg (capitalize (symbol-name prop-name)))
+            key-id)
+           nil))))))
+
+(cl-defmethod edraw-edit-selected-tool-default-shape-property
+  ((editor edraw-editor) prop-name)
+  (let* ((tag-value (edraw-get-selected-tool-default-shape-property
+                     editor prop-name))
+         (new-value (edraw-color-picker-read-color
+                     (format "%s %s: " (car tag-value) prop-name)
+                     (cdr tag-value)
+                     '("" "none")
+                     '((:color-name-scheme . 'web)))))
+    (edraw-set-selected-tool-default-shape-property
+     editor prop-name new-value)
+    (edraw-update-toolbar editor)))
+
+(defun edraw-editor-edit-selected-tool-default-shape-property (prop-name)
+  (when-let ((editor (edraw-editor-at-input last-input-event)))
+    (edraw-edit-selected-tool-default-shape-property editor prop-name)))
+
+(defun edraw-editor-edit-tool-default-fill ()
+  (interactive)
+  (edraw-editor-edit-selected-tool-default-shape-property 'fill))
+
+(defun edraw-editor-edit-tool-default-stroke ()
+  (interactive)
+  (edraw-editor-edit-selected-tool-default-shape-property 'stroke))
 
 
 
