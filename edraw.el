@@ -868,6 +868,26 @@
 
 ;;;;; Editor - Default Shape Properties
 
+(cl-defmethod edraw-get-default-shape-properties-by-tag ((editor edraw-editor)
+                                                         tag)
+  (with-slots (default-shape-properties) editor
+    (or (assq tag default-shape-properties) ;;already exists
+        (let ((tag-props (list tag))) ;;create new
+          (push tag-props default-shape-properties)
+          tag-props))))
+
+(cl-defmethod edraw-get-default-shape-property ((editor edraw-editor)
+                                                tag prop-name)
+  (alist-get prop-name
+             (alist-get tag (oref editor default-shape-properties))))
+
+(cl-defmethod edraw-set-default-shape-property ((editor edraw-editor)
+                                                tag prop-name value)
+  (setf
+   (alist-get prop-name
+              (alist-get tag (oref editor default-shape-properties)))
+   value))
+
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
   (with-slots (default-shape-properties) editor
     (when-let ((alist-head (assq tag default-shape-properties)))
@@ -1386,6 +1406,28 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-on-selected tool editor))
     (edraw-update-toolbar editor)))
 
+(cl-defmethod edraw-selected-tool ((editor edraw-editor))
+  (oref editor tool))
+
+(cl-defmethod edraw-get-selected-tool-default-shape-property
+  ((editor edraw-editor) prop-name)
+
+  (with-slots (tool) editor
+    (let* ((shape-type (when tool (edraw-shape-type-to-create tool))))
+      (if shape-type
+          (cons
+           shape-type
+           (edraw-get-default-shape-property editor shape-type prop-name))
+        nil))))
+
+(cl-defmethod edraw-set-selected-tool-default-shape-property
+  ((editor edraw-editor) prop-name value)
+
+  (with-slots (tool) editor
+    (let ((shape-type (when tool (edraw-shape-type-to-create tool))))
+      (when shape-type
+        (edraw-set-default-shape-property editor shape-type prop-name value)))))
+
 
 
 ;;;;; Editor - Tool Base Class
@@ -1402,6 +1444,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool))
   nil)
+
+(cl-defmethod edraw-default-properties ((tool edraw-editor-tool))
+  (when-let ((shape-type (edraw-shape-type-to-create tool)))
+    (edraw-get-default-shape-properties-by-tag
+     (oref tool editor) shape-type))) ;;e.g. (rect (a . "1") (b . "2"))
+
 (cl-defmethod edraw-on-down-mouse-1 ((_tool edraw-editor-tool) _down-event))
 (cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
