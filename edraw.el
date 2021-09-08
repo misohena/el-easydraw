@@ -1799,11 +1799,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-snap-text-to-back-shape-center ((tool edraw-editor-tool-text) xy)
   (with-slots (editor) tool
-    (when-let ((font-size (alist-get
-                           'font-size
-                           (alist-get
-                            'text
-                            (oref editor default-shape-properties))))
+    (when-let ((font-size (edraw-svg-length-string-to-number
+                           (edraw-get-default-shape-property
+                            editor 'text 'font-size)))
                (shape (car (edraw-find-shapes-by-xy editor xy))))
       (when-let ((rect (ignore-errors (edraw-get-rect shape)))
                  (center (edraw-rect-center rect)))

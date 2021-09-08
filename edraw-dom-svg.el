@@ -147,33 +147,40 @@
 
 
 (defun edraw-svg-attr-number (element attr)
-  (let ((value (dom-attr element attr)))
-    (cond
-     ((stringp value)
-      (string-to-number value))
-     ((numberp value)
-      value)
-     ;; nil or symbol?
-     (t
-      value))))
+  (edraw-svg-number-string-to-number (dom-attr element attr)))
 
 (defun edraw-svg-attr-coord (element attr)
   ;; <coordinate> ::= <length>
   (edraw-svg-attr-length element attr))
 
 (defun edraw-svg-attr-length (element attr)
-  (let ((value (dom-attr element attr)))
-    ;; <coordinate> ::= <length>
-    ;; <length> ::=  number ("em"|"ex"|"px"|"in"|"cm"|"mm"|"pt"|"pc"|"%")?
-    (cond
-     ((stringp value)
-      ;;@todo support unit? (px,em,ex,in,cm,mm,pt,pc,%)
-      (string-to-number value))
-     ((numberp value)
-      value)
-     ;; nil or symbol?
-     (t
-      value))))
+  (edraw-svg-length-string-to-number (dom-attr element attr)))
+
+(defun edraw-svg-length-string-to-number (value)
+  ;; <length> ::=  number ("em"|"ex"|"px"|"in"|"cm"|"mm"|"pt"|"pc"|"%")?
+  (cond
+   ((null value)
+    value)
+   ((stringp value)
+    ;;@todo support unit? (px,em,ex,in,cm,mm,pt,pc,%) error?
+    (string-to-number value)) ;;@todo invalid format
+   ((numberp value)
+    value)
+   ;; symbol?
+   (t
+    value)))
+
+(defun edraw-svg-number-string-to-number (value)
+  (cond
+   ((null value)
+    value)
+   ((stringp value)
+    (string-to-number value)) ;;@todo invalid format
+   ((numberp value)
+    value)
+   ;; symbol?
+   (t
+    value)))
 
 
 ;;;; SVG Shape Creation
