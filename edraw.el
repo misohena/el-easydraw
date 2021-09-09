@@ -153,6 +153,7 @@
     (define-key km "db" 'edraw-editor-set-background)
     (define-key km "dr" 'edraw-editor-set-size)
     (define-key km "dt" 'edraw-editor-translate-all-shapes)
+    (define-key km "ds" 'edraw-editor-scale-all-shapes)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
@@ -754,8 +755,14 @@
     (dolist (shape (edraw-all-shapes editor))
       (edraw-translate shape delta-xy))))
 
-;; (cl-defmethod edraw-scale ((_editor edraw-editor) _sx _sy)
-;;   )
+(edraw-editor-defcmd edraw-scale-all-shapes)
+(cl-defmethod edraw-scale-all-shapes ((editor edraw-editor) &optional sx sy)
+  (unless sx (setq sx (read-number "Scale X: " 1.0)))
+  (unless sy (setq sy (read-number "Scale Y: " sx)))
+
+  (let ((matrix (edraw-matrix-scale (float sx) (float sy) 1.0)))
+    (dolist (shape (edraw-all-shapes editor))
+      (edraw-transform shape matrix))))
 
 ;;;;; Editor - Selection
 
@@ -1003,7 +1010,7 @@
        (((edraw-msg "Set Background...") edraw-editor-set-background)
         ((edraw-msg "Resize...") edraw-editor-set-size)
         ((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
-        ;;((edraw-msg "Scale...") edraw-editor-scale)
+        ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
         ((edraw-msg "Clear...") edraw-editor-clear)))
       ((edraw-msg "View")
        (((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
@@ -2152,6 +2159,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-svg-element-translate (edraw-element shape) xy)
   (edraw-on-shape-changed shape 'translate))
 
+;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
+
 ;;;;;; Search
 
 (cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy r)
@@ -2378,7 +2387,17 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                        (+ (cdar p0p1) (cdr xy)))
                       (cons
                        (+ (cadr p0p1) (car xy))
-                       (+ (cddr p0p1) (cdr xy)))))))
+                       (+ (cddr p0p1) (cdr xy))))
+      ;;(edraw-on-shape-changed shape 'shape-translate) ?
+      )))
+
+(cl-defmethod edraw-transform ((shape edraw-shape-with-rect-boundary) matrix)
+  (with-slots (p0p1) shape
+    (let ((new-p0 (edraw-matrix-mul-mat-xy matrix (car p0p1)))
+          (new-p1 (edraw-matrix-mul-mat-xy matrix (cdr p0p1))))
+      (edraw-set-rect shape new-p0 new-p1)
+      ;;(edraw-on-shape-changed shape 'shape-transform) ?
+      )))
 
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-*))
@@ -2634,6 +2653,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-svg-text-set-xy element xy)
       (edraw-on-shape-changed shape 'anchor-position))))
 
+(cl-defmethod edraw-transform ((shape edraw-shape-text) matrix)
+  (with-slots (element) shape
+    (let* ((xy (cons (or (edraw-svg-attr-coord element 'x) 0)
+                     (or (edraw-svg-attr-coord element 'y) 0)))
+           (new-xy (edraw-matrix-mul-mat-xy matrix xy)))
+      (edraw-svg-text-set-xy element new-xy)
+      (edraw-on-shape-changed shape 'shape-transform)))) ;;or anchor-position?
+
 
 
 ;;;;; Shape - Path
@@ -2713,6 +2740,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-path-cmdlist-translate cmdlist xy))
     (edraw-update-path-data shape)
     (edraw-on-shape-changed shape 'shape-translate)))
+
+(cl-defmethod edraw-transform ((shape edraw-shape-path) matrix)
+  (with-slots (cmdlist) shape
+    (edraw-path-cmdlist-transform cmdlist matrix))
+  (edraw-update-path-data shape)
+  (edraw-on-shape-changed shape 'shape-transform))
 
 (cl-defmethod edraw-get-anchor-points ((shape edraw-shape-path))
   (with-slots (cmdlist) shape

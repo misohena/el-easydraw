@@ -204,7 +204,100 @@
 
 ;;;; Matrix
 
-;;(defun edraw-mat33
+(defun edraw-matrix (&optional init)
+  (unless init (setq init [1 0 0 1 0 0]))
+  (cond
+   ((or (listp init) (vectorp init))
+    (cond
+     ((= (length init) 6)
+      (vector
+       (elt 0 init) (elt 1 init) 0 0
+       (elt 2 init) (elt 3 init) 0 0
+       0 0 1 0
+       (elt 4 init) (elt 5 init) 0 1))
+     ((= (length init) 16)
+      (apply 'vector (mapcar 'identity init)))
+     (t (error "Invalid init argument"))))
+   ;;@todo support string
+   (t (error "Invalid init argument"))))
+
+(defun edraw-matrix-translate (dx dy dz)
+  (edraw-matrix (vector 1 0 0 dx  0 1 0 dy  0 0 1 dz  0 0 0 1)))
+
+(defun edraw-matrix-scale (sx sy sz)
+  (edraw-matrix (vector sx 0 0 0  0 sy 0 0  0 0 sz 0  0 0 0 1)))
+
+(defun edraw-matrix-mul (a b)
+  (let (lb)
+    (cond
+     ((= (length a) 16)
+      (cond
+       ((and (consp b) (numberp (car b)) (numberp (cdr b)))
+        (edraw-matrix-mul-mat-xy a b))
+       ((= (setq lb (length b)) 16) (edraw-matrix-mul-mat-mat a b))
+       ((= lb 4) (edraw-matrix-mul-mat-vec4 a b))
+       ((= lb 3) (edraw-matrix-mul-mat-vec3 a b))
+       ((= lb 2) (edraw-matrix-mul-mat-vec2 a b))
+       (t (error "no applicable method matrix-mul %s %s" a b))))
+     (t (error "no applicable method matrix-mul %s %s" a b)))))
+
+(defmacro edraw-matrix-mul-element (lhs rhs col row)
+  `(+ (* (aref ,lhs ,(+ row 0)) (aref ,rhs ,(+ (* col 4) 0)))
+      (* (aref ,lhs ,(+ row 4)) (aref ,rhs ,(+ (* col 4) 1)))
+      (* (aref ,lhs ,(+ row 8)) (aref ,rhs ,(+ (* col 4) 2)))
+      (* (aref ,lhs ,(+ row 12)) (aref ,rhs ,(+ (* col 4) 3)))))
+
+(defun edraw-matrix-mul-mat-mat (a b)
+  (vector
+   (edraw-matrix-mul-element a b 0 0)
+   (edraw-matrix-mul-element a b 0 1)
+   (edraw-matrix-mul-element a b 0 2)
+   (edraw-matrix-mul-element a b 0 3)
+   (edraw-matrix-mul-element a b 1 0)
+   (edraw-matrix-mul-element a b 1 1)
+   (edraw-matrix-mul-element a b 1 2)
+   (edraw-matrix-mul-element a b 1 3)
+   (edraw-matrix-mul-element a b 2 0)
+   (edraw-matrix-mul-element a b 2 1)
+   (edraw-matrix-mul-element a b 2 2)
+   (edraw-matrix-mul-element a b 2 3)
+   (edraw-matrix-mul-element a b 3 0)
+   (edraw-matrix-mul-element a b 3 1)
+   (edraw-matrix-mul-element a b 3 2)
+   (edraw-matrix-mul-element a b 3 3)))
+
+(defun edraw-matrix-mul-mat-vec4 (a b)
+  (vector
+   (edraw-matrix-mul-element a b 0 0)
+   (edraw-matrix-mul-element a b 0 1)
+   (edraw-matrix-mul-element a b 0 2)
+   (edraw-matrix-mul-element a b 0 3)))
+
+(defun edraw-matrix-mul-mat-vec3 (a b)
+  (let* ((p (edraw-matrix-mul-mat-vec4 a (vector (aref b 0) (aref b 1) (aref b 2) 1.0)))
+         (w (aref p 3)))
+    (vector
+     (/ (aref p 0) w)
+     (/ (aref p 0) w)
+     (/ (aref p 0) w))))
+
+(defun edraw-matrix-mul-mat-vec2 (a b)
+  (let ((x (+ (* (aref a 0) (aref b 0)) (* (aref a 4) (aref b 1)) (aref a 12)))
+        (y (+ (* (aref a 1) (aref b 0)) (* (aref a 5) (aref b 1)) (aref a 13)))
+        (w (+ (* (aref a 3) (aref b 0)) (* (aref a 7) (aref b 1)) (aref a 15))))
+    (cons
+     (/ x w)
+     (/ y w))))
+
+(defun edraw-matrix-mul-mat-xy (a b)
+  (let ((x (+ (* (aref a 0) (car b)) (* (aref a 4) (cdr b)) (aref a 12)))
+        (y (+ (* (aref a 1) (car b)) (* (aref a 5) (cdr b)) (aref a 13)))
+        (w (+ (* (aref a 3) (car b)) (* (aref a 7) (cdr b)) (aref a 15))))
+    (cons
+     (/ x w)
+     (/ y w))))
+
+
 
 ;;;; Bezier Curve
 

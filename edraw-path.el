@@ -107,6 +107,10 @@
   (edraw-path-cmdlist-loop cmdlist cmd
     (edraw-path-cmd-translate cmd delta-xy)))
 
+(defun edraw-path-cmdlist-transform (cmdlist matrix)
+  (edraw-path-cmdlist-loop cmdlist cmd
+    (edraw-path-cmd-transform cmd matrix)))
+
 (defun edraw-path-cmdlist-closed-p (cmdlist)
   (edraw-path-cmd-is-type-p (edraw-path-cmdlist-back cmdlist) 'Z))
 
@@ -806,6 +810,19 @@ command is exposed.
     ('-forward-handle-point
      (edraw-path-point-translate (edraw-path-cmd-arg-pt cmd 0) delta-xy))))
 
+(defun edraw-path-cmd-transform (cmd matrix)
+  (pcase (edraw-path-cmd-type cmd)
+    ('M
+     (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 0) matrix))
+    ('L
+     (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 0) matrix))
+    ('C
+     (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 0) matrix)
+     (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 1) matrix)
+     (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 2) matrix))
+    ('-forward-handle-point
+     (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 0) matrix))))
+
 ;;;;;; cmd - Segment
 
 (defun edraw-path-cmd-divide-segment (cmd)
@@ -915,6 +932,13 @@ and `edraw-path-cmd-overwrite-from-ppoints'."
   (let ((cell (edraw-path-point-xy ppoint)))
     (setcar cell (+ (car cell) (car delta-xy)))
     (setcdr cell (+ (cdr cell) (cdr delta-xy))))
+  ppoint)
+
+(defun edraw-path-point-transform (ppoint matrix)
+  (let* ((cell (edraw-path-point-xy ppoint))
+         (new-p (edraw-matrix-mul-mat-xy matrix cell)))
+    (setcar cell (car new-p))
+    (setcdr cell (cdr new-p)))
   ppoint)
 
 (defun edraw-path-point-move (ppoint new-xy)
