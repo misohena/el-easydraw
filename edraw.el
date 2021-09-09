@@ -150,8 +150,9 @@
     (define-key km "#" 'edraw-editor-toggle-grid-visible)
     (define-key km (kbd "M-#") 'edraw-editor-set-grid-interval)
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
-    (define-key km "ds" 'edraw-editor-set-size)
     (define-key km "db" 'edraw-editor-set-background)
+    (define-key km "dr" 'edraw-editor-set-size)
+    (define-key km "dt" 'edraw-editor-translate-all-shapes)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
@@ -738,8 +739,20 @@
 
 ;;;;; Editor - Document - Objects
 
-;; (cl-defmethod edraw-translate ((_editor edraw-editor) _delta-xy)
-;;   )
+(cl-defmethod edraw-all-shapes ((editor edraw-editor))
+  ;; back-to-front
+  (delq nil (mapcar (lambda (node)
+                      (edraw-shape-from-element node editor 'noerror))
+                    (dom-children (edraw-svg-body editor)))))
+
+(edraw-editor-defcmd edraw-translate-all-shapes)
+(cl-defmethod edraw-translate-all-shapes ((editor edraw-editor) &optional dx dy)
+  (unless dx (setq dx (read-number "Delta X: " 0)))
+  (unless dy (setq dy (read-number "Delta Y: " 0)))
+
+  (let ((delta-xy (edraw-xy dx dy)))
+    (dolist (shape (edraw-all-shapes editor))
+      (edraw-translate shape delta-xy))))
 
 ;; (cl-defmethod edraw-scale ((_editor edraw-editor) _sx _sy)
 ;;   )
@@ -989,7 +1002,7 @@
     `(((edraw-msg "Document")
        (((edraw-msg "Set Background...") edraw-editor-set-background)
         ((edraw-msg "Resize...") edraw-editor-set-size)
-        ;;((edraw-msg "Translate...") edraw-editor-translate)
+        ((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
         ;;((edraw-msg "Scale...") edraw-editor-scale)
         ((edraw-msg "Clear...") edraw-editor-clear)))
       ((edraw-msg "View")
