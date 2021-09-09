@@ -1251,27 +1251,43 @@ OVERLAY uses the display property to display the color PICKER."
          (picker (edraw-color-picker-overlay
                   overlay 'before-string initial-color options))
          (buffer nil)
+         (buffer-contents nil)
+         (notify-input-change
+          (lambda (string color)
+            (when (not (equal string buffer-contents))
+              (setq buffer-contents string)
+              (when-let ((callback (alist-get :on-input-change options)))
+                (funcall callback string color)))))
+         (in-post-command-p nil)
          (on-post-command
           (lambda ()
+            (setq in-post-command-p t)
             (condition-case err
-                (let ((picker-color (edraw-get-current-color picker))
-                      (minibuffer-color (edraw-color-picker-color-from-string
-                                         (minibuffer-contents-no-properties)
-                                         options)))
+                (let* ((picker-color (edraw-get-current-color picker))
+                       (picker-color-str (edraw-color-picker-color-to-string
+                                          picker-color options))
+                       (minibuffer-string (minibuffer-contents-no-properties))
+                       (minibuffer-color (edraw-color-picker-color-from-string
+                                          minibuffer-string options)))
+                  ;; update color picker
                   (when (and
                          ;; not equals string representation of picker color
                          ;; (set by last on-color-change)
-                         (not (string= (minibuffer-contents-no-properties)
-                                       (edraw-color-picker-color-to-string
-                                        picker-color
-                                        options)))
+                         (not (string= minibuffer-string
+                                       picker-color-str))
                          ;; is valid color
                          minibuffer-color
                          ;; not equals picker color
                          (not (edraw-color-equal-p minibuffer-color
                                                    picker-color)))
-                    (edraw-set-current-color picker minibuffer-color)))
-              (error (message "err=%s" err)))))
+                    (edraw-set-current-color picker minibuffer-color))
+                  ;; callback minibuffer string change
+                  ;; (include invalid string. e.g. "none")
+                  (funcall notify-input-change
+                           minibuffer-string
+                           minibuffer-color))
+              (error (message "err=%s" err)))
+            (setq in-post-command-p nil)))
          (on-minibuffer-setup
           (lambda ()
             (unless buffer
@@ -1290,27 +1306,26 @@ OVERLAY uses the display property to display the color PICKER."
               (minibuffer-keyboard-quit))))
          (on-color-change
           (lambda (_picker)
-            (when buffer
-              (let* ((current-color
-                      (edraw-get-current-color picker))
-                     (current-color-str
-                      (edraw-color-picker-color-to-string current-color
-                                                          options))
-                     (minibuffer-color
-                      (edraw-color-picker-color-from-string
-                       (minibuffer-contents)
-                       options))
+            (when (and buffer
+                       (not in-post-command-p))
+              (let* ((picker-color (edraw-get-current-color picker))
+                     (picker-color-str (edraw-color-picker-color-to-string
+                                        picker-color options))
+                     (minibuffer-string (minibuffer-contents))
+                     (minibuffer-color (edraw-color-picker-color-from-string
+                                        minibuffer-string options))
                      (minibuffer-color-str
                       (if minibuffer-color
-                          (edraw-color-picker-color-to-string
-                           minibuffer-color options))))
-                (when (or (null minibuffer-color)
-                          (not (string= current-color-str
-                                        minibuffer-color-str)))
+                          (edraw-color-picker-color-to-string minibuffer-color
+                                                              options))))
+                (when (not (equal picker-color-str minibuffer-color-str))
                   (with-current-buffer buffer
                     (delete-minibuffer-contents)
                     (goto-char (minibuffer-prompt-end))
-                    (insert current-color-str))))))))
+                    (insert picker-color-str)
+                    ;; callback
+                    (funcall notify-input-change
+                             picker-color-str minibuffer-color))))))))
 
     (edraw-add-hook picker 'ok on-ok)
     (edraw-add-hook picker 'cancel on-cancel)
@@ -1348,6 +1363,7 @@ OVERLAY uses the display property to display the color PICKER."
             (let ((input
                    (read-string actual-prompt initial-input)))
               (setq buffer nil) ;;minibuffer is killed
+              (setq buffer-contents nil)
               (when (or (member input allow-strings)
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
