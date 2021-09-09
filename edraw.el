@@ -750,6 +750,7 @@
                               . ,(lambda (string color)
                                    (when (or (member string '("" "none"))
                                              color)
+                                     ;;@todo suppress modified flag change and notification
                                      (edraw-set-background editor string))))))
                         (edraw-set-background editor current-value))))
       (edraw-set-background editor new-value))))
@@ -2223,6 +2224,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (when changed
         (edraw-on-shape-changed shape 'shape-properties)))))
 
+(cl-defmethod edraw-set-property ((shape edraw-shape) prop-name value)
+  (edraw-set-properties
+   shape
+   (list (cons prop-name value))))
+
 ;;;;;; Z Order
 
 (cl-defmethod edraw-front-p ((shape edraw-shape))
@@ -2272,16 +2278,25 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-property-editor-open shape))
 
 (cl-defmethod edraw-edit-property-paint ((shape edraw-shape) prop-name)
-  (let* ((curr-value (or (edraw-get-property shape prop-name) ""))
-         (new-value (edraw-color-picker-read-color
-                     (format "%s: " prop-name)
-                     curr-value
-                     '("" "none")
-                     `((:color-name-scheme . 'web)))))
-    (when (not (string= new-value curr-value))
-      (edraw-set-properties
-       shape
-       (list (cons prop-name (if (string-empty-p new-value) nil new-value)))))))
+  (let* ((curr-value (edraw-get-property shape prop-name))
+         (new-value
+          (unwind-protect
+              (edraw-color-picker-read-color
+               (format "%s: " prop-name)
+               (or curr-value "")
+               '("" "none")
+               `((:color-name-scheme . 'web)
+                 (:on-input-change
+                  . ,(lambda (string color)
+                       (when (or (member string '("" "none"))
+                                 color)
+                         ;;@todo suppress modified flag change and notification
+                         (edraw-set-property shape prop-name string))))))
+            (edraw-set-property shape prop-name curr-value))))
+    (when (string-empty-p new-value)
+      (setq new-value nil))
+    (when (not (equal new-value curr-value))
+      (edraw-set-property shape prop-name new-value))))
 
 (cl-defmethod edraw-edit-fill ((shape edraw-shape))
   (edraw-edit-property-paint shape "fill"))
