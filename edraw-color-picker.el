@@ -1056,7 +1056,15 @@ Specify one of 'display, 'before-string, or 'after-string."
     (define-key keymap [down-mouse-1]
       (lambda (down-event)
         (interactive "e")
-        (edraw-on-down-mouse-1 picker down-event)))))
+        (edraw-on-down-mouse-1 picker down-event)))
+    (define-key keymap [drag-mouse-1] 'ignore)
+    (define-key keymap [mouse-1] 'ignore)
+    (define-key keymap [double-down-mouse-1] 'ignore)
+    (define-key keymap [double-drag-mouse-1] 'ignore)
+    (define-key keymap [double-mouse-1] 'ignore)
+    (define-key keymap [triple-down-mouse-1] 'ignore)
+    (define-key keymap [triple-drag-mouse-1] 'ignore)
+    (define-key keymap [triple-mouse-1] 'ignore)))
 
 (cl-defmethod edraw-close ((display edraw-color-picker-display-overlay))
   (with-slots (overlay target-property) display
