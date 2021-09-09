@@ -2379,6 +2379,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (edraw-aabb (car p0p1) (cdr p0p1))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) xy)
+  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   (with-slots (p0p1) shape
     (when (or (/= (car xy) 0) (/= (cdr xy) 0))
       (edraw-set-rect shape
@@ -2392,6 +2393,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       )))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-with-rect-boundary) matrix)
+  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   (with-slots (p0p1) shape
     (let ((new-p0 (edraw-matrix-mul-mat-xy matrix (car p0p1)))
           (new-p1 (edraw-matrix-mul-mat-xy matrix (cdr p0p1))))
