@@ -713,6 +713,10 @@
     (dom-set-attribute element 'width (edraw-width editor))
     (dom-set-attribute element 'height (edraw-height editor))))
 
+(cl-defmethod edraw-get-background ((editor edraw-editor))
+  (when-let ((element (edraw-svg-background editor)))
+    (dom-attr element 'fill)))
+
 (cl-defmethod edraw-set-background ((editor edraw-editor) fill)
   (with-slots (svg) editor
     (if (or (null fill) (string= fill "none") (string-empty-p fill))
@@ -734,9 +738,21 @@
 
 (defun edraw-editor-set-background (&optional editor)
   (interactive)
-  (when-let* ((editor (or editor (edraw-editor-at-input last-input-event)))
-              (fill (read-string (edraw-msg "Background Color: "))))
-    (edraw-set-background editor fill)))
+  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+    (let* ((current-value (edraw-get-background editor))
+           (new-value (unwind-protect
+                          (edraw-color-picker-read-color
+                           (edraw-msg "Background Color: ")
+                           (or current-value "")
+                           '("" "none")
+                           `((:color-name-scheme . web)
+                             (:on-input-change
+                              . ,(lambda (string color)
+                                   (when (or (member string '("" "none"))
+                                             color)
+                                     (edraw-set-background editor string))))))
+                        (edraw-set-background editor current-value))))
+      (edraw-set-background editor new-value))))
 
 ;;;;; Editor - Document - Objects
 
