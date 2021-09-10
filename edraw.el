@@ -154,6 +154,7 @@
     (define-key km "dr" 'edraw-editor-set-size)
     (define-key km "dt" 'edraw-editor-translate-all-shapes)
     (define-key km "ds" 'edraw-editor-scale-all-shapes)
+    ;; Selected Object
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
@@ -167,6 +168,12 @@
     (define-key km (kbd "M-<right>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "M-<up>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "M-<down>") 'edraw-editor-move-selected-by-arrow-key)
+    (define-key km (kbd "}") 'edraw-editor-bring-selected-to-front)
+    (define-key km (kbd "]") 'edraw-editor-bring-selected-forward)
+    (define-key km (kbd "[") 'edraw-editor-send-selected-backward)
+    (define-key km (kbd "{") 'edraw-editor-send-selected-to-back)
+    (define-key km (kbd "M-]") 'edraw-editor-select-next-shape)
+    (define-key km (kbd "M-[") 'edraw-editor-select-previous-shape)
     km))
 
 ;;;;; Editor - Constructor
@@ -927,6 +934,46 @@
      (selected-shape
       (edraw-remove selected-shape)))))
 
+(edraw-editor-defcmd edraw-bring-selected-to-front)
+(cl-defmethod edraw-bring-selected-to-front ((editor edraw-editor))
+  (with-slots (selected-shape) editor
+    (when selected-shape
+      (edraw-bring-to-front selected-shape))))
+
+(edraw-editor-defcmd edraw-bring-selected-forward)
+(cl-defmethod edraw-bring-selected-forward ((editor edraw-editor))
+  (with-slots (selected-shape) editor
+    (when selected-shape
+      (edraw-bring-forward selected-shape))))
+
+(edraw-editor-defcmd edraw-send-selected-backward)
+(cl-defmethod edraw-send-selected-backward ((editor edraw-editor))
+  (with-slots (selected-shape) editor
+    (when selected-shape
+      (edraw-send-backward selected-shape))))
+
+(edraw-editor-defcmd edraw-send-selected-to-back)
+(cl-defmethod edraw-send-selected-to-back ((editor edraw-editor))
+  (with-slots (selected-shape) editor
+    (when selected-shape
+      (edraw-send-to-back selected-shape))))
+
+(edraw-editor-defcmd edraw-select-next-shape)
+(cl-defmethod edraw-select-next-shape ((editor edraw-editor))
+  (with-slots (selected-shape) editor
+    (when selected-shape
+      (when-let ((shape (edraw-next-sibling selected-shape)))
+        (edraw-select-shape editor shape)))))
+
+(edraw-editor-defcmd edraw-select-previous-shape)
+(cl-defmethod edraw-select-previous-shape ((editor edraw-editor))
+  (with-slots (selected-shape) editor
+    (when selected-shape
+      (when-let ((shape (edraw-previous-sibling selected-shape)))
+        (edraw-select-shape editor shape)))))
+
+
+
 ;;;;; Editor - Default Shape Properties
 
 (cl-defmethod edraw-get-default-shape-properties-by-tag ((editor edraw-editor)
@@ -1023,39 +1070,51 @@
 (edraw-editor-defcmd edraw-main-menu)
 (cl-defmethod edraw-main-menu ((editor edraw-editor))
   "Show the main menu of EDITOR."
-  (edraw-popup-menu
-   (edraw-msg "Main Menu")
-   (edraw-filter-menu
-    editor
-    'main-menu
-    `(((edraw-msg "Document")
-       (((edraw-msg "Set Background...") edraw-editor-set-background)
-        ((edraw-msg "Resize...") edraw-editor-set-size)
-        ((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
-        ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
-        ((edraw-msg "Clear...") edraw-editor-clear)))
-      ((edraw-msg "View")
-       (((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
-         :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
-        ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
-         :button (:toggle . ,(edraw-get-grid-visible editor)))
-        ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)))
-      ((edraw-msg "Selected Object")
-       (((edraw-msg "Delete") edraw-editor-delete-selected
-         :enable ,(not (null (or (edraw-selected-handle editor)
-                                 (edraw-selected-anchor editor)
-                                 (edraw-selected-shape editor)))))))
-      ((edraw-msg "Shape's Defaults")
-       (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
-        ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
-        ((edraw-msg "Text") edraw-editor-edit-default-text-props)
-        ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
-      ;;((edraw-msg "Search Object") edraw-editor-search-object)
-      ((edraw-msg "Save") edraw-editor-save
-       :visible ,(not (null (oref editor document-writer)))
-       :enable ,(edraw-modified-p editor))
-      ))
-   editor))
+  (let ((selected-shape (edraw-selected-shape editor)))
+    (edraw-popup-menu
+     (edraw-msg "Main Menu")
+     (edraw-filter-menu
+      editor
+      'main-menu
+      `(((edraw-msg "Document")
+         (((edraw-msg "Set Background...") edraw-editor-set-background)
+          ((edraw-msg "Resize...") edraw-editor-set-size)
+          ((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
+          ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
+          ((edraw-msg "Clear...") edraw-editor-clear)))
+        ((edraw-msg "View")
+         (((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
+           :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
+          ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
+           :button (:toggle . ,(edraw-get-grid-visible editor)))
+          ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)))
+        ((edraw-msg "Selected Object")
+         (((edraw-msg "Delete") edraw-editor-delete-selected
+           :enable ,(not (null (or (edraw-selected-handle editor)
+                                   (edraw-selected-anchor editor)
+                                   selected-shape))))
+          ((edraw-msg "Z-Order")
+           (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
+             :enable ,(and selected-shape (not (edraw-front-p selected-shape))))
+            ((edraw-msg "Bring Forward") edraw-editor-bring-selected-forward
+             :enable ,(and selected-shape (not (edraw-front-p selected-shape))))
+            ((edraw-msg "Send Backward") edraw-editor-send-selected-backward
+             :enable ,(and selected-shape (not (edraw-back-p selected-shape))))
+            ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
+             :enable ,(and selected-shape (not (edraw-back-p selected-shape))))))
+          ((edraw-msg "Select Next Above") edraw-editor-select-next-shape)
+          ((edraw-msg "Select Next Below") edraw-editor-select-previous-shape)))
+        ((edraw-msg "Shape's Defaults")
+         (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
+          ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
+          ((edraw-msg "Text") edraw-editor-edit-default-text-props)
+          ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
+        ;;((edraw-msg "Search Object") edraw-editor-search-object)
+        ((edraw-msg "Save") edraw-editor-save
+         :visible ,(not (null (oref editor document-writer)))
+         :enable ,(edraw-modified-p editor))
+        ))
+     editor)))
 
 (cl-defmethod edraw-filter-menu ((editor edraw-editor) menu-type items)
   (with-slots (menu-filter) editor
@@ -2239,6 +2298,30 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-set-properties
    shape
    (list (cons prop-name value))))
+
+;;;;;; Siblings
+
+(cl-defmethod edraw-next-sibling ((shape edraw-shape))
+  (with-slots (editor) shape
+    (let ((parent (edraw-parent-element shape))
+          (node (edraw-element shape))
+          (shape nil))
+      ;; Find next supported element
+      (while (and (setq node (edraw-dom-next-sibling parent node))
+                  (null (setq shape (edraw-shape-from-element
+                                     node editor 'noerror)))))
+      shape)))
+
+(cl-defmethod edraw-previous-sibling ((shape edraw-shape))
+  (with-slots (editor) shape
+    (let ((parent (edraw-parent-element shape))
+          (node (edraw-element shape))
+          (shape nil))
+      ;; Find previous supported element
+      (while (and (setq node (edraw-dom-previous-sibling parent node))
+                  (null (setq shape (edraw-shape-from-element
+                                     node editor 'noerror)))))
+      shape)))
 
 ;;;;;; Z Order
 

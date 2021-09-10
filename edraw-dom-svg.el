@@ -106,6 +106,30 @@
 (defun edraw-dom-insert-first (node child)
   (dom-add-child-before node child))
 
+(defun edraw-dom-first-child (node)
+  (car (dom-children node)))
+
+(defun edraw-dom-last-child (node)
+  (car (last (dom-children node))))
+
+(defun edraw-dom-next-sibling (dom node)
+  (when-let ((parent (dom-parent dom node)))
+    (let ((siblings (dom-children parent)))
+      (while (and siblings
+                  (not (eq (car siblings) node)))
+        (setq siblings (cdr siblings)))
+      (cadr siblings))))
+
+(defun edraw-dom-previous-sibling (dom node)
+  (when-let ((parent (dom-parent dom node)))
+    (let ((siblings (dom-children parent)))
+      (if (eq (car siblings) node)
+          nil
+        (while (and (cadr siblings)
+                    (not (eq (cadr siblings) node)))
+          (setq siblings (cdr siblings)))
+        (car siblings)))))
+
 
 ;;;; SVG Print
 
