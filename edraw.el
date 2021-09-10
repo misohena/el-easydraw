@@ -3352,27 +3352,16 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-create-text-field-widget ((pedit edraw-property-editor)
                                               prop-name prop-value prop-type)
-  (prog1
-      (widget-create
-       'editable-field
-       :keymap edraw-property-editor-field-map
-       :size 13
-       :format (format "%s: %%v" prop-name)
-       :value (edraw-prop-value-to-widget-value pedit prop-value prop-type))
-    (widget-insert "\n")))
+  (widget-create
+   'editable-field
+   :keymap edraw-property-editor-field-map
+   :format (format "%s: %%v" prop-name)
+   :value (edraw-prop-value-to-widget-value pedit prop-value prop-type)))
 
 (cl-defmethod edraw-create-paint-widget ((pedit edraw-property-editor)
                                          prop-name prop-value prop-type)
   (let (editable-field)
     (widget-insert prop-name ": ")
-    (setq editable-field
-          (widget-create
-           'editable-field
-           :keymap edraw-property-editor-field-map
-           :size 13
-           :format "%v"
-           :value (edraw-prop-value-to-widget-value
-                   pedit prop-value prop-type)))
     (widget-create
      'push-button :notify
      (lambda (&rest _ignore)
@@ -3381,7 +3370,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
         (edraw-color-picker-read-color
          nil (widget-value editable-field) t `((:color-name-scheme . 'web)))))
      (edraw-msg "Color"))
-    (widget-insert "\n")
+    ;;(widget-insert " ")
+    (setq editable-field
+          (widget-create
+           'editable-field
+           :keymap edraw-property-editor-field-map
+           :format "%v"
+           :value (edraw-prop-value-to-widget-value
+                   pedit prop-value prop-type)))
     editable-field))
 
 (cl-defmethod edraw-prop-value-to-widget-value ((_pedit edraw-property-editor)

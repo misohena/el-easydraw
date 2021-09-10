@@ -115,7 +115,7 @@
 ;;
 
 (defun edraw-track-dragging (down-event on-move
-                                        &optional on-up on-leave)
+                                        &optional on-up on-leave target)
   (if (not (memq 'down (event-modifiers down-event)))
       (error "down-event is not down event. %s" (event-modifiers down-event)))
   (let* ((down-basic-type (event-basic-type down-event))
@@ -134,10 +134,14 @@
               ;; check same object
               (if (and (eq (posn-window (event-start event))
                            target-window)
-                       (= (posn-point (event-start event))
-                          target-point)
-                       (eq (car (posn-object (event-start event))) ;;ex: 'image
-                           (car target-object))) ;;ex: 'image
+                       (if (memq target '(point object nil))
+                           (= (posn-point (event-start event))
+                              target-point)
+                         t)
+                       (if (memq target '(object nil))
+                           (eq (car (posn-object (event-start event))) ;;ex: 'image
+                               (car target-object)) ;;ex: 'image
+                         t))
                   (if on-move (funcall on-move event))
                 ;; out of target
                 (if on-up (funcall on-leave event))
