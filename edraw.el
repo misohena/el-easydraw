@@ -3308,30 +3308,33 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                (prop-required (plist-get (cdr prop-info) :required))
                (prop-value (edraw-get-property target prop-name))
                (indent (- max-name-width (string-width prop-name)))
-               (widget
-                (progn
-                  (widget-insert (make-string indent ? ))
-                  (edraw-create-widget
-                   pedit prop-name prop-value prop-type prop-required))))
+               (widget (edraw-create-widget
+                   pedit indent prop-name prop-value prop-type prop-required)))
           (push (cons prop-name widget) widgets)
           )))))
 
 (cl-defmethod edraw-create-widget ((pedit edraw-property-editor)
+                                   indent
                                    prop-name prop-value prop-type prop-required)
   (pcase prop-type
     (`(or . ,_)
      (edraw-create-menu-choice-widget
-      pedit prop-name prop-value prop-type prop-required))
+      pedit indent prop-name prop-value prop-type prop-required))
+    ((or 'number 'float 'length 'coordinate 'opacity)
+     (edraw-create-number-widget
+      pedit indent prop-name prop-value prop-type))
     ('paint
      (edraw-create-paint-widget
-      pedit prop-name prop-value prop-type))
+      pedit indent prop-name prop-value prop-type))
     (_
      (edraw-create-text-field-widget
-      pedit prop-name prop-value prop-type))))
+      pedit indent prop-name prop-value prop-type))))
 
 (cl-defmethod edraw-create-menu-choice-widget ((pedit edraw-property-editor)
+                                               indent
                                                prop-name prop-value prop-type
                                                prop-required)
+  (widget-insert (make-string indent ? ))
   (let ((types (if prop-required
                    (cdr prop-type) ;;skip (or)
                  ;; nullable
@@ -3344,22 +3347,142 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        ,@(mapcar
           (lambda (item)
             (cond
-             ((null item) (list 'item :tag " " :value nil))
+             ((null item) (list 'item :tag " " :value nil)) ;;If :tag="", show separator
              ((stringp item) (list 'item :tag item :value item))
              ;;((symbolp item) (list 'editable-field :tag (symbol-name item)))
              ))
           types)))))
 
 (cl-defmethod edraw-create-text-field-widget ((pedit edraw-property-editor)
+                                              indent
                                               prop-name prop-value prop-type)
+  (widget-insert (make-string indent ? ))
   (widget-create
    'editable-field
    :keymap edraw-property-editor-field-map
    :format (format "%s: %%v" prop-name)
    :value (edraw-prop-value-to-widget-value pedit prop-value prop-type)))
 
+(cl-defmethod edraw-create-number-widget ((pedit edraw-property-editor)
+                                          indent
+                                          prop-name prop-value prop-type)
+  (let ((name-begin (point))
+        (name-end
+         (progn
+           (widget-insert
+            (propertize
+             (format "%s%s: " (make-string indent ? ) prop-name)
+             'pointer 'hdrag
+             'keymap edraw-property-editor-number-title-keymap
+             'edraw-prop-name prop-name
+             'edraw-prop-type prop-type))
+           (point)))
+        (widget (widget-create
+                 'editable-field
+                 :keymap edraw-property-editor-field-map
+                 :value (edraw-prop-value-to-widget-value pedit
+                                                          prop-value prop-type))))
+    (put-text-property name-begin name-end 'edraw-widget widget)
+    widget))
+
+(defvar edraw-property-editor-number-title-keymap
+  (let ((km (make-sparse-keymap)))
+    (define-key km [down-mouse-1] 'edraw-property-editor-number-dragging)
+    km))
+
+(defun edraw-property-editor-number-dragging (down-event)
+  (interactive "e")
+  (when-let ((down-start (event-start down-event))
+             (down-window (posn-window down-start))
+             (down-xy (posn-x-y down-start))
+             (down-pos (posn-point down-start))
+             (buffer (window-buffer down-window))
+             (widget (with-current-buffer buffer
+                       (get-text-property down-pos 'edraw-widget)))
+             (prop-type (with-current-buffer buffer
+                          (get-text-property down-pos 'edraw-prop-type)))
+             (prop-name (with-current-buffer buffer
+                          (get-text-property down-pos 'edraw-prop-name))))
+
+    (let* ((min-value (pcase prop-type
+                        ('length 0)
+                        ('opacity 0)))
+           (max-value (pcase prop-type
+                        ('opacity 1)))
+           (default-value (pcase prop-type
+                            ('opacity 1)
+                            (_ 0)))
+           (divisor (pcase prop-type
+                      ('opacity 100.0)
+                      (_ 1)))
+           (widget-value (widget-value widget))
+           (start-value (if (and (stringp widget-value)
+                                 (not (string-empty-p widget-value)))
+                            (string-to-number widget-value)
+                          default-value))
+           (min-x (when min-value
+                    (+ (* divisor (- min-value start-value)) (car down-xy))))
+           (max-x (when max-value
+                    (+ (* divisor (- max-value start-value)) (car down-xy))))
+           ;; Motion events come only character by character.
+           ;; However, when the mouse pointer is over an image,
+           ;; events come pixel by pixel.
+           (ov (with-current-buffer (window-buffer down-window)
+                 (save-excursion
+                   (goto-char down-pos)
+                   (make-overlay (line-beginning-position)
+                                 (line-beginning-position))))))
+      (overlay-put ov 'after-string "\n")
+      (edraw-property-editor-number-dragging-image-update
+       ov down-window (car down-xy) min-x max-x)
+      (unwind-protect
+          (edraw-track-dragging
+           down-event
+           (lambda (move-event)
+             (let* ((move-xy (posn-x-y (event-start move-event)))
+                    (delta-value (/ (- (car move-xy) (car down-xy)) divisor))
+                    (new-value (+ start-value delta-value)))
+               (when (and min-value (< new-value min-value))
+                 (setq new-value min-value))
+               (when (and max-value (> new-value max-value))
+                 (setq new-value max-value))
+               (when (/= divisor 1)
+                 (setq new-value (/ (round (* new-value divisor)) divisor)))
+
+               (edraw-property-editor-number-dragging-image-update
+                ov down-window (car move-xy) min-x max-x)
+               (widget-value-set widget (number-to-string new-value))))
+           nil nil 'window)
+        (delete-overlay ov)))))
+
+(defun edraw-property-editor-number-dragging-image-update (ov window
+                                                              x min-x max-x)
+  (when (and min-x (< x min-x)) (setq x min-x))
+  (when (and max-x (> x max-x)) (setq x max-x))
+  (overlay-put ov 'before-string
+               (propertize
+                " "
+                'pointer 'hdrag
+                'display
+                (let* ((width (window-body-width window t))
+                       (height 32)
+                       (svg (svg-create width height))
+                       (bar-h 6)
+                       (thumb-w 2)
+                       (thumb-h 20)
+                       (cy (* 0.5 height)))
+                  (svg-rectangle svg
+                                 0 (- cy (* 0.5 bar-h)) width bar-h :fill "#ccc")
+                  (svg-rectangle svg
+                                 (- x (* 0.5 thumb-w))
+                                 (- cy (* 0.5 thumb-h))
+                                 thumb-w thumb-h :fill "#fff")
+                  (svg-image svg :scale 1.0)))))
+
 (cl-defmethod edraw-create-paint-widget ((pedit edraw-property-editor)
+                                         indent
                                          prop-name prop-value prop-type)
+  (widget-insert (make-string indent ? ))
   (let (editable-field)
     (widget-insert prop-name ": ")
     (widget-create
