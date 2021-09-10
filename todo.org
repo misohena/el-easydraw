@@ -22,13 +22,6 @@ C-c C-c や C-c C-kが効かない。
 
 path-cmdはともかく、path-pointは前後のアンカーやハンドルの取得、削除、追加等様々な処理が正しく動かなければならない。Mを指しているときは、そのMの次がどこになるのかpath-point自身が持たなければならない。
 
-** TODO オブジェクトの名前を取得できるようにする。
-実はeieioではオブジェクトIDを生成してくれている。
-例: #<edraw-shape-ellipse edraw-shape-ellipse-2367ee4>
-eieio-object-name-stringとeieio-object-nameがあるが、前者の方が単体の名前になる。
-(edraw-name shape)でedraw-shape-以降を返す。あくまで名前であって一意性は保証しない。
-edraw-property-proxy-shapeはdefault rectのような名前を返す。
-
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO アンカーとハンドルの選択時に親をチェックする。
@@ -42,7 +35,6 @@ down-mouse時の選択(検索)にも影響するので注意。
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
-** TODO プロパティエディタに編集対象の名前？を表示したい
 ** TODO プロパティエディタのエラーチェックを強化する
 ** TODO プロパティエディタをchild frameにする？
 ** TODO オーバーレイの下のテキストをread-onlyにする？
@@ -416,3 +408,15 @@ edraw-translateのような操作で全ての点に対して行列を適用出�
    CLOSED: [2021-09-09 Thu 19:04]
 ** DONE カラーピッカー使用時にできるだけプレビューしたい
    CLOSED: [2021-09-09 Thu 19:27]
+** DONE オブジェクトの名前を取得できるようにする
+   CLOSED: [2021-09-10 Fri 08:39]
+実はeieioではオブジェクトIDを生成してくれている。
+例: #<edraw-shape-ellipse edraw-shape-ellipse-2367ee4>
+eieio-object-name-stringとeieio-object-nameがあるが、前者の方が単体の名前になる。
+(edraw-name shape)でedraw-shape-以降を返す。あくまで名前であって一意性は保証しない。
+edraw-property-proxy-shapeはdefault rectのような名前を返す。
+
+** DONE プロパティエディタに編集対象の名前を表示する
+   CLOSED: [2021-09-10 Fri 08:39]
+** DONE 選択しているオブジェクトを前後に移動するキーを追加する
+   CLOSED: [2021-09-10 Fri 08:39]

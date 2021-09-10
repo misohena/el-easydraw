@@ -954,7 +954,8 @@
     (when-let ((alist-head (assq tag default-shape-properties)))
       (edraw-property-editor-open
        (edraw-property-proxy-shape :tag tag :alist-head alist-head
-                                   :editor editor)))))
+                                   :editor editor
+                                   :name (format "default %s" tag))))))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor tag)
   (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
@@ -981,7 +982,11 @@
 (defclass edraw-property-proxy-shape ()
   ((tag :initarg :tag)
    (alist-head :initarg :alist-head) ;;('rect (prop . value) ...)
-   (editor :initarg :editor)))
+   (editor :initarg :editor)
+   (name :initarg :name)))
+
+(cl-defmethod edraw-name ((shape edraw-property-proxy-shape))
+  (oref shape name))
 
 (cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
   (seq-remove
@@ -2194,6 +2199,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 ;;;;;; Properties
 
+(cl-defmethod edraw-name ((shape edraw-shape))
+  (let ((name (eieio-object-name-string shape)))
+    (if (string-match "\\`edraw-shape-\\(.*\\)\\'" name)
+        (match-string 1 name)
+      name)))
+
 (cl-defmethod edraw-get-defrefs ((shape edraw-shape))
   (oref (oref shape editor) defrefs))
 
@@ -3167,7 +3178,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (setq-local widget-button-pressed-face 'edraw-widget-button-pressed)
     (setq-local widget-mouse-face 'edraw-widget-button-mouse)
 
-    (widget-insert (edraw-msg "Properties") "\n")
+    (widget-insert (format (edraw-msg "Properties of %s") (or (edraw-name target) "")) "\n")
 
     (edraw-insert-property-widgets pedit)
 
