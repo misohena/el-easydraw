@@ -611,7 +611,8 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
     (base64-decode-region (point-min) (point-max))
     ;; Web browsers don't support svgz
     (when (edraw-buffer-gzip-p)
-      (edraw-gunzip-buffer))
+      (edraw-gunzip-buffer)
+      (encode-coding-region (point-min) (point-max) 'utf-8))
     (base64-encode-region (point-min) (point-max) t)
     (goto-char (point-min))
     (insert "data:image/svg+xml;base64,")
@@ -621,8 +622,9 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
   (with-temp-buffer
     (insert data)
     (base64-decode-region (point-min) (point-max))
-    (when (edraw-buffer-gzip-p)
-      (edraw-gunzip-buffer))
+    (if (edraw-buffer-gzip-p)
+        (edraw-gunzip-buffer)
+      (decode-coding-region (point-min) (point-max) 'utf-8))
     (buffer-substring-no-properties (point-min) (point-max))))
 
 (defun edraw-org-link-data-to-img (data)

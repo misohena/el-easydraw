@@ -3543,7 +3543,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (with-temp-buffer
     (insert data)
     (when base64-p
-      (base64-decode-region (point-min) (point-max)))
+      (base64-decode-region (point-min) (point-max))
+      (unless (edraw-buffer-gzip-p)
+        (decode-coding-region (point-min) (point-max) 'utf-8)))
     (when (edraw-buffer-gzip-p)
       (edraw-gunzip-buffer))
     (libxml-parse-xml-region (point-min) (point-max))))
@@ -3557,6 +3559,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (when gzip-p
       (edraw-gzip-buffer))
     (when base64-p
+      (unless gzip-p
+        (encode-coding-region (point-min) (point-max) 'utf-8))
       (base64-encode-region (point-min) (point-max) t))
     (buffer-string)))
 
