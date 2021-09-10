@@ -1560,16 +1560,16 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-edit-selected-tool-default-shape-property
   ((editor edraw-editor) prop-name)
-  (let* ((tag-value (edraw-get-selected-tool-default-shape-property
-                     editor prop-name))
-         (new-value (edraw-color-picker-read-color
-                     (format "%s %s: " (car tag-value) prop-name)
-                     (cdr tag-value)
-                     '("" "none")
-                     '((:color-name-scheme . 'web)))))
-    (edraw-set-selected-tool-default-shape-property
-     editor prop-name new-value)
-    (edraw-update-toolbar editor)))
+  (when-let ((tag-value (edraw-get-selected-tool-default-shape-property
+                         editor prop-name)))
+    (let ((new-value (edraw-color-picker-read-color
+                      (format "%s %s: " (car tag-value) prop-name)
+                      (cdr tag-value)
+                      '("" "none")
+                      '((:color-name-scheme . 'web)))))
+      (edraw-set-selected-tool-default-shape-property
+       editor prop-name new-value)
+      (edraw-update-toolbar editor))))
 
 (defun edraw-editor-edit-selected-tool-default-shape-property (prop-name)
   (when-let ((editor (edraw-editor-at-input last-input-event)))
