@@ -3211,6 +3211,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (set-keymap-parent km widget-field-keymap)
     (define-key km (kbd "C-c C-c") 'edraw-property-editor--apply)
     (define-key km (kbd "C-c C-k") 'edraw-property-editor--close)
+    (define-key km [drag-mouse-1] 'ignore)
+    (define-key km [double-mouse-1] 'ignore)
+    (define-key km [triple-mouse-1] 'ignore)
     km))
 
 (defvar edraw-property-editor-local-map
@@ -3218,6 +3221,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (set-keymap-parent km widget-keymap)
     (define-key km (kbd "C-c C-c") 'edraw-property-editor--apply)
     (define-key km (kbd "C-c C-k") 'edraw-property-editor--close)
+    (define-key km [drag-mouse-1] 'ignore)
+    (define-key km [double-mouse-1] 'ignore)
+    (define-key km [triple-mouse-1] 'ignore)
     km))
 
 (defclass edraw-property-editor ()
