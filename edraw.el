@@ -1170,8 +1170,9 @@
              (window (posn-window mouse-pos))
              (buffer (window-buffer window))
              (pos (posn-point mouse-pos)))
-        (if edraw-editor-move-point-on-click
-            (set-window-point window pos))
+        (when edraw-editor-move-point-on-click
+          (select-window window)
+          (set-window-point window pos))
         (with-current-buffer buffer
           (edraw-editor-at pos)))
     (edraw-editor-at (point))))
