@@ -3613,18 +3613,17 @@ editor when the selected shape changes."
                                          notify indent
                                          prop-name prop-value prop-type)
   (widget-insert (make-string indent ? ))
-  (let (editable-field)
+  (let (field-widget)
     (widget-insert prop-name ": ")
     (widget-create
      'push-button :notify
      (lambda (&rest _ignore)
        (widget-value-set
-        editable-field
-        (edraw-color-picker-read-color
-         nil (widget-value editable-field) t `((:color-name-scheme . 'web)))))
+        field-widget
+        (edraw-read-property-paint-color pedit prop-name field-widget)))
      (edraw-msg "Color"))
     ;;(widget-insert " ")
-    (setq editable-field
+    (setq field-widget
           (widget-create
            'editable-field
            :keymap edraw-property-editor-field-map
@@ -3632,7 +3631,29 @@ editor when the selected shape changes."
            :value (edraw-prop-value-to-widget-value
                    pedit prop-value prop-type)
            :notify notify))
-    editable-field))
+    field-widget))
+
+(cl-defmethod edraw-read-property-paint-color ((pedit edraw-property-editor)
+                                               prop-name
+                                               field-widget)
+  (with-slots (target) pedit
+    (let ((current-value (widget-value field-widget)))
+      (unwind-protect
+          (edraw-color-picker-read-color
+           (format "%s: " prop-name)
+           current-value
+           '("" "none")
+           `((:color-name-scheme . 'web)
+             ,@(when (and target (cl-typep target 'edraw-shape))
+                 (list
+                  (cons :on-input-change
+                        (lambda (string color)
+                          (when (or (member string '("" "none"))
+                                    color)
+                            ;;@todo suppress modified flag change and notification
+                            (edraw-set-property target prop-name string))))))))
+        (widget-value-set field-widget current-value)))))
+
 
 
 (defun edraw-property-editor-field-at (event)
