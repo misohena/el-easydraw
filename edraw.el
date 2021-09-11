@@ -1077,6 +1077,11 @@
   ;; update toolbar (fill & stroke)
   (edraw-update-toolbar (oref shape editor)))
 
+(cl-defmethod edraw-set-property ((shape edraw-property-proxy-shape) prop-name value)
+  (edraw-set-properties
+   shape
+   (list (cons prop-name value))))
+
 (cl-defmethod edraw-add-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
   )
 
