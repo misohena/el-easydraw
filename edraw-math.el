@@ -24,6 +24,14 @@
 
 ;;; Code:
 
+;;;; Number
+
+(cl-defmethod edraw-clamp ((n number) min-value max-value)
+  (cond
+   ((and min-value (< n min-value)) min-value)
+   ((and max-value (> n max-value)) max-value)
+   (t n)))
+
 ;;;; Vector
 
 (defmacro edraw-xy (x y) `(cons ,x ,y))

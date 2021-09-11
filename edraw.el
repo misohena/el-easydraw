@@ -3463,8 +3463,6 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defun edraw-property-editor-number-dragging-image-update (ov window
                                                               x min-x max-x)
-  (when (and min-x (< x min-x)) (setq x min-x))
-  (when (and max-x (> x max-x)) (setq x max-x))
   (overlay-put ov 'before-string
                (propertize
                 " "
@@ -3480,7 +3478,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                   (svg-rectangle svg
                                  0 (- cy (* 0.5 bar-h)) width bar-h :fill "#ccc")
                   (svg-rectangle svg
-                                 (- x (* 0.5 thumb-w))
+                                 (- (edraw-clamp x min-x max-x) (* 0.5 thumb-w))
                                  (- cy (* 0.5 thumb-h))
                                  thumb-w thumb-h :fill "#fff")
                   (svg-image svg :scale 1.0)))))
