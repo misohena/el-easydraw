@@ -1311,7 +1311,8 @@ OVERLAY uses the display property to display the color PICKER."
               (let* ((picker-color (edraw-get-current-color picker))
                      (picker-color-str (edraw-color-picker-color-to-string
                                         picker-color options))
-                     (minibuffer-string (minibuffer-contents))
+                     (minibuffer-string (with-current-buffer buffer
+                                          (minibuffer-contents-no-properties)))
                      (minibuffer-color (edraw-color-picker-color-from-string
                                         minibuffer-string options))
                      (minibuffer-color-str
