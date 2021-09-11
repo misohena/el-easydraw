@@ -1846,6 +1846,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    'y (cdr down-xy)
                    'width 0
                    'height 0)))
+      (edraw-select-shape editor shape)
 
       (edraw-track-dragging
        down-event
@@ -1881,6 +1882,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    'ellipse
                    'cx (car down-xy)
                    'cy (cdr down-xy))))
+      (edraw-select-shape editor shape)
 
       (edraw-track-dragging
        down-event
