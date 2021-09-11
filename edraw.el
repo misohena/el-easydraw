@@ -813,6 +813,11 @@
         (edraw-add-change-hook selected-shape
                                'edraw-on-selected-shape-changed editor))
 
+      (when (and edraw-property-editor-tracking-selected-shape
+                 selected-shape
+                 (edraw-property-editor-buffer))
+        (edraw-edit-properties selected-shape))
+
       (edraw-call-hook editor 'selection-change))))
 
 (cl-defmethod edraw-unselect-shape ((editor edraw-editor))
@@ -3214,6 +3219,13 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   :group 'edraw-property-editor
   :type 'boolean)
 
+(defcustom edraw-property-editor-tracking-selected-shape t
+  "non-nil means to switch the display target of the property
+editor when the selected shape changes."
+  :group 'edraw-property-editor
+  :type 'boolean)
+
+
 (defvar edraw-property-editor-buffer-name "*Easy Draw Properties*")
 
 (defvar edraw-property-editor-field-map
@@ -3246,6 +3258,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    (update-timer :initform nil)))
 
 (defvar-local edraw-property-editor--pedit nil)
+
+(defun edraw-property-editor-buffer ()
+  (get-buffer edraw-property-editor-buffer-name))
 
 (defun edraw-property-editor-open (target)
   (let* ((buffer (pop-to-buffer edraw-property-editor-buffer-name))
