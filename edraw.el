@@ -3204,6 +3204,16 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   "Widget button pressed face."
   :group 'edraw-faces)
 
+(defgroup edraw-property-editor nil
+  "Emacs Easy Draw Property Editor"
+  :prefix "edraw-property-editor-"
+  :group 'edraw-editor)
+
+(defcustom edraw-property-editor-apply-immediately t
+  "non-nil means that the entered value will be reflected immediately."
+  :group 'edraw-property-editor
+  :type 'boolean)
+
 (defvar edraw-property-editor-buffer-name "*Easy Draw Properties*")
 
 (defvar edraw-property-editor-field-map
@@ -3272,9 +3282,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (edraw-insert-property-widgets pedit)
 
     (widget-insert (make-string 2 ? ))
-    (widget-create 'push-button :notify 'edraw-property-editor--apply
-                   (edraw-msg "Apply"))
-    (widget-insert " ")
+    (unless edraw-property-editor-apply-immediately
+      (widget-create 'push-button :notify 'edraw-property-editor--apply
+                     (edraw-msg "Apply"))
+      (widget-insert " "))
     (widget-create 'push-button :notify 'edraw-property-editor--close
                    (edraw-msg "Close"))
     (widget-insert "\n")
@@ -3314,30 +3325,44 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                (prop-required (plist-get (cdr prop-info) :required))
                (prop-value (edraw-get-property target prop-name))
                (indent (- max-name-width (string-width prop-name)))
+               (notify (edarw-create-property-updator
+                        pedit prop-name prop-type prop-required))
                (widget (edraw-create-widget
-                   pedit indent prop-name prop-value prop-type prop-required)))
+                        pedit notify indent
+                        prop-name prop-value prop-type prop-required)))
           (push (cons prop-name widget) widgets)
           )))))
 
+(cl-defmethod edarw-create-property-updator ((pedit edraw-property-editor)
+                                             prop-name prop-type prop-required)
+  (lambda (widget _changed-widget &optional _event)
+    (when edraw-property-editor-apply-immediately
+      (with-slots (target) pedit
+        (edraw-set-property target
+                            prop-name
+                            (edraw-widget-value-to-prop-value
+                             pedit (widget-value widget)
+                             prop-type prop-required))))))
+
 (cl-defmethod edraw-create-widget ((pedit edraw-property-editor)
-                                   indent
+                                   notify indent
                                    prop-name prop-value prop-type prop-required)
   (pcase prop-type
     (`(or . ,_)
      (edraw-create-menu-choice-widget
-      pedit indent prop-name prop-value prop-type prop-required))
+      pedit notify indent prop-name prop-value prop-type prop-required))
     ((or 'number 'float 'length 'coordinate 'opacity)
      (edraw-create-number-widget
-      pedit indent prop-name prop-value prop-type))
+      pedit notify indent prop-name prop-value prop-type))
     ('paint
      (edraw-create-paint-widget
-      pedit indent prop-name prop-value prop-type))
+      pedit notify indent prop-name prop-value prop-type))
     (_
      (edraw-create-text-field-widget
-      pedit indent prop-name prop-value prop-type))))
+      pedit notify indent prop-name prop-value prop-type))))
 
 (cl-defmethod edraw-create-menu-choice-widget ((pedit edraw-property-editor)
-                                               indent
+                                               notify indent
                                                prop-name prop-value prop-type
                                                prop-required)
   (widget-insert (make-string indent ? ))
@@ -3350,6 +3375,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
      `(menu-choice
        :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
        :value ,(edraw-prop-value-to-widget-value pedit prop-value prop-type)
+       :notify ,notify
        ,@(mapcar
           (lambda (item)
             (cond
@@ -3360,17 +3386,18 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           types)))))
 
 (cl-defmethod edraw-create-text-field-widget ((pedit edraw-property-editor)
-                                              indent
+                                              notify indent
                                               prop-name prop-value prop-type)
   (widget-insert (make-string indent ? ))
   (widget-create
    'editable-field
    :keymap edraw-property-editor-field-map
    :format (format "%s: %%v" prop-name)
-   :value (edraw-prop-value-to-widget-value pedit prop-value prop-type)))
+   :value (edraw-prop-value-to-widget-value pedit prop-value prop-type)
+   :notify notify))
 
 (cl-defmethod edraw-create-number-widget ((pedit edraw-property-editor)
-                                          indent
+                                          notify indent
                                           prop-name prop-value prop-type)
   (let ((name-begin (point))
         (name-end
@@ -3387,7 +3414,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                  'editable-field
                  :keymap edraw-property-editor-field-map
                  :value (edraw-prop-value-to-widget-value pedit
-                                                          prop-value prop-type))))
+                                                          prop-value prop-type)
+                 :notify notify)))
     (put-text-property name-begin name-end 'edraw-widget widget)
     widget))
 
@@ -3483,8 +3511,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                  thumb-w thumb-h :fill "#fff")
                   (svg-image svg :scale 1.0)))))
 
+
 (cl-defmethod edraw-create-paint-widget ((pedit edraw-property-editor)
-                                         indent
+                                         notify indent
                                          prop-name prop-value prop-type)
   (widget-insert (make-string indent ? ))
   (let (editable-field)
@@ -3504,7 +3533,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            :keymap edraw-property-editor-field-map
            :format "%v"
            :value (edraw-prop-value-to-widget-value
-                   pedit prop-value prop-type)))
+                   pedit prop-value prop-type)
+           :notify notify))
     editable-field))
 
 (cl-defmethod edraw-prop-value-to-widget-value ((_pedit edraw-property-editor)
