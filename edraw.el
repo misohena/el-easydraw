@@ -3236,6 +3236,13 @@ editor when the selected shape changes."
 
 (defvar edraw-property-editor-buffer-name "*Easy Draw Property Editor*")
 
+(defvar edraw-property-editor-push-button-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km [drag-mouse-1] 'ignore)
+    (define-key km [double-down-mouse-1] 'edraw-property-editor-widget-button-click)
+    (define-key km [triple-down-mouse-1] 'edraw-property-editor-widget-button-click)
+    km))
+
 (defvar edraw-property-editor-field-map
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km widget-field-keymap)
@@ -3255,6 +3262,7 @@ editor when the selected shape changes."
     (define-key km (kbd "C-c C-k") 'edraw-property-editor--close)
     (define-key km [drag-mouse-1] 'ignore)
     (define-key km [double-mouse-1] 'ignore)
+    (define-key km [double-down-mouse-1] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
     km))
 
@@ -3313,6 +3321,18 @@ editor when the selected shape changes."
     (widget-insert (make-string 2 ? ))
 
     (when target
+      (when (cl-typep target 'edraw-shape)
+        (widget-create 'push-button
+                       :notify 'edraw-property-editor--prev
+                       :keymap edraw-property-editor-push-button-map
+                       (edraw-msg "Prev"))
+        (widget-insert " ")
+        (widget-create 'push-button
+                       :notify 'edraw-property-editor--next
+                       :keymap edraw-property-editor-push-button-map
+                       (edraw-msg "Next"))
+        (widget-insert " "))
+
       (unless edraw-property-editor-apply-immediately
         (widget-create 'push-button :notify 'edraw-property-editor--apply
                        (edraw-msg "Apply"))
@@ -3711,6 +3731,23 @@ editor when the selected shape changes."
   (when edraw-property-editor--pedit
     (edraw-apply-properties edraw-property-editor--pedit)))
 
+(defun edraw-property-editor--prevnext (prev-or-next-func)
+  (when-let ((pedit edraw-property-editor--pedit))
+    (with-slots (target) pedit
+      (when (and target
+                 (cl-typep target 'edraw-shape))
+        (when-let ((new-target (funcall prev-or-next-func target)))
+          (if edraw-property-editor-tracking-selected-shape
+              (edraw-select new-target)
+            ;; destroy PEDIT and open NEW-TARGET
+            (edraw-property-editor-open new-target)))))))
+
+(defun edraw-property-editor--prev (&rest _ignore)
+  (edraw-property-editor--prevnext 'edraw-previous-sibling))
+
+(defun edraw-property-editor--next (&rest _ignore)
+  (edraw-property-editor--prevnext 'edraw-next-sibling))
+
 
 (cl-defmethod edraw-initialize-hooks ((pedit edraw-property-editor))
   (with-slots (target) pedit
@@ -3763,6 +3800,23 @@ editor when the selected shape changes."
       (cancel-timer update-timer)
       (setq update-timer nil))))
 
+
+(defun edraw-property-editor-widget-button-click (event)
+  "An alternative to widget-button-click for double-click and triple-click."
+  (interactive "e")
+  (cl-letf (((symbol-function 'widget-button-release-event-p)
+             'edraw-property-editor-widget-button-release-event-p))
+    (widget-button-click event)))
+
+(defun edraw-property-editor-widget-button-release-event-p (event)
+  "An alternative to widget-button-release-event-p for double-click and triple-click."
+  (and (eventp event)
+       (memq (event-basic-type event) '(mouse-1 mouse-2 mouse-3))
+       (or (and (or (memq 'double (event-modifiers event)) ;;double click
+                    (memq 'triple (event-modifiers event))) ;;triple click
+                (null (memq 'down (event-modifiers event))))
+           (memq 'click (event-modifiers event))
+           (memq 'drag (event-modifiers event)))))
 
 
 ;;;; Message Catalog
