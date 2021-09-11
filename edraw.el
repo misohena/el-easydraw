@@ -3478,13 +3478,11 @@ editor when the selected shape changes."
                                           notify indent
                                           prop-name prop-value prop-type)
   (let* ((line-begin (line-beginning-position))
+         (name-begin (point))
          (name-end
           (progn
             (widget-insert
-             (propertize
-              (format "%s%s: " (make-string indent ? ) prop-name)
-              'pointer 'hdrag
-              'keymap edraw-property-editor-number-title-keymap))
+             (format "%s%s: " (make-string indent ? ) prop-name))
             (point)))
          (widget (widget-create
                   'editable-field
@@ -3495,6 +3493,12 @@ editor when the selected shape changes."
          (field (edraw-property-editor-number-field-create
                  (current-buffer) widget prop-type prop-name)))
     (widget-put widget :edraw-field field)
+
+    ;;`1-' means avoid reacting to field clicks when the value is empty
+    (put-text-property name-begin (1- name-end)
+                       'keymap edraw-property-editor-number-title-keymap)
+    (put-text-property name-begin (1- name-end)
+                       'pointer 'hdrag)
     (put-text-property line-begin name-end 'edraw-field field)
     widget))
 
