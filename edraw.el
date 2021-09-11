@@ -1001,6 +1001,19 @@
               (alist-get tag (oref editor default-shape-properties)))
    value))
 
+(cl-defmethod edraw-set-default-shape-properties-from-shape
+  ((editor edraw-editor) shape)
+  (when-let ((tag (edraw-shape-type shape)))
+    (dolist (prop-info (edraw-get-property-info-list shape))
+      ;; Skip required property
+      (unless (plist-get (cdr prop-info) :required)
+        ;; Get property value
+        (let* ((prop-name (car prop-info))
+               (value (edraw-get-property shape prop-name)))
+          ;; Set property value as default
+          (edraw-set-default-shape-property
+           editor tag (intern prop-name) value))))))
+
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
   (with-slots (default-shape-properties) editor
     (when-let ((alist-head (assq tag default-shape-properties)))
@@ -3331,6 +3344,11 @@ editor when the selected shape changes."
                        :notify 'edraw-property-editor--next
                        :keymap edraw-property-editor-push-button-map
                        (edraw-msg "Next"))
+        (widget-insert " ")
+        (widget-create 'push-button
+                       :notify 'edraw-property-editor--set-as-default
+                       :keymap edraw-property-editor-push-button-map
+                       (edraw-msg "Set as default"))
         (widget-insert " "))
 
       (unless edraw-property-editor-apply-immediately
@@ -3747,6 +3765,15 @@ editor when the selected shape changes."
 
 (defun edraw-property-editor--next (&rest _ignore)
   (edraw-property-editor--prevnext 'edraw-next-sibling))
+
+(defun edraw-property-editor--set-as-default (&rest _ignore)
+  (when-let ((pedit edraw-property-editor--pedit))
+    (with-slots (target) pedit
+      (when (and target
+                 (cl-typep target 'edraw-shape))
+        (edraw-set-default-shape-properties-from-shape
+         (oref target editor)
+         target)))))
 
 
 (cl-defmethod edraw-initialize-hooks ((pedit edraw-property-editor))
