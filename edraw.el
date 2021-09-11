@@ -3224,6 +3224,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (define-key km [drag-mouse-1] 'ignore)
     (define-key km [double-mouse-1] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
+    (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-increase)
+    (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-decrease)
     km))
 
 (defvar edraw-property-editor-local-map
@@ -3396,98 +3398,124 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    :value (edraw-prop-value-to-widget-value pedit prop-value prop-type)
    :notify notify))
 
-(cl-defmethod edraw-create-number-widget ((pedit edraw-property-editor)
-                                          notify indent
-                                          prop-name prop-value prop-type)
-  (let ((name-begin (point))
-        (name-end
-         (progn
-           (widget-insert
-            (propertize
-             (format "%s%s: " (make-string indent ? ) prop-name)
-             'pointer 'hdrag
-             'keymap edraw-property-editor-number-title-keymap
-             'edraw-prop-name prop-name
-             'edraw-prop-type prop-type))
-           (point)))
-        (widget (widget-create
-                 'editable-field
-                 :keymap edraw-property-editor-field-map
-                 :value (edraw-prop-value-to-widget-value pedit
-                                                          prop-value prop-type)
-                 :notify notify)))
-    (put-text-property name-begin name-end 'edraw-widget widget)
-    widget))
-
 (defvar edraw-property-editor-number-title-keymap
   (let ((km (make-sparse-keymap)))
     (define-key km [down-mouse-1] 'edraw-property-editor-number-dragging)
+    (define-key km [wheel-down] 'edraw-property-editor-field-wheel-increase)
+    (define-key km [wheel-up] 'edraw-property-editor-field-wheel-decrease)
     km))
+
+(cl-defmethod edraw-create-number-widget ((pedit edraw-property-editor)
+                                          notify indent
+                                          prop-name prop-value prop-type)
+  (let* ((line-begin (line-beginning-position))
+         (name-end
+          (progn
+            (widget-insert
+             (propertize
+              (format "%s%s: " (make-string indent ? ) prop-name)
+              'pointer 'hdrag
+              'keymap edraw-property-editor-number-title-keymap))
+            (point)))
+         (widget (widget-create
+                  'editable-field
+                  :keymap edraw-property-editor-field-map
+                  :value (edraw-prop-value-to-widget-value pedit
+                                                           prop-value prop-type)
+                  :notify notify))
+         (field (edraw-property-editor-number-field-create
+                 (current-buffer) widget prop-type prop-name)))
+    (widget-put widget :edraw-field field)
+    (put-text-property line-begin name-end 'edraw-field field)
+    widget))
+
+(defclass edraw-property-editor-number-field ()
+  ((buffer :initarg :buffer)
+   (widget :initarg :widget)
+   (prop-type :initarg :prop-type)
+   (prop-name :initarg :prop-name)
+   (min-value :initarg :min-value)
+   (max-value :initarg :max-value)
+   (default-value :initarg :default-value)
+   (divisor :initarg :divisor)))
+
+(defun edraw-property-editor-number-field-create (buffer widget
+                                                         prop-type prop-name)
+  (edraw-property-editor-number-field
+   :buffer buffer
+   :widget widget
+   :prop-type prop-type
+   :prop-name prop-name
+   :min-value
+   (pcase prop-type
+     ('length 0)
+     ('opacity 0))
+   :max-value
+   (pcase prop-type
+     ('opacity 1))
+   :default-value
+   (pcase prop-type
+     ('opacity 1)
+     (_ 0))
+   :divisor
+   (pcase prop-type
+     ('opacity 100.0)
+     (_ 1))))
+
+(cl-defmethod edraw-get-value ((field edraw-property-editor-number-field))
+  (with-slots (widget default-value) field
+    (let ((w-value (widget-value widget)))
+      (if (and (stringp w-value)
+               (not (string-empty-p w-value)))
+          (string-to-number w-value)
+        default-value))))
+
+(cl-defmethod edraw-set-value ((field edraw-property-editor-number-field) value)
+  (with-slots (widget min-value max-value divisor) field
+    (setq value (edraw-clamp value min-value max-value))
+    (when (/= divisor 1)
+      (setq value (/ (round (* value divisor)) divisor)))
+    (widget-value-set widget (number-to-string value))))
+
+(cl-defmethod edraw-increase ((field edraw-property-editor-number-field) delta)
+  (edraw-set-value field (+ (edraw-get-value field)
+                            (/ delta (oref field divisor)))))
 
 (defun edraw-property-editor-number-dragging (down-event)
   (interactive "e")
-  (when-let ((down-start (event-start down-event))
-             (down-window (posn-window down-start))
-             (down-xy (posn-x-y down-start))
-             (down-pos (posn-point down-start))
-             (buffer (window-buffer down-window))
-             (widget (with-current-buffer buffer
-                       (get-text-property down-pos 'edraw-widget)))
-             (prop-type (with-current-buffer buffer
-                          (get-text-property down-pos 'edraw-prop-type)))
-             (prop-name (with-current-buffer buffer
-                          (get-text-property down-pos 'edraw-prop-name))))
-
-    (let* ((min-value (pcase prop-type
-                        ('length 0)
-                        ('opacity 0)))
-           (max-value (pcase prop-type
-                        ('opacity 1)))
-           (default-value (pcase prop-type
-                            ('opacity 1)
-                            (_ 0)))
-           (divisor (pcase prop-type
-                      ('opacity 100.0)
-                      (_ 1)))
-           (widget-value (widget-value widget))
-           (start-value (if (and (stringp widget-value)
-                                 (not (string-empty-p widget-value)))
-                            (string-to-number widget-value)
-                          default-value))
-           (min-x (when min-value
-                    (+ (* divisor (- min-value start-value)) (car down-xy))))
-           (max-x (when max-value
-                    (+ (* divisor (- max-value start-value)) (car down-xy))))
-           ;; Motion events come only character by character.
-           ;; However, when the mouse pointer is over an image,
-           ;; events come pixel by pixel.
-           (ov (with-current-buffer (window-buffer down-window)
-                 (save-excursion
-                   (goto-char down-pos)
-                   (make-overlay (line-beginning-position)
-                                 (line-beginning-position))))))
-      (overlay-put ov 'after-string "\n")
-      (edraw-property-editor-number-dragging-image-update
-       ov down-window (car down-xy) min-x max-x)
-      (unwind-protect
-          (edraw-track-dragging
-           down-event
-           (lambda (move-event)
-             (let* ((move-xy (posn-x-y (event-start move-event)))
-                    (delta-value (/ (- (car move-xy) (car down-xy)) divisor))
-                    (new-value (+ start-value delta-value)))
-               (when (and min-value (< new-value min-value))
-                 (setq new-value min-value))
-               (when (and max-value (> new-value max-value))
-                 (setq new-value max-value))
-               (when (/= divisor 1)
-                 (setq new-value (/ (round (* new-value divisor)) divisor)))
-
-               (edraw-property-editor-number-dragging-image-update
-                ov down-window (car move-xy) min-x max-x)
-               (widget-value-set widget (number-to-string new-value))))
-           nil nil 'window)
-        (delete-overlay ov)))))
+  (when-let ((field (edraw-property-editor-field-at down-event)))
+    (with-slots (buffer min-value max-value divisor) field
+      (let* ((window (posn-window (event-start down-event)))
+             (down-x (car (posn-x-y (event-start down-event))))
+             (down-pos (posn-point (event-start down-event)))
+             (start-value (edraw-get-value field))
+             (min-x (when min-value
+                      (+ (* divisor (- min-value start-value)) down-x)))
+             (max-x (when max-value
+                      (+ (* divisor (- max-value start-value)) down-x)))
+             ;; Motion events come only character by character.
+             ;; However, when the mouse pointer is over an image,
+             ;; events come pixel by pixel.
+             (ov (with-current-buffer buffer
+                   (save-excursion
+                     (goto-char down-pos)
+                     (make-overlay (line-beginning-position)
+                                   (line-beginning-position))))))
+        (overlay-put ov 'after-string "\n")
+        (edraw-property-editor-number-dragging-image-update
+         ov window down-x min-x max-x)
+        (unwind-protect
+            (edraw-track-dragging
+             down-event
+             (lambda (move-event)
+               (let* ((move-x (car (posn-x-y (event-start move-event))))
+                      (delta-value (/ (- move-x down-x) divisor))
+                      (new-value (+ start-value delta-value)))
+                 (edraw-set-value field new-value)
+                 (edraw-property-editor-number-dragging-image-update
+                  ov window move-x min-x max-x)))
+             nil nil 'window)
+          (delete-overlay ov))))))
 
 (defun edraw-property-editor-number-dragging-image-update (ov window
                                                               x min-x max-x)
@@ -3536,6 +3564,28 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    pedit prop-value prop-type)
            :notify notify))
     editable-field))
+
+
+(defun edraw-property-editor-field-at (event)
+  (let* ((start (event-start event))
+         (window (posn-window start))
+         (buffer (window-buffer window))
+         (pos (posn-point start)))
+    (with-current-buffer buffer
+      (save-excursion
+        (goto-char pos)
+        (let ((inhibit-field-text-motion t))
+          (get-text-property (line-beginning-position) 'edraw-field))))))
+
+(defun edraw-property-editor-field-wheel-increase (n event)
+  (interactive "p\ne")
+  (when-let ((field (edraw-property-editor-field-at event)))
+    (edraw-increase field n)))
+
+(defun edraw-property-editor-field-wheel-decrease (n event)
+  (interactive "p\ne")
+  (edraw-property-editor-field-wheel-increase (- n) event))
+
 
 (cl-defmethod edraw-prop-value-to-widget-value ((_pedit edraw-property-editor)
                                                 prop-value prop-type)
