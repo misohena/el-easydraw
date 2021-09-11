@@ -1693,9 +1693,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
              (setq last-xy move-xy))))
         (unless moved-p
           ;; Click shape
-          (when (cdr shapes)
-            (when-let ((new-shape (edraw-popup-shape-selection-menu shapes)))
-              (edraw-select-shape editor new-shape)))))
+          (unless (eq (car shapes) selected-shape)
+            (edraw-select (car shapes))) ;;select front most shape
+          ;; (when (cdr shapes)
+          ;;   (when-let ((new-shape (edraw-popup-shape-selection-menu shapes)))
+          ;;     (edraw-select-shape editor new-shape)))
+          ))
       t)))
 
 ;;;;; Editor - Editing Tools
