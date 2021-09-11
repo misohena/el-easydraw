@@ -816,7 +816,8 @@
       (when (and edraw-property-editor-tracking-selected-shape
                  selected-shape
                  (edraw-property-editor-buffer))
-        (edraw-edit-properties selected-shape))
+        (save-selected-window
+          (edraw-edit-properties selected-shape)))
 
       (edraw-call-hook editor 'selection-change))))
 
