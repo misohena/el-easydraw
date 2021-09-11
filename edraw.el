@@ -3229,7 +3229,7 @@ editor when the selected shape changes."
   :type 'boolean)
 
 
-(defvar edraw-property-editor-buffer-name "*Easy Draw Properties*")
+(defvar edraw-property-editor-buffer-name "*Easy Draw Property Editor*")
 
 (defvar edraw-property-editor-field-map
   (let ((km (make-sparse-keymap)))
