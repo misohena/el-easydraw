@@ -3223,8 +3223,13 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   :type 'boolean)
 
 (defcustom edraw-property-editor-tracking-selected-shape t
-  "non-nil means to switch the display target of the property
+  "non-nil means to switch the editing target of the property
 editor when the selected shape changes."
+  :group 'edraw-property-editor
+  :type 'boolean)
+
+(defcustom edraw-property-editor-close-on-remove-shape nil
+  "non-nil means close the property editor when the editing target is removed."
   :group 'edraw-property-editor
   :type 'boolean)
 
@@ -3297,21 +3302,29 @@ editor when the selected shape changes."
     (setq-local widget-button-pressed-face 'edraw-widget-button-pressed)
     (setq-local widget-mouse-face 'edraw-widget-button-mouse)
 
-    (widget-insert (format (edraw-msg "Properties of %s") (or (edraw-name target) "")) "\n")
+    (if target
+        (widget-insert (format (edraw-msg "Properties of %s")
+                               (or (edraw-name target) "")) "\n")
+      (widget-insert (edraw-msg "No target object") "\n\n"))
 
-    (edraw-insert-property-widgets pedit)
+    (when target
+      (edraw-insert-property-widgets pedit))
 
     (widget-insert (make-string 2 ? ))
-    (unless edraw-property-editor-apply-immediately
-      (widget-create 'push-button :notify 'edraw-property-editor--apply
-                     (edraw-msg "Apply"))
-      (widget-insert " "))
+
+    (when target
+      (unless edraw-property-editor-apply-immediately
+        (widget-create 'push-button :notify 'edraw-property-editor--apply
+                       (edraw-msg "Apply"))
+        (widget-insert " ")))
+
     (widget-create 'push-button :notify 'edraw-property-editor--close
                    (edraw-msg "Close"))
     (widget-insert "\n")
     (widget-insert "\n")
 
     (widget-setup)
+
     (widget-forward 1) ;;to first field
 
     ;; Adjust window height
@@ -3701,14 +3714,16 @@ editor when the selected shape changes."
 
 (cl-defmethod edraw-initialize-hooks ((pedit edraw-property-editor))
   (with-slots (target) pedit
-    (edraw-add-change-hook target 'edraw-on-target-changed pedit)
+    (when target
+      (edraw-add-change-hook target 'edraw-on-target-changed pedit))
     (add-hook 'kill-buffer-hook
               'edraw-property-editor--on-kill-buffer
               nil t)))
 
 (cl-defmethod edraw-uninitialize-hooks ((pedit edraw-property-editor))
   (with-slots (target) pedit
-    (edraw-remove-change-hook target 'edraw-on-target-changed pedit)
+    (when target
+      (edraw-remove-change-hook target 'edraw-on-target-changed pedit))
     (remove-hook 'kill-buffer-hook
                  'edraw-property-editor--on-kill-buffer
                  t)))
@@ -3722,8 +3737,11 @@ editor when the selected shape changes."
                                        _source type)
   (cond
    ((eq type 'shape-remove)
-    (with-slots (buffer) pedit
-      (edraw-close pedit)))
+    (if edraw-property-editor-close-on-remove-shape
+        (edraw-close pedit)
+      ;; destroy pedit and open empty property editor
+      (edraw-property-editor-open nil)
+      ))
    (t
     (with-slots (update-timer) pedit
       (when (null update-timer)
