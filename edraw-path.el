@@ -176,6 +176,141 @@
 
       t)))
 
+(defun edraw-path-cmdlist-reverse (cmdlist)
+  (let ((tmp-cmdlist (edraw-path-cmdlist))
+        in-closed-subpath-p
+        prev-type
+        prev-forward-handle
+        curr-backward-handle
+        (curr (edraw-path-cmdlist-back cmdlist))
+        (prev-m (edraw-path-cmd-prev-M (edraw-path-cmdlist-end cmdlist))))
+    (while curr
+      ;; Update prev-m
+      (when (eq curr prev-m)
+        (setq prev-m (edraw-path-cmd-prev-M curr)))
+
+      (let ((next (edraw-path-cmd-prev curr)))
+        (edraw-path-cmd-remove curr)
+
+        (if (edraw-path-cmd-is-fhp curr)
+            ;; Ignore fhp (Keep prev)
+            nil
+
+          (let* ((curr-type (edraw-path-cmd-type curr))
+                 (curr-anchor (pcase curr-type
+                                ('C (edraw-path-cmd-arg-pt curr 2))
+                                ((or 'L 'M) (edraw-path-cmd-arg-pt curr 0))))
+                 (next-backward-handle (if (eq curr-type 'C) (edraw-path-cmd-arg-pt curr 0)))
+                 (curr-forward-handle (if (eq curr-type 'C) (edraw-path-cmd-arg-pt curr 1))))
+            ;;(message "curr-type=%s" curr-type)
+
+            (pcase curr-type
+              ;; curr <- prev
+              ;; Z <- nil (not in-closed-subpath-p) => M(in-closed-subpath-p=t)
+              ;; Z <- M   (not in-closed-subpath-p) => M(in-closed-subpath-p=t)
+              ;; Z <- Z   (in-closed-subpath-p)     => Z
+              ;; Z <- LorC in-closed-subpath-p      => Z LorC
+              ;; Z <- LorC not in-closed-subpath-p  => M(in-closed-subpath-p=t) LorC
+              ('Z
+               (let ((prev-m-xy (edraw-path-cmd-arg-xy prev-m 0)))
+                 ;; Make segment to Z
+                 (pcase prev-type
+                   ('L
+                    (edraw-path-cmdlist-push-back
+                     tmp-cmdlist
+                     (edraw-path-cmd-from-ppoints 'L (edraw-path-point 'anchor nil 0 prev-m-xy))))
+                   ('C
+                    (edraw-path-cmdlist-push-back
+                     tmp-cmdlist
+                     (edraw-path-cmd-from-ppoints 'C prev-forward-handle curr-backward-handle (edraw-path-point 'anchor nil 2 prev-m-xy)))))
+                 ;; Make M or Z
+                 (if in-closed-subpath-p
+                     (edraw-path-cmdlist-push-back tmp-cmdlist (edraw-path-cmd 'Z))
+                   (edraw-path-cmdlist-push-back tmp-cmdlist (edraw-path-cmd-from-ppoints 'M (edraw-path-cmd-arg-pt prev-m 0))) ;; move M's anchor point to here
+                   (setq in-closed-subpath-p t))))
+
+              ;; M <- nil (not in-closed-subpath-p) => M
+              ;; M <- M   (not in-closed-subpath-p) => M
+              ;; M <- Z   (in-closed-subpath-p)     => Z (in-closed-subpath-p=nil)
+              ;; M <= LorC in-closed-subpath-p      => Z LorC (in-closed-subpath-p=nil)
+              ;; M <= LorC not in-closed-subpath-p  => LorC
+              ('M
+               (pcase prev-type
+                 ;; Make segment to M
+                 ('L
+                  (edraw-path-cmd-overwrite-from-ppoints
+                   curr 'L
+                   (if in-closed-subpath-p
+                       ;; don't use moved M's anchor point
+                       ;; create a point of closing segment
+                       (edraw-path-point 'anchor curr 0 (edraw-path-point-xy curr-anchor))
+                     curr-anchor))
+                  (edraw-path-cmdlist-push-back tmp-cmdlist curr))
+                 ('C
+                  (edraw-path-cmd-overwrite-from-ppoints
+                   curr 'C prev-forward-handle curr-backward-handle
+                   (if in-closed-subpath-p
+                       ;; don't use moved M's anchor point
+                       ;; create a point of closing segment
+                       (edraw-path-point 'anchor curr 0 (edraw-path-point-xy curr-anchor))
+                     curr-anchor))
+                  (edraw-path-cmdlist-push-back tmp-cmdlist curr))
+                 ;; Keep single M
+                 ((or 'M 'nil)
+                  (edraw-path-cmdlist-push-back tmp-cmdlist curr)))
+               ;; Close path
+               (when in-closed-subpath-p
+                 (edraw-path-cmdlist-push-back tmp-cmdlist (edraw-path-cmd 'Z))
+                 (setq in-closed-subpath-p nil)))
+
+              ;; LorC <- nil => M
+              ;; LorC <- M => M
+              ;; LorC(=closing) <- Z => do nothing
+              ;; LorC(/=closing) <- Z => L
+              ;; LorC <- LorC => LorC
+              ((or 'L 'C)
+               (pcase prev-type
+                 ((or 'M 'nil)
+                  (edraw-path-cmd-overwrite-from-ppoints curr 'M curr-anchor)
+                  (edraw-path-cmdlist-push-back tmp-cmdlist curr))
+                 ('L
+                  (edraw-path-cmd-overwrite-from-ppoints curr 'L curr-anchor)
+                  (edraw-path-cmdlist-push-back tmp-cmdlist curr))
+                 ('C
+                  (edraw-path-cmd-overwrite-from-ppoints
+                   curr 'C prev-forward-handle curr-backward-handle curr-anchor)
+                  (edraw-path-cmdlist-push-back tmp-cmdlist curr))
+                 ('Z (unless (edraw-xy-equal-p
+                              (edraw-path-cmd-arg-xy prev-m 0)
+                              (edraw-path-point-xy curr-anchor))
+                       ;; not closing segmeht
+                       (edraw-path-cmdlist-push-back
+                        tmp-cmdlist
+                        (edraw-path-cmd-from-ppoints 'L curr-anchor)))))))
+
+            (setq prev-type curr-type
+                  prev-forward-handle curr-forward-handle
+                  curr-backward-handle next-backward-handle)))
+        (setq curr next)))
+
+    ;;@todo in-closed-subpath-p? invalid path data
+
+    ;;assert (edraw-path-cmdlist-empty-p cmdlist))
+
+    ;; Move contents of tmp-cmdlist to cmdlist
+    (edraw-path-cmd-insert-range-before
+     cmdlist
+     (edraw-path-cmdlist-begin tmp-cmdlist)
+     (edraw-path-cmdlist-back tmp-cmdlist))
+    cmdlist))
+
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d ""))) => ""
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2"))) => "M1 2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4"))) => "M3 4 L1 2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10"))) => "M9 10 C7 8 5 6 3 4 L1 2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10 Z L 11 12 L13 14 Z"))) => "M1 2 L13 14 L11 12 L1 2 Z L9 10 C7 8 5 6 3 4 L1 2 Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 M 5 6 C 7 8 9 10 11 12 Z L 11 12 L13 14 Z"))) => "M5 6 L13 14 L11 12 L5 6 Z L11 12 C9 10 7 8 5 6 Z M3 4 L1 2"
+
 ;;;;;; cmdlist - Anchor Point
 
 (defun edraw-path-cmdlist-add-anchor-point (cmdlist xy)
@@ -526,6 +661,35 @@ The anchor point object in the C command is still the same as the one in the L c
       (when next-cmd
         (setf (edraw-path-cmd--prev next-cmd) prev-cmd)
         (setf (edraw-path-cmd--next this-cmd) nil)))))
+
+(defun edraw-path-cmd-remove-range (first last)
+  (when (and first last)
+    (let ((prev-cmd (edraw-path-cmd--prev first))
+          (next-cmd (edraw-path-cmd--next last)))
+      (when prev-cmd
+        (setf (edraw-path-cmd--next prev-cmd) next-cmd))
+      (when next-cmd
+        (setf (edraw-path-cmd--prev next-cmd) prev-cmd))
+      (setf (edraw-path-cmd--prev first) nil)
+      (setf (edraw-path-cmd--next last) nil))))
+
+(defun edraw-path-cmd-insert-range-after (cmd first last)
+  (when (and cmd first last)
+    (let ((next-cmd (edraw-path-cmd--next cmd)))
+      (setf (edraw-path-cmd--next cmd) first)
+      (setf (edraw-path-cmd--prev first) cmd)
+      (when next-cmd
+        (setf (edraw-path-cmd--prev next-cmd) last))
+      (setf (edraw-path-cmd--next last) next-cmd))))
+
+(defun edraw-path-cmd-insert-range-before (cmd first last)
+  (when (and cmd first last)
+    (let ((prev-cmd (edraw-path-cmd--prev cmd)))
+      (when prev-cmd
+        (setf (edraw-path-cmd--next prev-cmd) first))
+      (setf (edraw-path-cmd--prev first) prev-cmd)
+      (setf (edraw-path-cmd--prev cmd) last)
+      (setf (edraw-path-cmd--next last) cmd))))
 
 (defun edraw-path-cmd-terminate (cmd)
   (setf (edraw-path-cmd--prev cmd) cmd)
@@ -1202,6 +1366,15 @@ and `edraw-path-cmd-overwrite-from-ppoints'."
          t))))))
 
 ;;;;;; point - Anchor Point
+
+(defun edraw-path-anchor-first-p (ppoint)
+  (null (edraw-path-point-prev-anchor ppoint)))
+
+(defun edraw-path-anchor-last-p (ppoint)
+  (null (edraw-path-point-next-anchor ppoint)))
+
+(defun edraw-path-anchor-in-closed-subpath-p (ppoint)
+  (not (null (edraw-path-cmd-Zs-from-M (edraw-path-point-cmd ppoint)))))
 
 (defun edraw-path-anchor-insert-midpoint-before (ppoint)
   (when (edraw-path-point-anchor-p ppoint)

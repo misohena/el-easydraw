@@ -1983,13 +1983,43 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-clear tool)
   (cl-call-next-method))
 
+(cl-defmethod edraw-mouse-down-continue-path ((tool edraw-editor-tool-path)
+                                              down-event)
+  (with-slots (editor editing-path) tool
+    (when (null editing-path)
+      (when-let ((selected-path (edraw-cast (edraw-selected-shape editor)
+                                            'edraw-shape-path)))
+        (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+               (last-anchor (edraw-get-last-anchor-point selected-path))
+               (first-anchor (edraw-get-first-anchor-point selected-path))
+               (anchor
+                (or
+                 (when (and last-anchor
+                            (not (edraw-in-closed-subpath-p last-anchor))
+                            (edraw-hit-input-p last-anchor down-xy))
+                   last-anchor)
+                 (when (and first-anchor
+                            (not (edraw-in-closed-subpath-p first-anchor))
+                            (edraw-hit-input-p first-anchor down-xy))
+                   (edraw-reverse-path selected-path)
+                   first-anchor))))
+          (when anchor
+            (setq editing-path selected-path)
+
+            (message (edraw-msg "Connected"))
+            (edraw-select-anchor editor anchor)
+
+            ;; Drag
+            (edraw-drag-handle-on-click-anchor anchor nil down-event editor)
+            t
+            ))))))
+
 (cl-defmethod edraw-mouse-down-close-path ((tool edraw-editor-tool) down-event)
   "Click the first anchor point of the editing path and drag it."
   (with-slots (editor editing-path) tool
     (when (and editing-path
                (edraw-closable-path-shape-p editing-path))
       (let ((down-xy (edraw-mouse-event-to-xy editor down-event))
-            (moved-p nil)
             (anchor (edraw-get-first-anchor-point editing-path)))
         (when (and anchor
                    (edraw-hit-input-p anchor down-xy)
@@ -1998,28 +2028,35 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
           (edraw-select-anchor editor anchor)
 
-          ;; Drag
-          (let ((anchor-xy (edraw-get-xy anchor))
-                dragging-point)
-            (edraw-track-dragging
-             down-event
-             (lambda (move-event)
-               (setq moved-p t)
-               (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
-                 (when (null dragging-point)
-                   (setq dragging-point
-                         (edraw-create-backward-handle anchor))) ;;notify modification
-                 (when dragging-point
-                   (edraw-move-with-opposite-handle
-                    dragging-point
-                    (edraw-xy-sub (edraw-xy-nmul 2 anchor-xy) move-xy))) ;;notify modification
-                   ))))
-          (unless moved-p
-            ;; Click anchor point
-            )
+          ;; Drag the `backward' handle of ANCHOR
+          (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
           (edraw-clear tool)
           t
           )))))
+
+(defun edraw-drag-handle-on-click-anchor (anchor backward-p down-event editor)
+  (let ((anchor-xy (edraw-get-xy anchor))
+        dragging-point
+        move-p)
+    (edraw-track-dragging
+     down-event
+     (lambda (move-event)
+       (setq moved-p t)
+       (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
+         (when (null dragging-point)
+           (setq dragging-point
+                 ;;notify modification
+                 (if backward-p
+                     (edraw-create-backward-handle anchor)
+                   (edraw-create-forward-handle anchor))))
+         (when dragging-point
+           (edraw-move-with-opposite-handle ;;notify modification
+            dragging-point
+            (if backward-p
+                (edraw-xy-sub (edraw-xy-nmul 2 anchor-xy) move-xy)
+              move-xy)))
+         )))
+    move-p))
 
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)
                                      down-event)
@@ -2987,6 +3024,15 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-on-shape-changed shape 'shape-open-path)
       t)))
 
+(cl-defmethod edraw-reverse-path ((shape edraw-shape-path))
+  "Reverse the order of anchor points in the path."
+  (with-slots (cmdlist) shape
+    (edraw-path-cmdlist-reverse cmdlist)
+    (edraw-update-path-data shape)
+    (edraw-on-shape-changed shape 'shape-reverse-path)
+    t))
+
+
 
 
 ;;;; Shape Point
@@ -3059,6 +3105,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   nil)
 (cl-defmethod edraw-get-actions ((_spt edraw-shape-point))
   nil)
+
+(cl-defmethod edraw-anchor-p ((spt edraw-shape-point))
+  (eq (edraw-get-point-type spt) 'anchor))
+
+(cl-defmethod edraw-handle-p ((spt edraw-shape-point))
+  (eq (edraw-get-point-type spt) 'handle))
 
 (cl-defmethod edraw-hit-input-p ((spt edraw-shape-point) xy)
   "Returns non-nil, if the point SPT hits the pointer input(e.g. click) point XY."
@@ -3205,6 +3257,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (when (or f b)
         (edraw-on-shape-point-changed shape 'anchor-make-corner)
         t))))
+
+(cl-defmethod edraw-in-closed-subpath-p ((spt edraw-shape-point-path))
+  "Returns t if the point SPT is part of a closed subpath in the path shape."
+  (with-slots (ppoint) spt
+    (edraw-path-anchor-in-closed-subpath-p ppoint)))
+
 
 
 
