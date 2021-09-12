@@ -216,6 +216,9 @@
 (cl-defmethod edraw-to-string ((str string))
   str)
 
+(cl-defmethod edraw-cast (obj type)
+  (when (cl-typep obj type)
+    obj))
 
 
 
