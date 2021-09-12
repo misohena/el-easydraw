@@ -1630,7 +1630,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                       (edraw-shape-point-find
                        ;; handle points of selected anchor point
                        (edraw-get-handle-points selected-anchor)
-                       down-xy edraw-handle-point-input-radius))))
+                       down-xy))))
     (when handle
       (edraw-track-dragging
        down-event
@@ -1656,7 +1656,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
          (anchor (and selected-shape
                       (edraw-pick-anchor-point
                        selected-shape
-                       down-xy edraw-anchor-point-input-radius))))
+                       down-xy))))
     (when anchor
       (edraw-track-dragging
        down-event
@@ -1784,14 +1784,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                       (setq target-spoint
                             (edraw-shape-point-find
                              (edraw-get-handle-points selected-anchor)
-                             click-xy edraw-handle-point-input-radius))
+                             click-xy))
                       (setq actions (edraw-get-actions target-spoint)))
                  ;; anchor of selected shape
                  (and selected-shape
                       (setq target-spoint
                             (edraw-pick-anchor-point
                              selected-shape
-                             click-xy edraw-anchor-point-input-radius))
+                             click-xy))
                       (setq actions (edraw-get-actions target-spoint))))
             (edraw-popup-menu
              (format (edraw-msg "%s Point") ;;"Anchor Point" or "Handle Point"
@@ -2273,10 +2273,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 ;;;;;; Search
 
-(cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy r)
+(cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy)
   (edraw-shape-point-find
    (edraw-get-anchor-points shape)
-   xy r))
+   xy))
 
 (cl-defmethod edraw-owned-shape-point-p ((shape edraw-shape) spt)
   (seq-some (lambda (anchor)
@@ -2999,6 +2999,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;; - Shape point objects can be obtained from shape object
 ;;
 
+;;;;; Shape Point - SVG Drawing
+
 (defun edraw-svg-ui-shape-points-remove (parent)
   (edraw-dom-remove-by-id parent "edraw-ui-shape-points"))
 
@@ -3042,11 +3044,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                          "edraw-ui-handle-point-selected"
                        "edraw-ui-handle-point")))
 
-(defun edraw-shape-point-hit-p (spt xy r)
-  (<= (edraw-xy-distance-l-inf (edraw-get-xy spt) xy) r))
+;;;;; Shape Point - Point Set
 
-(defun edraw-shape-point-find (point-list xy r)
-  (seq-find (lambda (spt) (edraw-shape-point-hit-p spt xy r))
+(defun edraw-shape-point-find (point-list xy)
+  (seq-find (lambda (spt) (edraw-hit-input-p spt xy))
             point-list))
 
 ;;;;; Shape Point - Base Class
@@ -3059,6 +3060,15 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   nil)
 (cl-defmethod edraw-get-actions ((_spt edraw-shape-point))
   nil)
+
+(cl-defmethod edraw-hit-input-p ((spt edraw-shape-point) xy)
+  "Returns non-nil, if the point SPT hits the pointer input(e.g. click) point XY."
+  (pcase (edraw-get-point-type spt)
+    ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy spt) xy) ;;square
+                 edraw-anchor-point-input-radius))
+    ('handle (<= (edraw-xy-distance-squared (edraw-get-xy spt) xy) ;;circle
+                 (* edraw-handle-point-input-radius
+                    edraw-handle-point-input-radius)))))
 
 ;;;;; Shape Point - Rect Boundary
 
