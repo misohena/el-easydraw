@@ -1972,7 +1972,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;;;;; Editor - Path Tool
 
 (defclass edraw-editor-tool-path (edraw-editor-tool)
-  ((editing-shape
+  ((editing-path
     :initform nil
     :type (or null edraw-shape-path))))
 
@@ -1985,15 +1985,15 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-mouse-down-close-path ((tool edraw-editor-tool) down-event)
   "Click the first anchor point of the editing path and drag it."
-  (with-slots (editor editing-shape) tool
-    (when (and editing-shape
-               (edraw-closable-path-shape-p editing-shape))
+  (with-slots (editor editing-path) tool
+    (when (and editing-path
+               (edraw-closable-path-shape-p editing-path))
       (let ((down-xy (edraw-mouse-event-to-xy editor down-event))
             (moved-p nil)
-            (anchor (edraw-get-first-anchor-point editing-shape)))
+            (anchor (edraw-get-first-anchor-point editing-path)))
         (when (and anchor
                    (edraw-hit-input-p anchor down-xy)
-                   (edraw-close-path-shape editing-shape))
+                   (edraw-close-path-shape editing-path))
           (message (edraw-msg "Closed"))
 
           (edraw-select-anchor editor anchor)
@@ -2023,17 +2023,16 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)
                                      down-event)
-  (with-slots (editor editing-shape) tool
-    (when (and editing-shape
-               (or (edraw-removed-p editing-shape)
-                   (edraw-closed-path-shape-p editing-shape)))
-      (setq editing-shape nil))
+  (with-slots (editor editing-path) tool
+    (when (and editing-path
+               (or (edraw-removed-p editing-path)
+                   (edraw-closed-path-shape-p editing-path)))
+      (setq editing-path nil))
 
     (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event)))
-      ;;@todo if (null shape) and down-xy is pointing the last anchor of a path and the path is not closed, continue adding anchors
-      ;;(picked-point (when shape (edraw-pick-point shape down-xy)))
-
       (cond
+       ((edraw-mouse-down-continue-path tool down-event))
+
        ((edraw-mouse-down-close-path tool down-event))
 
        ;; Drag or click a handle point of selected anchor point
@@ -2044,17 +2043,17 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
        (t
         ;; Add a new shape
-        (if (null editing-shape)
+        (if (null editing-path)
             (progn
               (edraw-unselect-shape editor)
-              (setq editing-shape
+              (setq editing-path
                     (edraw-create-shape ;;notify modification
                      editor (edraw-svg-body editor) 'path))
               ;; Select new shape
-              (edraw-select-shape editor editing-shape)))
+              (edraw-select-shape editor editing-path)))
 
         (let* (;; Add a new point
-               (anchor-point (edraw-add-anchor-point editing-shape down-xy)) ;;notify modification
+               (anchor-point (edraw-add-anchor-point editing-path down-xy)) ;;notify modification
                (anchor-xy (edraw-get-xy anchor-point)) ;;same as down-xy?
                dragging-point
                symmetry-point)
@@ -2086,9 +2085,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                   move-xy)))))))))))))
 
 (cl-defmethod edraw-clear ((tool edraw-editor-tool-path))
-  (with-slots (editor editing-shape) tool
-    (when editing-shape
-      (setq editing-shape nil))))
+  (with-slots (editor editing-path) tool
+    (when editing-path
+      (setq editing-path nil))))
 
 
 
