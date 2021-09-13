@@ -158,12 +158,16 @@
         (when (or (null attr-filter) (funcall attr-filter attr))
           ;;@todo escape attribute values (What is the state after libxml parses?)
           (insert (format " %s=\"%s\"" (car attr) (cdr attr)))))
-      (insert ">")
-      (dolist (elem (nthcdr 2 dom))
-        (when (integerp indent) (insert "\n"))
-        (edraw-svg-print elem node-filter attr-filter (when (integerp indent) (+ indent 2))))
-      (when (integerp indent) (insert "\n" (make-string indent ? )))
-      (insert (format "</%s>" (car dom))))))
+      (if (null (nthcdr 2 dom))
+          ;;children is empty
+          (insert " />")
+        ;; output children
+        (insert ">")
+        (dolist (elem (nthcdr 2 dom))
+          (when (integerp indent) (insert "\n"))
+          (edraw-svg-print elem node-filter attr-filter (when (integerp indent) (+ indent 2))))
+        (when (integerp indent) (insert "\n" (make-string indent ? )))
+        (insert (format "</%s>" (car dom)))))))
 
 (defun edraw-svg-print-attr-filter (attr)
   (/= (aref (edraw-svg-symbol-name (car attr)) 0) ?:))
