@@ -327,6 +327,70 @@
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10 Z L 11 12 L13 14 Z"))) => "M1 2 L13 14 L11 12 L1 2 Z L9 10 C7 8 5 6 3 4 L1 2 Z"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 M 5 6 C 7 8 9 10 11 12 Z L 11 12 L13 14 Z"))) => "M5 6 L13 14 L11 12 L5 6 Z L11 12 C9 10 7 8 5 6 Z M3 4 L1 2"
 
+(defun edraw-path-cmdlist-insert-cmdlist-front (dst-cmdlist src-cmdlist)
+  (when (eq dst-cmdlist src-cmdlist)
+    (error "Same objects"))
+
+  (unless (edraw-path-cmdlist-empty-p src-cmdlist)
+    (let ((first (edraw-path-cmdlist-front src-cmdlist))
+          (last (edraw-path-cmdlist-back src-cmdlist)))
+      (edraw-path-cmd-remove-range first last)
+      (edraw-path-cmd-insert-range-after (edraw-path-cmdlist-end dst-cmdlist) first last)))
+
+  dst-cmdlist)
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-insert-cmdlist-front (edraw-path-cmdlist-from-d "L10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1 2 L3 4 L10 11 L12 13"
+
+(defun edraw-path-cmdlist-connect-cmdlist-front (dst-cmdlist src-cmdlist)
+  (when (eq dst-cmdlist src-cmdlist)
+    (error "Same objects"))
+
+  (when (and (not (edraw-path-cmdlist-empty-p src-cmdlist))
+             (not (edraw-path-cmdlist-empty-p dst-cmdlist)))
+    ;; last of src              first of dst
+    ;; ..                    -> not M        : Discard dst cmdlist(Invalid path)
+    ;; ..Z                   -> M            : Keep both
+    ;; ..M   (Same Point)    -> M(Closed)    : Keep both
+    ;; ..M   (Same Point)    -> M(Not Closed): Replace dst M with L
+    ;; ..LorC(Same Point)    -> M(Closed)    : Keep both
+    ;; ..LorC(Same Point)    -> M(Not Closed): Replace dst M with L
+    ;; ..M   (Not Same Point)-> M(Closed)    : Keep both
+    ;; ..M   (Not Same Point)-> M(Not Closed): Replace dst M with L
+    ;; ..LorC(Not Same Point)-> M(Closed)    : Keep both
+    ;; ..LorC(Not Same Point)-> M(Not Closed): Replace dst M with L
+    ;; ..fhp                 -> M(Closed)    : Discard src fhp
+    ;; ..fhp                 -> M(Not Closed): Replace dst M with C, discard fhp
+    (let* ((src-last (edraw-path-cmdlist-back src-cmdlist))
+           (src-last-xy (edraw-path-cmd-anchor-point-xy src-last 'fast))
+           (dst-first (edraw-path-cmdlist-front dst-cmdlist))
+           (dst-first-xy (edraw-path-cmd-anchor-point-xy dst-first 'fast))
+           (dst-closed-p (not (null (edraw-path-cmd-Zs-from-M dst-first))))
+           (same-point-p (edraw-xy-equal-p src-last-xy dst-first-xy)))
+      (if (not (edraw-path-cmd-is-M dst-first))
+          ;; Discard invalid path data
+          (edraw-path-cmdlist-clear dst-cmdlist)
+        ;; Connect src-last to dst-first
+        (when (not dst-closed-p)
+          (pcase (edraw-path-cmd-type src-last)
+            ((or 'M 'L 'C)
+             ;; Replace dst M with L
+             (edraw-path-cmd-overwrite-from-ppoints
+              dst-first 'L (edraw-path-cmd-arg-pt dst-first 0)))
+            ('-forward-handle-point
+             ;; Replace dst M with C
+             (edraw-path-cmd-overwrite-from-ppoints
+              dst-first 'C
+              (edraw-path-cmd-arg-pt src-last 0)
+              (edraw-path-point 'handle dst-first 1 dst-first-xy)
+              (edraw-path-cmd-arg-pt dst-first 0)))))
+        ;; Discard src fhp
+        (when (edraw-path-cmd-is-fhp src-last)
+          (edraw-path-cmd-remove src-last)))))
+
+  (edraw-path-cmdlist-insert-cmdlist-front dst-cmdlist src-cmdlist))
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1 2 L3 4 L10 11 L12 13"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4L10 11"))) => "M1 2 L3 4 L10 11 L12 13"
+
+
 ;;;;;; cmdlist - Anchor Point
 
 (defun edraw-path-cmdlist-add-anchor-point (cmdlist xy)
@@ -357,8 +421,9 @@
     (edraw-path-cmd-anchor-point first-cmd 'fast)))
 
 (defun edraw-path-cmdlist-last-anchor-point (cmdlist)
-  (edraw-path-cmd-prev-anchor-point
-   (edraw-path-cmdlist-end cmdlist)))
+  (unless (edraw-path-cmdlist-empty-p cmdlist)
+    (edraw-path-cmd-prev-anchor-point
+     (edraw-path-cmdlist-end cmdlist))))
 
 ;;;;;; cmdlist - String Conversion
 

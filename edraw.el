@@ -2034,6 +2034,21 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           t
           )))))
 
+(cl-defmethod edraw-mouse-down-connect-to-another-path ((tool edraw-editor-tool) down-event)
+  (with-slots (editor editing-path) tool
+    (when editing-path
+      (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+             (anchor (car (delq editing-path (edraw-find-end-points-of-path-shapes editor down-xy)))))
+        (when anchor
+          (when (edraw-connect-path-to-anchor editing-path anchor) ;;notify modification
+            (edraw-clear tool)
+            (edraw-select-shape editor (edraw-parent-shape anchor))
+            (edraw-select-anchor editor anchor)
+            (message "Connected")
+
+            (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
+            t))))))
+
 (defun edraw-drag-handle-on-click-anchor (anchor backward-p down-event editor)
   (let ((anchor-xy (edraw-get-xy anchor))
         dragging-point
@@ -2071,6 +2086,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        ((edraw-mouse-down-continue-path tool down-event))
 
        ((edraw-mouse-down-close-path tool down-event))
+
+       ((edraw-mouse-down-connect-to-another-path tool down-event))
 
        ;; Drag or click a handle point of selected anchor point
        ((edraw-mouse-down-handle-point editor down-event))
@@ -2126,7 +2143,19 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (when editing-path
       (setq editing-path nil))))
 
-
+(cl-defmethod edraw-find-end-points-of-path-shapes ((editor edraw-editor) xy)
+  (let (points)
+    (dolist (node (dom-children (edraw-svg-body editor)))
+      (when-let ((shape (edraw-shape-from-element node editor 'noerror)))
+        (when (cl-typep shape 'edraw-shape-path)
+          ;;@todo include endpoint of subpaths?
+          (dolist (anchor (list (edraw-get-first-anchor-point shape)
+                                (edraw-get-last-anchor-point shape)))
+            (when (and anchor
+                       (edraw-hit-input-p anchor xy)
+                       (not (edraw-in-closed-subpath-p anchor)))
+              (push anchor points))))))
+    points)) ;;front to back
 
 ;;;;; Editor - Shape Finding
 
@@ -3032,6 +3061,23 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (edraw-on-shape-changed shape 'shape-reverse-path)
     t))
 
+(cl-defmethod edraw-connect-path-to-anchor ((src-shape edraw-shape-path) dst-anchor)
+  (with-slots ((src-cmdlist cmdlist)) src-shape
+    (with-slots ((dst-ppoint ppoint) (dst-shape shape)) dst-anchor
+      (with-slots ((dst-cmdlist cmdlist)) dst-shape
+
+        (when (and (not (eq dst-shape src-shape))
+                   (not (edraw-path-anchor-in-closed-subpath-p dst-ppoint))
+                   (or (edraw-path-anchor-first-p dst-ppoint)
+                       (and (edraw-path-anchor-last-p dst-ppoint)
+                            (edraw-path-cmdlist-reverse dst-cmdlist))))
+          (edraw-path-cmdlist-connect-cmdlist-front dst-cmdlist src-cmdlist)
+          ;; Update dst
+          (edraw-update-path-data dst-shape)
+          (edraw-on-shape-changed dst-shape 'shape-append-path)
+          ;; Remove src
+          (edraw-remove src-shape)
+          t)))))
 
 
 
@@ -3129,6 +3175,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    (ref-y :initarg :ref-y)))
 (cl-defmethod edraw-get-point-type ((_spt edraw-shape-point-rect-boundary))
   'anchor)
+(cl-defmethod edraw-parent-shape ((spt edraw-shape-point-rect-boundary))
+  (oref spt shape))
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-rect-boundary))
   (edraw-get-anchor-position (oref spt shape) spt))
 (cl-defmethod edraw-move ((spt edraw-shape-point-rect-boundary) xy)
@@ -3142,6 +3190,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   ((shape :initarg :shape :type edraw-shape-text)))
 (cl-defmethod edraw-get-point-type ((_spt edraw-shape-point-text))
   'anchor)
+(cl-defmethod edraw-parent-shape ((spt edraw-shape-point-text))
+  (oref spt shape))
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-text))
   (edraw-get-anchor-position (oref spt shape)))
 (cl-defmethod edraw-move ((spt edraw-shape-point-text) xy)
@@ -3158,6 +3208,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-get-point-type ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
     (edraw-path-point-type ppoint)))
+
+(cl-defmethod edraw-parent-shape ((spt edraw-shape-point-path))
+  (oref spt shape))
 
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
