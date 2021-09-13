@@ -321,11 +321,11 @@
     cmdlist))
 
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d ""))) => ""
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2"))) => "M1 2"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4"))) => "M3 4 L1 2"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10"))) => "M9 10 C7 8 5 6 3 4 L1 2"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10 Z L 11 12 L13 14 Z"))) => "M1 2 L13 14 L11 12 L1 2 Z L9 10 C7 8 5 6 3 4 L1 2 Z"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 M 5 6 C 7 8 9 10 11 12 Z L 11 12 L13 14 Z"))) => "M5 6 L13 14 L11 12 L5 6 Z L11 12 C9 10 7 8 5 6 Z M3 4 L1 2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2"))) => "M1,2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4"))) => "M3,4L1,2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10"))) => "M9,10C7,8 5,6 3,4L1,2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10 Z L 11 12 L13 14 Z"))) => "M1,2L13,14L11,12L1,2ZL9,10C7,8 5,6 3,4L1,2Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 M 5 6 C 7 8 9 10 11 12 Z L 11 12 L13 14 Z"))) => "M5,6L13,14L11,12L5,6ZL11,12C9,10 7,8 5,6ZM3,4L1,2"
 
 (defun edraw-path-cmdlist-insert-cmdlist-front (dst-cmdlist src-cmdlist)
   (when (eq dst-cmdlist src-cmdlist)
@@ -338,7 +338,7 @@
       (edraw-path-cmd-insert-range-after (edraw-path-cmdlist-end dst-cmdlist) first last)))
 
   dst-cmdlist)
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-insert-cmdlist-front (edraw-path-cmdlist-from-d "L10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1 2 L3 4 L10 11 L12 13"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-insert-cmdlist-front (edraw-path-cmdlist-from-d "L10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1,2L3,4L10,11L12,13"
 
 (defun edraw-path-cmdlist-connect-cmdlist-front (dst-cmdlist src-cmdlist)
   (when (eq dst-cmdlist src-cmdlist)
@@ -387,8 +387,8 @@
           (edraw-path-cmd-remove src-last)))))
 
   (edraw-path-cmdlist-insert-cmdlist-front dst-cmdlist src-cmdlist))
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1 2 L3 4 L10 11 L12 13"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4L10 11"))) => "M1 2 L3 4 L10 11 L10 11 L12 13"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1,2L3,4L10,11L12,13"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4L10 11"))) => "M1,2L3,4L10,11L10,11L12,13"
 
 
 ;;;;;; cmdlist - Anchor Point
@@ -429,13 +429,10 @@
 
 (defun edraw-path-cmdlist-to-string (cmdlist)
   "Return string as d= attribute format."
-  (let (str)
+  (let ((str ""))
     (edraw-path-cmdlist-loop cmdlist cmd
-      (let ((cmd-str (edraw-path-cmd-to-string cmd)))
-        (when (and cmd-str (not (string-empty-p cmd-str)))
-          (setq str
-                (concat (if str (concat str " ")) cmd-str)))))
-    (or str "")))
+      (setq str (concat str (edraw-path-cmd-to-string cmd))))
+    str))
 
 (defun edraw-path-cmdlist-from-d (d)
   "Convert path data attribute(<path d=D>) to edraw-path-cmdlist object."
@@ -551,13 +548,13 @@
             (_ (error "Unsupported path command found: %s" cmd-args))
             ))))
     cmdlist))
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10 10.1 L20.2 200.0 L0.3 0.03 Z"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M10 10.1 L20.2 200.0 L0.3000000000000007 0.030000000000001137 Z"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 h 30 40 -50 v 60 -70")) => "M10 20 L40 20 L80 20 L30 20 L30 80 L30 10"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 H 30 40 -50 V 60 -70")) => "M10 20 L30 20 L40 20 L-50 20 L-50 60 L-50 -70"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M10 20 C30 40 50 60 70 85 C90 110 150 160 170 180"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 65 50 Q 130 85 65 120")) => "M65 50 C108.33333333333334 73.33333333333333 108.33333333333334 96.66666666666667 65 120"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 100 100 c 50,50 100,50 150,0")) => "M100 100 C150 150 200 150 250 100"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10,10.1L20.2,200.0L0.3,0.03Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M10,10.1L20.2,200.0L0.3000000000000007,0.030000000000001137Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 h 30 40 -50 v 60 -70")) => "M10,20L40,20L80,20L30,20L30,80L30,10"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 H 30 40 -50 V 60 -70")) => "M10,20L30,20L40,20L-50,20L-50,60L-50,-70"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M10,20C30,40 50,60 70,85C90,110 150,160 170,180"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 65 50 Q 130 85 65 120")) => "M65,50C108.33333333333334,73.33333333333333 108.33333333333334,96.66666666666667 65,120"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 100 100 c 50,50 100,50 150,0")) => "M100,100C150,150 200,150 250,100"
 
 
 
@@ -697,7 +694,7 @@ The anchor point object in the C command is still the same as the one in the L c
             ;;" "
             (mapconcat (lambda (arg)
                          (let ((xy (edraw-path-point-xy arg)))
-                           (format "%s %s" (car xy) (cdr xy))))
+                           (format "%s,%s" (car xy) (cdr xy))))
                        args " "))))))))
 
 ;;;;;; cmd - Relationship Between Commands
