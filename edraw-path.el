@@ -470,13 +470,13 @@
             (_ (error "Unsupported path command found: %s" cmd-args))
             ))))
     cmdlist))
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M 10 10.1 L 20.2 200.0 L 0.3 0.03 Z"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M 10 10.1 L 20.2 200.0 L 0.3000000000000007 0.030000000000001137 Z"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 h 30 40 -50 v 60 -70")) => "M 10 20 L 40 20 L 80 20 L 30 20 L 30 80 L 30 10"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 H 30 40 -50 V 60 -70")) => "M 10 20 L 30 20 L 40 20 L -50 20 L -50 60 L -50 -70"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M 10 20 C 30 40 50 60 70 85 C 90 110 150 160 170 180"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 65 50 Q 130 85 65 120")) => "M 65 50 C 108.33333333333334 73.33333333333333 108.33333333333334 96.66666666666667 65 120"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 100 100 c 50,50 100,50 150,0")) => "M 100 100 C 150 150 200 150 250 100"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10 10.1 L20.2 200.0 L0.3 0.03 Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M10 10.1 L20.2 200.0 L0.3000000000000007 0.030000000000001137 Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 h 30 40 -50 v 60 -70")) => "M10 20 L40 20 L80 20 L30 20 L30 80 L30 10"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 H 30 40 -50 V 60 -70")) => "M10 20 L30 20 L40 20 L-50 20 L-50 60 L-50 -70"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M10 20 C30 40 50 60 70 85 C90 110 150 160 170 180"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 65 50 Q 130 85 65 120")) => "M65 50 C108.33333333333334 73.33333333333333 108.33333333333334 96.66666666666667 65 120"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 100 100 c 50,50 100,50 150,0")) => "M100 100 C150 150 200 150 250 100"
 
 
 
