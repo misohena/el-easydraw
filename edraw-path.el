@@ -388,7 +388,7 @@
 
   (edraw-path-cmdlist-insert-cmdlist-front dst-cmdlist src-cmdlist))
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1 2 L3 4 L10 11 L12 13"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4L10 11"))) => "M1 2 L3 4 L10 11 L12 13"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4L10 11"))) => "M1 2 L3 4 L10 11 L10 11 L12 13"
 
 
 ;;;;;; cmdlist - Anchor Point
