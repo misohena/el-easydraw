@@ -3274,6 +3274,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (cond
        ((edraw-path-point-anchor-p ppoint)
         `(((edraw-msg "Delete Point") edraw-delete-point)
+          ((edraw-msg "Split Path at Point") edraw-split-path-at)
           ((edraw-msg "Insert Point Before") edraw-insert-point-before
            :enable ,(not (null (edraw-path-point-prev-anchor ppoint))))
           ((edraw-msg "Make Smooth") edraw-make-smooth)
@@ -3316,6 +3317,25 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (with-slots (ppoint) spt
     (edraw-path-anchor-in-closed-subpath-p ppoint)))
 
+(cl-defmethod edraw-split-path-at ((spt edraw-shape-point-path))
+  (with-slots (ppoint shape) spt
+    (when (edraw-path-anchor-split-path ppoint)
+      (with-slots (cmdlist) shape
+        (let ((new-cmdlists (edraw-path-cmdlist-split-subpaths cmdlist)))
+          (when new-cmdlists
+            (edraw-path-cmdlist-swap cmdlist (car new-cmdlists))
+            (edraw-update-path-data shape)
+
+            ;; Create new path shapes
+            (dolist (new-cmdlist new-cmdlists)
+              (let ((new-shape (edraw-clone shape)))
+                (edraw-path-cmdlist-swap (oref new-shape cmdlist) new-cmdlist)
+                (edraw-update-path-data new-shape)
+                ;;@todo notify change?
+                ))
+
+            (edraw-on-shape-changed shape 'split-path-at-anchor)
+            t))))))
 
 
 
