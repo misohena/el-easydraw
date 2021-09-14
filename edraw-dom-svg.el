@@ -477,9 +477,9 @@
 
 (defun edraw-svg-text-get-text (element)
   (if (stringp (car (dom-children element)))
-      (car (dom-children element))
+      (string-trim (car (dom-children element)))
     (let ((tspans (dom-by-class element "\\`text-line\\'")))
-      (mapconcat (lambda (tspan) (dom-text tspan)) tspans "\n"))))
+      (mapconcat (lambda (tspan) (string-trim (dom-text tspan))) tspans "\n"))))
 
 (defun edraw-svg-text-set-x (element x)
   (dom-set-attribute element 'x x)
