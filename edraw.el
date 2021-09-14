@@ -154,6 +154,8 @@
     (define-key km "dr" 'edraw-editor-set-size)
     (define-key km "dt" 'edraw-editor-translate-all-shapes)
     (define-key km "ds" 'edraw-editor-scale-all-shapes)
+    (define-key km "deb" 'edraw-editor-export-to-buffer)
+    (define-key km "def" 'edraw-editor-export-to-file)
     ;; Selected Object
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
@@ -646,19 +648,57 @@
   (with-slots (document-writer svg svg-document-size) editor
     (when (and document-writer
                (edraw-modified-p editor))
-      (let ((out-svg (edraw-editor-remove-ui-element-from-svg svg)))
-        (edraw-editor-remove-root-transform out-svg svg-document-size)
-        ;; Add xmlns
-        (dom-set-attribute out-svg 'xmlns "http://www.w3.org/2000/svg")
-        ;;(dom-set-attribute out-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
-        ;; Remove empty defs
-        (when-let ((defs (edraw-dom-get-by-id out-svg edraw-editor-svg-defs-id)))
-          (when (null (dom-children defs))
-            (dom-remove-node out-svg defs)))
+      (let ((doc-svg (edraw-document-svg editor)))
         (prog1
             ;;signal error if failed
-            (funcall document-writer out-svg)
+            (funcall document-writer doc-svg)
           (edraw-set-modified-p editor nil))))))
+
+(cl-defmethod edraw-document-svg ((editor edraw-editor))
+  (with-slots (svg svg-document-size) editor
+    (let ((doc-svg (edraw-editor-remove-ui-element-from-svg svg)))
+      (edraw-editor-remove-root-transform doc-svg svg-document-size)
+      ;; Add xmlns
+      (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
+      ;;(dom-set-attribute doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
+      ;; Remove empty defs
+      (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
+        (when (null (dom-children defs))
+          (dom-remove-node doc-svg defs)))
+      doc-svg)))
+
+(edraw-editor-defcmd edraw-export-to-buffer)
+(cl-defmethod edraw-export-to-buffer ((editor edraw-editor))
+  (pop-to-buffer "*Easy Draw SVG*")
+  (erase-buffer)
+  (edraw-svg-print
+   (edraw-document-svg editor)
+   nil
+   'edraw-svg-print-attr-filter 0)
+  (xml-mode))
+
+
+(edraw-editor-defcmd edraw-export-to-file)
+(cl-defmethod edraw-export-to-file ((editor edraw-editor) &optional filename)
+  (unless filename
+    (setq filename
+          (read-file-name (edraw-msg "Write edraw file: ") default-directory)))
+  (when (and (stringp filename)
+             (not (string-empty-p filename)))
+    (when (directory-name-p filename)
+      (error "%s is a directory" filename))
+    (when (and (file-exists-p filename)
+               (not (y-or-n-p (format-message
+                               (edraw-msg "File `%s' exists; overwrite? ")
+                               filename ))))
+      (user-error "Canceled"))
+    (with-temp-file filename
+      (set-buffer-file-coding-system 'utf-8)
+      (edraw-svg-print
+       (edraw-document-svg editor)
+       nil
+       'edraw-svg-print-attr-filter 0))))
+
 
 ;; Clear
 
@@ -1105,7 +1145,9 @@
           ((edraw-msg "Resize...") edraw-editor-set-size)
           ((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
           ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
-          ((edraw-msg "Clear...") edraw-editor-clear)))
+          ((edraw-msg "Clear...") edraw-editor-clear)
+          ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
+          ((edraw-msg "Export to File") edraw-editor-export-to-file)))
         ((edraw-msg "View")
          (((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
            :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
