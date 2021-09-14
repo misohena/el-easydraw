@@ -156,6 +156,7 @@
     (define-key km "ds" 'edraw-editor-scale-all-shapes)
     (define-key km "deb" 'edraw-editor-export-to-buffer)
     (define-key km "def" 'edraw-editor-export-to-file)
+    (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
     ;; Selected Object
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
@@ -677,7 +678,6 @@
    'edraw-svg-print-attr-filter 0)
   (xml-mode))
 
-
 (edraw-editor-defcmd edraw-export-to-file)
 (cl-defmethod edraw-export-to-file ((editor edraw-editor) &optional filename)
   (unless filename
@@ -698,6 +698,16 @@
        (edraw-document-svg editor)
        nil
        'edraw-svg-print-attr-filter 0))))
+
+(edraw-editor-defcmd edraw-export-debug-svg-to-buffer)
+(cl-defmethod edraw-export-debug-svg-to-buffer ((editor edraw-editor))
+  (pop-to-buffer "*Easy Draw SVG*")
+  (erase-buffer)
+  (edraw-svg-print
+   (oref editor svg)
+   nil
+   'edraw-svg-print-attr-filter 0)
+  (xml-mode))
 
 
 ;; Clear
