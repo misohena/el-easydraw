@@ -2052,7 +2052,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (defun edraw-drag-handle-on-click-anchor (anchor backward-p down-event editor)
   (let ((anchor-xy (edraw-get-xy anchor))
         dragging-point
-        move-p)
+        moved-p)
     (edraw-track-dragging
      down-event
      (lambda (move-event)
@@ -2071,7 +2071,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                 (edraw-xy-sub (edraw-xy-nmul 2 anchor-xy) move-xy)
               move-xy)))
          )))
-    move-p))
+    moved-p))
 
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)
                                      down-event)
