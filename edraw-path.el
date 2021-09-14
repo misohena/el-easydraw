@@ -375,11 +375,9 @@
     ;; ..fhp                 -> M(Closed)    : Discard src fhp
     ;; ..fhp                 -> M(Not Closed): Replace dst M with C, discard fhp
     (let* ((src-last (edraw-path-cmdlist-back src-cmdlist))
-           (src-last-xy (edraw-path-cmd-anchor-point-xy src-last 'fast))
            (dst-first (edraw-path-cmdlist-front dst-cmdlist))
            (dst-first-xy (edraw-path-cmd-anchor-point-xy dst-first 'fast))
-           (dst-closed-p (not (null (edraw-path-cmd-Zs-from-M dst-first))))
-           (same-point-p (edraw-xy-equal-p src-last-xy dst-first-xy)))
+           (dst-closed-p (not (null (edraw-path-cmd-Zs-from-M dst-first)))))
       (if (not (edraw-path-cmd-is-M dst-first))
           ;; Discard invalid path data
           (edraw-path-cmdlist-clear dst-cmdlist)
