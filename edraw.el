@@ -2938,6 +2938,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
         :enable ,(edraw-closable-path-shape-p shape))
        ((edraw-msg "Open Path") edraw-open-path-shape
         :enable ,(edraw-closed-path-shape-p shape))
+       ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
        ))))
 
 (cl-defmethod edraw-set-marker-start-none ((shape edraw-shape-path))
