@@ -3412,8 +3412,8 @@ editor when the selected shape changes."
     (define-key km [drag-mouse-1] 'ignore)
     (define-key km [double-mouse-1] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
-    (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-increase)
-    (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-decrease)
+    (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-decrease)
+    (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
 
 (defvar edraw-property-editor-local-map
@@ -3618,8 +3618,8 @@ editor when the selected shape changes."
 (defvar edraw-property-editor-number-title-keymap
   (let ((km (make-sparse-keymap)))
     (define-key km [down-mouse-1] 'edraw-property-editor-number-dragging)
-    (define-key km [wheel-down] 'edraw-property-editor-field-wheel-increase)
-    (define-key km [wheel-up] 'edraw-property-editor-field-wheel-decrease)
+    (define-key km [wheel-down] 'edraw-property-editor-field-wheel-decrease)
+    (define-key km [wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
 
 (cl-defmethod edraw-create-number-widget ((pedit edraw-property-editor)
