@@ -903,8 +903,7 @@
   (with-slots (selected-shape selected-anchor selected-handle) editor
     (when (and anchor
                selected-shape
-               ;;@todo check (eq (edraw-parent anchor) selected-shape)
-               )
+               (eq (edraw-parent-shape anchor) selected-shape))
       (setq selected-anchor anchor)
       (setq selected-handle nil)
       (edraw-update-selection-ui editor))))
@@ -921,9 +920,8 @@
     (when (and handle
                selected-shape
                selected-anchor
-               ;;@todo check (eq (edraw-parent anchor) selected-shape)
-               ;;@todo check (eq (edraw-parent handle) selected-anchor)
-               )
+               (edraw-same-point-p (edraw-parent-anchor handle)
+                                   selected-anchor))
       (setq selected-handle handle)
       (edraw-update-selection-ui editor))))
 
@@ -3244,6 +3242,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   'anchor)
 (cl-defmethod edraw-parent-shape ((spt edraw-shape-point-rect-boundary))
   (oref spt shape))
+(cl-defmethod edraw-parent-anchor ((spt edraw-shape-point-rect-boundary))
+  nil)
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-rect-boundary))
   (edraw-get-anchor-position (oref spt shape) spt))
 (cl-defmethod edraw-move ((spt edraw-shape-point-rect-boundary) xy)
@@ -3259,6 +3259,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   'anchor)
 (cl-defmethod edraw-parent-shape ((spt edraw-shape-point-text))
   (oref spt shape))
+(cl-defmethod edraw-parent-anchor ((spt edraw-shape-point-text))
+  nil)
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-text))
   (edraw-get-anchor-position (oref spt shape)))
 (cl-defmethod edraw-move ((spt edraw-shape-point-text) xy)
@@ -3278,6 +3280,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-parent-shape ((spt edraw-shape-point-path))
   (oref spt shape))
+
+(cl-defmethod edraw-parent-anchor ((spt edraw-shape-point-path))
+  (with-slots (ppoint shape) spt
+    (edraw-shape-point-path
+     :shape shape
+     :ppoint (edraw-path-handle-parent-anchor ppoint))))
 
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
