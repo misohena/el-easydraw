@@ -146,28 +146,35 @@
     (edraw-svg-print dom node-filter attr-filter)
     (buffer-string)))
 
-(defun edraw-svg-print (dom node-filter attr-filter &optional indent)
+(defun edraw-svg-print (dom node-filter attr-filter &optional indent no-indent)
   ;; Derived from svg-print in svg.el
-  (when (integerp indent) (insert (make-string indent ? )))
   (when (or (null node-filter) (funcall node-filter dom))
     (if (stringp dom)
         ;;@todo escape text
         (insert dom)
-      (insert (format "<%s" (car dom)))
-      (dolist (attr (nth 1 dom))
-        (when (or (null attr-filter) (funcall attr-filter attr))
-          ;;@todo escape attribute values (What is the state after libxml parses?)
-          (insert (format " %s=\"%s\"" (car attr) (cdr attr)))))
-      (if (null (nthcdr 2 dom))
-          ;;children is empty
-          (insert " />")
-        ;; output children
-        (insert ">")
-        (dolist (elem (nthcdr 2 dom))
-          (when (integerp indent) (insert "\n"))
-          (edraw-svg-print elem node-filter attr-filter (when (integerp indent) (+ indent 2))))
-        (when (integerp indent) (insert "\n" (make-string indent ? )))
-        (insert (format "</%s>" (car dom)))))))
+      (let ((tag (car dom))
+            (attrs (cadr dom))
+            (children (cddr dom)))
+        (when (and (integerp indent) (not no-indent)) (insert (make-string indent ? )))
+        (insert (format "<%s" tag))
+        (dolist (attr attrs)
+          (when (or (null attr-filter) (funcall attr-filter attr))
+            ;;@todo escape attribute values (What is the state after libxml parses?)
+            (insert (format " %s=\"%s\"" (car attr) (cdr attr)))))
+        (if (null children)
+            ;;children is empty
+            (insert " />")
+          ;; output children
+          (insert ">")
+          (let ((no-indent (or (not (integerp indent))
+                               no-indent
+                               (memq tag '(text tspan))
+                               (seq-find 'stringp children))))
+            (dolist (elem children)
+              (unless no-indent (insert "\n"))
+              (edraw-svg-print elem node-filter attr-filter (unless no-indent (+ indent 2)) no-indent))
+            (unless no-indent (insert "\n" (make-string indent ? )))
+            (insert (format "</%s>" (car dom)))))))))
 
 (defun edraw-svg-print-attr-filter (attr)
   (/= (aref (edraw-svg-symbol-name (car attr)) 0) ?:))
@@ -477,9 +484,9 @@
 
 (defun edraw-svg-text-get-text (element)
   (if (stringp (car (dom-children element)))
-      (string-trim (car (dom-children element)))
+      (car (dom-children element))
     (let ((tspans (dom-by-class element "\\`text-line\\'")))
-      (mapconcat (lambda (tspan) (string-trim (dom-text tspan))) tspans "\n"))))
+      (mapconcat (lambda (tspan) (dom-text tspan)) tspans "\n"))))
 
 (defun edraw-svg-text-set-x (element x)
   (dom-set-attribute element 'x x)
