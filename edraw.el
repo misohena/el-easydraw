@@ -865,8 +865,7 @@
       (when (and edraw-property-editor-tracking-selected-shape
                  selected-shape
                  (edraw-property-editor-buffer))
-        (save-selected-window
-          (edraw-edit-properties selected-shape)))
+        (edraw-edit-properties selected-shape))
 
       (edraw-call-hook editor 'selection-change))))
 
@@ -3515,19 +3514,20 @@ editor when the selected shape changes."
   (get-buffer edraw-property-editor-buffer-name))
 
 (defun edraw-property-editor-open (target)
-  (let* ((buffer (pop-to-buffer edraw-property-editor-buffer-name))
-         (window (selected-window))
-         (pedit (edraw-property-editor
-                 :buffer buffer
-                 :window window
-                 :target target)))
+  (save-selected-window
+    (let* ((buffer (pop-to-buffer edraw-property-editor-buffer-name))
+           (window (selected-window))
+           (pedit (edraw-property-editor
+                   :buffer buffer
+                   :window window
+                   :target target)))
 
-    (when edraw-property-editor--pedit
-      (edraw-destroy edraw-property-editor--pedit))
+      (when edraw-property-editor--pedit
+        (edraw-destroy edraw-property-editor--pedit))
 
-    (kill-all-local-variables)
-    (setq-local edraw-property-editor--pedit pedit)
-    (edraw-open pedit)))
+      (kill-all-local-variables)
+      (setq-local edraw-property-editor--pedit pedit)
+      (edraw-open pedit))))
 
 (cl-defmethod edraw-open ((pedit edraw-property-editor))
   (with-slots (target widgets) pedit
