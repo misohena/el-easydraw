@@ -3595,7 +3595,7 @@ editor when the selected shape changes."
                (prop-required (plist-get (cdr prop-info) :required))
                (prop-value (edraw-get-property target prop-name))
                (indent (- max-name-width (string-width prop-name)))
-               (notify (edarw-create-property-updator
+               (notify (edraw-create-property-updator
                         pedit prop-name prop-type prop-required))
                (widget (edraw-create-widget
                         pedit notify indent
@@ -3603,7 +3603,7 @@ editor when the selected shape changes."
           (push (cons prop-name widget) widgets)
           )))))
 
-(cl-defmethod edarw-create-property-updator ((pedit edraw-property-editor)
+(cl-defmethod edraw-create-property-updator ((pedit edraw-property-editor)
                                              prop-name prop-type prop-required)
   (lambda (widget _changed-widget &optional _event)
     (when edraw-property-editor-apply-immediately
