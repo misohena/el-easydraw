@@ -256,6 +256,7 @@
 (cl-defmethod edraw-close ((editor edraw-editor))
   (with-slots (overlay) editor
     (when (and overlay (overlay-buffer overlay))
+      (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?
       (edraw-update-image-timer-cancel editor)
       (delete-overlay overlay))))
 
