@@ -324,10 +324,8 @@
 
 (cl-defmethod edraw-update-image ((editor edraw-editor))
   "Update the image and apply the image to the overlay."
-  (with-slots (overlay svg image image-update-timer) editor
-    ;;@todo Prevent updates when the editor is closed. closed?
+  (with-slots (overlay svg image) editor
     (edraw-update-image-timer-cancel editor)
-    (setq image-update-timer nil)
     (setq image (edraw-svg-to-image svg
                                     :scale 1.0)) ;;Cancel image-scale effect
     (overlay-put overlay 'display image)))
