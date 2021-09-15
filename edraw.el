@@ -720,7 +720,7 @@
 (cl-defmethod edraw-clear ((editor edraw-editor))
   (edraw-unselect-shape editor)
   (edraw-select-tool editor nil)
-  ;;@todo close property editor
+  (edraw-notify-document-close-to-all-shapes editor)
 
   (with-slots (svg) editor
     (setq svg nil))
@@ -2207,6 +2207,13 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
               (push anchor points))))))
     points)) ;;front to back
 
+;;;;; Editor - Shapes
+
+(cl-defmethod edraw-notify-document-close-to-all-shapes ((editor edraw-editor))
+  (dolist (node (dom-children (edraw-svg-body editor)))
+    (when-let ((shape (edraw-shape-from-element-no-create node)))
+      (edraw-notify-change-hook shape 'document-close))))
+
 ;;;;; Editor - Shape Finding
 
 (cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
@@ -2298,6 +2305,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        (dom-set-attribute element :-edraw-shape shape)
        shape))))
 
+(defun edraw-shape-from-element-no-create (element)
+  (when (edraw-dom-element-p element)
+    (dom-attr element :-edraw-shape)))
+
 (defun edraw-popup-shape-selection-menu (shapes)
   "Show a menu to select one from multiple shape objects."
   (if (cdr shapes)
@@ -2357,8 +2368,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;;;;;; Hooks
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
-  (with-slots (editor change-hook) shape
+  (with-slots (editor) shape
     (edraw-on-document-changed editor 'shape)
+    (edraw-notify-change-hook shape type)))
+
+(cl-defmethod edraw-notify-change-hook ((shape edraw-shape) type)
+  (with-slots (editor change-hook) shape
     (edraw-hook-call change-hook shape type)))
 
 (cl-defmethod edraw-add-change-hook ((shape edraw-shape) function &rest args)
@@ -4024,7 +4039,8 @@ editor when the selected shape changes."
 (cl-defmethod edraw-on-target-changed ((pedit edraw-property-editor)
                                        _source type)
   (cond
-   ((eq type 'shape-remove)
+   ((or (eq type 'shape-remove)
+        (eq type 'document-close))
     (if edraw-property-editor-close-on-remove-shape
         (edraw-close pedit)
       ;; destroy pedit and open empty property editor
