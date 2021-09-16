@@ -3319,7 +3319,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-on-shape-point-changed shape 'point-move))))
 
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-path) spt2)
-  (and (object-of-class-p spt2 'edraw-shape-point-path)
+  (and spt2
+       (object-of-class-p spt2 'edraw-shape-point-path)
        (eq (oref spt1 shape) (oref spt2 shape))
        (eq (oref spt1 ppoint) (oref spt2 ppoint))))
        ;; (= (edraw-path-point-index-in-cmdlist (oref spt1 ppoint))
