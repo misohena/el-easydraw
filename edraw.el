@@ -3296,9 +3296,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-parent-anchor ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
-    (edraw-shape-point-path
-     :shape shape
-     :ppoint (edraw-path-handle-parent-anchor ppoint))))
+    (when-let ((result-point (edraw-path-handle-parent-anchor ppoint)))
+      (edraw-shape-point-path
+       :shape shape
+       :ppoint result-point))))
 
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
