@@ -137,6 +137,8 @@
     (define-key km [double-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [mouse-3] 'edraw-editor-dispatch-event)
+    (define-key km [C-down-mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [C-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-down-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km "m" 'edraw-editor-main-menu)
@@ -1266,6 +1268,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (when tool
       (edraw-on-S-down-mouse-1 tool down-event))))
 
+(cl-defmethod edraw-on-C-down-mouse-1 ((editor edraw-editor) down-event)
+  (with-slots (tool) editor
+    (when tool
+      (edraw-on-C-down-mouse-1 tool down-event))))
+
 (cl-defmethod edraw-on-mouse-1 ((editor edraw-editor) down-event)
   (with-slots (tool) editor
     (when tool
@@ -1280,6 +1287,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (with-slots (tool) editor
     (when tool
       (edraw-on-S-mouse-1 tool down-event))))
+
+(cl-defmethod edraw-on-C-mouse-1 ((editor edraw-editor) down-event)
+  (with-slots (tool) editor
+    (when tool
+      (edraw-on-C-mouse-1 tool down-event))))
 
 (cl-defmethod edraw-on-mouse-3 ((editor edraw-editor) down-event)
   (with-slots (tool) editor
@@ -1814,6 +1826,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-S-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-C-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-C-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-double-mouse-1 ((_tool edraw-editor-tool) _click-event))
 
 (cl-defmethod edraw-on-mouse-3 ((tool edraw-editor-tool) click-event)
