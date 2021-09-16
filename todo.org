@@ -1,7 +1,14 @@
 
 * Inbox
+** TODO グラデーションエディタを作る
+** TODO 非常に小さい図形でも選択ツールで選択できるようにする
+** TODO コピー、ペースト機能
+** TODO デフォルト値を何度も設定しなくて良くなる機能
+** TODO 既存パスからの継続は選択中のパスに限定しない方が良い？
+** TODO パスの始点を移動しようとして閉じてしまうミスを防げないか
 ** TODO エクスポート時にATTR_HTMLが効かない問題を何とかする
 imgの時は何とかするとしてsvgのときにどうするか。widthとheightはまずい。
+** TODO 通常の画像リンク(.edraw.svgへの)でも編集できるようにする
 ** TODO カラーピッカーでプレビュー中は変更フラグと変更通知を抑制する
 ** TODO edraw-color-picker-replace-color-at-pointのキー入力を改善する
 C-c C-c や C-c C-kが効かない。
@@ -15,14 +22,10 @@ path-cmdはともかく、path-pointは前後のアンカーやハンドルの�
 
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
-** TODO アンカーとハンドルの選択時に親をチェックする。
-@todoあり。アンカーを選択したときはシェイプを、ハンドルを選択したときはアンカーをチェックする。関連するものが選択されている必要がある。選択されていなければ選択すべき。
 ** TODO pathが1点以下になって見えなくなったらどうするか考える
 rectやellipse、textにもそういった問題はある。
 検出してshapeを消すべき。
 
-** TODO 表示改善/パスアンカー選択時は前後のアンカーのハンドルも表示する
-down-mouse時の選択(検索)にも影響するので注意。
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
@@ -30,22 +33,16 @@ down-mouse時の選択(検索)にも影響するので注意。
 ** TODO プロパティエディタをchild frameにする？
 ** TODO オーバーレイの下のテキストをread-onlyにする？
 ** TODO UNDO/REDO機能
+** TODO 複数選択時の選択中shapeに対する右クリックを改善する
+選択オブジェクト全体に対する操作を出すべき。
 ** TODO 複数選択してプロパティを設定
 - 必須プロパティは除外
 - 全てnilで始めるか、全てが完全に一致しているものだけ埋めるか
 - 例によって代理となるオブジェクトを作る
-** TODO 複数選択機能
-** TODO 複数選択移動機能
+** TODO 矩形で選択できるようにする
 ** TODO ルーペ機能
-** TODO SVGツリーのデバッグ出力機能
-** TODO ファイルエクスポート機能
-** TODO バッファエクスポート機能
 ** TODO オブジェクト単独でのtransform属性に対応する
 ** TODO SHIFT+ドラッグで水平垂直45度移動に限定する(可能?)
-** TODO edraw-update-imageはeditor終了後には更新をしないようにする
-「終了後」がまだ定義されていないのでなんとも。
-オーバーレイオブジェクトのdisplayプロパティを書き替えるだけなので、最悪特に問題は起きない。
-終了時にタイマーをキャンセルするのでも良い。
 ** TODO image要素に対応できる？
 少し試した限りimage要素は表示できない。
 ** TODO DOMツリーの文字列化は変更のあったサブツリーのみに限定する
@@ -465,3 +462,57 @@ https://www.gnu.org/software/emacs/manual/html_mono/widget.html
     - 閉パスの場合 : cmdlistを二つに分割する。Mを追加する。
                      MとZをくっつける。
     - 開パスの場合 : cmdlistを二つに分割する。Mを追加する。
+** DONE ホイールの方向を逆にする
+   CLOSED: [2021-09-14 Tue 16:16]
+** DONE パスの向きを逆にする機能を追加する
+   CLOSED: [2021-09-14 Tue 18:17]
+連結機能で勝手に反転するようになってしまったので。
+あまり必要ではないがとりあえず矢印の向きに関係がある。
+** DONE ファイルエクスポート機能
+   CLOSED: [2021-09-14 Tue 21:29]
+** DONE バッファエクスポート機能
+   CLOSED: [2021-09-14 Tue 21:29]
+** DONE SVGツリーのデバッグ出力機能
+   CLOSED: [2021-09-14 Tue 21:40]
+** DONE edraw-update-imageはeditor終了後には更新をしないようにする
+   CLOSED: [2021-09-15 Wed 10:50]
+「終了後」がまだ定義されていないのでなんとも。
+オーバーレイオブジェクトのdisplayプロパティを書き替えるだけなので、最悪特に問題は起きない。
+終了時にタイマーをキャンセルするのでも良い。
+→(edraw-close editor)でキャンセル
+** DONE アンカーとハンドルの選択時に親をチェックする。
+   CLOSED: [2021-09-15 Wed 12:19]
+@todoあり。アンカーを選択したときはシェイプを、ハンドルを選択したときはアンカーをチェックする。関連するものが選択されている必要がある。選択されていなければ選択すべき。
+** DONE 複数選択機能
+   CLOSED: [2021-09-16 Thu 14:59]
+C-downで選択追加、削除する。
+影響箇所:
+- edraw-selected-shape
+- edraw-select-shape
+- edraw-unselect-shape
+- edraw-on-selected-shape-changed
+- edraw-select-anchor
+- edraw-unselect-anchor
+- edraw-select-handle
+- edraw-unselect-handle
+- edraw-update-selection-ui
+- edraw-svg-ui-shape-points
+
+- edraw-translate-selected
+- edraw-delete-selected
+- edraw-bring-selected-to-front
+- edraw-bring-selected-forward
+- edraw-send-selected-backward
+- edraw-send-selected-to-back
+- edraw-select-next-shape
+- edraw-select-previous-shape
+- edraw-main-menu
+- edraw-mouse-down-anchor-point
+- edraw-mouse-down-shape
+- edraw-on-mouse-3
+- edraw-mouse-down-continue-path
+** DONE 複数選択移動機能
+   CLOSED: [2021-09-16 Thu 14:59]
+** DONE 表示改善/パスアンカー選択時は前後のアンカーのハンドルも表示する
+   CLOSED: [2021-09-16 Thu 15:00]
+down-mouse時の選択(検索)にも影響するので注意。
