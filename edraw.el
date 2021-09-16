@@ -1803,6 +1803,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                (setq moving-shapes nil))
            ;; Add to selection
            (edraw-add-shape-selection editor down-shape)
+           (edraw-deselect-anchor editor) ;;When pressed delete key next time, I want the selected shapes to be deleted instead of the selected anchor
            (setq moving-shapes (edraw-selected-shapes editor))))
         ('down
          (if down-selected-p
