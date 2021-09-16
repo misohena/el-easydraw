@@ -870,7 +870,7 @@
     (when (and shape
                (not (memq shape selected-shapes)))
       (edraw-add-change-hook shape
-                             'edraw-on-selected-shape-changed editor))
+                             'edraw-on-selected-shape-changed editor)
       (setq selected-shapes (append selected-shapes (list shape)))
       (edraw-update-selection-ui editor)
 
@@ -879,7 +879,7 @@
                  (edraw-property-editor-buffer))
         (edraw-edit-properties shape));;@todo create proxy shape and pass it
 
-      (edraw-call-hook editor 'selection-change)))
+      (edraw-call-hook editor 'selection-change))))
 
 (cl-defmethod edraw-remove-shape-selection ((editor edraw-editor) shape)
   (with-slots (selected-shapes selected-anchor selected-handle) editor
