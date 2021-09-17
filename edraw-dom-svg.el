@@ -321,66 +321,66 @@
 
 (defconst edraw-svg-element-properties-common
   ;;name source type required
-  '(("fill" attr-fill-stroke paint nil)
-    ("fill-opacity" attr opacity nil)
-    ("stroke" attr-fill-stroke paint nil)
-    ("stroke-opacity" attr opacity nil)
-    ("stroke-width" attr length nil)
-    ("stroke-dasharray" attr string nil)
-    ("stroke-dashoffset" attr length nil)
-    ("style" attr string nil)))
+  '((fill attr-fill-stroke paint nil)
+    (fill-opacity attr opacity nil)
+    (stroke attr-fill-stroke paint nil)
+    (stroke-opacity attr opacity nil)
+    (stroke-width attr length nil)
+    (stroke-dasharray attr string nil)
+    (stroke-dashoffset attr length nil)
+    (style attr string nil)))
 (defconst edraw-svg-element-properties
   `((rect
-     ("x" attr coordinate t)
-     ("y" attr coordinate t)
-     ("width" attr length t)
-     ("height" attr length t)
-     ("rx" attr length nil)
-     ("ry" attr length nil)
+     (x attr coordinate t)
+     (y attr coordinate t)
+     (width attr length t)
+     (height attr length t)
+     (rx attr length nil)
+     (ry attr length nil)
      ,@edraw-svg-element-properties-common)
     (circle
-     ("cx" attr coordinate t)
-     ("cy" attr coordinate t)
-     ("r" attr length t)
+     (cx attr coordinate t)
+     (cy attr coordinate t)
+     (r attr length t)
      ,@edraw-svg-element-properties-common)
     (ellipse
-     ("cx" attr coordinate t)
-     ("cy" attr coordinate t)
-     ("rx" attr length t)
-     ("ry" attr length t)
+     (cx attr coordinate t)
+     (cy attr coordinate t)
+     (rx attr length t)
+     (ry attr length t)
      ,@edraw-svg-element-properties-common)
     (path
-     ("d" attr string t :internal t)
+     (d attr string t :internal t)
      ,@edraw-svg-element-properties-common
-     ("fill-rule" attr (or "nonzero" "evenodd") nil)
-     ("stroke-linecap" attr (or "butt" "round" "square") nil)
-     ("stroke-linejoin" attr (or "miter" "round" "bevel") nil)
-     ("stroke-miterlimit" attr number nil)
-     ("marker-start" attr-marker (or "arrow" "circle") nil)
-     ("marker-mid" attr-marker (or "arrow" "circle") nil)
-     ("marker-end" attr-marker (or "arrow" "circle") nil))
+     (fill-rule attr (or "nonzero" "evenodd") nil)
+     (stroke-linecap attr (or "butt" "round" "square") nil)
+     (stroke-linejoin attr (or "miter" "round" "bevel") nil)
+     (stroke-miterlimit attr number nil)
+     (marker-start attr-marker (or "arrow" "circle") nil)
+     (marker-mid attr-marker (or "arrow" "circle") nil)
+     (marker-end attr-marker (or "arrow" "circle") nil))
     (text
-     ("text" inner-text string t)
+     (text inner-text string t)
      ;; librsvg does not support list-of-coordinates
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/183
-     ("x" attr coordinate t)
-     ("y" attr coordinate t)
-     ("dx" attr coordinate nil)
-     ("dy" attr coordinate nil)
+     (x attr coordinate t)
+     (y attr coordinate t)
+     (dx attr coordinate nil)
+     (dy attr coordinate nil)
      ;; librsvg does not support?
-     ;;("rotate" attr string nil)
+     ;;(rotate attr string nil)
      ;; librsvg does not support textLength
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/88
-     ;;("textLength" attr number nil)
-     ;;("lengthAdjust" attr (or "spacing" "spacingAndGlyphs") nil)
-     ("font-family" attr font-family nil)
-     ("font-size" attr number nil)
-     ("font-weight" attr (or "normal" "bold" "bolder" "lighter") nil)
-     ("font-style" attr (or "normal" "italic" "oblique") nil)
-     ("text-decoration" attr (or "underline" "overline" "line-through") nil)
-     ("text-anchor" attr (or "start" "middle" "end") nil)
+     ;;(textLength attr number nil)
+     ;;(lengthAdjust attr (or "spacing" "spacingAndGlyphs") nil)
+     (font-family attr font-family nil)
+     (font-size attr number nil)
+     (font-weight attr (or "normal" "bold" "bolder" "lighter") nil)
+     (font-style attr (or "normal" "italic" "oblique") nil)
+     (text-decoration attr (or "underline" "overline" "line-through") nil)
+     (text-anchor attr (or "start" "middle" "end") nil)
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
-     ;;("baseline-shift" attr number nil)
+     ;;(baseline-shift attr number nil)
      ,@edraw-svg-element-properties-common)))
 (defun edraw-svg-elem-prop-name (prop-def) (nth 0 prop-def))
 (defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
@@ -404,7 +404,7 @@
 
 (defun edraw-svg-element-get-property (element prop-name defrefs)
   (when-let ((prop-def-list (alist-get (dom-tag element) edraw-svg-element-properties))
-             (prop-def (assoc prop-name prop-def-list)))
+             (prop-def (assq prop-name prop-def-list)))
     (let* ((source (edraw-svg-elem-prop-source prop-def))
            (getter (intern
                     (concat "edraw-svg-element-get-" (symbol-name source)))))
@@ -412,7 +412,7 @@
 
 (defun edraw-svg-element-set-property (element prop-name value defrefs)
   (when-let ((prop-def-list (alist-get (dom-tag element) edraw-svg-element-properties))
-             (prop-def (assoc prop-name prop-def-list)))
+             (prop-def (assq prop-name prop-def-list)))
     (let* ((source (edraw-svg-elem-prop-source prop-def))
            (setter (intern
                     (concat "edraw-svg-element-set-" (symbol-name source)))))
@@ -421,7 +421,7 @@
 ;; Property Source
 
 (defun edraw-svg-element-get-attr (element prop-name _defrefs)
-  (let ((value (dom-attr element (intern prop-name))))
+  (let ((value (dom-attr element prop-name)))
     ;; Always return as a string or nil
     (if (null value)
         nil
@@ -429,13 +429,12 @@
 
 (defun edraw-svg-element-set-attr (element prop-name value _defrefs)
   ;; Always store as a string or nil
-  (let ((prop-name-symbol (intern prop-name)))
-    (if (null value)
-        (edraw-dom-remove-attr element prop-name-symbol)
-      (if (and (eq (dom-tag element) 'text)
-               (eq prop-name-symbol 'x))
-          (edraw-svg-text-set-x element (format "%s" value))
-        (dom-set-attribute element prop-name-symbol (format "%s" value))))))
+  (if (null value)
+      (edraw-dom-remove-attr element prop-name)
+    (if (and (eq (dom-tag element) 'text)
+             (eq prop-name 'x))
+        (edraw-svg-text-set-x element (format "%s" value))
+      (dom-set-attribute element prop-name (format "%s" value)))))
 
 (defun edraw-svg-element-get-inner-text (element _prop-name _defrefs)
   ;;(dom-text element)
@@ -673,7 +672,7 @@
                (dom-node 'path
                          ;; @todo I want to use auto-start-reverse
                          ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
-                         (if (string= prop-name "marker-start")
+                         (if (eq prop-name 'marker-start)
                              `((d . "M10,1.5 10,8.5 2.5,5"))
                            `((d . "M0,1.5 0,8.5 7.0,5"))))))
     ("circle"
@@ -697,29 +696,29 @@
   ;; Remove reference to current marker
   (edraw-svg-defrefs-remove-ref-by-url
    defrefs
-   (dom-attr element (intern prop-name)) ;;url(#...) or "none" or nil
+   (dom-attr element prop-name) ;;url(#...) or "none" or nil
    element)
   ;; Add reference to value
   (let ((marker (edraw-svg-create-marker value prop-name element)))
     (if marker
         (dom-set-attribute element
-                           (intern prop-name)
+                           prop-name
                            (edraw-svg-defrefs-add-ref
                             defrefs marker element value))
       (edraw-dom-remove-attr element
-                             (intern prop-name)))))
+                             prop-name))))
 
 (defun edraw-svg-get-marker-property (element prop-name _defrefs)
   (edraw-svg-defref-url-to-prop-value
-   (dom-attr element (intern prop-name))))
+   (dom-attr element prop-name)))
 
 (defun edraw-svg-update-marker-properties (element defrefs)
-  (edraw-svg-update-marker-property element "marker-start" defrefs)
-  (edraw-svg-update-marker-property element "marker-mid" defrefs)
-  (edraw-svg-update-marker-property element "marker-end" defrefs))
+  (edraw-svg-update-marker-property element 'marker-start defrefs)
+  (edraw-svg-update-marker-property element 'marker-mid defrefs)
+  (edraw-svg-update-marker-property element 'marker-end defrefs))
 
 (defun edraw-svg-update-marker-property (element prop-name defrefs)
-  (let ((value (dom-attr element (intern prop-name))))
+  (let ((value (dom-attr element prop-name)))
     (when (and value
                (stringp value)
                (not (string= value "none")))

@@ -1153,7 +1153,7 @@
                (value (edraw-get-property shape prop-name)))
           ;; Set property value as default
           (edraw-set-default-shape-property
-           editor tag (intern prop-name) value))))))
+           editor tag prop-name value))))))
 
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
   (with-slots (default-shape-properties) editor
@@ -1200,7 +1200,7 @@
    (edraw-svg-element-get-property-info-list-by-tag (oref shape tag))))
 
 (cl-defmethod edraw-get-property ((shape edraw-property-proxy-shape) prop-name)
-  (let ((value (alist-get (intern prop-name) (cdr (oref shape alist-head)))))
+  (let ((value (alist-get prop-name (cdr (oref shape alist-head)))))
     (if (numberp value)
         (format "%s" value)
       value)))
@@ -1210,15 +1210,15 @@
     (let ((prop-name (car prop))
           (value (cdr prop)))
       (if (null value)
-          (setf (alist-get (intern prop-name) (cdr (oref shape alist-head))
+          (setf (alist-get prop-name (cdr (oref shape alist-head))
                            nil 'remove)
                 nil)
-        (setf (alist-get (intern prop-name) (cdr (oref shape alist-head)))
+        (setf (alist-get prop-name (cdr (oref shape alist-head)))
               value))))
   ;; update toolbar (fill & stroke)
   (edraw-update-toolbar (oref shape editor)))
 
-(cl-defmethod edraw-set-property ((shape edraw-property-proxy-shape) prop-name value)
+(cl-defmethod edraw-set-property ((shape edraw-property-proxy-shape) prop-name value) ;;@todo generalize
   (edraw-set-properties
    shape
    (list (cons prop-name value))))
@@ -2388,11 +2388,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;;
 ;;
 
-(defun edraw-merge-properties (props-default strname-props-alist)
+(defun edraw-merge-properties (props-default props-alist)
   (append
-   (seq-difference props-default strname-props-alist
-                   (lambda (a b) (equal (car a) (car b))))
-   strname-props-alist))
+   (seq-difference props-default props-alist
+                   (lambda (a b) (eq (car a) (car b))))
+   props-alist))
 
 (defun edraw-create-shape (editor parent tag &rest props)
   (edraw-create-shape-without-default
@@ -2400,25 +2400,23 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    tag
    ;; Complete property values with default values
    (edraw-merge-properties
-    ;; Convert symbolname alist to strname
-    (cl-loop for pv in (alist-get tag (oref editor default-shape-properties))
-             collect (cons (symbol-name (car pv)) (cdr pv)))
-    ;; Convert symbolname plist to strname alist
-    (cl-loop for (name value) on props by #'cddr
-             collect (cons (symbol-name name) value)))))
+    (alist-get tag (oref editor default-shape-properties))
+    ;; Convert plist to alist
+    (cl-loop for (prop-name value) on props by #'cddr
+             collect (cons prop-name value)))))
 
-(defun edraw-create-shape-without-default (editor parent tag strname-props-alist)
+(defun edraw-create-shape-without-default (editor parent tag props-alist)
   (let* ((shape (edraw-shape-from-element
                  (edraw-create-shape-svg-element (oref editor defrefs)
-                                                 parent tag strname-props-alist)
+                                                 parent tag props-alist)
                  editor)))
     (edraw-on-shape-changed shape 'shape-create)
     shape))
 
-(defun edraw-create-shape-svg-element (defrefs parent tag strname-props-alist)
+(defun edraw-create-shape-svg-element (defrefs parent tag props-alist)
   (let ((element (dom-node tag)))
     ;; Set properties
-    (dolist (prop strname-props-alist)
+    (dolist (prop props-alist)
       (let ((prop-name (car prop))
             (value (cdr prop)))
         (edraw-svg-element-set-property element prop-name value defrefs)))
@@ -2722,10 +2720,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-set-property shape prop-name new-value))))
 
 (cl-defmethod edraw-edit-fill ((shape edraw-shape))
-  (edraw-edit-property-paint shape "fill"))
+  (edraw-edit-property-paint shape 'fill))
 
 (cl-defmethod edraw-edit-stroke ((shape edraw-shape))
-  (edraw-edit-property-paint shape "stroke"))
+  (edraw-edit-property-paint shape 'stroke))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape))
   `(((edraw-msg "Select") edraw-select)
@@ -2897,10 +2895,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
          (old-y (cdar rect))
          (old-w (- (cadr rect) (caar rect)))
          (old-h (- (cddr rect) (cdar rect)))
-         (new-x (edraw-alist-get-as-number "x" prop-list old-x))
-         (new-y (edraw-alist-get-as-number "y" prop-list old-y))
-         (new-w (edraw-alist-get-as-number "width" prop-list old-w))
-         (new-h (edraw-alist-get-as-number "height" prop-list old-h)))
+         (new-x (edraw-alist-get-as-number 'x prop-list old-x))
+         (new-y (edraw-alist-get-as-number 'y prop-list old-y))
+         (new-w (edraw-alist-get-as-number 'width prop-list old-w))
+         (new-h (edraw-alist-get-as-number 'height prop-list old-h)))
     (when (or (/= new-x old-x)
               (/= new-y old-y)
               (/= new-w old-w)
@@ -2908,10 +2906,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-set-rect shape
                       (cons new-x new-y)
                       (cons (+ new-x new-w) (+ new-y new-h)))))
-  (setf (alist-get "x" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "y" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "width" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "height" prop-list nil 'remove 'equal) nil)
+  (setf (alist-get 'x prop-list nil 'remove) nil)
+  (setf (alist-get 'y prop-list nil 'remove) nil)
+  (setf (alist-get 'width prop-list nil 'remove) nil)
+  (setf (alist-get 'height prop-list nil 'remove) nil)
   ;; other properties
   (cl-call-next-method shape prop-list))
 
@@ -2952,10 +2950,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
          (old-y (cdar rect))
          (old-w (- (cadr rect) (caar rect)))
          (old-h (- (cddr rect) (cdar rect)))
-         (cx (edraw-alist-get-as-number "cx" prop-list (+ old-x (* 0.5 old-w))))
-         (cy (edraw-alist-get-as-number "cy" prop-list (+ old-y (* 0.5 old-h))))
-         (rx (edraw-alist-get-as-number "rx" prop-list (* 0.5 old-w)))
-         (ry (edraw-alist-get-as-number "ry" prop-list (* 0.5 old-h)))
+         (cx (edraw-alist-get-as-number 'cx prop-list (+ old-x (* 0.5 old-w))))
+         (cy (edraw-alist-get-as-number 'cy prop-list (+ old-y (* 0.5 old-h))))
+         (rx (edraw-alist-get-as-number 'rx prop-list (* 0.5 old-w)))
+         (ry (edraw-alist-get-as-number 'ry prop-list (* 0.5 old-h)))
          (new-w (* 2.0 rx))
          (new-h (* 2.0 ry))
          (new-x (- cx rx))
@@ -2967,10 +2965,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-set-rect shape
                       (cons new-x new-y)
                       (cons (+ new-x new-w) (+ new-y new-h)))))
-  (setf (alist-get "cx" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "cy" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "rx" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "ry" prop-list nil 'remove 'equal) nil)
+  (setf (alist-get 'cx prop-list nil 'remove) nil)
+  (setf (alist-get 'cy prop-list nil 'remove) nil)
+  (setf (alist-get 'rx prop-list nil 'remove) nil)
+  (setf (alist-get 'ry prop-list nil 'remove) nil)
   ;; other properties
   (cl-call-next-method shape prop-list))
 
@@ -3058,9 +3056,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
          (old-y (cdar rect))
          (old-w (- (cadr rect) (caar rect)))
          (old-h (- (cddr rect) (cdar rect)))
-         (cx (edraw-alist-get-as-number "cx" prop-list (+ old-x (* 0.5 old-w))))
-         (cy (edraw-alist-get-as-number "cy" prop-list (+ old-y (* 0.5 old-h))))
-         (r (edraw-alist-get-as-number "r" prop-list (* 0.5 (max old-w old-h))))
+         (cx (edraw-alist-get-as-number 'cx prop-list (+ old-x (* 0.5 old-w))))
+         (cy (edraw-alist-get-as-number 'cy prop-list (+ old-y (* 0.5 old-h))))
+         (r (edraw-alist-get-as-number 'r prop-list (* 0.5 (max old-w old-h))))
          (new-w (* 2.0 r))
          (new-h (* 2.0 r))
          (new-x (- cx r))
@@ -3072,9 +3070,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-set-rect shape
                       (cons new-x new-y)
                       (cons (+ new-x new-w) (+ new-y new-h)))))
-  (setf (alist-get "cx" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "cy" prop-list nil 'remove 'equal) nil)
-  (setf (alist-get "r" prop-list nil 'remove 'equal) nil)
+  (setf (alist-get 'cx prop-list nil 'remove) nil)
+  (setf (alist-get 'cy prop-list nil 'remove) nil)
+  (setf (alist-get 'r prop-list nil 'remove) nil)
   ;; other properties
   (cl-call-next-method shape prop-list))
 
@@ -3140,12 +3138,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   'path)
 
 (cl-defmethod edraw-get-property ((shape edraw-shape-path) prop-name)
-  (if (equal prop-name "d")
+  (if (eq prop-name 'd)
       (edraw-path-cmdlist-to-string (oref shape cmdlist))
     (cl-call-next-method)))
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape-path) prop-list)
-  (when-let ((d-cell (assoc "d" prop-list)))
+  (when-let ((d-cell (assq 'd prop-list)))
     (let ((d (or (cdr d-cell) "")))
       (with-slots (cmdlist) shape
         (unless (string= d (edraw-path-cmdlist-to-string cmdlist))
@@ -3153,7 +3151,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           (edraw-path-cmdlist-swap cmdlist (edraw-path-cmdlist-from-d d))
           (edraw-update-path-data shape)
           (edraw-on-shape-changed shape 'shape-path-data))))
-    (setf (alist-get "d" prop-list nil 'remove #'equal) nil))
+    (setf (alist-get 'd prop-list nil 'remove) nil))
   ;; other properties
   (cl-call-next-method shape prop-list))
 
@@ -3167,18 +3165,18 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (nconc (cadr item-set)
              `(((edraw-msg "Start Marker")
                 (((edraw-msg "None") edraw-set-marker-start-none
-                  :button (:toggle . ,(null (edraw-get-property shape "marker-start"))))
+                  :button (:toggle . ,(null (edraw-get-property shape 'marker-start))))
                  ((edraw-msg "Arrow") edraw-set-marker-start-arrow
-                  :button (:toggle . ,(equal (edraw-get-property shape "marker-start") "arrow")))
+                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-start) "arrow")))
                  ((edraw-msg "Circle") edraw-set-marker-start-circle
-                  :button (:toggle . ,(equal (edraw-get-property shape "marker-start") "circle")))))
+                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-start) "circle")))))
                ((edraw-msg "End Marker")
                 (((edraw-msg "None") edraw-set-marker-end-none
-                  :button (:toggle . ,(null (edraw-get-property shape "marker-end"))))
+                  :button (:toggle . ,(null (edraw-get-property shape 'marker-end))))
                  ((edraw-msg "Arrow") edraw-set-marker-end-arrow
-                  :button (:toggle . ,(equal (edraw-get-property shape "marker-end") "arrow")))
+                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-end) "arrow")))
                  ((edraw-msg "Circle") edraw-set-marker-end-circle
-                  :button (:toggle . ,(equal (edraw-get-property shape "marker-end") "circle"))))))))
+                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-end) "circle"))))))))
 
     (append
      items
@@ -3190,19 +3188,19 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        ))))
 
 (cl-defmethod edraw-set-marker-start-none ((shape edraw-shape-path))
-  (edraw-set-marker shape "marker-start" nil))
+  (edraw-set-marker shape 'marker-start nil))
 (cl-defmethod edraw-set-marker-start-arrow ((shape edraw-shape-path))
-  (edraw-set-marker shape "marker-start" "arrow"))
+  (edraw-set-marker shape 'marker-start "arrow"))
 (cl-defmethod edraw-set-marker-start-circle ((shape edraw-shape-path))
-  (edraw-set-marker shape "marker-start" "circle"))
+  (edraw-set-marker shape 'marker-start "circle"))
 (cl-defmethod edraw-set-marker-end-none ((shape edraw-shape-path))
-  (edraw-set-marker shape "marker-end" nil))
+  (edraw-set-marker shape 'marker-end nil))
 (cl-defmethod edraw-set-marker-end-arrow ((shape edraw-shape-path))
-  (edraw-set-marker shape "marker-end" "arrow"))
+  (edraw-set-marker shape 'marker-end "arrow"))
 (cl-defmethod edraw-set-marker-end-circle ((shape edraw-shape-path))
-  (edraw-set-marker shape "marker-end" "circle"))
-(cl-defmethod edraw-set-marker ((shape edraw-shape-path) place type)
-  (edraw-set-properties shape (list (cons place type))))
+  (edraw-set-marker shape 'marker-end "circle"))
+(cl-defmethod edraw-set-marker ((shape edraw-shape-path) prop-name type)
+  (edraw-set-properties shape (list (cons prop-name type))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-path) xy)
   (when (or (/= (car xy) 0) (/= (cdr xy) 0))
@@ -3836,7 +3834,7 @@ editor when the selected shape changes."
                                     (mapcar
                                      (lambda (prop-info)
                                        (string-width
-                                        (car prop-info)))
+                                        (symbol-name (car prop-info))))
                                      prop-info-list)))))
       (dolist (prop-info prop-info-list)
         (unless (plist-get (cdr prop-info) :internal)
@@ -3844,14 +3842,15 @@ editor when the selected shape changes."
                  (prop-type (plist-get (cdr prop-info) :type))
                  (prop-required (plist-get (cdr prop-info) :required))
                  (prop-value (edraw-get-property target prop-name))
-                 (indent (- max-name-width (string-width prop-name)))
+                 (indent (- max-name-width (string-width (symbol-name prop-name))))
                  (notify (edraw-create-property-updator
                           pedit prop-name prop-type prop-required))
                  (widget (edraw-create-widget
                           pedit notify indent
                           prop-name prop-value prop-type prop-required)))
             (push (list prop-name widget prop-info) widgets)
-            ))))))
+            )))
+      (setq widgets (nreverse widgets)))))
 
 (cl-defmethod edraw-create-property-updator ((pedit edraw-property-editor)
                                              prop-name prop-type prop-required)
@@ -4067,7 +4066,7 @@ editor when the selected shape changes."
                                          prop-name prop-value prop-type)
   (widget-insert (make-string indent ? ))
   (let (field-widget)
-    (widget-insert prop-name ": ")
+    (widget-insert (symbol-name prop-name) ": ")
     (widget-create
      'push-button :notify
      (lambda (&rest _ignore)
