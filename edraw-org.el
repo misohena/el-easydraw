@@ -409,6 +409,8 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
 ;; Edit edraw link image inline
 ;;
 
+(defvar edraw-org-enable-modification nil)
+
 (defun edraw-org-link-editor-overlays-in (beg end)
   (seq-filter
    (lambda (ov) (overlay-get ov 'edraw-editor))
@@ -447,7 +449,11 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
                       :menu-filter #'edraw-org-link-editor-menu-filter
                       )))
         (edraw-initialize editor)
-        (overlay-put editor-overlay 'evaporate t)
+        ;;(overlay-put editor-overlay 'evaporate t)
+        (overlay-put editor-overlay 'modification-hooks
+                     (list (lambda (ov after-p beg end &optional len)
+                             (unless edraw-org-enable-modification
+                               (error "There is an edraw-editor within modification range. Please close the editor")))))
         ;; Add key bindings
         (overlay-put editor-overlay 'keymap
                      (edraw-org-link-editor-make-keymap
@@ -495,11 +501,12 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
             ;;data
             (setf (alist-get "data" link-props nil nil #'string=)
                   (edraw-encode-svg svg t data-gzip-p))
-            (unless (edraw-org-link-replace-at-point
-                     (concat edraw-org-link-type ":"
-                             (edraw-org-link-props-to-string link-props))
-                     (if in-description-p 'description 'path))
-              (error "Failed to replace edraw link"))
+            (let ((edraw-org-enable-modification t)) ;; call modification hooks(inhibit-modification-hooks=nil) but allow modification. If inhibit-modification-hooks is t, inline images not updated.
+              (unless (edraw-org-link-replace-at-point
+                       (concat edraw-org-link-type ":"
+                               (edraw-org-link-props-to-string link-props))
+                       (if in-description-p 'description 'path))
+                (error "Failed to replace edraw link")))
             t))))))
 
 (defun edraw-org-link-editor-menu-filter (menu-type items)
