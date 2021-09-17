@@ -2373,13 +2373,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-shape-context-menu-at-point ((editor edraw-editor) xy)
   (when-let ((shape (edraw-find-shape-by-xy-and-menu editor xy)))
-    (edraw-shape-context-menu editor shape)))
+    (edraw-popup-context-menu shape)))
 
-(cl-defmethod edraw-shape-context-menu ((_editor edraw-editor) shape)
-  (edraw-popup-menu
-   (edraw-get-summary shape)
-   (edraw-get-actions shape)
-   shape))
 
 
 
@@ -2744,6 +2739,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     ((edraw-msg "Duplicate") edraw-duplicate-and-select)
     ((edraw-msg "Copy") edraw-copy)
     ((edraw-msg "Cut") edraw-cut)))
+
+(cl-defmethod edraw-popup-context-menu ((shape edraw-shape))
+  (edraw-popup-menu
+   (edraw-get-summary shape)
+   (edraw-get-actions shape)
+   shape))
 
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-*)) )
