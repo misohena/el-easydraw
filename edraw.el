@@ -987,6 +987,66 @@
        (edraw-ui-foreground-svg editor))))
   (edraw-invalidate-image editor))
 
+(defun edraw-svg-ui-shape-points-remove-group (parent)
+  (edraw-dom-remove-by-id parent "edraw-ui-shape-points"))
+
+(defun edraw-svg-ui-shape-points-create-group (parent)
+  (if-let ((g (edraw-dom-get-by-id parent "edraw-ui-shape-points")))
+      (progn
+        (edraw-dom-remove-all-children g)
+        g)
+    (let ((g (dom-node 'g `((id . "edraw-ui-shape-points")))))
+      (dom-append-child parent g)
+      g)))
+
+(defun edraw-svg-ui-shape-points (parent
+                                  shape
+                                  selected-anchor
+                                  selected-handle)
+  (let ((anchor-points (edraw-get-anchor-points shape))
+        (prev-selected-anchor (when selected-anchor
+                                (edraw-previous-anchor selected-anchor)))
+        (next-selected-anchor (when selected-anchor
+                                (edraw-next-anchor selected-anchor))))
+    (dolist (anchor anchor-points)
+      (let ((anchor-xy (edraw-get-xy anchor))
+            (anchor-selected-p (edraw-same-point-p anchor selected-anchor)))
+        (edraw-svg-ui-anchor-point parent anchor-xy anchor-selected-p)
+
+        (when (or anchor-selected-p
+                  ;; Include handles of previous and next anchor
+                  ;; see: edraw-selectable-handles
+                  (edraw-same-point-p anchor prev-selected-anchor)
+                  (edraw-same-point-p anchor next-selected-anchor))
+          (let ((handle-points (edraw-get-handle-points anchor)))
+            (dolist (handle handle-points)
+              (edraw-svg-ui-handle-point
+               parent
+               (edraw-get-xy handle)
+               anchor-xy
+               (and selected-handle
+                    (edraw-same-point-p handle selected-handle))))))))))
+
+(defun edraw-svg-ui-anchor-point (parent xy &optional selected)
+  (let ((r edraw-anchor-point-radius))
+    (svg-rectangle parent (- (car xy) r) (- (cdr xy) r) (* 2 r) (* 2 r)
+                   :class (if selected
+                              "edraw-ui-anchor-point-selected"
+                            "edraw-ui-anchor-point"))))
+
+(defun edraw-svg-ui-handle-point (parent handle-xy anchor-xy
+                                         &optional selected)
+  (svg-line parent
+            (car handle-xy) (cdr handle-xy)
+            (car anchor-xy) (cdr anchor-xy)
+            :class "edraw-ui-handle-line")
+  (svg-circle parent
+              (car handle-xy) (cdr handle-xy)
+              edraw-handle-point-radius
+              :class (if selected
+                         "edraw-ui-handle-point-selected"
+                       "edraw-ui-handle-point")))
+
 (cl-defmethod edraw-selectable-handles ((editor edraw-editor))
   (with-slots (selected-anchor) editor
     (when selected-anchor
@@ -3337,68 +3397,6 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;; - Usually either anchor point or handle point
 ;; - Shape point objects can be obtained from shape object
 ;;
-
-;;;;; Shape Point - SVG Drawing
-
-(defun edraw-svg-ui-shape-points-remove-group (parent)
-  (edraw-dom-remove-by-id parent "edraw-ui-shape-points"))
-
-(defun edraw-svg-ui-shape-points-create-group (parent)
-  (if-let ((g (edraw-dom-get-by-id parent "edraw-ui-shape-points")))
-      (progn
-        (edraw-dom-remove-all-children g)
-        g)
-    (let ((g (dom-node 'g `((id . "edraw-ui-shape-points")))))
-      (dom-append-child parent g)
-      g)))
-
-(defun edraw-svg-ui-shape-points (parent
-                                  shape
-                                  selected-anchor
-                                  selected-handle)
-  (let ((anchor-points (edraw-get-anchor-points shape))
-        (prev-selected-anchor (when selected-anchor
-                                (edraw-previous-anchor selected-anchor)))
-        (next-selected-anchor (when selected-anchor
-                                (edraw-next-anchor selected-anchor))))
-    (dolist (anchor anchor-points)
-      (let ((anchor-xy (edraw-get-xy anchor))
-            (anchor-selected-p (edraw-same-point-p anchor selected-anchor)))
-        (edraw-svg-ui-anchor-point parent anchor-xy anchor-selected-p)
-
-        (when (or anchor-selected-p
-                  ;; Include handles of previous and next anchor
-                  ;; see: edraw-selectable-handles
-                  (edraw-same-point-p anchor prev-selected-anchor)
-                  (edraw-same-point-p anchor next-selected-anchor))
-          (let ((handle-points (edraw-get-handle-points anchor)))
-            (dolist (handle handle-points)
-              (edraw-svg-ui-handle-point
-               parent
-               (edraw-get-xy handle)
-               anchor-xy
-               (and selected-handle
-                    (edraw-same-point-p handle selected-handle))))))))))
-
-(defun edraw-svg-ui-anchor-point (parent xy &optional selected)
-  (let ((r edraw-anchor-point-radius))
-    (svg-rectangle parent (- (car xy) r) (- (cdr xy) r) (* 2 r) (* 2 r)
-                   :class (if selected
-                              "edraw-ui-anchor-point-selected"
-                            "edraw-ui-anchor-point"))))
-
-(defun edraw-svg-ui-handle-point (parent handle-xy anchor-xy
-                                         &optional selected)
-  (svg-line parent
-            (car handle-xy) (cdr handle-xy)
-            (car anchor-xy) (cdr anchor-xy)
-            :class "edraw-ui-handle-line")
-  (svg-circle parent
-              (car handle-xy) (cdr handle-xy)
-              edraw-handle-point-radius
-              :class (if selected
-                         "edraw-ui-handle-point-selected"
-                       "edraw-ui-handle-point")))
 
 ;;;;; Shape Point - Point Set
 
