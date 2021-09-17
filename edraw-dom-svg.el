@@ -350,6 +350,7 @@
      ("ry" attr length t)
      ,@edraw-svg-element-properties-common)
     (path
+     ("d" attr string t :internal t)
      ,@edraw-svg-element-properties-common
      ("fill-rule" attr (or "nonzero" "evenodd") nil)
      ("stroke-linecap" attr (or "butt" "round" "square") nil)
@@ -385,6 +386,7 @@
 (defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
 (defun edraw-svg-elem-prop-type (prop-def) (nth 2 prop-def))
 (defun edraw-svg-elem-prop-required (prop-def) (nth 3 prop-def))
+(defun edraw-svg-elem-prop-attrs (prop-def) (nthcdr 4 prop-def))
 
 (defun edraw-svg-element-get-property-info-list (element)
   (edraw-svg-element-get-property-info-list-by-tag (dom-tag element)))
@@ -393,9 +395,11 @@
   (when-let ((prop-def-list (alist-get tag edraw-svg-element-properties)))
     (cl-loop for prop-def in prop-def-list
              collect
-             (list (edraw-svg-elem-prop-name prop-def)
-                   :type (edraw-svg-elem-prop-type prop-def)
-                   :required (edraw-svg-elem-prop-required prop-def)))))
+             (append
+              (list (edraw-svg-elem-prop-name prop-def)
+                    :type (edraw-svg-elem-prop-type prop-def)
+                    :required (edraw-svg-elem-prop-required prop-def))
+              (edraw-svg-elem-prop-attrs prop-def)))))
 ;; TEST: (edraw-svg-element-get-property-info-list-by-tag 'rect)
 
 (defun edraw-svg-element-get-property (element prop-name defrefs)

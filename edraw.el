@@ -918,6 +918,10 @@
      ((eq type 'shape-remove)
       (edraw-remove-shape-selection editor shape))
 
+     ((eq type 'shape-path-data)
+      (edraw-deselect-anchor editor) ;; All anchors have been destroyed
+      (edraw-update-selection-ui editor))
+
      ((and selected-anchor
            (memq type '(point-remove))
            ;; No shape in selected-shapes owns selected-anchor
@@ -3060,12 +3064,23 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-path))
   'path)
 
-(cl-defmethod edraw-clone ((shape edraw-shape-path))
-  (let* ((new-shape (cl-call-next-method))
-         (d (edraw-path-cmdlist-to-string (oref shape cmdlist))))
-    (oset new-shape cmdlist (edraw-path-cmdlist-from-d d))
-    (dom-set-attribute (edraw-element new-shape) 'd d)
-    new-shape))
+(cl-defmethod edraw-get-property ((shape edraw-shape-path) prop-name)
+  (if (equal prop-name "d")
+      (edraw-path-cmdlist-to-string (oref shape cmdlist))
+    (cl-call-next-method)))
+
+(cl-defmethod edraw-set-properties ((shape edraw-shape-path) prop-list)
+  (when-let ((d-cell (assoc "d" prop-list)))
+    (let ((d (or (cdr d-cell) "")))
+      (with-slots (cmdlist) shape
+        (unless (string= d (edraw-path-cmdlist-to-string cmdlist))
+          ;;(message "%s => %s" (edraw-path-cmdlist-to-string cmdlist) d)
+          (edraw-path-cmdlist-swap cmdlist (edraw-path-cmdlist-from-d d))
+          (edraw-update-path-data shape)
+          (edraw-on-shape-changed shape 'shape-path-data))))
+    (setf (alist-get "d" prop-list nil 'remove #'equal) nil))
+  ;; other properties
+  (cl-call-next-method shape prop-list))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape-path))
   (let* ((items (copy-tree (cl-call-next-method)))
@@ -3749,18 +3764,19 @@ editor when the selected shape changes."
                                         (car prop-info)))
                                      prop-info-list)))))
       (dolist (prop-info prop-info-list)
-        (let* ((prop-name (car prop-info))
-               (prop-type (plist-get (cdr prop-info) :type))
-               (prop-required (plist-get (cdr prop-info) :required))
-               (prop-value (edraw-get-property target prop-name))
-               (indent (- max-name-width (string-width prop-name)))
-               (notify (edraw-create-property-updator
-                        pedit prop-name prop-type prop-required))
-               (widget (edraw-create-widget
-                        pedit notify indent
-                        prop-name prop-value prop-type prop-required)))
-          (push (cons prop-name widget) widgets)
-          )))))
+        (unless (plist-get (cdr prop-info) :internal)
+          (let* ((prop-name (car prop-info))
+                 (prop-type (plist-get (cdr prop-info) :type))
+                 (prop-required (plist-get (cdr prop-info) :required))
+                 (prop-value (edraw-get-property target prop-name))
+                 (indent (- max-name-width (string-width prop-name)))
+                 (notify (edraw-create-property-updator
+                          pedit prop-name prop-type prop-required))
+                 (widget (edraw-create-widget
+                          pedit notify indent
+                          prop-name prop-value prop-type prop-required)))
+            (push (list prop-name widget prop-info) widgets)
+            ))))))
 
 (cl-defmethod edraw-create-property-updator ((pedit edraw-property-editor)
                                              prop-name prop-type prop-required)
@@ -4053,12 +4069,13 @@ editor when the selected shape changes."
   (with-slots (widgets target) pedit
     (let ((prop-values
            (cl-loop
-            for prop-info in (edraw-get-property-info-list target)
+            for widget-info in widgets
             collect
-            (let* ((prop-name (car prop-info))
+            (let* ((prop-name (nth 0 widget-info))
+                   (widget (nth 1 widget-info))
+                   (prop-info (nth 2 widget-info))
                    (prop-type (plist-get (cdr prop-info) :type))
                    (prop-required (plist-get (cdr prop-info) :required))
-                   (widget (alist-get prop-name widgets nil nil #'string=))
                    (w-value (widget-value widget))
                    (value (edraw-widget-value-to-prop-value
                            pedit w-value prop-type prop-required)))
@@ -4094,19 +4111,25 @@ editor when the selected shape changes."
 (cl-defmethod edraw-update-widgets-value ((pedit edraw-property-editor))
   (with-slots (widgets target) pedit
     (cl-loop
-     for prop-info in (edraw-get-property-info-list target)
-     do (let* ((prop-name     (car prop-info))
+     for widget-info in widgets
+     do (let* ((prop-name     (nth 0 widget-info))
+               (widget        (nth 1 widget-info))
+               (prop-info     (nth 2 widget-info))
                (prop-type     (plist-get (cdr prop-info) :type))
                ;;(prop-required (plist-get (cdr prop-info) :required))
                (prop-value (edraw-get-property target prop-name))
-               (widget (alist-get prop-name widgets nil nil #'string=))
                (w-value (widget-value widget))
                (value (edraw-prop-value-to-widget-value pedit
                                                         prop-value
                                                         prop-type)))
-          ;;(message "%s: %s to %s" prop-name w-value value)
           (unless (equal w-value value)
-            (widget-value-set widget value))))))
+            ;;(message "target chagned: %s: %s to %s" prop-name w-value value)
+            ;; Prevent notification
+            (let ((old-notify (widget-get widget :notify)))
+              (widget-put widget :notify #'ignore)
+              (unwind-protect
+                  (widget-value-set widget value)
+                (widget-put widget :notify old-notify))))))))
 
 
 
