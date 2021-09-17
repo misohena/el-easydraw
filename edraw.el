@@ -1060,6 +1060,35 @@
          (when next-anchor (edraw-get-handle-points next-anchor)))))))
 
 
+
+;;;;; Editor - Manipulate Selected Shapes
+
+(cl-defmethod edraw-get-actions-for-selected-shapes ((editor edraw-editor))
+  (let ((selected-shapes (edraw-selected-shapes editor)))
+    `(((edraw-msg "Delete...") edraw-editor-delete-selected)
+      ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
+      ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
+      ((edraw-msg "Z-Order")
+       ;;@todo check :enable when multiple shapes are selected
+       (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
+         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
+        ((edraw-msg "Bring Forward") edraw-editor-bring-selected-forward
+         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
+        ((edraw-msg "Send Backward") edraw-editor-send-selected-backward
+         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
+        ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
+         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes)))))))))))))
+
+(cl-defmethod edraw-get-summary-for-selected-shapes ((editor edraw-editor))
+  (let ((selected-shapes (edraw-selected-shapes editor)))
+    (format (edraw-msg "%s Selected Shapes") (length selected-shapes))))
+
+(cl-defmethod edraw-popup-context-menu-for-selected-shapes ((editor edraw-editor))
+  (edraw-popup-menu
+   (edraw-get-summary-for-selected-shapes editor)
+   (edraw-get-actions-for-selected-shapes editor)
+   editor))
+
 (defun edraw-editor-move-selected-by-arrow-key (&optional editor n)
   (interactive "i\np")
   (let ((event last-input-event))
@@ -2432,9 +2461,16 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;;;;; Editor - Shape Context Menu
 
 (cl-defmethod edraw-shape-context-menu-at-point ((editor edraw-editor) xy)
-  (when-let ((shape (edraw-find-shape-by-xy-and-menu editor xy)))
-    (edraw-popup-context-menu shape)))
-
+  (when-let ((shapes (edraw-find-shapes-by-xy editor xy)))
+    (let ((selected-shapes (edraw-selected-shapes editor)))
+      (if (and (cdr selected-shapes)
+               (edraw-selected-p (car shapes)))
+          ;; multiple selected shapes
+          (edraw-popup-context-menu-for-selected-shapes editor)
+        ;; single selected shape or unselected shape
+        (edraw-popup-context-menu (if (cdr shapes)
+                                      (edraw-popup-shape-selection-menu shapes)
+                                    (car shapes)))))))
 
 
 
