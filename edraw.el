@@ -839,6 +839,29 @@
     (dolist (shape (edraw-all-shapes editor))
       (edraw-transform shape matrix))))
 
+;;;;; Editor - Document - Menu
+
+(cl-defmethod edraw-get-actions-for-document ((editor edraw-editor))
+  (edraw-filter-menu
+   editor
+   'context-document
+   `(((edraw-msg "Document")
+      (((edraw-msg "Set Background...") edraw-editor-set-background)
+       ((edraw-msg "Resize...") edraw-editor-set-size)
+       ((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
+       ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
+       ((edraw-msg "Clear...") edraw-editor-clear)
+       ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
+       ((edraw-msg "Export to File") edraw-editor-export-to-file)))
+     ((edraw-msg "Paste") edraw-editor-paste-and-select
+      :enable ,(not (edraw-clipboard-empty-p))))))
+
+(cl-defmethod edraw-popup-context-menu-for-document ((editor edraw-editor))
+  (edraw-popup-menu
+   (edraw-msg "Document")
+   (edraw-get-actions-for-document editor)
+   editor))
+
 ;;;;; Editor - Selection
 
 (cl-defmethod edraw-last-selected-shape ((editor edraw-editor))
@@ -1969,6 +1992,20 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    (edraw-select down-shape)))))))
       t)))
 
+(cl-defmethod edraw-context-menu-at-point ((editor edraw-editor) xy)
+  (if-let ((shapes (edraw-find-shapes-by-xy editor xy)))
+      (let ((selected-shapes (edraw-selected-shapes editor)))
+        (if (and (cdr selected-shapes)
+                 (edraw-selected-p (car shapes)))
+            ;; multiple selected shapes
+            (edraw-popup-context-menu-for-selected-shapes editor)
+          ;; single selected shape or unselected shape
+          (edraw-popup-context-menu (if (cdr shapes)
+                                        (edraw-popup-shape-selection-menu shapes)
+                                      (car shapes)))))
+    ;; document
+    (edraw-popup-context-menu-for-document editor)))
+
 ;;;;; Editor - Editing Tools
 
 (cl-defmethod edraw-select-tool ((editor edraw-editor)
@@ -2070,7 +2107,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
             t)))
        ;; Shape
        (t
-        (edraw-shape-context-menu-at-point editor click-xy))))))
+        (edraw-context-menu-at-point editor click-xy))))))
 
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool) (editor edraw-editor))
   (oset tool editor editor))
@@ -2457,20 +2494,6 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (car shapes))))
 
 ;;(cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect) )
-
-;;;;; Editor - Shape Context Menu
-
-(cl-defmethod edraw-shape-context-menu-at-point ((editor edraw-editor) xy)
-  (when-let ((shapes (edraw-find-shapes-by-xy editor xy)))
-    (let ((selected-shapes (edraw-selected-shapes editor)))
-      (if (and (cdr selected-shapes)
-               (edraw-selected-p (car shapes)))
-          ;; multiple selected shapes
-          (edraw-popup-context-menu-for-selected-shapes editor)
-        ;; single selected shape or unselected shape
-        (edraw-popup-context-menu (if (cdr shapes)
-                                      (edraw-popup-shape-selection-menu shapes)
-                                    (car shapes)))))))
 
 
 
