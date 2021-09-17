@@ -1082,6 +1082,43 @@
       (edraw-select-shape editor prev))))
 
 
+;;;;; Editor - Copy & Paste
+
+(edraw-editor-defcmd edraw-paste)
+(cl-defmethod edraw-paste ((editor edraw-editor))
+  (when (eq (edraw-clipboard-type) 'shape-descriptor-list)
+    (mapcar
+     (lambda (shape-descriptor)
+       (edraw-shape-from-shape-descriptor
+        editor (edraw-svg-body editor) shape-descriptor))
+     (edraw-clipboard-data))))
+
+(edraw-editor-defcmd edraw-paste-and-select)
+(cl-defmethod edraw-paste-and-select ((editor edraw-editor))
+  (when-let ((shapes (edraw-paste editor)))
+    (edraw-deselect-all-shapes editor)
+    (dolist (shape shapes)
+      (edraw-add-shape-selection editor shape))))
+
+(edraw-editor-defcmd edraw-copy-selected-shapes)
+(cl-defmethod edraw-copy-selected-shapes ((editor edraw-editor))
+  (when-let ((selected-shapes (edraw-selected-shapes editor)))
+    (edraw-clipboard-set
+     'shape-descriptor-list
+     (mapcar #'edraw-shape-descriptor selected-shapes))))
+
+(edraw-editor-defcmd edraw-cut-selected-shapes)
+(cl-defmethod edraw-cut-selected-shapes ((editor edraw-editor))
+  (when-let ((selected-shapes (copy-sequence (edraw-selected-shapes editor))))
+    ;; Copy
+    (edraw-clipboard-set
+     'shape-descriptor-list
+     (mapcar #'edraw-shape-descriptor selected-shapes))
+    ;; Deselect
+    (edraw-deselect-all-shapes editor)
+    ;; Remove
+    (dolist (shape selected-shapes)
+      (edraw-remove shape))))
 
 ;;;;; Editor - Default Shape Properties
 
@@ -1222,6 +1259,10 @@
            :enable ,(not (null (or (edraw-selected-handle editor)
                                    (edraw-selected-anchor editor)
                                    selected-shapes))))
+          ((edraw-msg "Copy") edraw-editor-copy-selected-shapes
+           :enable ,(not (null selected-shapes)))
+          ((edraw-msg "Cut") edraw-editor-cut-selected-shapes
+           :enable ,(not (null selected-shapes)))
           ((edraw-msg "Z-Order")
            ;;@todo check :enable when multiple shapes are selected
            (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
@@ -1240,6 +1281,9 @@
           ((edraw-msg "Text") edraw-editor-edit-default-text-props)
           ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
         ;;((edraw-msg "Search Object") edraw-editor-search-object)
+        ((edraw-msg "Paste") edraw-editor-paste-and-select
+         :enable ,(not (edraw-clipboard-empty-p)))
+
         ((edraw-msg "Save") edraw-editor-save
          :visible ,(not (null (oref editor document-writer)))
          :enable ,(edraw-modified-p editor))
@@ -2344,36 +2388,40 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 ;;
 ;;
 
+(defun edraw-merge-properties (props-default strname-props-alist)
+  (append
+   (seq-difference props-default strname-props-alist
+                   (lambda (a b) (equal (car a) (car b))))
+   strname-props-alist))
+
 (defun edraw-create-shape (editor parent tag &rest props)
-  (let* ((defrefs (oref editor defrefs))
-         (shape (edraw-shape-from-element
-                 (apply 'edraw-create-shape-svg-element
-                        defrefs
-                        (oref editor default-shape-properties)
-                        parent tag props)
+  (edraw-create-shape-without-default
+   editor parent
+   tag
+   ;; Complete property values with default values
+   (edraw-merge-properties
+    ;; Convert symbolname alist to strname
+    (cl-loop for pv in (alist-get tag (oref editor default-shape-properties))
+             collect (cons (symbol-name (car pv)) (cdr pv)))
+    ;; Convert symbolname plist to strname alist
+    (cl-loop for (name value) on props by #'cddr
+             collect (cons (symbol-name name) value)))))
+
+(defun edraw-create-shape-without-default (editor parent tag strname-props-alist)
+  (let* ((shape (edraw-shape-from-element
+                 (edraw-create-shape-svg-element (oref editor defrefs)
+                                                 parent tag strname-props-alist)
                  editor)))
     (edraw-on-shape-changed shape 'shape-create)
     shape))
 
-(defun edraw-create-shape-svg-element (defrefs
-                                        default-shape-properties
-                                        parent tag &rest props)
+(defun edraw-create-shape-svg-element (defrefs parent tag strname-props-alist)
   (let ((element (dom-node tag)))
-    ;; Apply default properties
-    (let ((default-props (alist-get tag default-shape-properties)))
-      (while default-props
-        (let ((prop-name (caar default-props))
-              (value (cdar default-props)))
-          (edraw-svg-element-set-property element (symbol-name prop-name) value
-                                          defrefs))
-        (setq default-props (cdr default-props))))
-    ;; Apply arguments
-    (while props
-      (let ((prop-name (car props))
-            (value (cadr props)))
-        (edraw-svg-element-set-property element (symbol-name prop-name) value
-                                        defrefs))
-      (setq props (cddr props)))
+    ;; Set properties
+    (dolist (prop strname-props-alist)
+      (let ((prop-name (car prop))
+            (value (cdr prop)))
+        (edraw-svg-element-set-property element prop-name value defrefs)))
     ;; Add element to parent
     (when parent
       (dom-append-child parent element))
@@ -2458,6 +2506,25 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                  (edraw-get-property-info-list shape)))
         new-shape))))
 
+(cl-defmethod edraw-shape-descriptor ((shape edraw-shape))
+  (list
+   (cons :type (edraw-shape-type shape))
+   (cons :properties (edraw-get-all-properties shape))))
+
+(defun edraw-shape-from-shape-descriptor (editor parent shape-descriptor)
+  (let ((type (alist-get :type shape-descriptor))
+        (props (alist-get :properties shape-descriptor)))
+    (edraw-create-shape-without-default editor parent type props)))
+
+(cl-defmethod edraw-copy ((shape edraw-shape))
+  (edraw-clipboard-set 'shape-descriptor-list
+                       (list (edraw-shape-descriptor shape))))
+
+(cl-defmethod edraw-cut ((shape edraw-shape))
+  (edraw-clipboard-set 'shape-descriptor-list
+                       (list (edraw-shape-descriptor shape)))
+  (edraw-remove shape))
+
 ;;;;;; Hooks
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
@@ -2529,6 +2596,12 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-svg-element-get-property (edraw-element shape) prop-name
                                   (edraw-get-defrefs shape)))
 
+(cl-defmethod edraw-get-all-properties ((shape edraw-shape));;@todo generalize
+  (cl-loop for prop-info in (edraw-get-property-info-list shape)
+           collect (let ((prop-name (car prop-info)))
+                     (cons prop-name
+                           (edraw-get-property shape prop-name)))))
+
 (cl-defmethod edraw-set-properties ((shape edraw-shape) prop-list)
   (with-slots (element) shape
     (let ((changed nil)
@@ -2546,7 +2619,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (when changed
         (edraw-on-shape-changed shape 'shape-properties)))))
 
-(cl-defmethod edraw-set-property ((shape edraw-shape) prop-name value)
+(cl-defmethod edraw-set-property ((shape edraw-shape) prop-name value);;@todo generalize
   (edraw-set-properties
    shape
    (list (cons prop-name value))))
@@ -2670,7 +2743,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       ((edraw-msg "Send to Back") edraw-send-to-back
        :enable ,(not (edraw-back-p shape)))))
     ((edraw-msg "Delete...") edraw-delete-with-confirm)
-    ((edraw-msg "Duplicate") edraw-duplicate-and-select)))
+    ((edraw-msg "Duplicate") edraw-duplicate-and-select)
+    ((edraw-msg "Copy") edraw-copy)
+    ((edraw-msg "Cut") edraw-cut)))
 
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-*)) )
@@ -4251,6 +4326,26 @@ editor when the selected shape changes."
                 (null (memq 'down (event-modifiers event))))
            (memq 'click (event-modifiers event))
            (memq 'drag (event-modifiers event)))))
+
+
+
+;;;; Clipboard
+
+(defvar edraw-clipboard-type-data nil)
+
+(defun edraw-clipboard-set (type data)
+  (setq edraw-clipboard-type-data (cons type data)))
+
+(defun edraw-clipboard-empty-p ()
+  (null edraw-clipboard-type-data))
+
+(defun edraw-clipboard-type ()
+  (car edraw-clipboard-type-data))
+
+(defun edraw-clipboard-data ()
+  (cdr edraw-clipboard-type-data))
+
+
 
 
 ;;;; Message Catalog
