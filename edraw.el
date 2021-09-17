@@ -160,6 +160,9 @@
     (define-key km "def" 'edraw-editor-export-to-file)
     (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
     ;; Selected Object
+    (define-key km (kbd "C-c C-x C-y") 'edraw-editor-paste-and-select)
+    (define-key km (kbd "C-c C-x C-w") 'edraw-editor-cut-selected-shapes)
+    (define-key km (kbd "C-c C-x M-w") 'edraw-editor-copy-selected-shapes)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
