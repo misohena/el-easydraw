@@ -816,7 +816,7 @@
                         (edraw-set-background editor current-value))))
       (edraw-set-background editor new-value))))
 
-;;;;; Editor - Document - Objects
+;;;;; Editor - Document - Shapes
 
 (cl-defmethod edraw-all-shapes ((editor edraw-editor))
   ;; back-to-front
@@ -841,6 +841,29 @@
   (let ((matrix (edraw-matrix-scale (float sx) (float sy) 1.0)))
     (dolist (shape (edraw-all-shapes editor))
       (edraw-transform shape matrix))))
+
+(cl-defmethod edraw-notify-document-close-to-all-shapes ((editor edraw-editor))
+  (dolist (node (dom-children (edraw-svg-body editor)))
+    (when-let ((shape (edraw-shape-from-element-no-create node)))
+      (edraw-notify-change-hook shape 'document-close))))
+
+;; Shape Finding
+
+(cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
+  (nreverse ;;front to back
+   (delq nil
+         (cl-loop for node in (dom-children (edraw-svg-body editor))
+                  when (edraw-svg-element-contains-point-p node xy)
+                  collect (edraw-shape-from-element node editor 'noerror)))))
+
+(cl-defmethod edraw-find-shape-by-xy-and-menu ((editor edraw-editor)
+                                                      xy)
+  (let ((shapes (edraw-find-shapes-by-xy editor xy)))
+    (if (cdr shapes)
+        (edraw-popup-shape-selection-menu shapes)
+      (car shapes))))
+
+;;(cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect) )
 
 ;;;;; Editor - Document - Menu
 
@@ -2049,7 +2072,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 
 
-;;;;; Editor - Tool Base Class
+;;;; Tool
 
 (defclass edraw-editor-tool ()
   ((editor
@@ -2119,7 +2142,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 
 
-;;;;; Editor - Select Tool
+;;;;; Tool - Select Tool
 
 (defclass edraw-editor-tool-select (edraw-editor-tool)
   ())
@@ -2161,7 +2184,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 
 
-;;;;; Editor - Rect Tool
+;;;;; Tool - Rect Tool
 
 (defclass edraw-editor-tool-rect (edraw-editor-tool)
   ()
@@ -2199,7 +2222,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 
 
-;;;;; Editor - Ellipse Tool
+;;;;; Tool - Ellipse Tool
 
 (defclass edraw-editor-tool-ellipse (edraw-editor-tool)
   ()
@@ -2235,7 +2258,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 
 
-;;;;; Editor - Text Tool
+;;;;; Tool - Text Tool
 
 (defclass edraw-editor-tool-text (edraw-editor-tool)
   ()
@@ -2284,7 +2307,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            (+ (cdr center) (* 0.4 font-size)))))))) ;;@todo ascent font-size ratio
 
 
-;;;;; Editor - Path Tool
+;;;;; Tool - Path Tool
 
 (defclass edraw-editor-tool-path (edraw-editor-tool)
   ((editing-path
@@ -2472,31 +2495,6 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                        (not (edraw-in-closed-subpath-p anchor)))
               (push anchor points))))))
     points)) ;;front to back
-
-;;;;; Editor - Shapes
-
-(cl-defmethod edraw-notify-document-close-to-all-shapes ((editor edraw-editor))
-  (dolist (node (dom-children (edraw-svg-body editor)))
-    (when-let ((shape (edraw-shape-from-element-no-create node)))
-      (edraw-notify-change-hook shape 'document-close))))
-
-;;;;; Editor - Shape Finding
-
-(cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
-  (nreverse ;;front to back
-   (delq nil
-         (cl-loop for node in (dom-children (edraw-svg-body editor))
-                  when (edraw-svg-element-contains-point-p node xy)
-                  collect (edraw-shape-from-element node editor 'noerror)))))
-
-(cl-defmethod edraw-find-shape-by-xy-and-menu ((editor edraw-editor)
-                                                      xy)
-  (let ((shapes (edraw-find-shapes-by-xy editor xy)))
-    (if (cdr shapes)
-        (edraw-popup-shape-selection-menu shapes)
-      (car shapes))))
-
-;;(cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect) )
 
 
 
