@@ -584,33 +584,41 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
   (with-eval-after-load 'ox-html
     (setf (alist-get edraw-org-link-type
                      org-html-inline-image-rules nil nil #'equal)
-          ".*")))
+          ".*")
+    (advice-add 'org-export-custom-protocol-maybe :around 'edraw-org-advice-export-custom-protocol-maybe)))
 
-(defun edraw-org-link-export (path _description back-end _channel)
+(defvar edraw-org-current-link nil)
+
+(defun edraw-org-advice-export-custom-protocol-maybe (old-func link &rest args)
+  (let ((edraw-org-current-link link))
+    (apply old-func link args)))
+
+(defun edraw-org-link-export (path _description back-end info)
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]
+  (let ((link edraw-org-current-link))
 
-  (pcase back-end
-    ('html
-     (if-let ((link-props (edraw-org-link-props-parse path)))
-         (if-let ((data (edraw-org-link-prop-data link-props)))
-             (pcase edraw-org-link-export-data-tag
-               ('svg (edraw-org-link-data-to-svg data))
-               ('img (edraw-org-link-data-to-img data))
-               ((and (pred functionp)
-                     func)
-                (funcall func data))
-               (_ (edraw-org-link-data-to-svg data)))
-           (if-let ((file (edraw-org-link-prop-file link-props)))
-               (pcase edraw-org-link-export-file-tag
-                 ('svg (edraw-org-link-file-to-svg file))
-                 ('img (edraw-org-link-file-to-img file))
+    (pcase back-end
+      ('html
+       (if-let ((link-props (edraw-org-link-props-parse path)))
+           (if-let ((data (edraw-org-link-prop-data link-props)))
+               (pcase edraw-org-link-export-data-tag
+                 ('svg (edraw-org-link-data-to-svg data link info))
+                 ('img (edraw-org-link-data-to-img data link info))
                  ((and (pred functionp)
                        func)
-                  (funcall func file))
-                 (_ (edraw-org-link-file-to-img file)))
-             ""))
-       ""))))
+                  (funcall func data))
+                 (_ (edraw-org-link-data-to-svg data link info)))
+             (if-let ((file (edraw-org-link-prop-file link-props)))
+                 (pcase edraw-org-link-export-file-tag
+                   ('svg (edraw-org-link-file-to-svg file link info))
+                   ('img (edraw-org-link-file-to-img file link info))
+                   ((and (pred functionp)
+                         func)
+                    (funcall func file))
+                   (_ (edraw-org-link-file-to-img file link info)))
+               ""))
+         "")))))
 
 (defun edraw-org-link-data-to-data-uri (data)
   (with-temp-buffer
@@ -625,28 +633,69 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
     (insert "data:image/svg+xml;base64,")
     (buffer-substring-no-properties (point-min) (point-max))))
 
-(defun edraw-org-link-data-to-svg (data)
+(defun edraw-org-link-data-to-img (data link info)
+  (edraw-org-link-html-img (edraw-org-link-data-to-data-uri data) link info))
+
+(defun edraw-org-link-file-to-img (file link info)
+  (edraw-org-link-html-img file link info))
+
+(defun edraw-org-link-html-img (src link info)
+  (org-html-close-tag
+   "img"
+   (org-html--make-attribute-string
+    (org-combine-plists
+     (list :src src) ;;@todo alt
+     (edraw-org-link-html-attributes-plist link info)))
+   info))
+
+(defun edraw-org-link-data-to-svg (data link info)
   (with-temp-buffer
     (insert data)
     (base64-decode-region (point-min) (point-max))
     (if (edraw-buffer-gzip-p)
         (edraw-gunzip-buffer)
       (decode-coding-region (point-min) (point-max) 'utf-8))
+    (edraw-org-link-html-svg-insert-attributes link info)
     (buffer-substring-no-properties (point-min) (point-max))))
 
-(defun edraw-org-link-data-to-img (data)
-  (concat "<img src=\"" (edraw-org-link-data-to-data-uri data) "\">"))
-
-(defun edraw-org-link-file-to-img (file)
-  (concat "<img src=\"" file "\">"))
-
-(defun edraw-org-link-file-to-svg (file)
+(defun edraw-org-link-file-to-svg (file link info)
   (with-temp-buffer
     (insert-file-contents-literally file)
     (when (edraw-buffer-gzip-p)
       (edraw-gunzip-buffer))
+    (edraw-org-link-html-svg-insert-attributes link info)
     (buffer-substring-no-properties (point-min) (point-max))))
 
+(defun edraw-org-link-html-svg-insert-attributes (link info)
+  (when (re-search-forward "<svg\\([ \t\r\n]\\)" nil t)
+    (goto-char (match-beginning 1))
+    ;;@todo Remove duplicate attributes
+    (insert " "
+            (org-html--make-attribute-string
+             (edraw-org-link-html-attributes-plist link info)))))
+
+(defun edraw-org-link-html-attributes-plist (link info)
+  "Return attributes specified by #+ATTR_HTML as a plist."
+  (when link
+    ;; NOTE: The code below is a copy from org-html-link function.
+    (org-combine-plists
+     ;; Extract attributes from parent's paragraph.  HACK: Only
+     ;; do this for the first link in parent (inner image link
+     ;; for inline images).  This is needed as long as
+     ;; attributes cannot be set on a per link basis.
+     (let* ((parent (org-export-get-parent-element link))
+            (link (let ((container (org-export-get-parent link)))
+                    (if (and (eq 'link (org-element-type container))
+                             (org-html-inline-image-p link info))
+                        container
+                      link))))
+       (and (eq link (org-element-map parent 'link #'identity info t))
+            (org-export-read-attribute :attr_html parent)))
+     ;; Also add attributes from link itself.  Currently, those
+     ;; need to be added programmatically before `org-html-link'
+     ;; is invoked, for example, by backends building upon HTML
+     ;; export.
+     (org-export-read-attribute :attr_html link))))
 
 (provide 'edraw-org)
 ;;; edraw-org.el ends here
