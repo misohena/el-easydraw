@@ -78,6 +78,7 @@ The key bindings that are not displayed are as follows.
 - S-left, S-up, S-right, S-down : Move selected object (10px)
 - M-left, M-up, M-right, M-down : Move selected object (numerical input)
 - Right-click on shape or anchor point or background : Show context menu
+- (Select Tool) C-down-mouse-1 : Add/Remove clicked shape to selection list
 - (Path Tool) C-u down-mouse-1 : Ignore existing points (Avoid connecting or moving existing points)
 
 * Emacs Lisp
