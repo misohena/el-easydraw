@@ -30,6 +30,10 @@
 (require 'org)
 (require 'edraw-util)
 
+(eval-when-compile
+  (require 'ox-html)
+  (require 'edraw))
+
 
 
 ;;;; Setup
@@ -451,7 +455,7 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
         (edraw-initialize editor)
         ;;(overlay-put editor-overlay 'evaporate t)
         (overlay-put editor-overlay 'modification-hooks
-                     (list (lambda (ov after-p beg end &optional len)
+                     (list (lambda (_ov _after-p _beg _end &optional _len)
                              (unless edraw-org-enable-modification
                                (error "There is an edraw-editor within modification range. Please close the editor")))))
         ;; Add key bindings
