@@ -130,6 +130,16 @@
           (setq siblings (cdr siblings)))
         (car siblings)))))
 
+(defun edraw-dom-insert-nth (node child index)
+  (setq node (dom-ensure-node node))
+  ;; depends on dom.el node structure
+  (if (<= index 0)
+      (setcdr (cdr node) (cons child (cddr node)))
+    (let ((cell (or (nthcdr (1- index) (cddr node))
+                    (last (cddr node)))))
+      (setcdr cell (cons child (cdr cell)))))
+  child)
+
 
 ;;;; SVG Print
 
