@@ -454,6 +454,19 @@ The CMDLIST will be empty after calling this function. "
 
 
 
+;;;;;; cmdlist - Point
+
+(defun edraw-path-cmdlist-nth-point (cmdlist index)
+  (let ((cmd (edraw-path-cmdlist-front cmdlist))
+        args-size)
+    (while (and cmd
+                (>= index (setq args-size (edraw-path-cmd-args-size cmd))))
+      (setq index (- index args-size))
+      (setq cmd (edraw-path-cmd-next cmd)))
+    (when cmd
+      (edraw-path-cmd-arg-pt cmd index))))
+;; TEST: (edraw-path-point-xy (edraw-path-cmdlist-nth-point (edraw-path-cmdlist-from-d "M1,2L3,4ZC5,6 7,8 9,10") 4)) => (9 . 10)
+
 ;;;;;; cmdlist - Anchor Point
 
 (defun edraw-path-cmdlist-anchor-points (cmdlist)
@@ -615,7 +628,7 @@ The CMDLIST will be empty after calling this function. "
                  (push-cmd (edraw-path-cmd 'C (car cp) (cdr cp) p)))))
             ;;@todo support A command
             ;; ((or 'A 'a) )
-            (_ (error "Unsupported path command found: %s" cmd-args))
+            (_ (error "Unsupported path command found: %s in %s" cmd-args d))
             ))))
     cmdlist))
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10,10.1L20.2,200.0L0.3,0.03Z"
@@ -693,6 +706,15 @@ The CMDLIST will be empty after calling this function. "
 (defun edraw-path-cmd--next-set (cmd next) (aset cmd 1 next))
 (defun edraw-path-cmd-type-set (cmd type) (aset cmd 2 type))
 (defun edraw-path-cmd--args-set (cmd args) (aset cmd 3 args))
+
+(defun edraw-path-cmd-args-size (cmd)
+  (pcase (edraw-path-cmd-type cmd)
+    ('Z 0)
+    ('M 1)
+    ('L 1)
+    ('C 3)
+    ('-forward-handle-point 1)
+    (_ 0)))
 
 (defun edraw-path-cmd-arg-pt (cmd n)
   (nth n (edraw-path-cmd--args cmd)))
@@ -1876,6 +1898,22 @@ If HANDLE-POINT is the backward handle, return the forward handle."
               (edraw-xy-nmul (/ (- va2-len) van-len) van))))))))
 
   (edraw-path-point-move handle-point new-xy))
+
+(defun edraw-path-handle-move-with-opposite-handle-symmetry (handle-point new-xy include-same-position-p)
+  "Move HANDLE-POINT and opposite handle point."
+  (when handle-point
+    ;; opposite handle (symmetry)
+    (when-let ((anchor (edraw-path-handle-parent-anchor handle-point))
+               (opposite-handle
+                (if (edraw-path-handle-forward-p handle-point)
+                    (edraw-path-anchor-backward-handle anchor include-same-position-p)
+                  (edraw-path-anchor-forward-handle anchor include-same-position-p))))
+      (edraw-path-point-move
+       opposite-handle
+       (edraw-xy-sub (edraw-xy-nmul 2 (edraw-path-point-xy anchor))
+                     new-xy)))
+    ;; target handle
+    (edraw-path-point-move handle-point new-xy)))
 
 
 
