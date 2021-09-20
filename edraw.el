@@ -159,7 +159,8 @@
     (define-key km "deb" 'edraw-editor-export-to-buffer)
     (define-key km "def" 'edraw-editor-export-to-file)
     (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
-    (define-key km (kbd "C-c C-/") 'edraw-editor-undo)
+    (define-key km "z" 'edraw-editor-undo)
+    (define-key km "Z" 'edraw-editor-redo)
     ;; Selected Object
     (define-key km (kbd "C-c C-x C-y") 'edraw-editor-paste-and-select)
     (define-key km (kbd "C-c C-x C-w") 'edraw-editor-cut-selected-shapes)
