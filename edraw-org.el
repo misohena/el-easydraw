@@ -671,12 +671,19 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
     (buffer-substring-no-properties (point-min) (point-max))))
 
 (defun edraw-org-link-html-svg-insert-attributes (link info)
-  (when (re-search-forward "<svg\\([ \t\r\n]\\)" nil t)
-    (goto-char (match-beginning 1))
-    ;;@todo Remove duplicate attributes
-    (insert " "
-            (org-html--make-attribute-string
-             (edraw-org-link-html-attributes-plist link info)))))
+  (let ((attributes (edraw-org-link-html-attributes-plist link info)))
+    (when (and attributes
+               (re-search-forward "<svg\\([ \t\r\n>]\\)" nil t))
+      ;; Insert specified attributes
+      (goto-char (match-beginning 1))
+      (insert " " (org-html--make-attribute-string attributes))
+      ;; Remove duplicate attributes
+      (let ((attr-names (cl-loop for (key value) on attributes by #'cddr
+                                 collect key)))
+        (while (looking-at "[ \t\r\n]*\\(\\([-a-zA-Z0-9_:.]+\\)[ \t\r\n]*=[ \t\r\n]*\\(\"[^<\"]*\"\\|'[^<']*'\\)\\)")
+          (goto-char (match-end 0))
+          (when (memq (intern (concat ":" (match-string-no-properties 2))) attr-names)
+            (replace-match "")))))))
 
 (defun edraw-org-link-html-attributes-plist (link info)
   "Return attributes specified by #+ATTR_HTML as a plist."
