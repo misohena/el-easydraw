@@ -2661,19 +2661,27 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    (edraw-closed-path-shape-p editing-path)))
       (setq editing-path nil))
 
-    (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event)))
+    (let* ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+           (ignore-existing-point-p (equal current-prefix-arg '(4)))
+           ;;@todo customize
+           (enable-connect-p (not ignore-existing-point-p))
+           (enable-move-p (not ignore-existing-point-p)))
       (cond
-       ((edraw-mouse-down-continue-path tool down-event))
+       ((and enable-connect-p
+             (or
+              (edraw-mouse-down-continue-path tool down-event)
 
-       ((edraw-mouse-down-close-path tool down-event))
+              (edraw-mouse-down-close-path tool down-event)
 
-       ((edraw-mouse-down-connect-to-another-path tool down-event))
+              (edraw-mouse-down-connect-to-another-path tool down-event))))
 
-       ;; Drag or click a handle point of selected anchor point
-       ((edraw-mouse-down-handle-point editor down-event))
+       ((and enable-move-p
+             (or
+              ;; Drag or click a handle point of selected anchor point
+              (edraw-mouse-down-handle-point editor down-event)
 
-       ;; Drag or click a anchor point of selected shape
-       ((edraw-mouse-down-anchor-point editor down-event))
+              ;; Drag or click a anchor point of selected shape
+              (edraw-mouse-down-anchor-point editor down-event))))
 
        (t
         (edraw-make-undo-group editor 'path-tool-add-new-point
