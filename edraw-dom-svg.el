@@ -672,6 +672,7 @@
                  (refX . "5")
                  (refY . "5")
                  (orient . "auto")
+                 (stroke . "none")
                  (fill .
                        ;; @todo I want to use context-stroke and remove edraw-svg-update-marker-properties
                        ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
@@ -683,8 +684,8 @@
                          ;; @todo I want to use auto-start-reverse
                          ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
                          (if (eq prop-name 'marker-start)
-                             `((d . "M10,1.5 10,8.5 2.5,5"))
-                           `((d . "M0,1.5 0,8.5 7.0,5"))))))
+                             `((d . "M10,1.5 10,8.5 2.5,5Z"))
+                           `((d . "M0,1.5 0,8.5 7.0,5Z"))))))
     ("circle"
      (dom-node 'marker
                `((markerWidth . "4")
@@ -692,6 +693,7 @@
                  (viewBox . "0 0 10 10")
                  (refX . "5")
                  (refY . "5")
+                 (stroke . "none")
                  (fill .
                        ;; @todo I want to use context-stroke
                        ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
