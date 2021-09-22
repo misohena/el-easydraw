@@ -728,10 +728,10 @@ Guarantees the uniqueness of ids defined by the SVG in the exported HTML. Add a 
                              (new-id (funcall id-converter old-id)))
                     (dom-set-attribute element 'id new-id)
                     (cons old-id new-id)))
-                ;; The target elements are #edraw-body, #edraw-defs,
-                ;; elements under #edraw-defs.
+                ;; The target elements are:
                 (append
                  (list
+                  (edraw-dom-get-by-id svg "edraw-background")
                   (edraw-dom-get-by-id svg "edraw-body")
                   (edraw-dom-get-by-id svg "edraw-defs"))
                  (dom-children (edraw-dom-get-by-id svg "edraw-defs")))))))
