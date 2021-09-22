@@ -600,6 +600,7 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
 (defun edraw-org-link-export (path _description back-end info)
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]
+  (require 'edraw)
   (let ((link edraw-org-current-link))
 
     (pcase back-end
@@ -607,15 +608,15 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
        (if-let ((link-props (edraw-org-link-props-parse path)))
            (if-let ((data (edraw-org-link-prop-data link-props)))
                (pcase edraw-org-link-export-data-tag
-                 ('svg (edraw-org-link-data-to-svg data link info))
+                 ('svg (edraw-org-link-html-link-to-svg link-props link info))
                  ('img (edraw-org-link-data-to-img data link info))
                  ((and (pred functionp)
                        func)
                   (funcall func data))
-                 (_ (edraw-org-link-data-to-svg data link info)))
+                 (_ (edraw-org-link-html-link-to-svg link-props link info)))
              (if-let ((file (edraw-org-link-prop-file link-props)))
                  (pcase edraw-org-link-export-file-tag
-                   ('svg (edraw-org-link-file-to-svg file link info))
+                   ('svg (edraw-org-link-html-link-to-svg link-props link info))
                    ('img (edraw-org-link-file-to-img file link info))
                    ((and (pred functionp)
                          func)
@@ -652,38 +653,18 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
      (edraw-org-link-html-attributes-plist link info)))
    info))
 
-(defun edraw-org-link-data-to-svg (data link info)
-  (with-temp-buffer
-    (insert data)
-    (base64-decode-region (point-min) (point-max))
-    (if (edraw-buffer-gzip-p)
-        (edraw-gunzip-buffer)
-      (decode-coding-region (point-min) (point-max) 'utf-8))
-    (edraw-org-link-html-svg-insert-attributes link info)
-    (buffer-substring-no-properties (point-min) (point-max))))
+(defun edraw-org-link-html-link-to-svg (link-props link info)
+  (let ((svg (edraw-org-link-load-svg link-props))
+        (attributes (edraw-org-link-html-attributes-plist link info))
+        (link-ref (org-export-get-reference link info)))
+    (unless svg
+      (message "Failed to load SVG %s" (prin1-to-string link-props)))
 
-(defun edraw-org-link-file-to-svg (file link info)
-  (with-temp-buffer
-    (insert-file-contents-literally file)
-    (when (edraw-buffer-gzip-p)
-      (edraw-gunzip-buffer))
-    (edraw-org-link-html-svg-insert-attributes link info)
-    (buffer-substring-no-properties (point-min) (point-max))))
-
-(defun edraw-org-link-html-svg-insert-attributes (link info)
-  (let ((attributes (edraw-org-link-html-attributes-plist link info)))
-    (when (and attributes
-               (re-search-forward "<svg\\([ \t\r\n>]\\)" nil t))
-      ;; Insert specified attributes
-      (goto-char (match-beginning 1))
-      (insert " " (org-html--make-attribute-string attributes))
-      ;; Remove duplicate attributes
-      (let ((attr-names (cl-loop for (key value) on attributes by #'cddr
-                                 collect key)))
-        (while (looking-at "[ \t\r\n]*\\(\\([-a-zA-Z0-9_:.]+\\)[ \t\r\n]*=[ \t\r\n]*\\(\"[^<\"]*\"\\|'[^<']*'\\)\\)")
-          (goto-char (match-end 0))
-          (when (memq (intern (concat ":" (match-string-no-properties 2))) attr-names)
-            (replace-match "")))))))
+    ;; Set svg attributes, replace ids and return as string
+    (edraw-encode-svg
+     (edraw-org-link-html-convert-svg-for-embed-in-html svg attributes
+                                                        link-ref)
+     nil nil)))
 
 (defun edraw-org-link-html-attributes-plist (link info)
   "Return attributes specified by #+ATTR_HTML as a plist."
@@ -707,6 +688,72 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
      ;; is invoked, for example, by backends building upon HTML
      ;; export.
      (org-export-read-attribute :attr_html link))))
+
+(defun edraw-org-link-html-convert-svg-for-embed-in-html (svg
+                                                          attributes
+                                                          link-ref)
+  "Convert SVG into a form that can be embedded in HTML.
+
+Currently this function does two things:
+
+Sets the attribute specified by #+ATTR_HTML to the svg root element.
+
+Guarantees the uniqueness of ids defined by the SVG in the exported HTML. Add a random string to id."
+  ;; Apply attributes specified by #+ATTR_HTML to the root svg element
+  (cl-loop for (key value) on attributes by #'cddr
+           do (dom-set-attribute svg key value))
+
+  ;; Replace all ids (Make ids unique in the HTML)
+  ;; e.g.
+  ;;  #edraw-body => #edraw-orgc4e2460-body
+  ;;  #edraw-defs => #edraw-orgc4e2460-defs
+  ;;  #edraw-def-0-arrow => #edraw-orgc4e2460-def-0-arrow
+
+  (let* ((image-id link-ref)
+         (id-converter (lambda (id)
+                         (format "edraw-%s-%s"
+                                 image-id
+                                 (string-remove-prefix "edraw-" id)))))
+    (edraw-org-link-html-replace-ids svg id-converter))
+  svg)
+
+(defun edraw-org-link-html-replace-ids (svg id-converter)
+  (let (;; Replace id in definitions
+        ;; and create id conversion table.
+        (id-map
+         (delq nil
+               (mapcar
+                (lambda (element)
+                  (when-let ((old-id (dom-attr element 'id))
+                             (new-id (funcall id-converter old-id)))
+                    (dom-set-attribute element 'id new-id)
+                    (cons old-id new-id)))
+                ;; The target elements are #edraw-body, #edraw-defs,
+                ;; elements under #edraw-defs.
+                (append
+                 (list
+                  (edraw-dom-get-by-id svg "edraw-body")
+                  (edraw-dom-get-by-id svg "edraw-defs"))
+                 (dom-children (edraw-dom-get-by-id svg "edraw-defs")))))))
+    ;; Replace all references
+    (edraw-org-link-html-replace-id-in-url-references svg id-map)))
+
+(defun edraw-org-link-html-replace-id-in-url-references (element id-map)
+  (when (edraw-dom-element-p element)
+    (dolist (attr (dom-attributes element))
+      (let ((key (car attr))
+            (value (cdr attr)))
+        ;;@todo should be limited to url data type attributes such as marker-start, marker-mid, marker-end
+        (when (and (stringp value)
+                   (string-match "\\` *url *( *#\\([^ )]+\\) *) *\\'" value))
+          (when-let ((old-id (match-string 1 value))
+                     (new-id (alist-get old-id id-map nil nil #'equal)))
+            (dom-set-attribute element
+                               key
+                               (format "url(#%s)" new-id))))))
+    ;; Children
+    (dolist (child (dom-children element))
+      (edraw-org-link-html-replace-id-in-url-references child id-map))))
 
 (provide 'edraw-org)
 ;;; edraw-org.el ends here
