@@ -188,6 +188,16 @@
     (and (<= (caar rect) x) (< x (cadr rect))
          (<= (cdar rect) y) (< y (cddr rect)))))
 
+(defun edraw-rect-intersects-rect-p (rect1 rect2)
+  (if (or (edraw-rect-empty-p rect1)
+          (edraw-rect-empty-p rect2))
+      nil
+    (and
+     (< (caar rect1) (cadr rect2))
+     (> (cadr rect1) (caar rect2))
+     (< (cdar rect1) (cddr rect2))
+     (> (cddr rect1) (cdar rect2)))))
+
 (defun edraw-rect-center (rect)
   (cons
    (* 0.5 (+ (caar rect) (cadr rect)))

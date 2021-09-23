@@ -903,10 +903,98 @@
 
 
 
+;;;; SVG Shapes to Segment List
+
+;;
+;; Depends on edraw-path.el (edraw-path-*)
+;;
+
+(defun edraw-svg-element-to-bezier-segments (element)
+  (when (edraw-dom-element-p element)
+    (pcase (dom-tag element)
+      ('path (edraw-svg-path-to-bezier-segments element))
+      ('rect (edraw-svg-rect-to-bezier-segments element))
+      ('ellipse (edraw-svg-ellipse-to-bezier-segments element))
+      ('circle (edraw-svg-circle-to-bezier-segments element))
+      ('text nil))))
+
+(defun edraw-svg-path-to-bezier-segments (element)
+  (let ((fill (dom-attr element 'fill))
+        (d (dom-attr element 'd)))
+    (when d
+      (edraw-path-cmdlist-to-segment-list
+       (edraw-path-cmdlist-from-d d)
+       (not (equal fill "none"))))))
+
+(defun edraw-svg-rect-to-bezier-segments (element)
+  ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
+  (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
+         (top    (or (edraw-svg-attr-coord element 'y) 0))
+         (width  (or (edraw-svg-attr-coord element 'width) 0))
+         (height (or (edraw-svg-attr-coord element 'height) 0))
+         (right  (+ left width))
+         (bottom (+ top height))
+         ;;@todo support rx, ry
+         (segments (list (vector (cons left  top   ) (cons right top   ))
+                         (vector (cons right top   ) (cons right bottom))
+                         (vector (cons right bottom) (cons left  bottom))
+                         (vector (cons left  bottom) (cons left  top)))))
+    segments))
+
+(defun edraw-svg-ellipse-to-bezier-segments (element)
+  ;; https://www.w3.org/TR/SVG11/shapes.html#EllipseElement
+  (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
+         (cy (or (edraw-svg-attr-coord element 'cy) 0))
+         (rx (or (edraw-svg-attr-coord element 'rx) 0))
+         (ry (or (edraw-svg-attr-coord element 'ry) 0))
+         (left   (- cx rx))
+         (top    (- cy ry))
+         (right  (+ cx rx))
+         (bottom (+ cy ry))
+         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (crx (* c rx))
+         (cry (* c ry))
+         (segments
+          (list
+           (vector (cons right cy) (cons right (+ cy cry))
+                   (cons (+ cx crx) bottom) (cons cx bottom))
+           (vector (cons cx bottom) (cons (- cx crx) bottom)
+                   (cons left (+ cy cry)) (cons left cy))
+           (vector (cons left cy) (cons left (- cy cry))
+                   (cons (- cx crx) top) (cons cx top))
+           (vector (cons cx top) (cons (+ cx crx) top)
+                   (cons right (- cy cry)) (cons right cy)))))
+         segments))
+
+(defun edraw-svg-circle-to-bezier-segments (element)
+  ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
+  (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
+         (cy (or (edraw-svg-attr-coord element 'cy) 0))
+         (r (or (edraw-svg-attr-coord element 'r) 0))
+         (left   (- cx r))
+         (top    (- cy r))
+         (right  (+ cx r))
+         (bottom (+ cy r))
+         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (cr (* c r))
+         (segments
+          (list
+           (vector (cons right cy) (cons right (+ cy cr))
+                   (cons (+ cx cr) bottom) (cons cx bottom))
+           (vector (cons cx bottom) (cons (- cx cr) bottom)
+                   (cons left (+ cy cr)) (cons left cy))
+           (vector (cons left cy) (cons left (- cy cr))
+                   (cons (- cx cr) top) (cons cx top))
+           (vector (cons cx top) (cons (+ cx cr) top)
+                   (cons right (- cy cr)) (cons right cy)))))
+    segments))
+
+
+
 ;;;; Point in SVG Shapes Test
 
 ;;
-;; Depends on edraw-path.el (edraw-path-*, edraw-bezier)
+;; Depends on edraw-path.el (edraw-path-*, edraw-bezier-*)
 ;;
 
 (defconst edraw-pick-point-radius 2)
@@ -914,119 +1002,82 @@
 (defun edraw-svg-element-contains-point-p (element xy)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ('path (edraw-svg-path-contains-point-p element xy))
-      ('rect (edraw-svg-rect-contains-point-p element xy))
-      ('ellipse (edraw-svg-ellipse-contains-point-p element xy))
-      ('circle (edraw-svg-circle-contains-point-p element xy))
+      ((or 'path 'rect 'ellipse 'circle)
+       (edraw-svg-shape-contains-point-p element xy))
       ('text (edraw-svg-text-contains-point-p element xy)))))
 
-(defun edraw-svg-path-contains-point-p (element xy)
+(defun edraw-svg-shape-contains-point-p (element xy)
   (let* ((fill (dom-attr element 'fill))
-         (stroke-width (or (edraw-svg-attr-number element 'stroke-width) 1))
+         (fill-p (not (equal fill "none"))) ;;default black
+         (fill-rule (dom-attr element 'fill-rule))
+         (stroke (dom-attr element 'stroke))
+         (stroke-p (and stroke ;;default none
+                        (not (equal stroke ""))
+                        (not (equal stroke "none"))))
+         (stroke-width (if stroke-p
+                           (or (edraw-svg-attr-number element 'stroke-width) 1)
+                         0))
          (stroke-square-r (/ stroke-width (* 2 (sqrt 2))))
-         (d (dom-attr element 'd))
-         (fill-rule (dom-attr element 'fill-rule)))
+         (segments (edraw-svg-element-to-bezier-segments element)))
 
-    (when d
-      (if (and fill (equal fill "none"))
-          (edraw-path-cmdlist-intersects-rect-p
-           (edraw-path-cmdlist-from-d d)
-           (edraw-square xy
-                         (+ edraw-pick-point-radius stroke-square-r)))
-        (edraw-path-cmdlist-contains-point-p
-         (edraw-path-cmdlist-from-d d)
-         xy
-         (equal fill-rule "evenodd"))))))
-
-(defun edraw-svg-rect-contains-point-p (element xy)
-  ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
-  (let* ((fill (dom-attr element 'fill))
-         (left   (or (edraw-svg-attr-coord element 'x) 0))
-         (top    (or (edraw-svg-attr-coord element 'y) 0))
-         (width  (or (edraw-svg-attr-coord element 'width) 0))
-         (height (or (edraw-svg-attr-coord element 'height) 0)))
-    (let* ((right  (+ left width))
-           (bottom (+ top height))
-           ;;@todo support rx, ry
-           ;;@todo create edraw-bezier-segments-from-rect function
-           (segments (list (vector (cons left  top   ) (cons right top   ))
-                           (vector (cons right top   ) (cons right bottom))
-                           (vector (cons right bottom) (cons left  bottom))
-                           (vector (cons left  bottom) (cons left  top)))))
-      (if (and fill (equal fill "none"))
-          (edraw-bezier-segments-intersects-rect-p
-           segments
-           (edraw-square xy edraw-pick-point-radius))
-        (edraw-bezier-segments-contains-point-p
-         segments
-         xy)))))
-
-(defun edraw-svg-ellipse-contains-point-p (element xy)
-  ;; https://www.w3.org/TR/SVG11/shapes.html#EllipseElement
-  (let* ((fill (dom-attr element 'fill))
-         (cx (or (edraw-svg-attr-coord element 'cx) 0))
-         (cy (or (edraw-svg-attr-coord element 'cy) 0))
-         (rx (or (edraw-svg-attr-coord element 'rx) 0))
-         (ry (or (edraw-svg-attr-coord element 'ry) 0)))
-    (let* ((left   (- cx rx))
-           (top    (- cy ry))
-           (right  (+ cx rx))
-           (bottom (+ cy ry))
-           (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
-           (crx (* c rx))
-           (cry (* c ry))
-           ;;@todo create edraw-bezier-segments-from-ellipse function
-           (segments
-            (list
-             (vector (cons right cy) (cons right (+ cy cry))
-                     (cons (+ cx crx) bottom) (cons cx bottom))
-             (vector (cons cx bottom) (cons (- cx crx) bottom)
-                     (cons left (+ cy cry)) (cons left cy))
-             (vector (cons left cy) (cons left (- cy cry))
-                     (cons (- cx crx) top) (cons cx top))
-             (vector (cons cx top) (cons (+ cx crx) top)
-                     (cons right (- cy cry)) (cons right cy)))))
-      (if (and fill (equal fill "none"))
-          (edraw-bezier-segments-intersects-rect-p
-           segments
-           (edraw-square xy edraw-pick-point-radius))
-        (edraw-bezier-segments-contains-point-p
-         segments
-         xy)))))
-
-(defun edraw-svg-circle-contains-point-p (element xy)
-  ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
-  (let* ((fill (dom-attr element 'fill))
-         (cx (or (edraw-svg-attr-coord element 'cx) 0))
-         (cy (or (edraw-svg-attr-coord element 'cy) 0))
-         (r (or (edraw-svg-attr-coord element 'r) 0)))
-    (let* ((left   (- cx r))
-           (top    (- cy r))
-           (right  (+ cx r))
-           (bottom (+ cy r))
-           (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
-           (cr (* c r))
-           ;;@todo create edraw-bezier-segments-from-circle function
-           (segments
-            (list
-             (vector (cons right cy) (cons right (+ cy cr))
-                     (cons (+ cx cr) bottom) (cons cx bottom))
-             (vector (cons cx bottom) (cons (- cx cr) bottom)
-                     (cons left (+ cy cr)) (cons left cy))
-             (vector (cons left cy) (cons left (- cy cr))
-                     (cons (- cx cr) top) (cons cx top))
-             (vector (cons cx top) (cons (+ cx cr) top)
-                     (cons right (- cy cr)) (cons right cy)))))
-      (if (and fill (equal fill "none"))
-          (edraw-bezier-segments-intersects-rect-p
-           segments
-           (edraw-square xy edraw-pick-point-radius))
-        (edraw-bezier-segments-contains-point-p
-         segments
-         xy)))))
+    (when segments
+      (or (and stroke-p
+               (edraw-bezier-segments-intersects-rect-p
+                segments
+                (edraw-square xy (+ edraw-pick-point-radius stroke-square-r))))
+          (and fill-p
+               (edraw-bezier-segments-contains-point-p
+                segments
+                xy
+                (equal fill-rule "evenodd")))))))
 
 (defun edraw-svg-text-contains-point-p (element xy)
   (edraw-rect-contains-point-p (edraw-svg-text-aabb element) xy))
+
+
+
+;;;; SVG Shapes and Rectangle Intersection Test
+
+(defun edraw-svg-element-intersects-rect-p (element rect)
+  (when (edraw-dom-element-p element)
+    (pcase (dom-tag element)
+      ((or 'path 'rect 'ellipse 'circle)
+       (edraw-svg-shape-intersects-rect-p element rect))
+      ('text (edraw-svg-text-intersects-rect-p element rect)))))
+
+(defun edraw-svg-shape-intersects-rect-p (element rect)
+  (when (and element
+             rect
+             (not (edraw-rect-empty-p rect)))
+    (let* ((fill (dom-attr element 'fill))
+           (fill-p (not (equal fill "none"))) ;;default black
+           (fill-rule (dom-attr element 'fill-rule))
+           (stroke (dom-attr element 'stroke))
+           (stroke-width (if (and stroke
+                                  (not (equal stroke ""))
+                                  (not (equal stroke "none")))
+                             (or (edraw-svg-attr-length element 'stroke-width) 1)
+                           0))
+           (stroke-r (/ stroke-width (* 2 (sqrt 2))))
+           (enlarged-rect (edraw-rect
+                           (- (caar rect) stroke-r)
+                           (- (cdar rect) stroke-r)
+                           (+ (cadr rect) stroke-r)
+                           (+ (cddr rect) stroke-r)))
+           (segments (edraw-svg-element-to-bezier-segments element)))
+      (when segments
+        (or (edraw-bezier-segments-intersects-rect-p segments enlarged-rect)
+            ;; Case where rect is completely inside the shape
+            (and fill-p
+                 (edraw-bezier-segments-contains-point-p
+                  segments
+                  (edraw-xy (caar enlarged-rect) (cdar enlarged-rect))
+                  (equal fill-rule "evenodd"))))))))
+
+(defun edraw-svg-text-intersects-rect-p (element rect)
+  (edraw-rect-intersects-rect-p
+   (edraw-svg-text-aabb element)
+   rect))
 
 
 

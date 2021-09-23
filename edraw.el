@@ -429,6 +429,10 @@
 }
 .edraw-ui-handle-line {
   stroke: #f88; fill: none;
+}
+.edraw-ui-read-rectangle {
+  stroke: #f88; fill: none;
+  stroke-dasharray: 2;
 }")
 
 (cl-defmethod edraw-update-ui-style-svg ((editor edraw-editor))
@@ -1045,7 +1049,12 @@ The undo data generated during undo is saved in redo-list."
         (edraw-popup-shape-selection-menu shapes)
       (car shapes))))
 
-;;(cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect) )
+(cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect)
+  (nreverse ;;front to back
+   (delq nil
+         (cl-loop for node in (dom-children (edraw-svg-body editor))
+                  when (edraw-svg-element-intersects-rect-p node rect)
+                  collect (edraw-shape-from-element node editor 'noerror)))))
 
 ;;;;; Editor - Document - Menu
 
@@ -2244,6 +2253,35 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     ;; document
     (edraw-popup-context-menu-for-document editor)))
 
+(cl-defmethod edraw-read-rectangle ((editor edraw-editor) down-event snap-p)
+  (let ((down-xy (if snap-p
+                     (edraw-mouse-event-to-xy-snapped editor down-event)
+                   (edraw-mouse-event-to-xy editor down-event))))
+    (edraw-ui-foreground-svg editor)
+    (let ((ui-parent (edraw-ui-foreground-svg editor))
+          (ui-preview (dom-node 'rect `((class . "edraw-ui-read-rectangle")
+                                        (x . ,(car down-xy))
+                                        (y . ,(cdr down-xy))
+                                        (width . 1)
+                                        (height . 1))))
+          move-xy)
+      (dom-append-child ui-parent ui-preview)
+      (unwind-protect
+          (edraw-track-dragging
+           down-event
+           (lambda (move-event)
+             (setq move-xy
+                   (if snap-p
+                       (edraw-mouse-event-to-xy-snapped editor move-event)
+                     (edraw-mouse-event-to-xy editor move-event)))
+             (edraw-svg-rect-set-range ui-preview down-xy move-xy)
+             (edraw-invalidate-image editor))))
+      (dom-remove-node ui-parent ui-preview)
+      (edraw-invalidate-image editor)
+      (edraw-aabb down-xy (or move-xy down-xy)))))
+
+
+
 ;;;;; Editor - Editing Tools
 
 (cl-defmethod edraw-select-tool ((editor edraw-editor)
@@ -2382,6 +2420,14 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
      ;; Drag or click a shape
      ((edraw-mouse-down-shape editor down-event))
+
+     ;; Select by rectangle
+     ((let ((rect (edraw-read-rectangle editor down-event nil)))
+        (unless (edraw-rect-empty-p rect)
+          (edraw-deselect-all-shapes editor)
+          (dolist (shp (edraw-find-shapes-by-rect editor rect))
+            (edraw-add-shape-selection editor shp))
+          t)))
 
      ;; Deselect
      (t (edraw-deselect-all-shapes editor)))))
