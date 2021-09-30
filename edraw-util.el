@@ -26,6 +26,14 @@
 
 
 
+;;;; Message Catalog
+
+(defun edraw-msg (msg-id)
+  ;;@todo translate messages
+  msg-id)
+
+
+
 ;;;; gzip
 
 (defconst edraw-detect-coding-system-p nil)

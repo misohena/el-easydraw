@@ -4918,14 +4918,6 @@ editor when the selected shape changes."
 
 
 
-;;;; Message Catalog
-
-(defun edraw-msg (msg-id)
-  ;;@todo translate messages
-  msg-id)
-
-
-
 ;;;; SVG Encode / Decode
 
 ;;
