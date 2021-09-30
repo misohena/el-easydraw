@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'eieio)
 (require 'color)
 
 (defclass edraw-color ()
