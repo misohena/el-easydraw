@@ -3322,27 +3322,29 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                          anchor
                                          xy)
   (with-slots (anchor-points p0p1) shape
-    (with-slots (ref-x ref-y) anchor
-      (let* ((x (car xy))
-             (y (cdr xy))
-             (px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
-             (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1))))
-             (changed (or (and px (/= (car px) x))
-                          (and py (/= (cdr py) y)))))
-        (when changed
-          (when px (setcar px x))
-          (when py (setcdr py y))
-          (edraw-on-anchor-position-changed shape))))))
+    (let* ((ref-x (edraw-ref-x anchor))
+           (ref-y (edraw-ref-y anchor))
+           (x (car xy))
+           (y (cdr xy))
+           (px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
+           (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1))))
+           (changed (or (and px (/= (car px) x))
+                        (and py (/= (cdr py) y)))))
+      (when changed
+        (when px (setcar px x))
+        (when py (setcdr py y))
+        (edraw-on-anchor-position-changed shape)))))
 
 (cl-defmethod edraw-get-anchor-position ((shape edraw-shape-with-rect-boundary)
                                          anchor)
   (with-slots (p0p1) shape
-    (with-slots (ref-x ref-y) anchor
-      (let ((px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
-            (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1)))))
-        (cons
-         (if px (car px) (/ (+ (caar p0p1) (cadr p0p1)) 2))
-         (if py (cdr py) (/ (+ (cdar p0p1) (cddr p0p1)) 2)))))))
+    (let* ((ref-x (edraw-ref-x anchor))
+           (ref-y (edraw-ref-y anchor))
+           (px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
+           (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1)))))
+      (cons
+       (if px (car px) (/ (+ (caar p0p1) (cadr p0p1)) 2))
+       (if py (cdr py) (/ (+ (cdar p0p1) (cddr p0p1)) 2))))))
 
 (cl-defmethod edraw-set-rect ((shape edraw-shape-with-rect-boundary) xy0 xy1)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
@@ -3563,44 +3565,45 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                          anchor
                                          xy)
   (with-slots (anchor-points p0p1) shape
-    (with-slots (ref-x ref-y) anchor
-      (let* ((x (car xy))
-             (y (cdr xy))
-             (px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
-             (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1))))
-             (ox (pcase ref-x (1 (car p0p1)) (0 (cdr p0p1))))
-             (oy (pcase ref-y (1 (car p0p1)) (0 (cdr p0p1))))
-             (new-rx (if ox (* 0.5 (abs (- (car ox) x)))))
-             (new-ry (if oy (* 0.5 (abs (- (cdr oy) y)))))
-             (cx (* 0.5 (+ (caar p0p1) (cadr p0p1))))
-             (cy (* 0.5 (+ (cdar p0p1) (cddr p0p1))))
-             (changed nil))
-        (cond
-         ((and px (null py))
+    (let* ((ref-x (edraw-ref-x anchor))
+           (ref-y (edraw-ref-y anchor))
+           (x (car xy))
+           (y (cdr xy))
+           (px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
+           (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1))))
+           (ox (pcase ref-x (1 (car p0p1)) (0 (cdr p0p1))))
+           (oy (pcase ref-y (1 (car p0p1)) (0 (cdr p0p1))))
+           (new-rx (if ox (* 0.5 (abs (- (car ox) x)))))
+           (new-ry (if oy (* 0.5 (abs (- (cdr oy) y)))))
+           (cx (* 0.5 (+ (caar p0p1) (cadr p0p1))))
+           (cy (* 0.5 (+ (cdar p0p1) (cddr p0p1))))
+           (changed nil))
+      (cond
+       ((and px (null py))
+        (when (/= x (car px))
+          (setcar px x)
+          (setcdr (car p0p1) (- cy new-rx))
+          (setcdr (cdr p0p1) (+ cy new-rx))
+          (setq changed t)))
+       ((and py (null px))
+        (when (/= y (cdr py))
+          (setcdr py y)
+          (setcar (car p0p1) (- cx new-ry))
+          (setcar (cdr p0p1) (+ cx new-ry))
+          (setq changed t)))
+       ((and px py)
+        (if (< new-rx new-ry)
+            (when (/= y (cdr py))
+              (setcdr py y)
+              (setcar px (if (< x (car ox)) (- (car ox) (* 2 new-ry)) (+ (car ox) (* 2 new-ry))))
+              (setq changed t))
           (when (/= x (car px))
             (setcar px x)
-            (setcdr (car p0p1) (- cy new-rx))
-            (setcdr (cdr p0p1) (+ cy new-rx))
-            (setq changed t)))
-         ((and py (null px))
-          (when (/= y (cdr py))
-            (setcdr py y)
-            (setcar (car p0p1) (- cx new-ry))
-            (setcar (cdr p0p1) (+ cx new-ry))
-            (setq changed t)))
-         ((and px py)
-          (if (< new-rx new-ry)
-              (when (/= y (cdr py))
-                (setcdr py y)
-                (setcar px (if (< x (car ox)) (- (car ox) (* 2 new-ry)) (+ (car ox) (* 2 new-ry))))
-                (setq changed t))
-            (when (/= x (car px))
-              (setcar px x)
-              (setcdr py (if (< y (cdr oy)) (- (cdr oy) (* 2 new-rx)) (+ (cdr oy) (* 2 new-rx))))
-              (setq changed t)))))
+            (setcdr py (if (< y (cdr oy)) (- (cdr oy) (* 2 new-rx)) (+ (cdr oy) (* 2 new-rx))))
+            (setq changed t)))))
 
-        (when changed
-          (edraw-on-anchor-position-changed shape))))))
+      (when changed
+        (edraw-on-anchor-position-changed shape)))))
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape-circle) prop-list)
   (let ((undo-list-end (edraw-undo-list (oref shape editor)))
@@ -3904,7 +3907,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-connect-path-to-anchor ((src-shape edraw-shape-path) dst-anchor)
   (with-slots ((src-cmdlist cmdlist)) src-shape
-    (with-slots ((dst-ppoint ppoint) (dst-shape shape)) dst-anchor
+    (let ((dst-ppoint (edraw-shape-point-path-ppoint dst-anchor))
+          (dst-shape (edraw-parent-shape dst-anchor)))
       (with-slots ((dst-cmdlist cmdlist)) dst-shape
 
         (when (and (not (eq dst-shape src-shape))
@@ -3912,17 +3916,18 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                    (or (edraw-path-anchor-first-p dst-ppoint)
                        (and (edraw-path-anchor-last-p dst-ppoint)
                             (edraw-path-cmdlist-reverse dst-cmdlist))))
-          (edraw-make-undo-group (oref src-shape editor) 'connect-path-to-anchor
-            (edraw-path-cmdlist-connect-cmdlist-front dst-cmdlist src-cmdlist)
+          (edraw-make-undo-group
+           (oref src-shape editor) 'connect-path-to-anchor
+           (edraw-path-cmdlist-connect-cmdlist-front dst-cmdlist src-cmdlist)
 
-            (edraw-push-undo-properties src-shape 'shape-append-path '(d))
-            (edraw-push-undo-properties dst-shape 'shape-append-path '(d))
-            ;; Update dst
-            (edraw-update-path-data dst-shape)
-            (edraw-on-shape-changed dst-shape 'shape-append-path)
-            ;; Remove src
-            (edraw-remove src-shape)
-            t))))))
+           (edraw-push-undo-properties src-shape 'shape-append-path '(d))
+           (edraw-push-undo-properties dst-shape 'shape-append-path '(d))
+           ;; Update dst
+           (edraw-update-path-data dst-shape)
+           (edraw-on-shape-changed dst-shape 'shape-append-path)
+           ;; Remove src
+           (edraw-remove src-shape)
+           t))))))
 
 
 
@@ -3978,8 +3983,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defclass edraw-shape-point-rect-boundary (edraw-shape-point)
   ((shape :initarg :shape :type edraw-shape-with-rect-boundary)
-   (ref-x :initarg :ref-x)
-   (ref-y :initarg :ref-y)))
+   (ref-x :initarg :ref-x :reader edraw-ref-x)
+   (ref-y :initarg :ref-y :reader edraw-ref-y)))
 (cl-defmethod edraw-get-point-type ((_spt edraw-shape-point-rect-boundary))
   'anchor)
 (cl-defmethod edraw-parent-shape ((spt edraw-shape-point-rect-boundary))
@@ -4014,7 +4019,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (defclass edraw-shape-point-path (edraw-shape-point)
   ((shape :initarg :shape :type edraw-shape-path)
-   (ppoint :initarg :ppoint)))
+   (ppoint :initarg :ppoint :reader edraw-shape-point-path-ppoint)))
 
 (cl-defmethod edraw-get-point-type ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
