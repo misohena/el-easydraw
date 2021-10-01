@@ -24,6 +24,8 @@
 
 ;;; Code:
 (require 'svg)
+(require 'seq)
+(require 'subr-x)
 (require 'edraw-math)
 
 

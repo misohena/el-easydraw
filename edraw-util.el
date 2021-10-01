@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 
 
 ;;;; Message Catalog

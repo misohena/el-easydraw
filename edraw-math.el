@@ -24,6 +24,8 @@
 
 ;;; Code:
 
+(require 'cl-generic)
+
 ;;;; Number
 
 (cl-defmethod edraw-clamp ((n number) min-value max-value)

@@ -24,6 +24,8 @@
 
 ;;; Code:
 
+(require 'seq)
+(require 'subr-x)
 (require 'eieio)
 (require 'color)
 
