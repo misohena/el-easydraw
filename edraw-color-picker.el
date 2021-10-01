@@ -94,6 +94,8 @@
    "#ffff0080"
    "#ffffff80"))
 
+(defvar edraw-color-picker-model-suppress-change-hook nil)
+
 
 ;;;; Recent Colors
 
@@ -692,8 +694,6 @@
 (cl-defmethod edraw-call-hooks ((model edraw-color-picker-model))
   (with-slots (hooks) model
     (edraw-hook-call hooks)))
-
-(defvar edraw-color-picker-model-suppress-change-hook nil)
 
 (cl-defmethod edraw-add-hook ((model edraw-color-picker-model) function &rest args)
   (with-slots (hooks) model
