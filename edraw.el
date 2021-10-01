@@ -1118,7 +1118,7 @@ The undo data generated during undo is saved in redo-list."
       (setq selected-shapes (append selected-shapes (list shape)))
       (edraw-update-selection-ui editor)
 
-      (when (and edraw-property-editor-tracking-selected-shape
+      (when (and (edraw-property-editor-tracking-selected-shape-p)
                  shape ;;last selected shape
                  (edraw-property-editor-buffer))
         (edraw-edit-properties shape));;@todo create proxy shape and pass it
@@ -4261,6 +4261,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 editor when the selected shape changes."
   :group 'edraw-property-editor
   :type 'boolean)
+
+(defun edraw-property-editor-tracking-selected-shape-p ()
+  edraw-property-editor-tracking-selected-shape)
 
 (defcustom edraw-property-editor-close-on-remove-shape nil
   "non-nil means close the property editor when the editing target is removed."
