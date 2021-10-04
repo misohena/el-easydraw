@@ -191,14 +191,26 @@ NOTE: Web browsers do not support compressed SVG files."
 (defun edraw-org-link-filter-file-path (path)
   path)
 
+(defun edraw-decode-svg-string (data base64-p)
+  (with-temp-buffer
+    (insert data)
+    (when base64-p
+      (base64-decode-region (point-min) (point-max))
+      (unless (edraw-buffer-gzip-p)
+        (decode-coding-region (point-min) (point-max) 'utf-8)))
+    (when (edraw-buffer-gzip-p)
+      (edraw-gunzip-buffer))
+    (buffer-string)))
+
 (defun edraw-org-link-props-image-data-or-file (link-props)
   "Create arguments to pass to `create-image' from LINK-PROPS.
 
 Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
   (if-let ((data (edraw-org-link-prop-data link-props)))
-      (ignore-errors (cons (base64-decode-string data) t))
+      ;; (ignore-errors (cons (base64-decode-string data) t))
+      (ignore-errors (cons (edraw-decode-svg-string data t) t))
     (if-let ((file (edraw-org-link-prop-file link-props)))
-        (if (file-exists-p file) (cons file nil)))))
+        (if (file-exists-p file) (cons (expand-file-name file) nil)))))
 
 ;;;;; Link Element
 
