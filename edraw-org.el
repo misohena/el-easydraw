@@ -92,6 +92,16 @@ NOTE: Web browsers do not support compressed SVG files."
   :group 'edraw-org
   :type '(boolean))
 
+(defcustom edraw-org-link-image-gunzip-p t
+  "Non-nil means that gzip compression is decompressed when displaying
+inline images.
+
+Emacs supports svgz, but it may not be displayed unless gzip data
+is expanded. Since the cause is not clear, it is expanded by default."
+  :group 'edraw-org
+  :type '(boolean))
+
+
 
 ;;;; Link Type
 
@@ -196,8 +206,12 @@ NOTE: Web browsers do not support compressed SVG files."
 
 Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
   (if-let ((data (edraw-org-link-prop-data link-props)))
-      ;; (ignore-errors (cons (base64-decode-string data) t))
-      (ignore-errors (cons (edraw-decode-string data t) t))
+      (ignore-errors (cons
+                      ;; see: https://github.com/misohena/el-easydraw/issues/5
+                      (if edraw-org-link-image-gunzip-p
+                          (edraw-decode-string data t)
+                        (base64-decode-string data))
+                      t))
     (if-let ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file) (cons (expand-file-name file) nil)))))
 
