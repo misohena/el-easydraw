@@ -77,6 +77,35 @@
    (= (multibyte-char-to-unibyte (char-after (+ (point-min) 0))) #x1f)
    (= (multibyte-char-to-unibyte (char-after (+ (point-min) 1))) #x8b)))
 
+;;;; gzip & base64
+
+(defun edraw-decode-buffer (base64-p &optional coding-system)
+  (when base64-p
+    (base64-decode-region (point-min) (point-max))
+    (unless (edraw-buffer-gzip-p)
+      (edraw-decode-coding-region (point-min) (point-max) coding-system)))
+  (when (edraw-buffer-gzip-p)
+    (edraw-gunzip-buffer)))
+
+(defun edraw-encode-buffer (base64-p gzip-p &optional coding-system)
+  (when gzip-p
+    (edraw-gzip-buffer))
+  (when base64-p
+    (unless gzip-p
+      (encode-coding-region (point-min) (point-max) (or coding-system 'utf-8)))
+    (base64-encode-region (point-min) (point-max) t)))
+
+(defun edraw-decode-string (data base64-p &optional coding-system)
+  (with-temp-buffer
+    (insert data)
+    (edraw-decode-buffer base64-p coding-system)
+    (buffer-string)))
+
+(defun edraw-encode-string (data base64-p gzip-p coding-system)
+  (with-temp-buffer
+    (insert data)
+    (edraw-encode-buffer base64-p gzip-p coding-system)
+    (buffer-string)))
 
 
 ;;;; Menu UI

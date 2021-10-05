@@ -4934,12 +4934,7 @@ editor when the selected shape changes."
 (defun edraw-decode-svg (data base64-p)
   (with-temp-buffer
     (insert data)
-    (when base64-p
-      (base64-decode-region (point-min) (point-max))
-      (unless (edraw-buffer-gzip-p)
-        (decode-coding-region (point-min) (point-max) 'utf-8)))
-    (when (edraw-buffer-gzip-p)
-      (edraw-gunzip-buffer))
+    (edraw-decode-buffer base64-p)
     (libxml-parse-xml-region (point-min) (point-max))))
 
 (defun edraw-encode-svg (svg base64-p gzip-p)
@@ -4948,12 +4943,7 @@ editor when the selected shape changes."
      svg
      nil
      'edraw-svg-print-attr-filter)
-    (when gzip-p
-      (edraw-gzip-buffer))
-    (when base64-p
-      (unless gzip-p
-        (encode-coding-region (point-min) (point-max) 'utf-8))
-      (base64-encode-region (point-min) (point-max) t))
+    (edraw-encode-buffer base64-p gzip-p)
     (buffer-string)))
 
 
