@@ -506,6 +506,8 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
         (let* ((link-element
                 (or (edraw-org-link-at-point)
                     (error "The edraw link currently being edited has been lost")))
+               (link-begin (org-element-property :begin link-element))
+               (link-end (org-element-property :end link-element))
                (link-props-and-place
                 (or (edraw-org-link-element-link-properties link-element)
                     (error "The type of the editing link is not `edraw:'")))
@@ -515,7 +517,9 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
               ;; file
               (progn
                 (edraw-write-svg-to-file svg file-path file-gzip-p) ;;signal an error
-                (image-refresh (edraw-org-link-image-create link-props))
+                ;; Update inline image
+                (image-refresh (edraw-org-link-image-create link-props)) ;;update image if overlay already exists
+                (edraw-org-link-image-update link-begin link-end link-element) ;;create a new overlay if not exists
                 t)
             ;;data
             (setf (alist-get "data" link-props nil nil #'string=)
