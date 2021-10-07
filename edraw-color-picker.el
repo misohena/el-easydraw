@@ -155,8 +155,10 @@
      (y2 . ,(if (< dy 0) (+ 1 dy) dy)))
    (seq-map-indexed
     (lambda (color index)
-      (dom-node 'stop `((stop-color . ,(edraw-to-string color))
-                        (offset . ,(/ (float index) (1- (length colors)))))))
+      (dom-node 'stop
+                `((stop-color . ,(edraw-to-string (edraw-change-a color 1.0)))
+                  (stop-opacity . ,(edraw-color-a color))
+                  (offset . ,(/ (float index) (1- (length colors)))))))
     colors)))
 
 
