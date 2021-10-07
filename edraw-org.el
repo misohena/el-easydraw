@@ -140,7 +140,7 @@ is expanded. Since the cause is not clear, it is expanded by default."
       (goto-char pos)
       (when-let ((link-element (edraw-org-link-at-point))
                  (link-props (car (edraw-org-link-element-link-properties
-                                   link-element))))
+                                   link-element t))))
         (if-let ((file (edraw-org-link-prop-file link-props)))
             (format "edraw:file=%s" file)
           (if-let ((data (edraw-org-link-prop-data link-props)))
@@ -158,24 +158,29 @@ is expanded. Since the cause is not clear, it is expanded by default."
    (if replace-brackets-p "\\([][;\\\\]\\)" "\\([;\\\\]\\)")
    "\\\\\\1" value t nil))
 
-(defun edraw-org-link-props-parse (path &optional in-description-p)
+(defun edraw-org-link-props-parse (path &optional in-description-p noerror)
   (when path
     ;; Remove "edraw:" at the beginning of PATH just in case.
     ;; If the link type is not registered, edraw: may remain at the beginning.
     (setq path (string-remove-prefix (format "%s:" edraw-org-link-type) path))
 
     ;; Convert "A=B;C=D;..." to ((A . B) (C . D) ...)
-    (mapcar
-     (lambda (prop)
-       (when (string-match "\\`\\([^=]*\\)=\\(.*\\)\\'" prop)
-         (cons
-          (string-trim (match-string 1 prop))
-          (edraw-org-link-unescape
-           (string-trim (match-string 2 prop))
-           ;; If PATH is in the description part, brackets have not
-           ;; yet been unescaped
-           in-description-p))))
-     (split-string path ";" t "[ \t\n\r]+"))))
+    (delq
+     nil
+     (mapcar
+      (lambda (prop)
+        (if (string-match "\\`\\([^=]*\\)=\\(.*\\)\\'" prop)
+            (cons
+             (string-trim (match-string 1 prop))
+             (edraw-org-link-unescape
+              (string-trim (match-string 2 prop))
+              ;; If PATH is in the description part, brackets have not
+              ;; yet been unescaped
+              in-description-p))
+          (if noerror
+              nil
+            (error "Invalid link format: %s" path))))
+      (split-string path ";" t "[ \t\n\r]+")))))
 
 (defun edraw-org-link-props-to-string (link-props)
   ;; Convert ((A . B) (C . D) ...) to "A=B;C=D;..."
@@ -249,19 +254,23 @@ so check the org element before using this function."
       (when (string-match (format "\\`%s:\\(.*\\)\\'" edraw-org-link-type) desc)
         (match-string 1 desc)))))
 
-(defun edraw-org-link-element-link-properties (link-element)
+(defun edraw-org-link-element-link-properties (link-element noerror)
   "Return the property alist of LINK-ELEMENT.
 
-Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
+Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P).
+
+If NOERROR is t, ignore invalid property components. For example,
+when [[edraw: A=B;C;D=E]], return ((\"A\" . \"B\") (\"D\" . \"E\").
+If NOERROR is nil, signals an error."
   (if-let ((desc (edraw-org-link-element-path-in-description link-element)))
       ;; from description part
-      (cons (edraw-org-link-props-parse desc t)
+      (cons (edraw-org-link-props-parse desc t noerror)
             t)
     ;; from path part
     (if (equal (org-element-property :type link-element)
                edraw-org-link-type)
         (let ((path (org-element-property :path link-element)))
-          (cons (edraw-org-link-props-parse path nil)
+          (cons (edraw-org-link-props-parse path nil noerror)
                 nil)))))
 
 
@@ -326,7 +335,7 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
 
 (defun edraw-org-link-image-update (link-begin link-end link-element)
   (when-let (link-props (car
-                         (edraw-org-link-element-link-properties link-element)))
+                         (edraw-org-link-element-link-properties link-element t)))
     (let* ((ovs (edraw-org-link-image-overlays-in link-begin link-end))
            (ov (progn
                  ;; Remove redundant overlays
@@ -443,7 +452,7 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
   ;; Get link element & link properties
   (when-let ((link-element (edraw-org-link-at-point))
              (link-props-and-place (edraw-org-link-element-link-properties
-                                    link-element)))
+                                    link-element nil)))
 
     (let* ((link-begin (org-element-property :begin link-element))
            (link-end (org-element-property :end link-element))
@@ -509,7 +518,7 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
                (link-begin (org-element-property :begin link-element))
                (link-end (org-element-property :end link-element))
                (link-props-and-place
-                (or (edraw-org-link-element-link-properties link-element)
+                (or (edraw-org-link-element-link-properties link-element t)
                     (error "The type of the editing link is not `edraw:'")))
                (link-props (car link-props-and-place))
                (in-description-p (cdr link-props-and-place)))
@@ -624,7 +633,7 @@ Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P)."
 
     (pcase back-end
       ('html
-       (if-let ((link-props (edraw-org-link-props-parse path)))
+       (if-let ((link-props (edraw-org-link-props-parse path nil t)))
            (if-let ((data (edraw-org-link-prop-data link-props)))
                (pcase edraw-org-link-export-data-tag
                  ('svg (edraw-org-link-html-link-to-svg link-props link info))
