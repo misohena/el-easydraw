@@ -27,6 +27,7 @@
 (require 'seq)
 (require 'subr-x)
 (require 'edraw-math)
+(require 'edraw-path)
 
 
 ;;;; DOM Utility
@@ -793,73 +794,6 @@
       (edraw-rect-xywh text-x text-y text-w text-h))))
 
 
-;;;; SVG Path Data Parser
-
-;; Path Data Syntax
-;; https://www.w3.org/TR/SVG11/paths.html#PathDataBNF
-
-(defconst edraw-svg-path-d-number
-  "\\(?:[-+]?\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)\\(?:[eE][-+]?[0-9]+\\)?\\)")
-(defconst edraw-svg-path-d-wsp "\\(?:[ \t\n\f\r]+\\)")
-(defconst edraw-svg-path-d-wsp-opt "[ \t\n\f\r]*")
-(defconst edraw-svg-path-d-comma-wsp "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
-(defconst edraw-svg-path-d-command
-  (concat
-   edraw-svg-path-d-wsp-opt
-   "\\([A-Z]\\)" ;; (1) command type
-   "\\(?:" edraw-svg-path-d-wsp-opt
-   "\\(" edraw-svg-path-d-number ;;(2) command arguments
-   "\\(?:" edraw-svg-path-d-comma-wsp edraw-svg-path-d-number "\\)*\\)" "\\)?"
-   edraw-svg-path-d-wsp "?"))
-
-(defun edraw-svg-path-d-parse (d)
-  "Return (type . list of number)"
-  (let ((pos 0)
-        commands)
-    (while (string-match edraw-svg-path-d-command d pos)
-      (when (/= (match-beginning 0) pos)
-        (error "path data parsing error at %s" (substring d pos)))
-      (setq pos (match-end 0))
-      (let* ((type (intern (match-string 1 d)))
-             (numbers-str (match-string 2 d))
-             (numbers (if numbers-str
-                          (mapcar #'string-to-number
-                                  (split-string numbers-str
-                                                edraw-svg-path-d-comma-wsp)))))
-        (push (cons type numbers) commands)))
-    (nreverse commands)))
-;; TEST: (edraw-svg-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
-;; TEST: (edraw-svg-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
-
-(defun edraw-svg-path-d-from-command-list (command-list)
-  (mapconcat (lambda (command)
-               (mapconcat (lambda (arg) (format "%s" arg)) command " "))
-             command-list
-             " "))
-;; TEST: (edraw-svg-path-d-from-command-list '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5)))
-
-(defun edraw-svg-path-d-translate (d xy)
-  (let ((x (car xy))
-        (y (cdr xy)))
-
-    (edraw-svg-path-d-from-command-list
-     (cl-loop for cmd in (edraw-svg-path-d-parse d)
-              collect (let ((type (car cmd))
-                            (args (cdr cmd)))
-                        (cons
-                         type
-                         (pcase type
-                           ((or 'M 'L 'C 'S 'Q 'T)
-                            (seq-map-indexed (lambda (n idx)
-                                               (+ n (if (= (% idx 2) 0) x y)))
-                                             args))
-                           ;;(('H))
-                           ;;(('V))
-                           ;;(('A))
-                           (_ args))))))))
-;; TEST: (edraw-svg-path-d-translate '"M 10 20 L 30 40 50 60" '(100 . 200))
-
-
 ;;;; SVG Shapes Translation
 
 ;;
@@ -901,7 +835,7 @@
 
 (defun edraw-svg-path-translate (element xy)
   (when-let ((d (dom-attr element 'd)))
-    (dom-set-attribute element 'd (edraw-svg-path-d-translate d xy))))
+    (dom-set-attribute element 'd (edraw-path-d-translate d xy))))
 
 
 

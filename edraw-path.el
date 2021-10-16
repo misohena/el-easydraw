@@ -25,7 +25,6 @@
 ;;; Code:
 
 (require 'edraw-math)
-(require 'edraw-dom-svg)
 
 
 
@@ -559,7 +558,7 @@ The CMDLIST will be empty after calling this function. "
                (push-cmd
                 (cmd)
                 (edraw-path-cmdlist-push-back cmdlist cmd)))
-      (dolist (cmd-args (edraw-svg-path-d-parse d))
+      (dolist (cmd-args (edraw-path-d-parse d))
         (let* ((cmd-type (car cmd-args))
                (cmd-type-char (elt (symbol-name cmd-type) 0))
                (rel-p (<= ?a cmd-type-char ?z))) ;;lowercase-p
@@ -2206,6 +2205,74 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      (vector p0 q0 r0 s)
      (vector s r1 q2 p3))))
 
+
+
+
+;;;; SVG Path Data Parser
+
+;; Path Data Syntax
+;; https://www.w3.org/TR/SVG11/paths.html#PathDataBNF
+
+(defconst edraw-path-d-number
+  "\\(?:[-+]?\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)\\(?:[eE][-+]?[0-9]+\\)?\\)")
+(defconst edraw-path-d-wsp "\\(?:[ \t\n\f\r]+\\)")
+(defconst edraw-path-d-wsp-opt "[ \t\n\f\r]*")
+(defconst edraw-path-d-comma-wsp "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
+(defconst edraw-path-d-command
+  (concat
+   edraw-path-d-wsp-opt
+   "\\([A-Z]\\)" ;; (1) command type
+   "\\(?:" edraw-path-d-wsp-opt
+   "\\(" edraw-path-d-number ;;(2) command arguments
+   "\\(?:" edraw-path-d-comma-wsp edraw-path-d-number "\\)*\\)" "\\)?"
+   edraw-path-d-wsp "?"))
+
+(defun edraw-path-d-parse (d)
+  "Return (type . list of number)"
+  (let ((pos 0)
+        commands)
+    (while (string-match edraw-path-d-command d pos)
+      (when (/= (match-beginning 0) pos)
+        (error "path data parsing error at %s" (substring d pos)))
+      (setq pos (match-end 0))
+      (let* ((type (intern (match-string 1 d)))
+             (numbers-str (match-string 2 d))
+             (numbers (if numbers-str
+                          (mapcar #'string-to-number
+                                  (split-string numbers-str
+                                                edraw-path-d-comma-wsp)))))
+        (push (cons type numbers) commands)))
+    (nreverse commands)))
+;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
+;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
+
+(defun edraw-path-d-from-command-list (command-list)
+  (mapconcat (lambda (command)
+               (mapconcat (lambda (arg) (format "%s" arg)) command " "))
+             command-list
+             " "))
+;; TEST: (edraw-path-d-from-command-list '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5)))
+
+(defun edraw-path-d-translate (d xy)
+  (let ((x (car xy))
+        (y (cdr xy)))
+
+    (edraw-path-d-from-command-list
+     (cl-loop for cmd in (edraw-path-d-parse d)
+              collect (let ((type (car cmd))
+                            (args (cdr cmd)))
+                        (cons
+                         type
+                         (pcase type
+                           ((or 'M 'L 'C 'S 'Q 'T)
+                            (seq-map-indexed (lambda (n idx)
+                                               (+ n (if (= (% idx 2) 0) x y)))
+                                             args))
+                           ;;(('H))
+                           ;;(('V))
+                           ;;(('A))
+                           (_ args))))))))
+;; TEST: (edraw-path-d-translate '"M 10 20 L 30 40 50 60" '(100 . 200))
 
 
 (provide 'edraw-path)
