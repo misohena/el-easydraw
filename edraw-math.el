@@ -247,6 +247,35 @@
 (defun edraw-matrix-scale (sx sy sz)
   (edraw-matrix (vector sx 0 0 0  0 sy 0 0  0 0 sz 0  0 0 0 1)))
 
+(defun edraw-matrix-rotate (deg)
+  (let* ((rad (degrees-to-radians deg))
+         (c (cos rad))
+         (s (sin rad)))
+    (edraw-matrix (vector c s (- s) c 0 0))))
+
+(defun edraw-matrix-skew (ax-deg ay-deg)
+  (let* ((ax-rad (degrees-to-radians ax-deg))
+         (ay-rad (degrees-to-radians ay-deg))
+         (tx (tan ax-rad))
+         (ty (tan ay-rad)))
+    (edraw-matrix (vector 1 ty tx 1 0 0))))
+
+(defmacro edraw-matrix-let-elements (mat-symbol var-prefix &rest body)
+  (declare (indent 2))
+  `(let (,@(cl-loop for i from 0 to 15
+                    collect
+                    (list
+                     (intern
+                      (format "%s%d%d" var-prefix (1+ (/ i 4)) (1+ (% i 4))))
+                     `(aref ,mat-symbol ,i))))
+     ,@body))
+
+(defun edraw-matrix-identity-p (mat)
+  (edraw-matrix-let-elements mat m
+    (and
+     (= 1 m11 m22 m33 m44)
+     (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34 m41 m42 m43))))
+
 (defun edraw-matrix-mul (a b)
   (let (lb)
     (cond
@@ -316,6 +345,66 @@
     (cons
      (/ x w)
      (/ y w))))
+
+(defun edraw-matrix-determinant (mat)
+  (edraw-matrix-let-elements mat m
+    (+
+     (* (- (* m33 m44) (* m43 m34)) (- (* m11 m22) (* m21 m12)))
+     (* (- (* m43 m14) (* m13 m44)) (- (* m31 m22) (* m21 m32)))
+     (* (- (* m23 m44) (* m43 m24)) (- (* m31 m12) (* m11 m32)))
+     (* (- (* m23 m34) (* m33 m24)) (- (* m11 m42) (* m41 m12)))
+     (* (- (* m13 m34) (* m33 m14)) (- (* m41 m22) (* m21 m42)))
+     (* (- (* m13 m24) (* m23 m14)) (- (* m31 m42) (* m41 m32))))))
+
+(defun edraw-matrix-inverse (mat)
+  (edraw-matrix-let-elements mat m
+    ;; https://www.geometrictools.com/Documentation/LaplaceExpansionTheorem.pdf
+    (let* ((s1 (- (* m11 m22) (* m12 m21)))
+           (s2 (- (* m11 m32) (* m12 m31)))
+           (s3 (- (* m11 m42) (* m12 m41)))
+           (s4 (- (* m21 m32) (* m22 m31)))
+           (s5 (- (* m21 m42) (* m22 m41)))
+           (s6 (- (* m31 m42) (* m32 m41)))
+
+           (c6 (- (* m33 m44) (* m34 m43)))
+           (c5 (- (* m23 m44) (* m24 m43)))
+           (c4 (- (* m23 m34) (* m24 m33)))
+           (c3 (- (* m13 m44) (* m14 m43)))
+           (c2 (- (* m13 m34) (* m14 m33)))
+           (c1 (- (* m13 m24) (* m14 m23)))
+           (det (+ (* s1 c6)
+                   (- (* s2 c5))
+                   (* s3 c4)
+                   (* s4 c3)
+                   (- (* s5 c2))
+                   (* s6 c1))))
+      (when (/= det 0.0)
+        (let ((idet (/ 1.0 det)))
+          (edraw-matrix
+           (vector
+            (* idet (+    (* m22 c6) (- (* m32 c5))   (* m42 c4)))
+            (* idet (+ (- (* m12 c6))   (* m32 c3) (- (* m42 c2))))
+            (* idet (+    (* m12 c5) (- (* m22 c3))   (* m42 c1)))
+            (* idet (+ (- (* m12 c4))   (* m22 c2) (- (* m32 c1))))
+
+            (* idet (+ (- (* m21 c6))   (* m31 c5) (- (* m41 c4))))
+            (* idet (+    (* m11 c6) (- (* m31 c3))   (* m41 c2)))
+            (* idet (+ (- (* m11 c5))   (* m21 c3) (- (* m41 c1))))
+            (* idet (+    (* m11 c4) (- (* m21 c2))   (* m31 c1)))
+
+            (* idet (+    (* m24 s6) (- (* m34 s5))   (* m44 s4)))
+            (* idet (+ (- (* m14 s6))   (* m34 s3) (- (* m44 s2))))
+            (* idet (+    (* m14 s5) (- (* m24 s3))   (* m44 s1)))
+            (* idet (+ (- (* m14 s4))   (* m24 s2) (- (* m34 s1))))
+
+            (* idet (+ (- (* m23 s6))   (* m33 s5) (- (* m43 s4))))
+            (* idet (+    (* m13 s6) (- (* m33 s3))   (* m43 s2)))
+            (* idet (+ (- (* m13 s5))   (* m23 s3) (- (* m43 s1))))
+            (* idet (+    (* m13 s4) (- (* m23 s2))   (* m33 s1))))))))))
+
+;;TEST: (edraw-matrix-inverse (edraw-matrix-translate 10 20 30)) => [1.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0 0.0 -10.0 -20.0 -30.0 1.0]
+;;TEST: (edraw-matrix-inverse (edraw-matrix-scale 2 4 8)) => [0.5 0.0 0.0 0.0 0.0 0.25 0.0 0.0 0.0 0.0 0.125 0.0 0.0 0.0 0.0 1.0]
+;;TEST: (edraw-matrix-inverse (edraw-matrix-rotate 45)) => [0.7071067811865476 -0.7071067811865475 0.0 0.0 0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0]
 
 
 
