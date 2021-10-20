@@ -231,10 +231,10 @@
     (cond
      ((= (length init) 6)
       (vector
-       (elt 0 init) (elt 1 init) 0 0
-       (elt 2 init) (elt 3 init) 0 0
+       (elt init 0) (elt init 1) 0 0
+       (elt init 2) (elt init 3) 0 0
        0 0 1 0
-       (elt 4 init) (elt 5 init) 0 1))
+       (elt init 4) (elt init 5) 0 1))
      ((= (length init) 16)
       (apply 'vector (mapcar 'identity init)))
      (t (error "Invalid init argument"))))
@@ -242,7 +242,7 @@
    (t (error "Invalid init argument"))))
 
 (defun edraw-matrix-translate (dx dy dz)
-  (edraw-matrix (vector 1 0 0 dx  0 1 0 dy  0 0 1 dz  0 0 0 1)))
+  (edraw-matrix (vector 1 0 0 0  0 1 0 0  0 0 1 0  dx dy dz 1)))
 
 (defun edraw-matrix-scale (sx sy sz)
   (edraw-matrix (vector sx 0 0 0  0 sy 0 0  0 0 sz 0  0 0 0 1)))
