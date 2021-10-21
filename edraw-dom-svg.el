@@ -852,7 +852,7 @@
       ('rect (edraw-svg-rect-to-bezier-segments element))
       ('ellipse (edraw-svg-ellipse-to-bezier-segments element))
       ('circle (edraw-svg-circle-to-bezier-segments element))
-      ('text nil))))
+      ('text (edraw-svg-text-to-bezier-segments element)))))
 
 (defun edraw-svg-path-to-bezier-segments (element)
   (let ((fill (dom-attr element 'fill))
@@ -925,6 +925,18 @@
                    (cons right (- cy cr)) (cons right cy)))))
     segments))
 
+(defun edraw-svg-text-to-bezier-segments (element)
+  (let* ((rect (edraw-svg-text-aabb element))
+         (left   (caar rect))
+         (top    (cdar rect))
+         (right  (cadr rect))
+         (bottom (cddr rect))
+         (segments (list (vector (cons left  top   ) (cons right top   ))
+                         (vector (cons right top   ) (cons right bottom))
+                         (vector (cons right bottom) (cons left  bottom))
+                         (vector (cons left  bottom) (cons left  top)))))
+    segments))
+
 
 
 ;;;; Point in SVG Shapes Test
@@ -938,9 +950,8 @@
 (defun edraw-svg-element-contains-point-p (element xy)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle)
-       (edraw-svg-shape-contains-point-p element xy))
-      ('text (edraw-svg-text-contains-point-p element xy)))))
+      ((or 'path 'rect 'ellipse 'circle 'text)
+       (edraw-svg-shape-contains-point-p element xy)))))
 
 (defun edraw-svg-shape-contains-point-p (element xy)
   (let* ((fill (dom-attr element 'fill))
@@ -954,14 +965,17 @@
                            (or (edraw-svg-attr-number element 'stroke-width) 1)
                          0))
          (stroke-square-r (/ stroke-width (* 2 (sqrt 2))))
-         (segments (edraw-svg-element-to-bezier-segments element)))
+         (segments (edraw-svg-element-to-bezier-segments element))
+         (text-aabb-p (eq (dom-tag element) 'text)))
 
     (when segments
       (or (and stroke-p
+               (not text-aabb-p)
                (edraw-bezier-segments-intersects-rect-p
                 segments
                 (edraw-square xy (+ edraw-pick-point-radius stroke-square-r))))
-          (and fill-p
+          (and (or fill-p
+                   text-aabb-p)
                (edraw-bezier-segments-contains-point-p
                 segments
                 xy
@@ -977,9 +991,8 @@
 (defun edraw-svg-element-intersects-rect-p (element rect)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle)
-       (edraw-svg-shape-intersects-rect-p element rect))
-      ('text (edraw-svg-text-intersects-rect-p element rect)))))
+      ((or 'path 'rect 'ellipse 'circle 'text)
+       (edraw-svg-shape-intersects-rect-p element rect)))))
 
 (defun edraw-svg-shape-intersects-rect-p (element rect)
   (when (and element
@@ -1000,11 +1013,13 @@
                            (- (cdar rect) stroke-r)
                            (+ (cadr rect) stroke-r)
                            (+ (cddr rect) stroke-r)))
-           (segments (edraw-svg-element-to-bezier-segments element)))
+           (segments (edraw-svg-element-to-bezier-segments element))
+           (text-aabb-p (eq (dom-tag element) 'text)))
       (when segments
         (or (edraw-bezier-segments-intersects-rect-p segments enlarged-rect)
             ;; Case where rect is completely inside the shape
-            (and fill-p
+            (and (or fill-p
+                     text-aabb-p)
                  (edraw-bezier-segments-contains-point-p
                   segments
                   (edraw-xy (caar enlarged-rect) (cdar enlarged-rect))
