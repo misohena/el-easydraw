@@ -452,6 +452,46 @@ The CMDLIST will be empty after calling this function. "
 ;; TEST: (mapcar 'edraw-path-cmdlist-to-string (edraw-path-cmdlist-split-subpaths (edraw-path-cmdlist-from-d "M1,2L3,4ZL5,6L7,8ZL9,10L11,12"))) => ("M1,2L3,4Z" "M1,2L5,6L7,8Z" "M1,2L9,10L11,12")
 
 
+(defun edraw-path-cmdlist-aabb (cmdlist)
+  "Return a axis aligned bounding box of CMDLIST."
+  (let ((initial-point nil) ;;last M point
+        (current-point nil)
+        x-min-max
+        y-min-max)
+    (edraw-path-cmdlist-loop cmdlist cmd
+      (pcase (edraw-path-cmd-type cmd)
+        ('M
+         (setq current-point
+               (setq initial-point (edraw-path-cmd-arg-xy cmd 0))))
+        ('L
+         (when current-point
+           (let ((p0 current-point)
+                 (p1 (edraw-path-cmd-arg-xy cmd 0)))
+             (setq x-min-max (edraw-min-max-update x-min-max (car p0)))
+             (setq x-min-max (edraw-min-max-update x-min-max (car p1)))
+             (setq y-min-max (edraw-min-max-update y-min-max (cdr p0)))
+             (setq y-min-max (edraw-min-max-update y-min-max (cdr p1)))
+             (setq current-point p1))))
+        ('C
+         (when current-point
+           (let ((p0 current-point)
+                 (p1 (edraw-path-cmd-arg-xy cmd 0))
+                 (p2 (edraw-path-cmd-arg-xy cmd 1))
+                 (p3 (edraw-path-cmd-arg-xy cmd 2)))
+             (setq x-min-max (edraw-cubic-bezier-min-max-update x-min-max (car p0) (car p1) (car p2) (car p3)))
+             (setq y-min-max (edraw-cubic-bezier-min-max-update y-min-max (cdr p0) (cdr p1) (cdr p2) (cdr p3)))
+             (setq current-point p3))))
+        ('Z
+         (setq current-point initial-point))))
+    (edraw-rect
+     (car x-min-max)
+     (car y-min-max)
+     (cdr x-min-max)
+     (cdr y-min-max))))
+
+;;TEST: (edraw-path-cmdlist-aabb (edraw-path-cmdlist-from-d "M10,20 L30,40 Z C20,0 80,0 100,20")) => ((10 . 5.0) 100 . 40)
+
+
 
 ;;;;;; cmdlist - Point
 
@@ -1978,7 +2018,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
   (if (= (length seg) 2)
       (edraw-straight-line-intersects-rect-p
        (elt seg 0) (elt seg 1) rect)
-    (let* ((aabb (edraw-bezier-segment-aabb seg))
+    (let* ((aabb (edraw-bezier-segment-rough-aabb seg))
            (aabb-left (caar aabb))
            (aabb-top (cdar aabb))
            (aabb-right (cadr aabb))
@@ -2071,7 +2111,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
   (if (= (length seg) 2)
       (edraw-straight-line-intersects-left-horizontal-half-line
        (elt seg 0) (elt seg 1) pt)
-    (let* ((aabb (edraw-bezier-segment-aabb seg))
+    (let* ((aabb (edraw-bezier-segment-rough-aabb seg))
            (aabb-left (caar aabb))
            (aabb-top (cdar aabb))
            (aabb-right (cadr aabb))
@@ -2173,7 +2213,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      (t t))))
 ;; TEST: (edraw-bezier-segment-straight-p [(10 . 10) (12 . 10) (18 . 10) (20 . 10)]) => t
 
-(defun edraw-bezier-segment-aabb (seg)
+(defun edraw-bezier-segment-rough-aabb (seg)
   "Return the axis-aligned bounding box of SEG."
   (let ((x0 (car (elt seg 0)))
         (x1 (car (elt seg 1)))

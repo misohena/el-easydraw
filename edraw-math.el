@@ -34,6 +34,30 @@
    ((and max-value (> n max-value)) max-value)
    (t n)))
 
+(defun edraw-quadratic-roots (a b c)
+  "Return real roots of quadratic equation."
+  (if (= a 0)
+      (if (= b 0)
+          nil
+        (list (/ (float (- c)) b)))
+    (let ((d (- (* (float b) b) (* 4.0 a c))))
+      (if (> d 0)
+          (let ((sqrt-d (sqrt d)))
+            (list
+             (/ (+ (- b) sqrt-d) (* 2.0 a))
+             (/ (- (- b) sqrt-d) (* 2.0 a))))
+        (if (= d 0)
+            (list (/ (- b) (* 2.0 a)))
+          nil)))))
+
+(defun edraw-min-max-update (x-min-max n)
+  (if x-min-max
+      (cond
+       ((< n (car x-min-max)) (cons n (cdr x-min-max)))
+       ((> n (cdr x-min-max)) (cons (car x-min-max) n))
+       (t x-min-max))
+    (cons n n)))
+
 ;;;; Vector
 
 (defmacro edraw-xy (x y) `(cons ,x ,y))
@@ -422,6 +446,69 @@
     p2
     (edraw-xy-divn
      (edraw-xy-nmul 2.0 (edraw-xy-sub p1 p2)) 3))))
+
+(defun edraw-cubic-bezier (x0 x1 x2 x3 t)
+  "Return (1-t)^3*x0 + 3*(1-t)^2*t + 3(1-t)*t^2*x2 + t^3*x3."
+  (let* ((u (- 1 t))
+         (uu (* u u))
+         (tt (* t t)))
+    (+
+     (* u uu x0)
+     (* t uu x1 3)
+     (* u tt x2 3)
+     (* t tt x3))))
+
+(defun edraw-cubic-bezier-min-max (x0 x1 x2 x3)
+  "Return minimum and maximum value of (edraw-cubic-bezier x0 xy x2 x3 t).
+
+t ranges from0 to 1."
+  (when (> x0 x3)
+    (setq x0 (prog1 x3 (setq x3 x0)))
+    (setq x1 (prog1 x2 (setq x2 x1))))
+  (if (and (<= x0 x1 x3)
+           (<= x0 x2 x3))
+      (cons x0 x3)
+    ;; x = x0(1-t)^3 + 3x1t(1-t)^2 + 3x2t^2(1-t) + x3t^3
+    ;; dx/dt = (3x3 - 9x2 + 9x1 - 3x0)t^2 + (6x0 - 12x1 + 6x2)t + 3(x1-x0)
+    ;;       = 0
+    ;; t =
+    (let* ((ts (edraw-quadratic-roots
+                (* 3 (+ x3 (* 3 (+ (- x2) x1)) (- x0)))
+                (* 6 (+ x0 (* -2 x1) x2))
+                (* 3 (- x1 x0))))
+           (xs (mapcar (lambda (t)
+                         (if (< 0 t 1)
+                             (edraw-cubic-bezier x0 x1 x2 x3 t)
+                           x0))
+                       ts)))
+      (cons
+       (apply #'min x0 xs)
+       (apply #'max x3 xs)))))
+
+;;TEST: (edraw-cubic-bezier-min-max 10 20 30 40) => (10 . 40)
+;;TEST: (edraw-cubic-bezier-min-max 20 10 30 40) => (17.274575140626318 . 40)
+;;TEST: (edraw-cubic-bezier-min-max 20 50 30 40) => (20 . 40)
+;;TEST: (edraw-cubic-bezier-min-max 20 60 30 40) => (20 . 41.51741155165272)
+;;TEST: (edraw-cubic-bezier-min-max 50 90 0 40) => (29.495658176348943 . 60.50434182365106)
+;;TEST: (edraw-cubic-bezier-min-max 50 90 0 40) => (29.495658176348943 . 60.50434182365106)
+;;TEST: (edraw-cubic-bezier-min-max 50 90 10 50) => (38.45299461620749 . 61.54700538379252)
+;;TEST: (edraw-cubic-bezier-min-max 50 50 10 50) => (32.22222222222223 . 50)
+;;TEST: (edraw-cubic-bezier-min-max 20 0 0 20)
+
+(defun edraw-cubic-bezier-min-max-update (x-min-max x0 x1 x2 x3)
+  (if x-min-max
+      (let ((x-min (car x-min-max))
+            (x-max (cdr x-min-max)))
+        (if (and (<= x-min x0 x-max)
+                 (<= x-min x1 x-max)
+                 (<= x-min x2 x-max)
+                 (<= x-min x3 x-max))
+            x-min-max
+          (let ((mm (edraw-cubic-bezier-min-max x0 x1 x2 x3)))
+            (cons
+             (min (car mm) x-min)
+             (max (cdr mm) x-max)))))
+    (edraw-cubic-bezier-min-max x0 x1 x2 x3)))
 
 (provide 'edraw-math)
 ;;; edraw-math.el ends here
