@@ -129,12 +129,17 @@
 ;;;;;; cmdlist - Path Operations
 
 (defun edraw-path-cmdlist-translate (cmdlist delta-xy)
-  (edraw-path-cmdlist-loop cmdlist cmd
-    (edraw-path-cmd-translate cmd delta-xy)))
+  (when (and delta-xy
+             (or
+              (/= (car delta-xy) 0)
+              (/= (cdr delta-xy) 0)))
+    (edraw-path-cmdlist-loop cmdlist cmd
+      (edraw-path-cmd-translate cmd delta-xy))))
 
 (defun edraw-path-cmdlist-transform (cmdlist matrix)
-  (edraw-path-cmdlist-loop cmdlist cmd
-    (edraw-path-cmd-transform cmd matrix)))
+  (unless (edraw-matrix-identity-p matrix)
+    (edraw-path-cmdlist-loop cmdlist cmd
+      (edraw-path-cmd-transform cmd matrix))))
 
 (defun edraw-path-cmdlist-closed-p (cmdlist)
   (edraw-path-cmd-is-type-p (edraw-path-cmdlist-back cmdlist) 'Z))
