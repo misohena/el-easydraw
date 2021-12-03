@@ -839,6 +839,170 @@
 
 
 
+
+;;;; SVG Shapes to edraw-path-cmdlist
+
+;; (Depends on edraw-path.el)
+
+(defun edraw-svg-element-to-path-cmdlist (element &optional matrix)
+  (edraw-svg-element-contents-to-path-cmdlist
+   element
+   (edraw-svg-attr-transform-get element matrix)))
+
+(defun edraw-svg-element-contents-to-path-cmdlist (element &optional matrix)
+  (when (edraw-dom-element-p element)
+    (pcase (dom-tag element)
+      ((or 'path 'rect 'ellipse 'circle 'text)
+       (let ((cmdlist (edraw-svg-shape-contents-to-path-cmdlist element)))
+         (unless (edraw-matrix-identity-p matrix)
+           (edraw-path-cmdlist-transform cmdlist matrix))
+         cmdlist))
+      ('g
+       (edraw-svg-group-contents-to-path-cmdlist element matrix)))))
+
+(defun edraw-svg-shape-contents-to-path-cmdlist (element)
+  (when (edraw-dom-element-p element)
+    (pcase (dom-tag element)
+      ('path (edraw-svg-path-contents-to-path-cmdlist element))
+      ('rect (edraw-svg-rect-contents-to-path-cmdlist element))
+      ('ellipse (edraw-svg-ellipse-contents-to-path-cmdlist element))
+      ('circle (edraw-svg-circle-contents-to-path-cmdlist element))
+      ('text (edraw-svg-text-contents-to-path-cmdlist element)))))
+
+(defun edraw-svg-path-contents-to-path-cmdlist (element)
+  (let ((fill (dom-attr element 'fill))
+        (d (dom-attr element 'd)))
+    (when d
+      (let ((cmdlist (edraw-path-cmdlist-from-d d))
+            (needs-closed-p (not (equal fill "none"))))
+        (when needs-closed-p
+          (edraw-path-cmdlist-close-path cmdlist t))
+        cmdlist))))
+
+(defun edraw-svg-rect-contents-to-path-cmdlist (element)
+  ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
+  (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
+         (top    (or (edraw-svg-attr-coord element 'y) 0))
+         (width  (or (edraw-svg-attr-coord element 'width) 0))
+         (height (or (edraw-svg-attr-coord element 'height) 0))
+         (right  (+ left width))
+         (bottom (+ top height))
+         (cmdlist (edraw-path-cmdlist)))
+    ;;@todo support rx, ry
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'M (cons left top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
+    cmdlist))
+
+(defun edraw-svg-ellipse-contents-to-path-cmdlist (element)
+  ;; https://www.w3.org/TR/SVG11/shapes.html#EllipseElement
+  (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
+         (cy (or (edraw-svg-attr-coord element 'cy) 0))
+         (rx (or (edraw-svg-attr-coord element 'rx) 0))
+         (ry (or (edraw-svg-attr-coord element 'ry) 0))
+         (left   (- cx rx))
+         (top    (- cy ry))
+         (right  (+ cx rx))
+         (bottom (+ cy ry))
+         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (crx (* c rx))
+         (cry (* c ry))
+         (cmdlist (edraw-path-cmdlist)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'M (cons right cy)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons right (+ cy cry))
+                                           (cons (+ cx crx) bottom)
+                                           (cons cx bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons (- cx crx) bottom)
+                                           (cons left (+ cy cry))
+                                           (cons left cy)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons left (- cy cry))
+                                           (cons (- cx crx) top)
+                                           (cons cx top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons (+ cx crx) top)
+                                           (cons right (- cy cry))
+                                           (cons right cy)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
+    cmdlist))
+
+(defun edraw-svg-circle-contents-to-path-cmdlist (element)
+  ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
+  (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
+         (cy (or (edraw-svg-attr-coord element 'cy) 0))
+         (r (or (edraw-svg-attr-coord element 'r) 0))
+         (left   (- cx r))
+         (top    (- cy r))
+         (right  (+ cx r))
+         (bottom (+ cy r))
+         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (cr (* c r))
+         (cmdlist (edraw-path-cmdlist)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'M (cons right cy)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons right (+ cy cr))
+                                           (cons (+ cx cr) bottom)
+                                           (cons cx bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons (- cx cr) bottom)
+                                           (cons left (+ cy cr))
+                                           (cons left cy)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons left (- cy cr))
+                                           (cons (- cx cr) top)
+                                           (cons cx top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                           'C
+                                           (cons (+ cx cr) top)
+                                           (cons right (- cy cr))
+                                           (cons right cy)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
+    cmdlist))
+
+(defun edraw-svg-text-contents-to-path-cmdlist (element)
+  ;; Exact calculation is difficult, so use AABB instead
+  (let* ((rect (edraw-svg-text-contents-aabb element))
+         (left   (caar rect))
+         (top    (cdar rect))
+         (right  (cadr rect))
+         (bottom (cddr rect))
+         (cmdlist (edraw-path-cmdlist)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'M (cons left top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
+    cmdlist))
+
+(defun edraw-svg-group-contents-to-path-cmdlist (element &optional matrix)
+  (let (cmdlist)
+    (dolist (child (dom-children element))
+      (when (edraw-dom-element-p child)
+        (let ((child-cmdlist (edraw-svg-element-to-path-cmdlist element matrix)))
+          (when (and child-cmdlist
+                     (not (edraw-path-cmdlist-empty-p child-cmdlist)))
+            (when cmdlist
+              (edraw-path-cmdlist-insert-cmdlist-front child-cmdlist cmdlist))
+            (setq cmdlist child-cmdlist)))))
+    cmdlist))
+
+
+
 ;;;; SVG Shapes to Segment List
 
 ;;

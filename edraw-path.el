@@ -153,7 +153,7 @@
       (edraw-path-cmd-remove last-cmd)
       t)))
 
-(defun edraw-path-cmdlist-close-path (cmdlist)
+(defun edraw-path-cmdlist-close-path (cmdlist &optional close-straight-p)
   (when-let ((last-cmd (edraw-path-cmdlist-back cmdlist))
              (m-cmd (edraw-path-cmd-prev-M last-cmd))
              (initial-xy (edraw-path-cmd-anchor-point-xy m-cmd 'fast)))
@@ -162,14 +162,15 @@
       (cond
        ;; '-forward-handle-point
        ;; Replace -forward-handle-point with C command that curve to M
-       ((edraw-path-cmd-is-type-p last-cmd '-forward-handle-point)
+       ((and (edraw-path-cmd-is-type-p last-cmd '-forward-handle-point)
+             (not close-straight-p))
         (edraw-path-cmd-overwrite-from-ppoints
          last-cmd 'C
          (edraw-path-cmd-arg-pt last-cmd 0)
          (edraw-path-point 'handle last-cmd 1 initial-xy)
          (edraw-path-point 'anchor last-cmd 2 initial-xy)))
 
-       ;; 'C or 'L
+       ;; 'C or 'L or ('-forward-handle-point and close-straight-p)
        ;; Add a line segment from last point to initial point
        ((not (edraw-xy-equal-p (edraw-path-cmd-anchor-point-xy last-cmd 'fast)
                                initial-xy))
@@ -179,22 +180,23 @@
 
       ;; Add a handle point at the reflection of forward handle point
       ;; on initial anchor point.
-      (when-let ((prev-xy (edraw-path-cmd-prev-anchor-point-xy last-cmd))
-                 (forward-handle (edraw-path-anchor-forward-handle
-                                  (edraw-path-cmd-anchor-point m-cmd 'fast))))
-        (let* ((vha (edraw-xy-sub ;;handle to anchor
-                     initial-xy
-                     (edraw-path-point-xy forward-handle)))
-               (vha-len (edraw-xy-length vha))
-               (last-dist (edraw-xy-distance initial-xy prev-xy))
-               (new-handle-len (min (* 0.4 last-dist) vha-len)))
-          (when (> new-handle-len 0.1)
-            (edraw-path-cmd-L-to-C last-cmd)
-            (edraw-path-point-move
-             (edraw-path-cmd-arg-pt last-cmd 1)
-             (edraw-xy-add
-              initial-xy
-              (edraw-xy-nmul (/ new-handle-len vha-len) vha))))))
+      (unless close-straight-p
+        (when-let ((prev-xy (edraw-path-cmd-prev-anchor-point-xy last-cmd))
+                   (forward-handle (edraw-path-anchor-forward-handle
+                                    (edraw-path-cmd-anchor-point m-cmd 'fast))))
+          (let* ((vha (edraw-xy-sub ;;handle to anchor
+                       initial-xy
+                       (edraw-path-point-xy forward-handle)))
+                 (vha-len (edraw-xy-length vha))
+                 (last-dist (edraw-xy-distance initial-xy prev-xy))
+                 (new-handle-len (min (* 0.4 last-dist) vha-len)))
+            (when (> new-handle-len 0.1)
+              (edraw-path-cmd-L-to-C last-cmd)
+              (edraw-path-point-move
+               (edraw-path-cmd-arg-pt last-cmd 1)
+               (edraw-xy-add
+                initial-xy
+                (edraw-xy-nmul (/ new-handle-len vha-len) vha)))))))
 
       ;; Add Z
       (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
