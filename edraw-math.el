@@ -123,6 +123,13 @@
 (defun edraw-xy-rot270 (xy)
   (cons (cdr xy) (- (car xy))))
 
+(defun edraw-xy-list-equal-all-p (xy-list)
+  (let ((first (car xy-list))
+        (rest (cdr xy-list)))
+    (while (and rest (edraw-xy-equal-p first (car rest)))
+      (setq rest (cdr rest)))
+    (null rest)))
+
 ;;;; Point
 
 (defsubst edraw-xy-midpoint-float (a b)

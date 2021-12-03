@@ -1970,11 +1970,13 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
   (let ((initial-point nil) ;;last M point
         (current-point nil)
         segments)
-    (cl-flet ((close-path ()
-                          (push (vector current-point
-                                        initial-point)
-                                segments)
-                          (setq current-point initial-point)))
+    (cl-flet* ((push-segment (&rest points)
+                             ;; Exclude length=0
+                             (unless (edraw-xy-list-equal-all-p points)
+                               (push (apply #'vector points) segments)))
+               (close-path ()
+                           (push-segment current-point initial-point)
+                           (setq current-point initial-point)))
       (edraw-path-cmdlist-loop cmdlist cmd
         (pcase (edraw-path-cmd-type cmd)
           ('M
@@ -1984,23 +1986,22 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
                  current-point (edraw-path-cmd-arg-xy cmd 0)))
           ('L
            (when current-point
-             (push (vector current-point
+             (push-segment current-point
                            (edraw-path-cmd-arg-xy cmd 0))
-                   segments)
              (setq current-point (edraw-path-cmd-arg-xy cmd 0))))
           ('C
            (when current-point
-             (push (vector current-point
+             (push-segment current-point
                            (edraw-path-cmd-arg-xy cmd 0)
                            (edraw-path-cmd-arg-xy cmd 1)
                            (edraw-path-cmd-arg-xy cmd 2))
-                   segments)
              (setq current-point (edraw-path-cmd-arg-xy cmd 2))))
           ('Z
            (close-path))))
       (when (and needs-closed-p (not (equal current-point initial-point)))
         (close-path))
       (nreverse segments))))
+;; TEST: (edraw-path-cmdlist-to-segment-list (edraw-path-cmdlist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10 . 20) (30 . 40)] [(30 . 40) (10 . 20)] [(10 . 20) (20 . 0) (80 . 0) (100 . 20)])
 
 ;;;;; Path and Rectangle Intersection Test
 
