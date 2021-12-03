@@ -236,6 +236,164 @@
     value)))
 
 
+
+;;;; SVG Transform Attribute
+
+(defconst edraw-svg-transform-number
+  "\\(?:[-+]?\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)\\(?:[eE][-+]?[0-9]+\\)?\\)")
+(defconst edraw-svg-transform-unit "\\(?:[a-z]+\\|%\\)")
+(defconst edraw-svg-transform-number-unit
+  (concat edraw-svg-transform-number edraw-svg-transform-unit "?"))
+(defconst edraw-svg-transform-wsp "\\(?:[ \t\n\f\r]+\\)")
+(defconst edraw-svg-transform-wsp-opt "[ \t\n\f\r]*")
+(defconst edraw-svg-transform-comma-wsp "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
+(defconst edraw-svg-transform-function
+  (concat
+   edraw-svg-transform-wsp-opt
+   ;; (1) function name
+   "\\([A-Za-z0-9_]+\\)"
+   edraw-svg-transform-wsp-opt
+   "("
+   edraw-svg-transform-wsp-opt
+   ;;(2) command arguments
+   "\\(" edraw-svg-transform-number-unit
+   "\\(?:" edraw-svg-transform-comma-wsp edraw-svg-transform-number-unit "\\)*\\)?"
+   edraw-svg-transform-wsp-opt ")" edraw-svg-transform-wsp-opt))
+
+(defun edraw-svg-transform-parse-numbers (numbers-str)
+  (when numbers-str
+    (mapcar
+     (lambda (ns)
+       (when (string-match
+              (concat "\\(" edraw-svg-transform-number "\\)"
+                      "\\(" edraw-svg-transform-unit "\\)?")
+              ns)
+         (let ((num (string-to-number (match-string 1 ns)))
+               (unit (match-string 2 ns)))
+           (pcase unit
+             ((or 'nil "") num)
+             ;; angle to degrees
+             ("deg" num)
+             ("rad" (radians-to-degrees num))
+             ("grad" (/ (* num 180) 200.0))
+             ("turn" (* 360 num))
+             ;; length to px
+             ;;@todo relative
+             ("cm" (/ (* num 96) 2.54))
+             ("mm" (/ (* num 96) 25.4))
+             ("Q" (/ (* num 96) 2.54 40))
+             ("in" (* num 96))
+             ("pc" (/ (* num 96) 6))
+             ("pt" (/ (* num 96) 72))
+             ("px" num)
+             (_ (cons num unit))))))
+     (split-string numbers-str
+                   edraw-svg-transform-comma-wsp))))
+
+(defun edraw-svg-transform-parse (str)
+  (let ((pos 0)
+        functions)
+    (while (and (string-match edraw-svg-transform-function str pos)
+                (= (match-beginning 0) pos))
+      (setq pos (match-end 0))
+      (let* ((fname (match-string 1 str))
+             (numbers-str (match-string 2 str))
+             (numbers (edraw-svg-transform-parse-numbers numbers-str)))
+        (push (cons fname numbers) functions)))
+    (when (/= pos (length str))
+      (error "transform value parsing error at %s" (substring str pos)))
+    (nreverse functions)))
+
+;;TEST: (edraw-svg-transform-parse "") => nil
+;;TEST: (edraw-svg-transform-parse "translate(10 20)") => (("translate" 10 20))
+;;TEST: (edraw-svg-transform-parse "rotate(180deg)") => (("rotate" 180))
+;;TEST: (edraw-svg-transform-parse "scale(2) rotate(0.125turn)") => (("scale" 2) ("rotate" 45.0))
+
+(defun edraw-svg-transform-apply (fname-args)
+  (let ((fname (car fname-args))
+        (args (cdr fname-args)))
+    (apply (intern (concat "edraw-svg-transform--" fname)) args)))
+
+(defun edraw-svg-transform--matrix (a b c d e f)
+  (edraw-matrix (vector a b c d e f)))
+
+(defun edraw-svg-transform--translate (tx &optional ty)
+  (edraw-matrix-translate tx (or ty 0) 0))
+
+(defun edraw-svg-transform--translateX (tx)
+  (edraw-matrix-translate tx 0 0))
+
+(defun edraw-svg-transform--translateY (ty)
+  (edraw-matrix-translate 0 ty 0))
+
+(defun edraw-svg-transform--scale (sx &optional sy)
+  (edraw-matrix-scale sx (or sy sx) 1))
+
+(defun edraw-svg-transform--scaleX (sx)
+  (edraw-matrix-scale sx 1 1))
+
+(defun edraw-svg-transform--scaleY (sy)
+  (edraw-matrix-scale 1 sx 1))
+
+(defun edraw-svg-transform--rotate (angle-deg &optional cx cy)
+  (if (or cx cy)
+      (edraw-matrix-mul-mat-mat
+       (edraw-matrix-translate (or cx 0) (or cy 0) 0)
+       (edraw-matrix-mul-mat-mat
+        (edraw-matrix-rotate angle-deg)
+        (edraw-matrix-translate (- (or cx 0)) (- (or cy 0)) 0)))
+    (edraw-matrix-rotate angle-deg)))
+
+(defun edraw-svg-transform--skew (ax-deg &optional ay-deg)
+  (edraw-matrix-skew ax-deg (or ay-deg 0)))
+
+(defun edraw-svg-transform--skewX (ax-deg)
+  (edraw-matrix-skew ax-deg 0))
+
+(defun edraw-svg-transform--skewY (ay-deg)
+  (edraw-matrix-skew 0 ay-deg))
+
+(defun edraw-svg-transform-to-matrix (str)
+  (seq-reduce #'edraw-matrix-mul-mat-mat
+              (mapcar #'edraw-svg-transform-apply
+                      (edraw-svg-transform-parse str))
+              (edraw-matrix)))
+
+;;TEST: (edraw-svg-transform-to-matrix "translate(10 20)") => [1 0 0 0 0 1 0 0 0 0 1 0 10 20 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "scale(2) translate(10 20)") => [2 0 0 0 0 2 0 0 0 0 1 0 20 40 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0 0 1 0 0 0 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg 10 10)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 10.0 -4.142135623730951 0.0 1.0]
+
+(defun edraw-svg-attr-transform-get (element &optional matrix)
+  (when-let ((transform-str (dom-attr element 'transform)))
+    (ignore-errors
+      (edraw-matrix-mul-mat-mat
+       ;;nil means identity matrix
+       matrix
+       (edraw-svg-transform-to-matrix transform-str)))))
+
+(defun edraw-svg-transform-from-matrix (mat)
+  (format "matrix(%s,%s,%s,%s,%s,%s)"
+          (edraw-matrix-at mat 0)
+          (edraw-matrix-at mat 1)
+          (edraw-matrix-at mat 4)
+          (edraw-matrix-at mat 5)
+          (edraw-matrix-at mat 12)
+          (edraw-matrix-at mat 13)))
+
+(defun edraw-svg-attr-transform-set (element mat)
+  (if (edraw-matrix-identity-p mat)
+      (edraw-dom-remove-attr element 'transform)
+    (dom-set-attribute element 'transform (edraw-svg-transform-from-matrix mat))))
+
+(defun edraw-svg-element-transform (element mat)
+  (unless (edraw-matrix-identity-p mat)
+    (edraw-svg-attr-transform-set
+     element
+     (edraw-svg-attr-transform-get element mat))))
+
+
+
 ;;;; SVG Shape Creation
 
 
@@ -341,7 +499,8 @@
     (stroke-width attr length nil)
     (stroke-dasharray attr string nil)
     (stroke-dashoffset attr length nil)
-    (style attr string nil)))
+    (style attr string nil)
+    (transform attr string nil)))
 (defconst edraw-svg-element-properties
   `((rect
      (x attr coordinate t)
@@ -749,12 +908,12 @@
 
 ;; (Depends on edraw-math.el)
 
+(defun edraw-svg-text-contents-aabb (element)
+  "Return the axis-aligned bounding box of the text ELEMENT.
 
-(defun edraw-svg-text-aabb (element)
-  "Return the axis-aligned bounding box of the text ELEMENT."
+This function does not consider the effect of the transform attribute."
   ;; https://www.w3.org/TR/SVG11/text.html#TextElement
   ;; @todo support inherit attribute from ancestor
-  ;; @todo support transform
   (let* ((x (or (dom-attr element 'x) ""))
          (y (or (dom-attr element 'y) ""))
          (separator ;;comma-wsp
@@ -800,40 +959,50 @@
 ;;
 
 (defun edraw-svg-element-translate (element xy)
+  (let ((transform (edraw-svg-attr-transform-get element)))
+    (pcase (dom-tag element)
+      ((or 'path 'rect 'ellipse 'circle 'text)
+       (if transform ;;(not (edraw-matrix-translate-only-p transform)) ?
+           (progn
+             (edraw-matrix-translate-add transform (car xy) (cdr xy))
+             (edraw-svg-attr-transform-set element transform))
+         (edraw-svg-shape-translate-contents element xy))))))
+
+(defun edraw-svg-shape-translate-contents (element xy)
   (pcase (dom-tag element)
-    ('rect (edraw-svg-rect-translate element xy))
-    ('ellipse (edraw-svg-ellipse-translate element xy))
-    ('circle (edraw-svg-circle-translate element xy))
-    ('text (edraw-svg-text-translate element xy))
-    ('path (edraw-svg-path-translate element xy)))
+    ('rect (edraw-svg-rect-translate-contents element xy))
+    ('ellipse (edraw-svg-ellipse-translate-contents element xy))
+    ('circle (edraw-svg-circle-translate-contents element xy))
+    ('text (edraw-svg-text-translate-contents element xy))
+    ('path (edraw-svg-path-translate-contents element xy)))
   element)
 
-(defun edraw-svg-rect-translate (element xy)
+(defun edraw-svg-rect-translate-contents (element xy)
   (dom-set-attribute element 'x (+ (or (edraw-svg-attr-coord element 'x) 0)
                                    (car xy)))
   (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
                                    (cdr xy))))
 
-(defun edraw-svg-ellipse-translate (element xy)
+(defun edraw-svg-ellipse-translate-contents (element xy)
   (dom-set-attribute element 'cx (+ (or (edraw-svg-attr-coord element 'cx) 0)
                                    (car xy)))
   (dom-set-attribute element 'cy (+ (or (edraw-svg-attr-coord element 'cy) 0)
                                    (cdr xy))))
 
-(defun edraw-svg-circle-translate (element xy)
+(defun edraw-svg-circle-translate-contents (element xy)
   (dom-set-attribute element 'cx (+ (or (edraw-svg-attr-coord element 'cx) 0)
                                    (car xy)))
   (dom-set-attribute element 'cy (+ (or (edraw-svg-attr-coord element 'cy) 0)
                                    (cdr xy))))
 
-(defun edraw-svg-text-translate (element xy)
+(defun edraw-svg-text-translate-contents (element xy)
   ;;@todo support list-of-coordinates
   (edraw-svg-text-set-x element (+ (or (edraw-svg-attr-coord element 'x) 0)
                                    (car xy)))
   (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
                                    (cdr xy))))
 
-(defun edraw-svg-path-translate (element xy)
+(defun edraw-svg-path-translate-contents (element xy)
   (when-let ((d (dom-attr element 'd)))
     (dom-set-attribute element 'd (edraw-path-d-translate d xy))))
 
@@ -1005,20 +1174,32 @@
 
 ;;;; SVG Shapes to Segment List
 
-;;
-;; Depends on edraw-path.el (edraw-path-*)
-;;
+;; (Depends on edraw-path.el (edraw-path-*))
 
-(defun edraw-svg-element-to-bezier-segments (element)
+(defun edraw-svg-element-to-bezier-segments (element &optional matrix)
+  (edraw-svg-element-contents-to-bezier-segments
+   element
+   (edraw-svg-attr-transform-get element matrix)))
+
+(defun edraw-svg-element-contents-to-bezier-segments (element &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ('path (edraw-svg-path-to-bezier-segments element))
-      ('rect (edraw-svg-rect-to-bezier-segments element))
-      ('ellipse (edraw-svg-ellipse-to-bezier-segments element))
-      ('circle (edraw-svg-circle-to-bezier-segments element))
-      ('text (edraw-svg-text-to-bezier-segments element)))))
+      ((or 'path 'rect 'ellipse 'circle 'text)
+       (let ((segments (edraw-svg-shape-contents-to-bezier-segments element)))
+         (unless (edraw-matrix-identity-p matrix)
+           (edraw-segment-list-transform segments matrix))
+         segments)))))
 
-(defun edraw-svg-path-to-bezier-segments (element)
+(defun edraw-svg-shape-contents-to-bezier-segments (element)
+  (when (edraw-dom-element-p element)
+    (pcase (dom-tag element)
+      ('path (edraw-svg-path-contents-to-bezier-segments element))
+      ('rect (edraw-svg-rect-contents-to-bezier-segments element))
+      ('ellipse (edraw-svg-ellipse-contents-to-bezier-segments element))
+      ('circle (edraw-svg-circle-contents-to-bezier-segments element))
+      ('text (edraw-svg-text-contents-to-bezier-segments element)))))
+
+(defun edraw-svg-path-contents-to-bezier-segments (element)
   (let ((fill (dom-attr element 'fill))
         (d (dom-attr element 'd)))
     (when d
@@ -1026,7 +1207,7 @@
        (edraw-path-cmdlist-from-d d)
        (not (equal fill "none"))))))
 
-(defun edraw-svg-rect-to-bezier-segments (element)
+(defun edraw-svg-rect-contents-to-bezier-segments (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
   (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
          (top    (or (edraw-svg-attr-coord element 'y) 0))
@@ -1041,7 +1222,7 @@
                          (vector (cons left  bottom) (cons left  top)))))
     segments))
 
-(defun edraw-svg-ellipse-to-bezier-segments (element)
+(defun edraw-svg-ellipse-contents-to-bezier-segments (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#EllipseElement
   (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
          (cy (or (edraw-svg-attr-coord element 'cy) 0))
@@ -1066,7 +1247,7 @@
                    (cons right (- cy cry)) (cons right cy)))))
          segments))
 
-(defun edraw-svg-circle-to-bezier-segments (element)
+(defun edraw-svg-circle-contents-to-bezier-segments (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
   (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
          (cy (or (edraw-svg-attr-coord element 'cy) 0))
@@ -1089,8 +1270,9 @@
                    (cons right (- cy cr)) (cons right cy)))))
     segments))
 
-(defun edraw-svg-text-to-bezier-segments (element)
-  (let* ((rect (edraw-svg-text-aabb element))
+(defun edraw-svg-text-contents-to-bezier-segments (element)
+  ;; Exact calculation is difficult, so use AABB instead
+  (let* ((rect (edraw-svg-text-contents-aabb element))
          (left   (caar rect))
          (top    (cdar rect))
          (right  (cadr rect))
@@ -1105,13 +1287,16 @@
 
 ;;;; Point in SVG Shapes Test
 
-;;
-;; Depends on edraw-path.el (edraw-path-*, edraw-bezier-*)
-;;
+;; (Depends on edraw-path.el (edraw-path-*, edraw-bezier-*))
 
 (defconst edraw-pick-point-radius 2)
 
 (defun edraw-svg-element-contains-point-p (element xy)
+  (let ((transform (edraw-svg-attr-transform-get element)))
+    (unless (edraw-matrix-identity-p transform)
+      (when-let ((inv (edraw-matrix-inverse transform)))
+        (setq xy (edraw-matrix-mul-mat-xy inv xy)))))
+
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text)
@@ -1129,36 +1314,35 @@
                            (or (edraw-svg-attr-number element 'stroke-width) 1)
                          0))
          (stroke-square-r (/ stroke-width (* 2 (sqrt 2))))
-         (segments (edraw-svg-element-to-bezier-segments element))
-         (text-aabb-p (eq (dom-tag element) 'text)))
+         (segments (edraw-svg-shape-contents-to-bezier-segments element)
+                   ;;or (edraw-svg-element-contents-to-bezier-segments element)
+                   )
+         (text-bb-p (eq (dom-tag element) 'text)))
 
     (when segments
       (or (and stroke-p
-               (not text-aabb-p)
+               (not text-bb-p)
                (edraw-bezier-segments-intersects-rect-p
                 segments
                 (edraw-square xy (+ edraw-pick-point-radius stroke-square-r))))
           (and (or fill-p
-                   text-aabb-p)
+                   text-bb-p)
                (edraw-bezier-segments-contains-point-p
                 segments
                 xy
                 (equal fill-rule "evenodd")))))))
 
-(defun edraw-svg-text-contains-point-p (element xy)
-  (edraw-rect-contains-point-p (edraw-svg-text-aabb element) xy))
-
 
 
 ;;;; SVG Shapes and Rectangle Intersection Test
 
-(defun edraw-svg-element-intersects-rect-p (element rect)
+(defun edraw-svg-element-intersects-rect-p (element rect &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text)
-       (edraw-svg-shape-intersects-rect-p element rect)))))
+       (edraw-svg-shape-intersects-rect-p element rect matrix)))))
 
-(defun edraw-svg-shape-intersects-rect-p (element rect)
+(defun edraw-svg-shape-intersects-rect-p (element rect &optional matrix)
   (when (and element
              rect
              (not (edraw-rect-empty-p rect)))
@@ -1177,7 +1361,7 @@
                            (- (cdar rect) stroke-r)
                            (+ (cadr rect) stroke-r)
                            (+ (cddr rect) stroke-r)))
-           (segments (edraw-svg-element-to-bezier-segments element))
+           (segments (edraw-svg-element-to-bezier-segments element matrix))
            (text-aabb-p (eq (dom-tag element) 'text)))
       (when segments
         (or (edraw-bezier-segments-intersects-rect-p segments enlarged-rect)
@@ -1189,10 +1373,6 @@
                   (edraw-xy (caar enlarged-rect) (cdar enlarged-rect))
                   (equal fill-rule "evenodd"))))))))
 
-(defun edraw-svg-text-intersects-rect-p (element rect)
-  (edraw-rect-intersects-rect-p
-   (edraw-svg-text-aabb element)
-   rect))
 
 
 

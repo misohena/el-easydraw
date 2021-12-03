@@ -2248,6 +2248,15 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      (vector p0 q0 r0 s)
      (vector s r1 q2 p3))))
 
+(defun edraw-bezier-segment-transform (seg mat)
+  (dotimes (i (length seg))
+    (let ((xy (aref seg i)))
+      (edraw-matrix-mul-mat-xy mat xy xy))))
+
+(defun edraw-segment-list-transform (segments mat)
+  (dolist (seg segments)
+    (edraw-bezier-segment-transform seg mat)))
+
 
 
 
