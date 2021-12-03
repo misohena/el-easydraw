@@ -298,10 +298,12 @@
      ,@body))
 
 (defun edraw-matrix-identity-p (mat)
-  (edraw-matrix-let-elements mat m
-    (and
-     (= 1 m11 m22 m33 m44)
-     (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34 m41 m42 m43))))
+  (or
+   (null mat)
+   (edraw-matrix-let-elements mat m
+     (and
+      (= 1 m11 m22 m33 m44)
+      (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34 m41 m42 m43)))))
 
 (defun edraw-matrix-translate-only-p (mat)
   (or
@@ -332,54 +334,84 @@
       (* (aref ,lhs ,(+ row 12)) (aref ,rhs ,(+ (* col 4) 3)))))
 
 (defun edraw-matrix-mul-mat-mat (a b)
-  (vector
-   (edraw-matrix-mul-element a b 0 0)
-   (edraw-matrix-mul-element a b 0 1)
-   (edraw-matrix-mul-element a b 0 2)
-   (edraw-matrix-mul-element a b 0 3)
-   (edraw-matrix-mul-element a b 1 0)
-   (edraw-matrix-mul-element a b 1 1)
-   (edraw-matrix-mul-element a b 1 2)
-   (edraw-matrix-mul-element a b 1 3)
-   (edraw-matrix-mul-element a b 2 0)
-   (edraw-matrix-mul-element a b 2 1)
-   (edraw-matrix-mul-element a b 2 2)
-   (edraw-matrix-mul-element a b 2 3)
-   (edraw-matrix-mul-element a b 3 0)
-   (edraw-matrix-mul-element a b 3 1)
-   (edraw-matrix-mul-element a b 3 2)
-   (edraw-matrix-mul-element a b 3 3)))
+  (if a
+      (if b
+          (vector
+           (edraw-matrix-mul-element a b 0 0)
+           (edraw-matrix-mul-element a b 0 1)
+           (edraw-matrix-mul-element a b 0 2)
+           (edraw-matrix-mul-element a b 0 3)
+           (edraw-matrix-mul-element a b 1 0)
+           (edraw-matrix-mul-element a b 1 1)
+           (edraw-matrix-mul-element a b 1 2)
+           (edraw-matrix-mul-element a b 1 3)
+           (edraw-matrix-mul-element a b 2 0)
+           (edraw-matrix-mul-element a b 2 1)
+           (edraw-matrix-mul-element a b 2 2)
+           (edraw-matrix-mul-element a b 2 3)
+           (edraw-matrix-mul-element a b 3 0)
+           (edraw-matrix-mul-element a b 3 1)
+           (edraw-matrix-mul-element a b 3 2)
+           (edraw-matrix-mul-element a b 3 3))
+        (edraw-matrix a));;clone
+    (if b
+        (edraw-matrix b);;clone
+      nil)))
 
 (defun edraw-matrix-mul-mat-vec4 (a b)
-  (vector
-   (edraw-matrix-mul-element a b 0 0)
-   (edraw-matrix-mul-element a b 0 1)
-   (edraw-matrix-mul-element a b 0 2)
-   (edraw-matrix-mul-element a b 0 3)))
+  (if b
+      (if a
+          (vector
+           (edraw-matrix-mul-element a b 0 0)
+           (edraw-matrix-mul-element a b 0 1)
+           (edraw-matrix-mul-element a b 0 2)
+           (edraw-matrix-mul-element a b 0 3))
+        (copy-sequence b))))
 
 (defun edraw-matrix-mul-mat-vec3 (a b)
-  (let* ((p (edraw-matrix-mul-mat-vec4 a (vector (aref b 0) (aref b 1) (aref b 2) 1.0)))
-         (w (aref p 3)))
-    (vector
-     (/ (aref p 0) w)
-     (/ (aref p 0) w)
-     (/ (aref p 0) w))))
+  (if b
+      (if a
+          (let* ((p (edraw-matrix-mul-mat-vec4 a (vector (aref b 0) (aref b 1) (aref b 2) 1.0)))
+                 (w (aref p 3)))
+            (vector
+             (/ (aref p 0) w)
+             (/ (aref p 0) w)
+             (/ (aref p 0) w)))
+        (copy-sequence b))))
 
 (defun edraw-matrix-mul-mat-vec2 (a b)
-  (let ((x (+ (* (aref a 0) (aref b 0)) (* (aref a 4) (aref b 1)) (aref a 12)))
-        (y (+ (* (aref a 1) (aref b 0)) (* (aref a 5) (aref b 1)) (aref a 13)))
-        (w (+ (* (aref a 3) (aref b 0)) (* (aref a 7) (aref b 1)) (aref a 15))))
-    (cons
-     (/ x w)
-     (/ y w))))
+  (if b
+      (if a
+          (let ((x (+ (* (aref a 0) (aref b 0)) (* (aref a 4) (aref b 1)) (aref a 12)))
+                (y (+ (* (aref a 1) (aref b 0)) (* (aref a 5) (aref b 1)) (aref a 13)))
+                (w (+ (* (aref a 3) (aref b 0)) (* (aref a 7) (aref b 1)) (aref a 15))))
+            (cons
+             (/ x w)
+             (/ y w)))
+        (copy-sequence b))))
 
-(defun edraw-matrix-mul-mat-xy (a b)
-  (let ((x (+ (* (aref a 0) (car b)) (* (aref a 4) (cdr b)) (aref a 12)))
-        (y (+ (* (aref a 1) (car b)) (* (aref a 5) (cdr b)) (aref a 13)))
-        (w (+ (* (aref a 3) (car b)) (* (aref a 7) (cdr b)) (aref a 15))))
-    (cons
-     (/ x w)
-     (/ y w))))
+(defun edraw-matrix-mul-mat-xy (a b &optional dst)
+  (if b
+      (if a
+          (let ((x (+ (* (aref a 0) (car b)) (* (aref a 4) (cdr b)) (aref a 12)))
+                (y (+ (* (aref a 1) (car b)) (* (aref a 5) (cdr b)) (aref a 13)))
+                (w (+ (* (aref a 3) (car b)) (* (aref a 7) (cdr b)) (aref a 15))))
+            (if dst
+                (progn
+                  (setcar dst (/ x w))
+                  (setcdr dst (/ y w))
+                  dst)
+              (cons
+               (/ x w)
+               (/ y w))))
+        (if dst
+            (progn
+              (setcar dst (car b))
+              (setcdr dst (cdr b))
+              dst)
+          (cons
+           (car b)
+           (cdr b))))))
 
 (defun edraw-matrix-determinant (mat)
   (edraw-matrix-let-elements mat m
