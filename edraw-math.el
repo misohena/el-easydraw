@@ -284,6 +284,9 @@
          (ty (tan ay-rad)))
     (edraw-matrix (vector 1 ty tx 1 0 0))))
 
+(defmacro edraw-matrix-at (mat index)
+  `(aref ,mat ,index))
+
 (defmacro edraw-matrix-let-elements (mat-symbol var-prefix &rest body)
   (declare (indent 2))
   `(let (,@(cl-loop for i from 0 to 15
@@ -299,6 +302,14 @@
     (and
      (= 1 m11 m22 m33 m44)
      (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34 m41 m42 m43))))
+
+(defun edraw-matrix-translate-only-p (mat)
+  (or
+   (null mat)
+   (edraw-matrix-let-elements mat m
+     (and
+      (= 1 m11 m22 m33 m44)
+      (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34)))))
 
 (defun edraw-matrix-mul (a b)
   (let (lb)
@@ -429,6 +440,12 @@
 ;;TEST: (edraw-matrix-inverse (edraw-matrix-translate 10 20 30)) => [1.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0 0.0 -10.0 -20.0 -30.0 1.0]
 ;;TEST: (edraw-matrix-inverse (edraw-matrix-scale 2 4 8)) => [0.5 0.0 0.0 0.0 0.0 0.25 0.0 0.0 0.0 0.0 0.125 0.0 0.0 0.0 0.0 1.0]
 ;;TEST: (edraw-matrix-inverse (edraw-matrix-rotate 45)) => [0.7071067811865476 -0.7071067811865475 0.0 0.0 0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0]
+
+(defun edraw-matrix-translate-add (mat x y &optional z)
+  (when (numberp x) (aset mat 12 (+ (aref mat 12) x)))
+  (when (numberp y) (aset mat 13 (+ (aref mat 13) y)))
+  (when (numberp z) (aset mat 14 (+ (aref mat 14) z)))
+  mat)
 
 
 
