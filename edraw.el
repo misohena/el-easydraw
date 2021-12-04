@@ -668,40 +668,44 @@ This function deletes all redo data."
         (setcdr cell nil)))))
 
 (defmacro edraw-make-undo-group (editor type &rest body)
-  "Combine pushed undo data in BODY into one."
+  "Combine undo data pushed in BODY into one."
   (declare (indent 2))
-  (let ((old-undo-list-var (gensym))
-        (editor-var (gensym)))
-    `(let* ((,editor-var ,editor)
-            (,old-undo-list-var (oref ,editor-var undo-list))
-            )
-       (oset ,editor-var undo-list nil)
+  (let ((var-old-undo-list (gensym))
+        (var-editor (gensym))
+        (var-data (gensym)))
+    `(let* ((,var-editor ,editor)
+            (,var-old-undo-list (oref ,var-editor undo-list))
+            (,var-data nil)
+            (edraw-editor-undo-group-level (1+ edraw-editor-undo-group-level)))
+       (oset ,var-editor undo-list nil)
        (unwind-protect
-           (prog1 (let ((edraw-editor-undo-group-level
-                         (1+ edraw-editor-undo-group-level)))
-                    ,@body)
-             (edraw-make-undo-list-to-group ,editor-var ,type
-                                            ,old-undo-list-var)
-             (setq ,old-undo-list-var (oref ,editor-var undo-list)))
-         (oset ,editor-var undo-list ,old-undo-list-var)))))
+           (prog1
+               (progn ,@body)
+             (setq ,var-data (edraw-combine-undo-list
+                              (oref ,var-editor undo-list))))
+         (oset ,var-editor undo-list ,var-old-undo-list)
+         (when ,var-data
+           (edraw-push-undo-data ,var-editor ,type ,var-data))))))
 
-(cl-defmethod edraw-make-undo-list-to-group (editor type old-undo-list)
-  (with-slots (undo-list) editor
-    (let ((data (cond
-                 ;; multiple data
-                 ((cdr undo-list)
-                  (cons
-                   #'edraw-call-each-args
-                   ;;strip type
-                   (mapcar #'cdr undo-list)))
-                 ;; single data
-                 (undo-list
-                  (cdr (car undo-list)));; strip type
-                 ;; no data
-                 (t nil))))
-      (setq undo-list old-undo-list)
-      (when data
-        (edraw-push-undo-data editor type data)))))
+(defun edraw-combine-undo-list (undo-list)
+  "Make multiple undo data single."
+  (cond
+   ;; multiple data
+   ((cdr undo-list)
+    (cons
+     #'edraw-call-each-args
+     ;;strip type
+     (mapcar #'cdr undo-list)))
+   ;; single data
+   (undo-list
+    (cdr (car undo-list)));; strip type
+   ;; no data
+   (t nil)))
+
+(defun edraw-call-each-args (&rest args)
+  (dolist (arg args)
+    (apply (car arg) (cdr arg))))
+
 
 (edraw-editor-defcmd edraw-undo)
 (cl-defmethod edraw-undo ((editor edraw-editor))
@@ -735,10 +739,6 @@ The undo data generated during undo is saved in redo-list."
 (defun edraw-call-undo-data (type-data)
   (apply (car (cdr type-data))
          (cdr (cdr type-data))))
-
-(defun edraw-call-each-args (&rest args)
-  (dolist (arg args)
-    (apply (car arg) (cdr arg))))
 
 (defmacro edraw-push-undo-if-needed (editor type data)
   `(unless edraw-editor-inhibit-make-undo-data
