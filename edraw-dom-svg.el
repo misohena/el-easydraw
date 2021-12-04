@@ -910,6 +910,10 @@
 
 ;; (Depends on edraw-math.el)
 
+(defun edraw-svg-shape-aabb (element &optional matrix)
+  (edraw-path-seglist-aabb
+   (edraw-svg-element-to-seglist element matrix)))
+
 (defun edraw-svg-text-contents-aabb (element)
   "Return the axis-aligned bounding box of the text ELEMENT.
 
