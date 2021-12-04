@@ -365,11 +365,11 @@
 ;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg 10 10)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 10.0 -4.142135623730951 0.0 1.0]
 
 (defun edraw-svg-attr-transform-get (element &optional matrix)
-  (when-let ((transform-str (dom-attr element 'transform)))
-    (ignore-errors
-      (edraw-matrix-mul-mat-mat
-       ;;nil means identity matrix
-       matrix
+  (edraw-matrix-mul-mat-mat
+   ;;nil means identity matrix
+   matrix
+   (when-let ((transform-str (dom-attr element 'transform)))
+     (ignore-errors
        (edraw-svg-transform-to-matrix transform-str)))))
 
 (defun edraw-svg-transform-from-matrix (mat)
