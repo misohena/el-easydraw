@@ -1192,42 +1192,42 @@ This function does not consider the effect of the transform attribute."
 
 ;;;; SVG Shapes to Segment List
 
-;; (Depends on edraw-path.el (edraw-path-*))
+;; (Depends on edraw-path.el)
 
-(defun edraw-svg-element-to-bezier-segments (element &optional matrix)
-  (edraw-svg-element-contents-to-bezier-segments
+(defun edraw-svg-element-to-seglist (element &optional matrix)
+  (edraw-svg-element-contents-to-seglist
    element
    (edraw-svg-attr-transform-get element matrix)))
 
-(defun edraw-svg-element-contents-to-bezier-segments (element &optional matrix)
+(defun edraw-svg-element-contents-to-seglist (element &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text)
-       (let ((segments (edraw-svg-shape-contents-to-bezier-segments element)))
+       (let ((segments (edraw-svg-shape-contents-to-seglist element)))
          (unless (edraw-matrix-identity-p matrix)
-           (edraw-segment-list-transform segments matrix))
+           (edraw-path-seglist-transform segments matrix))
          segments))
       ('g
-       (edraw-svg-group-contents-to-bezier-segments element matrix)))))
+       (edraw-svg-group-contents-to-seglist element matrix)))))
 
-(defun edraw-svg-shape-contents-to-bezier-segments (element)
+(defun edraw-svg-shape-contents-to-seglist (element)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ('path (edraw-svg-path-contents-to-bezier-segments element))
-      ('rect (edraw-svg-rect-contents-to-bezier-segments element))
-      ('ellipse (edraw-svg-ellipse-contents-to-bezier-segments element))
-      ('circle (edraw-svg-circle-contents-to-bezier-segments element))
-      ('text (edraw-svg-text-contents-to-bezier-segments element)))))
+      ('path (edraw-svg-path-contents-to-seglist element))
+      ('rect (edraw-svg-rect-contents-to-seglist element))
+      ('ellipse (edraw-svg-ellipse-contents-to-seglist element))
+      ('circle (edraw-svg-circle-contents-to-seglist element))
+      ('text (edraw-svg-text-contents-to-seglist element)))))
 
-(defun edraw-svg-path-contents-to-bezier-segments (element)
+(defun edraw-svg-path-contents-to-seglist (element)
   (let ((fill (dom-attr element 'fill))
         (d (dom-attr element 'd)))
     (when d
-      (edraw-path-cmdlist-to-segment-list
+      (edraw-path-cmdlist-to-seglist
        (edraw-path-cmdlist-from-d d)
        (not (equal fill "none"))))))
 
-(defun edraw-svg-rect-contents-to-bezier-segments (element)
+(defun edraw-svg-rect-contents-to-seglist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
   (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
          (top    (or (edraw-svg-attr-coord element 'y) 0))
@@ -1242,7 +1242,7 @@ This function does not consider the effect of the transform attribute."
                          (vector (cons left  bottom) (cons left  top)))))
     segments))
 
-(defun edraw-svg-ellipse-contents-to-bezier-segments (element)
+(defun edraw-svg-ellipse-contents-to-seglist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#EllipseElement
   (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
          (cy (or (edraw-svg-attr-coord element 'cy) 0))
@@ -1267,7 +1267,7 @@ This function does not consider the effect of the transform attribute."
                    (cons right (- cy cry)) (cons right cy)))))
          segments))
 
-(defun edraw-svg-circle-contents-to-bezier-segments (element)
+(defun edraw-svg-circle-contents-to-seglist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
   (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
          (cy (or (edraw-svg-attr-coord element 'cy) 0))
@@ -1290,7 +1290,7 @@ This function does not consider the effect of the transform attribute."
                    (cons right (- cy cr)) (cons right cy)))))
     segments))
 
-(defun edraw-svg-text-contents-to-bezier-segments (element)
+(defun edraw-svg-text-contents-to-seglist (element)
   ;; Exact calculation is difficult, so use AABB instead
   (let* ((rect (edraw-svg-text-contents-aabb element))
          (left   (caar rect))
@@ -1303,11 +1303,11 @@ This function does not consider the effect of the transform attribute."
                          (vector (cons left  bottom) (cons left  top)))))
     segments))
 
-(defun edraw-svg-group-contents-to-bezier-segments (element &optional matrix)
+(defun edraw-svg-group-contents-to-seglist (element &optional matrix)
   (let (segments)
     (dolist (child (dom-children element))
       (when (edraw-dom-element-p child)
-        (let ((child-segments (edraw-svg-element-to-bezier-segments element matrix)))
+        (let ((child-segments (edraw-svg-element-to-seglist element matrix)))
           (setq segments (nconc segments child-segments)))))
     segments))
 
@@ -1315,7 +1315,7 @@ This function does not consider the effect of the transform attribute."
 
 ;;;; Point in SVG Shapes Test
 
-;; (Depends on edraw-path.el (edraw-path-*, edraw-bezier-*))
+;; (Depends on edraw-path.el)
 
 (defconst edraw-pick-point-radius 2)
 
@@ -1344,20 +1344,20 @@ This function does not consider the effect of the transform attribute."
                            (or (edraw-svg-attr-number element 'stroke-width) 1)
                          0))
          (stroke-square-r (/ stroke-width (* 2 (sqrt 2))))
-         (segments (edraw-svg-shape-contents-to-bezier-segments element)
-                   ;;or (edraw-svg-element-contents-to-bezier-segments element)
+         (segments (edraw-svg-shape-contents-to-seglist element)
+                   ;;or (edraw-svg-element-contents-to-seglist element)
                    )
          (text-bb-p (eq (dom-tag element) 'text)))
 
     (when segments
       (or (and stroke-p
                (not text-bb-p)
-               (edraw-bezier-segments-intersects-rect-p
+               (edraw-path-seglist-intersects-rect-p
                 segments
                 (edraw-square xy (+ edraw-pick-point-radius stroke-square-r))))
           (and (or fill-p
                    text-bb-p)
-               (edraw-bezier-segments-contains-point-p
+               (edraw-path-seglist-contains-point-p
                 segments
                 xy
                 (equal fill-rule "evenodd")))))))
@@ -1399,14 +1399,14 @@ This function does not consider the effect of the transform attribute."
                            (- (cdar rect) stroke-r)
                            (+ (cadr rect) stroke-r)
                            (+ (cddr rect) stroke-r)))
-           (segments (edraw-svg-element-to-bezier-segments element matrix))
+           (segments (edraw-svg-element-to-seglist element matrix))
            (text-aabb-p (eq (dom-tag element) 'text)))
       (when segments
-        (or (edraw-bezier-segments-intersects-rect-p segments enlarged-rect)
+        (or (edraw-path-seglist-intersects-rect-p segments enlarged-rect)
             ;; Case where rect is completely inside the shape
             (and (or fill-p
                      text-aabb-p)
-                 (edraw-bezier-segments-contains-point-p
+                 (edraw-path-seglist-contains-point-p
                   segments
                   (edraw-xy (caar enlarged-rect) (cdar enlarged-rect))
                   (equal fill-rule "evenodd"))))))))

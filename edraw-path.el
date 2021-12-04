@@ -1260,7 +1260,7 @@ If there is a handle point for the previous anchor point, it will be transferred
                 (handle0 (edraw-path-cmd-arg-pt cmd 0))
                 (handle1 (edraw-path-cmd-arg-pt cmd 1))
                 (anchor  (edraw-path-cmd-arg-pt cmd 2)))
-       (let* ((seg2 (edraw-bezier-segment-divide
+       (let* ((seg2 (edraw-path-bezier-seg-divide
                      (vector
                       prev-xy
                       (edraw-path-point-xy handle0)
@@ -1963,12 +1963,12 @@ If HANDLE-POINT is the backward handle, return the forward handle."
 
 
 
-;;;; Path Geometry
+;;;; Path Segment
 
-(defun edraw-path-cmdlist-to-segment-list (cmdlist needs-closed-p)
+(defun edraw-path-cmdlist-to-seglist (cmdlist needs-closed-p)
   "Convert CMDLIST to segment list.
 
-segment is straight line or bezier curve line.
+A segment is a straight line or a Bezier curve.
 
 straight line: [(x0 . y0) (x1 . y1)]
 
@@ -2008,57 +2008,60 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
       (when (and needs-closed-p (not (equal current-point initial-point)))
         (close-path))
       (nreverse segments))))
-;; TEST: (edraw-path-cmdlist-to-segment-list (edraw-path-cmdlist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10 . 20) (30 . 40)] [(30 . 40) (10 . 20)] [(10 . 20) (20 . 0) (80 . 0) (100 . 20)])
+;; TEST: (edraw-path-cmdlist-to-seglist (edraw-path-cmdlist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10 . 20) (30 . 40)] [(30 . 40) (10 . 20)] [(10 . 20) (20 . 0) (80 . 0) (100 . 20)])
 
 ;;;;; Path and Rectangle Intersection Test
 
 (defun edraw-path-cmdlist-intersects-rect-p (cmdlist rect)
-  (edraw-bezier-segments-intersects-rect-p
-   (edraw-path-cmdlist-to-segment-list cmdlist nil)
+  (edraw-path-seglist-intersects-rect-p
+   (edraw-path-cmdlist-to-seglist cmdlist nil)
    rect))
 
-(defun edraw-bezier-segments-intersects-rect-p (segment-list rect)
-  (cl-loop for seg in segment-list
-           when (edraw-bezier-segment-intersects-rect-p seg rect)
+(defun edraw-path-seglist-intersects-rect-p (seglist rect)
+  (cl-loop for seg in seglist
+           when (edraw-path-seg-intersects-rect-p seg rect)
            return t))
 
-(defun edraw-bezier-segment-intersects-rect-p (seg rect)
+(defun edraw-path-seg-intersects-rect-p (seg rect)
   (if (= (length seg) 2)
-      (edraw-straight-line-intersects-rect-p
+      (edraw-path-straight-seg-intersects-rect-p
        (elt seg 0) (elt seg 1) rect)
-    (let* ((aabb (edraw-bezier-segment-rough-aabb seg))
-           (aabb-left (caar aabb))
-           (aabb-top (cdar aabb))
-           (aabb-right (cadr aabb))
-           (aabb-bottom (cddr aabb))
-           (rect-left (caar rect))
-           (rect-top (cdar rect))
-           (rect-right (cadr rect))
-           (rect-bottom (cddr rect)))
-      (cond
-       ((or (> aabb-left rect-right)
-            (> aabb-top rect-bottom)
-            (< aabb-right rect-left)
-            (< aabb-bottom rect-top))
-        nil) ;; NG: Square(pt,r) does not intersect AABB
+    (edraw-path-bezier-seg-intersects-rect-p seg rect)))
 
-       ((and (> aabb-left rect-left)
-             (< aabb-right rect-right)
-             (> aabb-top rect-top)
-             (< aabb-bottom rect-bottom))
-        t) ;; OK: Square(pt,r) contains AABB
+(defun edraw-path-bezier-seg-intersects-rect-p (seg rect)
+  (let* ((aabb (edraw-path-bezier-seg-rough-aabb seg))
+         (aabb-left (caar aabb))
+         (aabb-top (cdar aabb))
+         (aabb-right (cadr aabb))
+         (aabb-bottom (cddr aabb))
+         (rect-left (caar rect))
+         (rect-top (cdar rect))
+         (rect-right (cadr rect))
+         (rect-bottom (cddr rect)))
+    (cond
+     ((or (> aabb-left rect-right)
+          (> aabb-top rect-bottom)
+          (< aabb-right rect-left)
+          (< aabb-bottom rect-top))
+      nil) ;; NG: Square(pt,r) does not intersect AABB
 
-       ((edraw-bezier-segment-straight-p seg) ;; SEG is a straight line
-        (edraw-straight-line-intersects-rect-p
-         (elt seg 0) (elt seg 3) rect))
+     ((and (> aabb-left rect-left)
+           (< aabb-right rect-right)
+           (> aabb-top rect-top)
+           (< aabb-bottom rect-bottom))
+      t) ;; OK: Square(pt,r) contains AABB
 
-       (t
-        ;; Divide SEG
-        (let ((seg2 (edraw-bezier-segment-divide seg)))
-          (or (edraw-bezier-segment-intersects-rect-p (car seg2) rect)
-              (edraw-bezier-segment-intersects-rect-p (cdr seg2) rect))))))))
+     ((edraw-path-bezier-seg-straight-p seg) ;; SEG is a straight line
+      (edraw-path-straight-seg-intersects-rect-p
+       (elt seg 0) (elt seg 3) rect))
 
-(defun edraw-straight-line-intersects-rect-p (p0 p3 rect)
+     (t
+      ;; Divide SEG
+      (let ((seg2 (edraw-path-bezier-seg-divide seg)))
+        (or (edraw-path-seg-intersects-rect-p (car seg2) rect)
+            (edraw-path-seg-intersects-rect-p (cdr seg2) rect)))))))
+
+(defun edraw-path-straight-seg-intersects-rect-p (p0 p3 rect)
   (let* ((p0x (car p0))
          (p0y (cdr p0))
          (p3x (car p3))
@@ -2093,82 +2096,82 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
          (setq tmin (max tmin t1))
          (setq tmax (min tmax t2))
          (<= tmin tmax))))))
-;; TEST: (edraw-straight-line-intersects-rect-p '(10 . 100) '(20 . 110) '((15 . 100) . (25 . 105))) => t
+;; TEST: (edraw-path-straight-seg-intersects-rect-p '(10 . 100) '(20 . 110) '((15 . 100) . (25 . 105))) => t
 
 ;;;;; Point in Path Test
 
-(defun edraw-path-cmdlist-contains-point-p
-    (cmdlist pt &optional evenodd-p)
-  (let ((count (edraw-bezier-segments-intersect-left-horizontal-half-line
-                (edraw-path-cmdlist-to-segment-list cmdlist t)
+(defun edraw-path-cmdlist-contains-point-p (cmdlist pt &optional evenodd-p)
+  (let ((count (edraw-path-seglist-intersect-left-horizontal-half-line
+                (edraw-path-cmdlist-to-seglist cmdlist t)
                 pt)))
     (/= 0 (if evenodd-p (mod count 2) count))))
 
-(defun edraw-bezier-segments-contains-point-p
-    (segment-list pt &optional evenodd-p)
-  (let ((count (edraw-bezier-segments-intersect-left-horizontal-half-line
-                segment-list pt)))
+(defun edraw-path-seglist-contains-point-p (seglist pt &optional evenodd-p)
+  (let ((count (edraw-path-seglist-intersect-left-horizontal-half-line
+                seglist pt)))
     (/= 0 (if evenodd-p (mod count 2) count))))
 
-(defun edraw-bezier-segments-intersect-left-horizontal-half-line
-    (segment-list pt)
-  (cl-loop for seg in segment-list
-           sum (edraw-bezier-segment-intersects-left-horizontal-half-line seg pt)))
+(defun edraw-path-seglist-intersect-left-horizontal-half-line (seglist pt)
+  (cl-loop for seg in seglist
+           sum (edraw-path-seg-intersects-left-horizontal-half-line seg pt)))
 
-(defun edraw-bezier-segment-intersects-left-horizontal-half-line (seg pt)
+(defun edraw-path-seg-intersects-left-horizontal-half-line (seg pt)
   (if (= (length seg) 2)
-      (edraw-straight-line-intersects-left-horizontal-half-line
+      (edraw-path-straight-seg-intersects-left-horizontal-half-line
        (elt seg 0) (elt seg 1) pt)
-    (let* ((aabb (edraw-bezier-segment-rough-aabb seg))
-           (aabb-left (caar aabb))
-           (aabb-top (cdar aabb))
-           (aabb-right (cadr aabb))
-           (aabb-bottom (cddr aabb))
-           (pt-x (car pt))
-           (pt-y (cdr pt)))
-      (cond
-       ;; PT is outside AABB
+    (edraw-path-bezier-seg-intersects-left-horizontal-half-line seg pt)))
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(17 . 6) (9 . 12) (26 . 36) (7 . 21)] '(18 . 23)) => 0
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(17 . 6) (9 . 12) (26 . 36) (7 . 21)] '(11 . 17)) => 0
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(17 . 6) (9 . 12) (26 . 36) (7 . 21)] '(12 . 22)) => -1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(12 . 31)) => -1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(32 . 31)) => 1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(25 . 29)) => 1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(20 . 37)) => 0
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(3 . 22) (12 . 14) (17 . 10) (22 . 6)] '(17 . 14)) => -1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(3 . 22) (12 . 14) (17 . 10) (22 . 6)] '(12 . 11)) => 0
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(14 . 8) (0 . 28) (32 . 28) (14 . 8)] '(15 . 18)) => 1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(14 . 8) (0 . 28) (32 . 28) (14 . 8)] '(18 . 11)) => 0
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(13 . 14) (22 . 29) (22 . 1) (13 . 14)] '(16 . 12)) => 1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(13 . 14) (22 . 29) (22 . 1) (13 . 14)] '(16 . 14)) => 1
+;; TEST: (edraw-path-seg-intersects-left-horizontal-half-line [(13 . 14) (22 . 29) (22 . 1) (13 . 14)] '(16 . 16)) => 1
 
-       ((> aabb-left pt-x) 0) ;;NG: AABB is right side of PT
-       ((> aabb-top pt-y) 0) ;;NG: AABB is under PT
-       ((< aabb-bottom pt-y) 0) ;;NG: AABB is above PT
-       ((< aabb-right pt-x)
-        (let ((p0y (cdr (elt seg 0)))
-              (p3y (cdr (elt seg 3))))
-          (if (eq (< p0y pt-y) (< p3y pt-y))
-              0 ;;NG: AABB is left side of PT and P0-P3 line does not intersect PT-Y h-line (P0-P1-P2-P3 line and PT-Y h-line may intersect. but intersection count is 0 or even number)
-            ;; SEG intersects the horizontal half line to the left of PT
-            (if (< p0y p3y) 1 -1)))) ;;OK
+(defun edraw-path-bezier-seg-intersects-left-horizontal-half-line (seg pt)
+  (let* ((aabb (edraw-path-bezier-seg-rough-aabb seg))
+         (aabb-left (caar aabb))
+         (aabb-top (cdar aabb))
+         (aabb-right (cadr aabb))
+         (aabb-bottom (cddr aabb))
+         (pt-x (car pt))
+         (pt-y (cdr pt)))
+    (cond
+     ;; PT is outside AABB
 
-       ;; PT is inside AABB
+     ((> aabb-left pt-x) 0) ;;NG: AABB is right side of PT
+     ((> aabb-top pt-y) 0) ;;NG: AABB is under PT
+     ((< aabb-bottom pt-y) 0) ;;NG: AABB is above PT
+     ((< aabb-right pt-x)
+      (let ((p0y (cdr (elt seg 0)))
+            (p3y (cdr (elt seg 3))))
+        (if (eq (< p0y pt-y) (< p3y pt-y))
+            0 ;;NG: AABB is left side of PT and P0-P3 line does not intersect PT-Y h-line (P0-P1-P2-P3 line and PT-Y h-line may intersect. but intersection count is 0 or even number)
+          ;; SEG intersects the horizontal half line to the left of PT
+          (if (< p0y p3y) 1 -1)))) ;;OK
 
-       ((and (< (- aabb-right aabb-left) 1)
-             (< (- aabb-bottom aabb-top) 1)) ;; AABB is small
-        0) ;;NG: PT is very close to the border. Either OK or NG is fine.
-       ((edraw-bezier-segment-straight-p seg) ;; SEG is a straight line
-        (edraw-straight-line-intersects-left-horizontal-half-line
-         (elt seg 0) (elt seg 3) pt))
-       (t
-        ;;divide SEG
-        (let ((seg2 (edraw-bezier-segment-divide seg)))
-          (+ (edraw-bezier-segment-intersects-left-horizontal-half-line (car seg2) pt)
-             (edraw-bezier-segment-intersects-left-horizontal-half-line (cdr seg2) pt))))))))
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(17 . 6) (9 . 12) (26 . 36) (7 . 21)] '(18 . 23)) => 0
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(17 . 6) (9 . 12) (26 . 36) (7 . 21)] '(11 . 17)) => 0
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(17 . 6) (9 . 12) (26 . 36) (7 . 21)] '(12 . 22)) => -1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(12 . 31)) => -1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(32 . 31)) => 1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(25 . 29)) => 1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(24 . 7) (2 . 80) (1 . 1) (28 . 34)] '(20 . 37)) => 0
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(3 . 22) (12 . 14) (17 . 10) (22 . 6)] '(17 . 14)) => -1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(3 . 22) (12 . 14) (17 . 10) (22 . 6)] '(12 . 11)) => 0
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(14 . 8) (0 . 28) (32 . 28) (14 . 8)] '(15 . 18)) => 1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(14 . 8) (0 . 28) (32 . 28) (14 . 8)] '(18 . 11)) => 0
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(13 . 14) (22 . 29) (22 . 1) (13 . 14)] '(16 . 12)) => 1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(13 . 14) (22 . 29) (22 . 1) (13 . 14)] '(16 . 14)) => 1
-;; TEST: (edraw-bezier-segment-intersects-left-horizontal-half-line [(13 . 14) (22 . 29) (22 . 1) (13 . 14)] '(16 . 16)) => 1
+     ;; PT is inside AABB
 
-(defun edraw-straight-line-intersects-left-horizontal-half-line (p0 p3 pt)
+     ((and (< (- aabb-right aabb-left) 1)
+           (< (- aabb-bottom aabb-top) 1)) ;; AABB is small
+      0) ;;NG: PT is very close to the border. Either OK or NG is fine.
+     ((edraw-path-bezier-seg-straight-p seg) ;; SEG is a straight line
+      (edraw-path-straight-seg-intersects-left-horizontal-half-line
+       (elt seg 0) (elt seg 3) pt))
+     (t
+      ;;divide SEG
+      (let ((seg2 (edraw-path-bezier-seg-divide seg)))
+        (+ (edraw-path-seg-intersects-left-horizontal-half-line (car seg2) pt)
+           (edraw-path-seg-intersects-left-horizontal-half-line (cdr seg2) pt)))))))
+
+(defun edraw-path-straight-seg-intersects-left-horizontal-half-line (p0 p3 pt)
   (let* ((p0x (car p0))
          (p0y (cdr p0))
          (p3x (car p3))
@@ -2189,12 +2192,23 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
       0) ;;NG: The straight line is right side of PT
      (t
       (if (< p0y p3y) 1 -1)))))
-;; TEST: (edraw-straight-line-intersects-left-horizontal-half-line '(10 . 10) '(10 . 20) '(20 . 20)) => 0
-;; TEST: (edraw-straight-line-intersects-left-horizontal-half-line '(10 . 20) '(10 . 30) '(20 . 20)) => 1
+;; TEST: (edraw-path-straight-seg-intersects-left-horizontal-half-line '(10 . 10) '(10 . 20) '(20 . 20)) => 0
+;; TEST: (edraw-path-straight-seg-intersects-left-horizontal-half-line '(10 . 20) '(10 . 30) '(20 . 20)) => 1
+
+;;;;; Transform
+
+(defun edraw-path-seglist-transform (segments mat)
+  (dolist (seg segments)
+    (edraw-path-seg-transform seg mat)))
+
+(defun edraw-path-seg-transform (seg mat)
+  (dotimes (i (length seg))
+    (let ((xy (aref seg i)))
+      (edraw-matrix-mul-mat-xy mat xy xy))))
 
 ;;;;; Bezier Segment
 
-(defun edraw-bezier-segment-straight-p (seg)
+(defun edraw-path-bezier-seg-straight-p (seg)
   (let* ((p0 (elt seg 0))
          (p1 (elt seg 1))
          (p2 (elt seg 2))
@@ -2219,10 +2233,10 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
               (- (edraw-xy-dot v03 v32))
               (+ (* d03 d03) allowable-dot))) nil) ;;p2 is before p0 or after p3
      (t t))))
-;; TEST: (edraw-bezier-segment-straight-p [(10 . 10) (12 . 10) (18 . 10) (20 . 10)]) => t
+;; TEST: (edraw-path-bezier-seg-straight-p [(10 . 10) (12 . 10) (18 . 10) (20 . 10)]) => t
 
-(defun edraw-bezier-segment-rough-aabb (seg)
-  "Return the axis-aligned bounding box of SEG."
+(defun edraw-path-bezier-seg-rough-aabb (seg)
+  "Return the rough axis-aligned bounding box of SEG."
   (let ((x0 (car (elt seg 0)))
         (x1 (car (elt seg 1)))
         (x2 (car (elt seg 2)))
@@ -2237,7 +2251,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      (cons (max x0 x1 x2 x3)
            (max y0 y1 y2 y3)))))
 
-(defun edraw-bezier-segment-divide (seg)
+(defun edraw-path-bezier-seg-divide (seg)
   "Divide the SEG into two at the midpoint."
   (let* ((p0 (elt seg 0))
          (p1 (elt seg 1))
@@ -2252,16 +2266,6 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
     (cons
      (vector p0 q0 r0 s)
      (vector s r1 q2 p3))))
-
-(defun edraw-bezier-segment-transform (seg mat)
-  (dotimes (i (length seg))
-    (let ((xy (aref seg i)))
-      (edraw-matrix-mul-mat-xy mat xy xy))))
-
-(defun edraw-segment-list-transform (segments mat)
-  (dolist (seg segments)
-    (edraw-bezier-segment-transform seg mat)))
-
 
 
 
@@ -2300,8 +2304,8 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
                                                 edraw-path-d-comma-wsp)))))
         (push (cons type numbers) commands)))
     (nreverse commands)))
-;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
-;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
+;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => ((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
+;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => ((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
 
 (defun edraw-path-d-from-command-list (command-list)
   (mapconcat (lambda (command)
