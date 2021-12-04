@@ -1312,6 +1312,7 @@ The undo data generated during undo is saved in redo-list."
     `(((edraw-msg "Delete...") edraw-editor-delete-selected)
       ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
+      ((edraw-msg "Group") edraw-editor-group-selected-shapes)
       ((edraw-msg "Z-Order")
        ;;@todo check :enable when multiple shapes are selected
        (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
@@ -1424,6 +1425,12 @@ The undo data generated during undo is saved in redo-list."
                (prev (edraw-previous-sibling back)))
       (edraw-select-shape editor prev))))
 
+(edraw-editor-defcmd edraw-group-selected-shapes)
+(cl-defmethod edraw-group-selected-shapes ((editor edraw-editor))
+  (with-slots (selected-shapes) editor
+    (edraw-make-undo-group editor 'create-group
+      (let ((group (edraw-create-shape editor (edraw-svg-body editor) 'g)))
+        (edraw-shape-group-add-children group selected-shapes)))))
 
 ;;;;; Editor - Copy & Paste
 
@@ -2844,6 +2851,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                          ('circle (edraw-shape-circle-create element editor))
                          ('text (edraw-shape-text-create element editor))
                          ('path (edraw-shape-path-create element editor))
+                         ('g (edraw-shape-group-create element editor))
                          (_ (unless noerror-node-type
                               (error "Unsupported tag %s as shape"
                                      (dom-tag element)))))))
@@ -2889,7 +2897,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-parent-element ((shape edraw-shape))
   "Used only internally."
   (with-slots (editor) shape
-    (edraw-svg-body editor)))
+    (dom-parent
+     (edraw-svg-body editor)
+     (edraw-element shape))))
 
 ;;;;;; Clone
 
@@ -2898,7 +2908,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (when-let ((shape-type (edraw-shape-type shape)))
       (edraw-create-shape-without-default
        editor
-       (edraw-svg-body editor) ;;@todo
+       (edraw-parent-element shape)
        shape-type
        ;; Copy all properties
        (mapcar
@@ -2952,21 +2962,35 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (with-slots (element editor removed-p) shape
     (edraw-push-undo-if-needed
      editor
-     'shape-remove (list 'edraw-insert shape (edraw-node-position shape)))
-    (dom-remove-node (edraw-svg-body editor) element)
+     'shape-remove
+     (list 'edraw-insert shape
+           (edraw-node-position shape)
+           (edraw-parent-element shape)))
+    (dom-remove-node (edraw-parent-element shape) element)
     (setq removed-p t)
     (edraw-on-shape-changed shape 'shape-remove)))
 
 (cl-defmethod edraw-removed-p ((shape edraw-shape))
   (oref shape removed-p))
 
-(cl-defmethod edraw-insert ((shape edraw-shape) pos)
+(cl-defmethod edraw-insert ((shape edraw-shape) &optional pos parent)
   (with-slots (element editor removed-p) shape
     (when removed-p
-      (edraw-dom-insert-nth (edraw-svg-body editor) element pos)
-      (setq removed-p nil)
-      (edraw-push-undo-if-needed editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
-      (edraw-on-shape-changed shape 'shape-insert))))
+      (let* ((parent-element
+              (cond
+               ((cl-typep parent 'edraw-shape) (edraw-element parent))
+               ((edraw-dom-element-p parent) parent)
+               ((null parent) (edraw-svg-body editor))))
+             (pos
+              (cond
+               ((integerp pos) pos)
+               ((eq pos 'first) 0)
+               ;;'last or nil
+               (t (length (dom-children parent-element))))))
+        (edraw-dom-insert-nth parent-element element pos)
+        (setq removed-p nil)
+        (edraw-push-undo-if-needed editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
+        (edraw-on-shape-changed shape 'shape-insert)))))
 
 ;;(cl-defmethod edraw-translate ((shape edraw-shape) xy) )
 ;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
@@ -3929,6 +3953,60 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            (edraw-remove src-shape)
            t))))))
 
+
+
+;;;;; Shape - Group
+
+(defun edraw-shape-group-create (element editor)
+  (let ((shape (edraw-shape-group)))
+    (oset shape element element)
+    (oset shape editor editor)
+    shape))
+
+(defclass edraw-shape-group (edraw-shape-with-rect-boundary)
+  ())
+
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-group))
+  'g)
+
+(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-group))
+  nil)
+
+(cl-defmethod edraw-get-anchor-position ((shape edraw-shape-group))
+  nil)
+
+(cl-defmethod edraw-set-anchor-position ((shape edraw-shape-group) xy)
+  nil)
+
+(cl-defmethod edraw-translate ((shape edraw-shape-group) xy)
+  (with-slots (element) shape
+    (edraw-push-undo-properties shape 'shape-group-translate '(transform))
+    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-group-translate nil t)
+    (edraw-svg-element-translate element xy)
+    (edraw-on-shape-changed shape 'translate)))
+
+(cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
+  (with-slots (element) shape
+    (edraw-push-undo-properties shape 'shape-group-transform '(transform))
+    (edraw-svg-element-transform element matrix)
+    (edraw-on-shape-changed shape 'shape-transform)))
+
+(cl-defmethod edraw-shape-group-add-children (group children)
+  ;; sort children by z-order
+  (setq children
+        (sort (copy-sequence children)
+              (lambda (a b)
+                (< (edraw-node-position a)
+                   (edraw-node-position b)))))
+
+  (with-slots (editor) group
+    (edraw-make-undo-group editor 'add-shapes-to-group
+      ;; remove children
+      (dolist (child children)
+        (edraw-remove child))
+      ;; add children
+      (dolist (child children)
+        (edraw-insert child nil group)))))
 
 
 ;;;; Shape Point

@@ -553,7 +553,9 @@
      (text-anchor attr (or "start" "middle" "end") nil)
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
      ;;(baseline-shift attr number nil)
-     ,@edraw-svg-element-properties-common)))
+     ,@edraw-svg-element-properties-common)
+    (g
+     (transform attr string nil :internal nil))))
 (defun edraw-svg-elem-prop-name (prop-def) (nth 0 prop-def))
 (defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
 (defun edraw-svg-elem-prop-type (prop-def) (nth 2 prop-def))
@@ -966,7 +968,15 @@ This function does not consider the effect of the transform attribute."
            (progn
              (edraw-matrix-translate-add transform (car xy) (cdr xy))
              (edraw-svg-attr-transform-set element transform))
-         (edraw-svg-shape-translate-contents element xy))))))
+         (edraw-svg-shape-translate-contents element xy)))
+      ('g
+       (if transform
+           (progn
+             (edraw-matrix-translate-add transform (car xy) (cdr xy))
+             (edraw-svg-attr-transform-set element transform))
+         (edraw-svg-attr-transform-set
+          element
+          (edraw-matrix-translate (car xy) (cdr xy) 0)))))))
 
 (defun edraw-svg-shape-translate-contents (element xy)
   (pcase (dom-tag element)
@@ -974,7 +984,8 @@ This function does not consider the effect of the transform attribute."
     ('ellipse (edraw-svg-ellipse-translate-contents element xy))
     ('circle (edraw-svg-circle-translate-contents element xy))
     ('text (edraw-svg-text-translate-contents element xy))
-    ('path (edraw-svg-path-translate-contents element xy)))
+    ('path (edraw-svg-path-translate-contents element xy))
+    ('g (edraw-svg-group-translate-contents element xy)))
   element)
 
 (defun edraw-svg-rect-translate-contents (element xy)
@@ -1006,6 +1017,13 @@ This function does not consider the effect of the transform attribute."
   (when-let ((d (dom-attr element 'd)))
     (dom-set-attribute element 'd (edraw-path-d-translate d xy))))
 
+(defun edraw-svg-group-translate-contents (element xy)
+  ;;@todo Should I change the transform attribute instead?
+  ;; Transformation of children is inefficient and causes numerical error.
+  ;; But easy to ungroup.
+  (dolist (child (dom-children element))
+    (when (edraw-dom-element-p child)
+      (edraw-svg-element-translate child xy))))
 
 
 
@@ -1188,7 +1206,9 @@ This function does not consider the effect of the transform attribute."
        (let ((segments (edraw-svg-shape-contents-to-bezier-segments element)))
          (unless (edraw-matrix-identity-p matrix)
            (edraw-segment-list-transform segments matrix))
-         segments)))))
+         segments))
+      ('g
+       (edraw-svg-group-contents-to-bezier-segments element matrix)))))
 
 (defun edraw-svg-shape-contents-to-bezier-segments (element)
   (when (edraw-dom-element-p element)
@@ -1283,6 +1303,14 @@ This function does not consider the effect of the transform attribute."
                          (vector (cons left  bottom) (cons left  top)))))
     segments))
 
+(defun edraw-svg-group-contents-to-bezier-segments (element &optional matrix)
+  (let (segments)
+    (dolist (child (dom-children element))
+      (when (edraw-dom-element-p child)
+        (let ((child-segments (edraw-svg-element-to-bezier-segments element matrix)))
+          (setq segments (nconc segments child-segments)))))
+    segments))
+
 
 
 ;;;; Point in SVG Shapes Test
@@ -1300,7 +1328,9 @@ This function does not consider the effect of the transform attribute."
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text)
-       (edraw-svg-shape-contains-point-p element xy)))))
+       (edraw-svg-shape-contains-point-p element xy))
+      ('g
+       (edraw-svg-group-contains-point-p element xy)))))
 
 (defun edraw-svg-shape-contains-point-p (element xy)
   (let* ((fill (dom-attr element 'fill))
@@ -1332,6 +1362,12 @@ This function does not consider the effect of the transform attribute."
                 xy
                 (equal fill-rule "evenodd")))))))
 
+(defun edraw-svg-group-contains-point-p (element xy)
+  (seq-some
+   (lambda (child)
+     (and (edraw-dom-element-p child)
+          (edraw-svg-element-contains-point-p child xy)))
+   (dom-children element)))
 
 
 ;;;; SVG Shapes and Rectangle Intersection Test
@@ -1340,7 +1376,9 @@ This function does not consider the effect of the transform attribute."
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text)
-       (edraw-svg-shape-intersects-rect-p element rect matrix)))))
+       (edraw-svg-shape-intersects-rect-p element rect matrix))
+      ('g
+       (edraw-svg-group-intersects-rect-p element rect matrix)))))
 
 (defun edraw-svg-shape-intersects-rect-p (element rect &optional matrix)
   (when (and element
@@ -1373,6 +1411,13 @@ This function does not consider the effect of the transform attribute."
                   (edraw-xy (caar enlarged-rect) (cdar enlarged-rect))
                   (equal fill-rule "evenodd"))))))))
 
+(defun edraw-svg-group-intersects-rect-p (element rect &optional matrix)
+  (let ((sub-matrix (edraw-svg-attr-transform-get element matrix)))
+    (seq-some
+     (lambda (child)
+       (and (edraw-dom-element-p child)
+            (edraw-svg-element-intersects-rect-p child rect sub-matrix)))
+     (dom-children element))))
 
 
 
