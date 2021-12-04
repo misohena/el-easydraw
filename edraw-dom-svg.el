@@ -333,7 +333,7 @@
   (edraw-matrix-scale sx 1 1))
 
 (defun edraw-svg-transform--scaleY (sy)
-  (edraw-matrix-scale 1 sx 1))
+  (edraw-matrix-scale 1 sy 1))
 
 (defun edraw-svg-transform--rotate (angle-deg &optional cx cy)
   (if (or cx cy)
@@ -959,7 +959,7 @@ This function does not consider the effect of the transform attribute."
       (edraw-rect-xywh text-x text-y text-w text-h))))
 
 
-;;;; SVG Shapes Translation
+;;;; SVG Shape Translation
 
 ;;
 ;;
