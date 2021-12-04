@@ -646,7 +646,11 @@ The format of each data is (TYPE FUNCTION ARGUMENTS...)."
   (with-slots (redo-list) editor
     (null redo-list)))
 
-(cl-defmethod edraw-push-undo-data ((editor edraw-editor) type data)
+(defmacro edraw-push-undo (editor type data)
+  `(unless edraw-editor-inhibit-make-undo-data
+     (edraw-push-undo-internal ,editor ,type ,data)))
+
+(cl-defmethod edraw-push-undo-internal ((editor edraw-editor) type data)
   "Add a undo data to the EDITOR.
 
 TYPE is a identifier of the undo data.
@@ -685,7 +689,7 @@ This function deletes all redo data."
                               (oref ,var-editor undo-list))))
          (oset ,var-editor undo-list ,var-old-undo-list)
          (when ,var-data
-           (edraw-push-undo-data ,var-editor ,type ,var-data))))))
+           (edraw-push-undo-internal ,var-editor ,type ,var-data))))))
 
 (defun edraw-combine-undo-list (undo-list)
   "Make multiple undo data single."
@@ -740,10 +744,6 @@ The undo data generated during undo is saved in redo-list."
   (apply (car (cdr type-data))
          (cdr (cdr type-data))))
 
-(defmacro edraw-push-undo-if-needed (editor type data)
-  `(unless edraw-editor-inhibit-make-undo-data
-     (edraw-push-undo-data ,editor ,type ,data)))
-
 (defmacro edraw-with-push-undo (editor type data &rest body)
   (declare (indent 3))
   (let ((type-var (gensym))
@@ -752,7 +752,7 @@ The undo data generated during undo is saved in redo-list."
            (,data-var (unless edraw-editor-inhibit-make-undo-data ,data)))
        ,@body
        (when ,data-var
-         (edraw-push-undo-data ,editor ,type-var ,data-var)))))
+         (edraw-push-undo-internal ,editor ,type-var ,data-var)))))
 
 ;;;;; Editor - Document
 
@@ -921,7 +921,7 @@ The undo data generated during undo is saved in redo-list."
           (old-height (cdr svg-document-size)))
       (when (or (/= width old-width)
                 (/= height old-height))
-        (edraw-push-undo-if-needed
+        (edraw-push-undo
          editor 'document-size
          (list 'edraw-set-size editor old-width old-height))
         (setq svg-document-size (cons width height))
@@ -956,7 +956,7 @@ The undo data generated during undo is saved in redo-list."
     (dom-attr element 'fill)))
 
 (cl-defmethod edraw-set-background ((editor edraw-editor) fill)
-  (edraw-push-undo-if-needed
+  (edraw-push-undo
    editor
    'document-background
    (list 'edraw-set-background editor (edraw-get-background editor)))
@@ -2229,7 +2229,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                ;; Push undo data
                (edraw-make-undo-group editor 'shapes-move-by-drag
                  (dolist (shp moving-shapes)
-                   (edraw-push-undo-data-all-anchors shp))))
+                   (edraw-push-undo-translate shp))))
              ;; Move
              (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
                     (delta-xy (edraw-xy-sub move-xy last-xy))
@@ -2822,7 +2822,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                  (edraw-create-shape-svg-element (oref editor defrefs)
                                                  parent tag props-alist)
                  editor)))
-    (edraw-push-undo-if-needed editor 'shape-create (list 'edraw-remove shape))
+    (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
     (edraw-on-shape-changed shape 'shape-create)
     shape))
 
@@ -2960,7 +2960,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-remove ((shape edraw-shape))
   (with-slots (element editor removed-p) shape
-    (edraw-push-undo-if-needed
+    (edraw-push-undo
      editor
      'shape-remove
      (list 'edraw-insert shape
@@ -2989,7 +2989,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                (t (length (dom-children parent-element))))))
         (edraw-dom-insert-nth parent-element element pos)
         (setq removed-p nil)
-        (edraw-push-undo-if-needed editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
+        (edraw-push-undo editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
         (edraw-on-shape-changed shape 'shape-insert)))))
 
 ;;(cl-defmethod edraw-translate ((shape edraw-shape) xy) )
@@ -3057,7 +3057,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                                             defrefs)))))
     (when old-prop-list
       (setq changed t)
-      (edraw-push-undo-if-needed
+      (edraw-push-undo
        (oref shape editor)
        'shape-properties
        (list #'edraw-set-properties shape old-prop-list))
@@ -3083,7 +3083,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    (list (cons prop-name value))))
 
 (cl-defmethod edraw-push-undo-properties ((shape edraw-shape) type prop-names)
-  (edraw-push-undo-if-needed
+  (edraw-push-undo
    (oref shape editor)
    type
    (list #'edraw-set-properties shape
@@ -3175,7 +3175,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-set-node-position ((shape edraw-shape) pos)
   (let ((old-pos (edraw-node-position shape)))
     (unless (equal pos old-pos)
-      (edraw-push-undo-if-needed
+      (edraw-push-undo
        (oref shape editor)
        'shape-z-order (list 'edraw-set-node-position shape old-pos))
       (let ((parent (edraw-parent-element shape))
@@ -3194,32 +3194,32 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (let ((old-pos (edraw-node-position shape)))
     (when (edraw-dom-reorder-last (edraw-parent-element shape)
                                   (edraw-element shape))
-      (edraw-push-undo-if-needed (oref shape editor) 'shape-z-order
-                                 (list 'edraw-set-node-position shape old-pos))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
       (edraw-on-shape-changed shape 'shape-z-order))))
 
 (cl-defmethod edraw-bring-forward ((shape edraw-shape))
   (let ((old-pos (edraw-node-position shape)))
     (when (edraw-dom-reorder-next (edraw-parent-element shape)
                                   (edraw-element shape))
-      (edraw-push-undo-if-needed (oref shape editor) 'shape-z-order
-                                 (list 'edraw-set-node-position shape old-pos))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
       (edraw-on-shape-changed shape 'shape-z-order))))
 
 (cl-defmethod edraw-send-backward ((shape edraw-shape))
   (let ((old-pos (edraw-node-position shape)))
     (when (edraw-dom-reorder-prev (edraw-parent-element shape)
                                   (edraw-element shape))
-      (edraw-push-undo-if-needed (oref shape editor) 'shape-z-order
-                                 (list 'edraw-set-node-position shape old-pos))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
       (edraw-on-shape-changed shape 'shape-z-order))))
 
 (cl-defmethod edraw-send-to-back ((shape edraw-shape))
   (let ((old-pos (edraw-node-position shape)))
     (when (edraw-dom-reorder-first (edraw-parent-element shape)
                                    (edraw-element shape))
-      (edraw-push-undo-if-needed (oref shape editor) 'shape-z-order
-                                 (list 'edraw-set-node-position shape old-pos))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
       (edraw-on-shape-changed shape 'shape-z-order))))
 
 ;;;;;; Interactive Command
@@ -3441,7 +3441,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (cons (cons x y)
             (cons (+ x width) (+ y height))))))
 
-(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-rect))
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-rect))
   (edraw-push-undo-properties shape 'shape-rect-anchors '(x y width height)))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect))
@@ -3504,7 +3504,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (cons (cons (- cx rx) (- cy ry))
             (cons (+ cx rx) (+ cy ry))))))
 
-(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-ellipse))
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-ellipse))
   (edraw-push-undo-properties shape 'shape-ellipse-anchors '(cx cy rx ry)))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse))
@@ -3570,7 +3570,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (cons (cons (- cx r) (- cy r))
             (cons (+ cx r) (+ cy r))))))
 
-(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-circle))
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-circle))
   (edraw-push-undo-properties shape 'shape-circle-anchors '(cx cy r)))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle))
@@ -3694,7 +3694,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-svg-text-set-xy element xy)
       (edraw-on-shape-changed shape 'anchor-position))))
 
-(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-text))
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-text))
   (edraw-push-undo-properties shape 'shape-text-anchors '(x y)))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-text) xy)
@@ -3802,7 +3802,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-set-marker ((shape edraw-shape-path) prop-name type)
   (edraw-set-properties shape (list (cons prop-name type))))
 
-(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-path))
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-path))
   (edraw-push-undo-properties shape 'shape-path-anchors '(d)))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-path) xy)
@@ -3978,7 +3978,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-set-anchor-position ((_shape edraw-shape-group) _xy)
   nil)
 
-(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-group))
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-group))
   (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-group) xy)
