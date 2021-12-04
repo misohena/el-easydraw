@@ -3969,13 +3969,13 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-group))
   'g)
 
-(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-group))
+(cl-defmethod edraw-get-anchor-points ((_shape edraw-shape-group))
   nil)
 
-(cl-defmethod edraw-get-anchor-position ((shape edraw-shape-group))
+(cl-defmethod edraw-get-anchor-position ((_shape edraw-shape-group))
   nil)
 
-(cl-defmethod edraw-set-anchor-position ((shape edraw-shape-group) xy)
+(cl-defmethod edraw-set-anchor-position ((_shape edraw-shape-group) _xy)
   nil)
 
 (cl-defmethod edraw-translate ((shape edraw-shape-group) xy)
