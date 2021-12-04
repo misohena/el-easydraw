@@ -3978,6 +3978,9 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-set-anchor-position ((_shape edraw-shape-group) _xy)
   nil)
 
+(cl-defmethod edraw-push-undo-data-all-anchors ((shape edraw-shape-group))
+  (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
+
 (cl-defmethod edraw-translate ((shape edraw-shape-group) xy)
   (with-slots (element) shape
     (edraw-push-undo-properties shape 'shape-group-translate '(transform))
