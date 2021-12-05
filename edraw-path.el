@@ -1980,7 +1980,9 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
     (cl-flet* ((push-segment (&rest points)
                              ;; Exclude length=0
                              (unless (edraw-xy-list-equal-all-p points)
-                               (push (apply #'vector points) segments)))
+                               (push (apply #'vector
+                                            (mapcar #'edraw-xy-clone points))
+                                     segments)))
                (close-path ()
                            (push-segment current-point initial-point)
                            (setq current-point initial-point)))
