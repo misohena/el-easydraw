@@ -3991,7 +3991,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
   (with-slots (element) shape
     (edraw-push-undo-properties shape 'shape-group-transform '(transform))
-    (edraw-svg-element-transform element matrix)
+    (edraw-svg-element-transform-multiply element matrix)
     (edraw-on-shape-changed shape 'shape-transform)))
 
 (cl-defmethod edraw-shape-group-add-children (group children)

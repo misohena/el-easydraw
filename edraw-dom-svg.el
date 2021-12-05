@@ -364,7 +364,17 @@
 ;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0 0 1 0 0 0 0 1]
 ;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg 10 10)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 10.0 -4.142135623730951 0.0 1.0]
 
-(defun edraw-svg-attr-transform-get (element &optional matrix)
+(defun edraw-svg-transform-from-matrix (mat)
+  (when mat
+    (format "matrix(%s,%s,%s,%s,%s,%s)"
+            (edraw-matrix-at mat 0)
+            (edraw-matrix-at mat 1)
+            (edraw-matrix-at mat 4)
+            (edraw-matrix-at mat 5)
+            (edraw-matrix-at mat 12)
+            (edraw-matrix-at mat 13))))
+
+(defun edraw-svg-element-transform-get (element &optional matrix)
   (edraw-matrix-mul-mat-mat
    ;;nil means identity matrix
    matrix
@@ -372,25 +382,16 @@
      (ignore-errors
        (edraw-svg-transform-to-matrix transform-str)))))
 
-(defun edraw-svg-transform-from-matrix (mat)
-  (format "matrix(%s,%s,%s,%s,%s,%s)"
-          (edraw-matrix-at mat 0)
-          (edraw-matrix-at mat 1)
-          (edraw-matrix-at mat 4)
-          (edraw-matrix-at mat 5)
-          (edraw-matrix-at mat 12)
-          (edraw-matrix-at mat 13)))
-
-(defun edraw-svg-attr-transform-set (element mat)
+(defun edraw-svg-element-transform-set (element mat)
   (if (edraw-matrix-identity-p mat)
       (edraw-dom-remove-attr element 'transform)
     (dom-set-attribute element 'transform (edraw-svg-transform-from-matrix mat))))
 
-(defun edraw-svg-element-transform (element mat)
+(defun edraw-svg-element-transform-multiply (element mat)
   (unless (edraw-matrix-identity-p mat)
-    (edraw-svg-attr-transform-set
+    (edraw-svg-element-transform-set
      element
-     (edraw-svg-attr-transform-get element mat))))
+     (edraw-svg-element-transform-get element mat))))
 
 
 
@@ -965,20 +966,20 @@ This function does not consider the effect of the transform attribute."
 ;;
 
 (defun edraw-svg-element-translate (element xy)
-  (let ((transform (edraw-svg-attr-transform-get element)))
+  (let ((transform (edraw-svg-element-transform-get element)))
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text)
        (if transform ;;(not (edraw-matrix-translate-only-p transform)) ?
            (progn
              (edraw-matrix-translate-add transform (car xy) (cdr xy))
-             (edraw-svg-attr-transform-set element transform))
+             (edraw-svg-element-transform-set element transform))
          (edraw-svg-shape-translate-contents element xy)))
       ('g
        (if transform
            (progn
              (edraw-matrix-translate-add transform (car xy) (cdr xy))
-             (edraw-svg-attr-transform-set element transform))
-         (edraw-svg-attr-transform-set
+             (edraw-svg-element-transform-set element transform))
+         (edraw-svg-element-transform-set
           element
           (edraw-matrix-translate (car xy) (cdr xy) 0)))))))
 
@@ -1038,7 +1039,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-to-path-cmdlist (element &optional matrix)
   (edraw-svg-element-contents-to-path-cmdlist
    element
-   (edraw-svg-attr-transform-get element matrix)))
+   (edraw-svg-element-transform-get element matrix)))
 
 (defun edraw-svg-element-contents-to-path-cmdlist (element &optional matrix)
   (when (edraw-dom-element-p element)
@@ -1201,7 +1202,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-to-seglist (element &optional matrix)
   (edraw-svg-element-contents-to-seglist
    element
-   (edraw-svg-attr-transform-get element matrix)))
+   (edraw-svg-element-transform-get element matrix)))
 
 (defun edraw-svg-element-contents-to-seglist (element &optional matrix)
   (when (edraw-dom-element-p element)
@@ -1324,7 +1325,7 @@ This function does not consider the effect of the transform attribute."
 (defconst edraw-pick-point-radius 2)
 
 (defun edraw-svg-element-contains-point-p (element xy)
-  (let ((transform (edraw-svg-attr-transform-get element)))
+  (let ((transform (edraw-svg-element-transform-get element)))
     (unless (edraw-matrix-identity-p transform)
       (when-let ((inv (edraw-matrix-inverse transform)))
         (setq xy (edraw-matrix-mul-mat-xy inv xy)))))
@@ -1416,7 +1417,7 @@ This function does not consider the effect of the transform attribute."
                   (equal fill-rule "evenodd"))))))))
 
 (defun edraw-svg-group-intersects-rect-p (element rect &optional matrix)
-  (let ((sub-matrix (edraw-svg-attr-transform-get element matrix)))
+  (let ((sub-matrix (edraw-svg-element-transform-get element matrix)))
     (seq-some
      (lambda (child)
        (and (edraw-dom-element-p child)
