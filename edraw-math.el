@@ -507,16 +507,16 @@
     (edraw-xy-divn
      (edraw-xy-nmul 2.0 (edraw-xy-sub p1 p2)) 3))))
 
-(defun edraw-cubic-bezier (x0 x1 x2 x3 t)
-  "Return (1-t)^3*x0 + 3*(1-t)^2*t + 3(1-t)*t^2*x2 + t^3*x3."
-  (let* ((u (- 1 t))
+(defun edraw-cubic-bezier (x0 x1 x2 x3 T)
+  "Return (1-T)^3*x0 + 3*(1-T)^2*T + 3(1-T)*T^2*x2 + T^3*x3."
+  (let* ((u (- 1 T))
          (uu (* u u))
-         (tt (* t t)))
+         (TT (* T T)))
     (+
      (* u uu x0)
-     (* t uu x1 3)
-     (* u tt x2 3)
-     (* t tt x3))))
+     (* T uu x1 3)
+     (* u TT x2 3)
+     (* T TT x3))))
 
 (defun edraw-cubic-bezier-min-max (x0 x1 x2 x3)
   "Return minimum and maximum value of (edraw-cubic-bezier x0 xy x2 x3 t).
@@ -536,9 +536,9 @@ t ranges from0 to 1."
                 (* 3 (+ x3 (* 3 (+ (- x2) x1)) (- x0)))
                 (* 6 (+ x0 (* -2 x1) x2))
                 (* 3 (- x1 x0))))
-           (xs (mapcar (lambda (t)
-                         (if (< 0 t 1)
-                             (edraw-cubic-bezier x0 x1 x2 x3 t)
+           (xs (mapcar (lambda (T)
+                         (if (< 0 T 1)
+                             (edraw-cubic-bezier x0 x1 x2 x3 T)
                            x0))
                        ts)))
       (cons
