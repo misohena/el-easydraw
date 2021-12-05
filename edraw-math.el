@@ -64,6 +64,10 @@
 (defmacro edraw-x (xy) `(car ,xy))
 (defmacro edraw-y (xy) `(cdr ,xy))
 
+(defsubst edraw-xy-zero-p (a)
+  (and (= (car a) 0)
+       (= (cdr a) 0)))
+
 (defsubst edraw-xy-equal-p (a b)
   (equal a b))
 

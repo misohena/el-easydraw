@@ -393,6 +393,14 @@
      element
      (edraw-svg-element-transform-get element mat))))
 
+(defun edraw-svg-element-transform-translate (element xy)
+  (when (and xy (not (edraw-xy-zero-p xy)))
+    (let ((transform (or
+                      (edraw-svg-element-transform-get element)
+                      (edraw-matrix))))
+      (edraw-matrix-translate-add transform (car xy) (cdr xy))
+      (edraw-svg-element-transform-set element transform))))
+
 
 
 ;;;; SVG Shape Creation
@@ -592,6 +600,9 @@
            (setter (intern
                     (concat "edraw-svg-element-set-" (symbol-name source)))))
       (funcall setter element prop-name value defrefs))))
+
+(defun edraw-svg-element-has-property-p (element prop-name defrefs)
+  (not (null (edraw-svg-element-get-property element prop-name defrefs))))
 
 ;; Property Source
 

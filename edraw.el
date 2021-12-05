@@ -3023,6 +3023,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-get-summary ((shape edraw-shape))
   (edraw-svg-element-summary (edraw-element shape)))
 
+(cl-defmethod edraw-has-property-p ((shape edraw-shape) prop-name)
+  (edraw-svg-element-has-property-p (edraw-element shape)
+                                    prop-name
+                                    (edraw-get-defrefs shape)))
+
 (cl-defmethod edraw-get-property-info-list ((shape edraw-shape))
   (edraw-svg-element-get-property-info-list (edraw-element shape)))
 
@@ -3301,6 +3306,35 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
    (edraw-get-actions shape)
    shape))
 
+;;;;;; Transform Property
+
+(cl-defmethod edraw-transform-prop-exists-p ((shape edraw-shape))
+  (edraw-has-property-p shape 'transform))
+
+(cl-defmethod edraw-transform-prop-multiply ((shape edraw-shape) matrix)
+  (unless (edraw-matrix-identity-p matrix)
+    (let* ((transform-str (edraw-get-property shape 'transform))
+           (transform-mat (if transform-str
+                              (edraw-svg-transform-to-matrix transform-str)
+                            (edraw-matrix)))
+           (new-mat (edraw-matrix-mul-mat-mat matrix transform-mat)))
+      (edraw-set-property shape
+                          'transform
+                          (edraw-svg-transform-from-matrix new-mat)))))
+
+(cl-defmethod edraw-transform-prop-translate ((shape edraw-shape) xy)
+  (when (and xy (not (edraw-xy-zero-p xy)))
+    (let* ((transform-str (edraw-get-property shape 'transform))
+           (transform-mat (if transform-str
+                              (edraw-svg-transform-to-matrix transform-str)
+                            (edraw-matrix))))
+      (edraw-matrix-translate-add transform-mat (car xy) (cdr xy))
+      (edraw-set-property shape
+                          'transform
+                          (edraw-svg-transform-from-matrix transform-mat)))))
+
+
+
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-*)) )
 ;;(cl-defmethod edraw-shape-type (edraw-shape-*) )
@@ -3391,18 +3425,20 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (edraw-aabb (car p0p1) (cdr p0p1))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) xy)
-  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
-  (with-slots (p0p1) shape
-    (when (or (/= (car xy) 0) (/= (cdr xy) 0))
-      (edraw-set-rect shape
-                      (cons
-                       (+ (caar p0p1) (car xy))
-                       (+ (cdar p0p1) (cdr xy)))
-                      (cons
-                       (+ (cadr p0p1) (car xy))
-                       (+ (cddr p0p1) (cdr xy))))
-      ;;(edraw-on-shape-changed shape 'shape-translate) ?
-      )))
+  (if (edraw-transform-prop-exists-p shape)
+      (edraw-transform-prop-translate shape xy)
+    (edraw-make-anchor-points-from-element shape);;Make sure p0p1 is initialized
+    (with-slots (p0p1) shape
+      (when (and xy (not (edraw-xy-zero-p xy)))
+        (edraw-set-rect shape
+                        (cons
+                         (+ (caar p0p1) (car xy))
+                         (+ (cdar p0p1) (cdr xy)))
+                        (cons
+                         (+ (cadr p0p1) (car xy))
+                         (+ (cddr p0p1) (cdr xy))))
+        ;;(edraw-on-shape-changed shape 'shape-translate) ?
+        ))))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-with-rect-boundary) matrix)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
@@ -3442,7 +3478,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
             (cons (+ x width) (+ y height))))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-rect))
-  (edraw-push-undo-properties shape 'shape-rect-anchors '(x y width height)))
+  (edraw-push-undo-properties shape
+                              'shape-rect-anchors
+                              (if (edraw-transform-prop-exists-p shape)
+                                  '(transform)
+                                '(x y width height))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect))
   (with-slots (element p0p1) shape
@@ -3505,7 +3545,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
             (cons (+ cx rx) (+ cy ry))))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-ellipse))
-  (edraw-push-undo-properties shape 'shape-ellipse-anchors '(cx cy rx ry)))
+  (edraw-push-undo-properties shape
+                              'shape-ellipse-anchors
+                              (if (edraw-transform-prop-exists-p shape)
+                                  '(transform)
+                                '(cx cy rx ry))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse))
   (with-slots (element p0p1) shape
@@ -3571,7 +3615,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
             (cons (+ cx r) (+ cy r))))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-circle))
-  (edraw-push-undo-properties shape 'shape-circle-anchors '(cx cy r)))
+  (edraw-push-undo-properties shape
+                              'shape-circle-anchors
+                              (if (edraw-transform-prop-exists-p shape)
+                                  '(transform)
+                                '(cx cy r))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle))
   (with-slots (element p0p1) shape
@@ -3695,14 +3743,21 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-on-shape-changed shape 'anchor-position))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-text))
-  (edraw-push-undo-properties shape 'shape-text-anchors '(x y)))
+  (edraw-push-undo-properties shape
+                              'shape-text-anchors
+                              (if (edraw-transform-prop-exists-p shape)
+                                  '(transform)
+                                '(x y))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-text) xy)
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-text-anchor nil t)
-    (edraw-svg-element-translate element xy)
-    (edraw-on-shape-changed shape 'translate)))
+  (if (edraw-transform-prop-exists-p shape)
+      (edraw-transform-prop-translate shape xy)
+    (when (and xy (not (edraw-xy-zero-p xy)))
+      (with-slots (element) shape
+        (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
+        (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-text-anchor nil t)
+        (edraw-svg-element-translate element xy)
+        (edraw-on-shape-changed shape 'translate)))))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-text) matrix)
   (with-slots (element) shape
@@ -3803,20 +3858,26 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-set-properties shape (list (cons prop-name type))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-path))
-  (edraw-push-undo-properties shape 'shape-path-anchors '(d)))
+  (edraw-push-undo-properties shape
+                              'shape-path-anchors
+                              (if (edraw-transform-prop-exists-p shape)
+                                  '(transform)
+                                '(d))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-path) xy)
-  (when (or (/= (car xy) 0) (/= (cdr xy) 0))
-    (with-slots (cmdlist) shape
-      (edraw-path-cmdlist-translate cmdlist xy))
-    (edraw-push-undo-properties shape 'shape-path-translate '(d))
-    (edraw-merge-set-properties-undo-data
-     (edraw-undo-list (oref shape editor))
-     (cddr (edraw-undo-list (oref shape editor)))
-     'shape-path-translate
-     nil t)
-    (edraw-update-path-data shape)
-    (edraw-on-shape-changed shape 'shape-translate)))
+  (if (edraw-transform-prop-exists-p shape)
+      (edraw-transform-prop-translate shape xy)
+    (when (and xy (not (edraw-xy-zero-p xy)))
+      (with-slots (cmdlist) shape
+        (edraw-path-cmdlist-translate cmdlist xy))
+      (edraw-push-undo-properties shape 'shape-path-translate '(d))
+      (edraw-merge-set-properties-undo-data
+       (edraw-undo-list (oref shape editor))
+       (cddr (edraw-undo-list (oref shape editor)))
+       'shape-path-translate
+       nil t)
+      (edraw-update-path-data shape)
+      (edraw-on-shape-changed shape 'shape-translate))))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-path) matrix)
   (with-slots (cmdlist) shape
@@ -3982,11 +4043,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-group) xy)
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-group-translate '(transform))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-group-translate nil t)
-    (edraw-svg-element-translate element xy)
-    (edraw-on-shape-changed shape 'translate)))
+  (edraw-transform-prop-translate shape xy))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
   (with-slots (element) shape
