@@ -5,14 +5,6 @@
 - [X] edraw-shape-groupを作る。
 - +子要素たちを元にAABBを計算する。それを矩形アンカーポイントとする。+
 
-** TODO オブジェクト単独でのtransform属性に対応する
-rect, ellipse, circle, path, textに対するtransform属性に対応する。
-
-- [X] 当たり判定に対応する
-- [X] 平行移動に対応する
-- [ ] アンカーポイントの位置を変形させる・入力も何とかする。問題はどの段階で変換するか
-  表示はedraw-update-selection-ui、入力はedraw-shape-point-findあたり？
-
 ** TODO textやgroupは選択時に境界ボックスを表示する
 選択時に何か表示しないとgroupが分からない。
 ついでにtextはアンカーポイントを表示した上で境界ボックスも表示したい。
@@ -22,9 +14,10 @@ transform属性で平行移動しているのをどうするか。
 変換が平行移動だけならば子要素の内容を平行移動すれば良い。
 それ以上の変換ならば、子要素のtransform属性にグループのtransform属性を掛け合わせる必要がある。
 
+** TODO GUIでtransform属性を変更できるようにする(図形オブジェクト全体の変形)
 ** TODO カラーピッカーでnoneを選べるようにする
 ** TODO 矩形や楕円をパスに変換できるようにする
-** TODO パスを拡大縮小回転できるようにする
+** TODO パスを拡大縮小回転できるようにする(図形内容の変形)
 矩形や楕円、テキストはtransformを使わないと出来ないけど、パスだけは元データのレベルで変形できる。
 ** TODO グラデーションエディタを作る
 ** TODO デフォルト値を何度も設定しなくて良くなる機能
@@ -598,3 +591,12 @@ edraw-body, edraw-defsはもとよりmarkerのidが被ると他の文章の定�
 image-refreshで更新しても意味は無く、オーバーレイを作らなければならない。
 ** DONE 編集開始時に不正なリンクフォーマットはエラーにする
    CLOSED: [2021-10-07 Thu 09:24]
+** DONE オブジェクト単独でのtransform属性に対応する
+CLOSED: [2021-12-05 Sun 17:56]
+rect, ellipse, circle, path, textに対するtransform属性に対応する。
+
+- [X] 当たり判定に対応する
+- [X] 平行移動に対応する
+- [X] アンカーポイントの位置を変形させる・入力も何とかする。問題はどの段階で変換するか
+  表示はedraw-update-selection-ui、入力はedraw-shape-point-findあたり？
+  →edraw-get-xyやedraw-moveの変形後座標系版であるedraw-get-xy-transformedやedraw-move-on-transformedを作成する。

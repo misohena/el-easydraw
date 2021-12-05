@@ -1253,7 +1253,7 @@ The undo data generated during undo is saved in redo-list."
         (next-selected-anchor (when selected-anchor
                                 (edraw-next-anchor selected-anchor))))
     (dolist (anchor anchor-points)
-      (let ((anchor-xy (edraw-get-xy anchor))
+      (let ((anchor-xy (edraw-get-xy-transformed anchor))
             (anchor-selected-p (edraw-same-point-p anchor selected-anchor)))
         (edraw-svg-ui-anchor-point parent anchor-xy anchor-selected-p)
 
@@ -1266,7 +1266,7 @@ The undo data generated during undo is saved in redo-list."
             (dolist (handle handle-points)
               (edraw-svg-ui-handle-point
                parent
-               (edraw-get-xy handle)
+               (edraw-get-xy-transformed handle)
                anchor-xy
                (and selected-handle
                     (edraw-same-point-p handle selected-handle))))))))))
@@ -1356,11 +1356,11 @@ The undo data generated during undo is saved in redo-list."
   (with-slots (selected-shapes selected-anchor selected-handle) editor
     (cond
      (selected-handle
-      (edraw-move selected-handle
-                  (edraw-xy-add (edraw-get-xy selected-handle) xy)))
+      (edraw-move-on-transformed selected-handle
+                  (edraw-xy-add (edraw-get-xy-transformed selected-handle) xy)))
      (selected-anchor
-      (edraw-move selected-anchor
-                  (edraw-xy-add (edraw-get-xy selected-anchor) xy)))
+      (edraw-move-on-transformed selected-anchor
+                  (edraw-xy-add (edraw-get-xy-transformed selected-anchor) xy)))
      (selected-shapes
       (edraw-make-undo-group editor 'selected-shapes-translate
         (dolist (shape selected-shapes)
@@ -2156,8 +2156,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
            ;; If selected handle, move it alone
            (if (and selected-handle
                     (edraw-same-point-p handle selected-handle))
-               (edraw-move handle move-xy) ;;notify modification
-             (edraw-move-with-opposite-handle handle move-xy)))))
+               (edraw-move-on-transformed handle move-xy) ;;notify modification
+             (edraw-move-with-opposite-handle-on-transformed handle move-xy)))))
       (unless moved-p
         ;; Click handle point
         (edraw-select-handle editor handle))
@@ -2177,7 +2177,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
        (lambda (move-event)
          (setq moved-p t)
          (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
-           (edraw-move anchor move-xy)))) ;;notify modification
+           (edraw-move-on-transformed anchor move-xy)))) ;;notify modification
       (unless moved-p
         ;; Click anchor point
         (edraw-select-anchor editor anchor))
@@ -2683,7 +2683,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
             t))))))
 
 (defun edraw-drag-handle-on-click-anchor (anchor backward-p down-event editor)
-  (let ((anchor-xy (edraw-get-xy anchor))
+  (let ((anchor-xy (edraw-get-xy-transformed anchor))
         dragging-point
         moved-p)
     (edraw-track-dragging
@@ -2698,7 +2698,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                      (edraw-create-backward-handle anchor)
                    (edraw-create-forward-handle anchor))))
          (when dragging-point
-           (edraw-move-with-opposite-handle ;;notify modification
+           (edraw-move-with-opposite-handle-on-transformed ;;notify modification
             dragging-point
             (if backward-p
                 (edraw-xy-sub (edraw-xy-nmul 2 anchor-xy) move-xy)
@@ -2769,9 +2769,10 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                      (edraw-create-backward-handle anchor-point))) ;;notify modification
 
                  (when dragging-point
-                   (edraw-move-with-opposite-handle-symmetry dragging-point
-                                                             move-xy
-                                                             t);;notify modification
+                   (edraw-move-with-opposite-handle-symmetry-on-transformed
+                    dragging-point
+                    move-xy
+                    t);;notify modification
                    )))))))))))
 
 (cl-defmethod edraw-clear ((tool edraw-editor-tool-path))
@@ -3311,27 +3312,31 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-transform-prop-exists-p ((shape edraw-shape))
   (edraw-has-property-p shape 'transform))
 
+(cl-defmethod edraw-transform-prop-get-matrix ((shape edraw-shape))
+  (when-let ((transform-str (edraw-get-property shape 'transform)))
+    (ignore-errors
+      (edraw-svg-transform-to-matrix transform-str))))
+
+(cl-defmethod edraw-transform-prop-get-inverse-matrix ((shape edraw-shape))
+  (if-let ((mat (edraw-transform-prop-get-matrix shape)))
+      (edraw-matrix-inverse mat)
+    (edraw-matrix)))
+
 (cl-defmethod edraw-transform-prop-multiply ((shape edraw-shape) matrix)
   (unless (edraw-matrix-identity-p matrix)
-    (let* ((transform-str (edraw-get-property shape 'transform))
-           (transform-mat (if transform-str
-                              (edraw-svg-transform-to-matrix transform-str)
-                            (edraw-matrix)))
-           (new-mat (edraw-matrix-mul-mat-mat matrix transform-mat)))
+    (let* ((old-mat (edraw-transform-prop-get-matrix shape))
+           (new-mat (edraw-matrix-mul-mat-mat matrix old-mat)))
       (edraw-set-property shape
                           'transform
                           (edraw-svg-transform-from-matrix new-mat)))))
 
 (cl-defmethod edraw-transform-prop-translate ((shape edraw-shape) xy)
   (when (and xy (not (edraw-xy-zero-p xy)))
-    (let* ((transform-str (edraw-get-property shape 'transform))
-           (transform-mat (if transform-str
-                              (edraw-svg-transform-to-matrix transform-str)
-                            (edraw-matrix))))
-      (edraw-matrix-translate-add transform-mat (car xy) (cdr xy))
+    (let ((mat (edraw-transform-prop-get-matrix shape)))
+      (edraw-matrix-translate-add mat (car xy) (cdr xy))
       (edraw-set-property shape
                           'transform
-                          (edraw-svg-transform-from-matrix transform-mat)))))
+                          (edraw-svg-transform-from-matrix mat)))))
 
 
 
@@ -4111,11 +4116,24 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 (cl-defmethod edraw-hit-input-p ((spt edraw-shape-point) xy)
   "Returns non-nil, if the point SPT hits the pointer input(e.g. click) point XY."
   (pcase (edraw-get-point-type spt)
-    ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy spt) xy) ;;square
+    ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy-transformed spt) xy) ;;square
                  edraw-anchor-point-input-radius))
-    ('handle (<= (edraw-xy-distance-squared (edraw-get-xy spt) xy) ;;circle
+    ('handle (<= (edraw-xy-distance-squared (edraw-get-xy-transformed spt) xy) ;;circle
                  (* edraw-handle-point-input-radius
                     edraw-handle-point-input-radius)))))
+
+(cl-defmethod edraw-get-xy-transformed ((spt edraw-shape-point))
+  (when-let ((shape (edraw-parent-shape spt)))
+    (edraw-matrix-mul-mat-xy
+     (edraw-transform-prop-get-matrix shape)
+     (edraw-get-xy spt))))
+
+(cl-defmethod edraw-move-on-transformed ((spt edraw-shape-point)
+                                         xy)
+  (when-let ((shape (edraw-parent-shape spt))
+             (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
+    (edraw-move spt (edraw-matrix-mul-mat-xy inv-mat xy))))
+
 
 ;;;;; Shape Point - Rect Boundary
 
@@ -4222,12 +4240,24 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
       (edraw-push-undo-path-point-change spt 'path-point-move-with-opposite-handle t)
       (edraw-on-shape-point-changed shape 'point-move))))
 
+(cl-defmethod edraw-move-with-opposite-handle-on-transformed ((spt edraw-shape-point-path) xy)
+  (when-let ((shape (edraw-parent-shape spt))
+             (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
+    (edraw-move-with-opposite-handle
+     spt (edraw-matrix-mul-mat-xy inv-mat xy))))
+
 (cl-defmethod edraw-move-with-opposite-handle-symmetry ((spt edraw-shape-point-path) xy include-same-position-p)
   (with-slots (ppoint shape) spt
     (unless (edraw-xy-equal-p xy (edraw-path-point-xy ppoint))
       (edraw-path-handle-move-with-opposite-handle-symmetry ppoint xy include-same-position-p)
       (edraw-push-undo-path-point-change spt 'path-point-move-with-opposite-handle t)
       (edraw-on-shape-point-changed shape 'point-move))))
+
+(cl-defmethod edraw-move-with-opposite-handle-symmetry-on-transformed ((spt edraw-shape-point-path) xy include-same-position-p)
+  (when-let ((shape (edraw-parent-shape spt))
+             (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
+    (edraw-move-with-opposite-handle-symmetry
+     spt (edraw-matrix-mul-mat-xy inv-mat xy) include-same-position-p)))
 
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-path) spt2)
   (and spt2
