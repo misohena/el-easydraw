@@ -146,6 +146,7 @@
     (define-key km "r" 'edraw-editor-select-tool-rect)
     (define-key km "e" 'edraw-editor-select-tool-ellipse)
     (define-key km "a" 'edraw-editor-select-tool-path)
+    (define-key km "f" 'edraw-editor-select-tool-freehand)
     (define-key km "t" 'edraw-editor-select-tool-text)
     (define-key km "F" 'edraw-editor-edit-tool-default-fill)
     (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
@@ -1756,7 +1757,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 ;;;;; Editor - Toolbar
 
-(defvar edraw-editor-tool-list '(select rect ellipse path text))
+(defvar edraw-editor-tool-list '(select rect ellipse path freehand text))
 (defvar edraw-editor-tool-map nil)
 
 (defconst edraw-editor-toolbar-button-w 30)
@@ -2008,6 +2009,11 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
   (svg-line g 7 6 25 6 :stroke-width 0.5 :stroke "#ccc")
   (svg-circle g 7 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none")
   (svg-circle g 25 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none"))
+
+(defun edraw-icon-tool-freehand (g)
+  (svg-node
+   g 'path :d "M 4 19 C 15 -3 14 31 27 5"
+   :stroke-width 1 :stroke "#ccc" :fill "none"))
 
 (defun edraw-icon-tool-text (g)
   (dom-append-child
@@ -2793,6 +2799,54 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                        (not (edraw-in-closed-subpath-p anchor)))
               (push anchor points))))))
     points)) ;;front to back
+
+
+
+;;;;; Tool - Freehand Tool
+
+(defclass edraw-editor-tool-freehand (edraw-editor-tool)
+  ())
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-freehand))
+  'path)
+
+(cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-freehand)
+                                     down-event)
+  (with-slots (editor) tool
+    (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event)))
+      (edraw-make-undo-group editor 'freehand-tool-add-path
+        ;; Deselect
+        (edraw-deselect-all-shapes editor)
+
+        ;; Add a new path shape
+        (let ((editing-path (edraw-create-shape ;;modify
+                             editor (edraw-svg-body editor) 'path))
+              moved)
+
+          ;; Add the first point of the path
+          (edraw-add-anchor-point editing-path down-xy) ;;modify
+
+          ;; Add new points on dragging
+          (edraw-track-dragging
+           down-event
+           (lambda (move-event)
+             (setq moved t)
+             (let ((move-xy
+                    (edraw-mouse-event-to-xy-snapped editor move-event)))
+
+               ;;@todo realtime simplification & smoothing the path
+
+               (edraw-add-anchor-point editing-path move-xy);;modify
+               )))
+
+          ;; Post process
+          ;; @todo simplification
+          ;; @todo more better smoothing
+          (let ((shape-points (edraw-get-anchor-points editing-path)))
+            (dolist (spt shape-points)
+              (edraw-make-smooth spt)))
+
+          )))))
 
 
 
