@@ -2820,8 +2820,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
         ;; Add a new path shape
         (let ((editing-path (edraw-create-shape ;;modify
-                             editor (edraw-svg-body editor) 'path))
-              moved)
+                             editor (edraw-svg-body editor) 'path)))
 
           ;; Add the first point of the path
           (edraw-add-anchor-point editing-path down-xy) ;;modify
@@ -2830,7 +2829,6 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
           (edraw-track-dragging
            down-event
            (lambda (move-event)
-             (setq moved t)
              (let ((move-xy
                     (edraw-mouse-event-to-xy-snapped editor move-event)))
 
@@ -2840,6 +2838,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
                )))
 
           ;; Post process
+          ;; @todo cancel if not moved
           ;; @todo simplification
           ;; @todo more better smoothing
           (let ((shape-points (edraw-get-anchor-points editing-path)))
