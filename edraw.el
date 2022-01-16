@@ -3385,7 +3385,8 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
 
 (cl-defmethod edraw-transform-prop-translate ((shape edraw-shape) xy)
   (when (and xy (not (edraw-xy-zero-p xy)))
-    (let ((mat (edraw-transform-prop-get-matrix shape)))
+    (let ((mat (or (edraw-transform-prop-get-matrix shape)
+                   (edraw-matrix))))
       (edraw-matrix-translate-add mat (car xy) (cdr xy))
       (edraw-set-property shape
                           'transform
