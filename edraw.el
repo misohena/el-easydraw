@@ -4083,7 +4083,7 @@ For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Dete
     (oset shape editor editor)
     shape))
 
-(defclass edraw-shape-group (edraw-shape-with-rect-boundary)
+(defclass edraw-shape-group (edraw-shape)
   ())
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-group))

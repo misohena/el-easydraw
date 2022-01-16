@@ -1,10 +1,5 @@
 
 * Inbox
-** TODO グループ化出来るようにする
-描いた物体を一つのものとして扱えるように。
-- [X] edraw-shape-groupを作る。
-- +子要素たちを元にAABBを計算する。それを矩形アンカーポイントとする。+
-
 ** TODO textやgroupは選択時に境界ボックスを表示する
 選択時に何か表示しないとgroupが分からない。
 ついでにtextはアンカーポイントを表示した上で境界ボックスも表示したい。
@@ -600,3 +595,8 @@ rect, ellipse, circle, path, textに対するtransform属性に対応する。
 - [X] アンカーポイントの位置を変形させる・入力も何とかする。問題はどの段階で変換するか
   表示はedraw-update-selection-ui、入力はedraw-shape-point-findあたり？
   →edraw-get-xyやedraw-moveの変形後座標系版であるedraw-get-xy-transformedやedraw-move-on-transformedを作成する。
+** DONE グループ化出来るようにする
+CLOSED: [2021-12-05 Sun 20:19]
+描いた物体を一つのものとして扱えるように。
+- [X] edraw-shape-groupを作る。
+- +子要素たちを元にAABBを計算する。それを矩形アンカーポイントとする。+
