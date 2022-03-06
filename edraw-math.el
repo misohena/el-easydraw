@@ -386,8 +386,8 @@
                  (w (aref p 3)))
             (vector
              (/ (aref p 0) w)
-             (/ (aref p 0) w)
-             (/ (aref p 0) w)))
+             (/ (aref p 1) w)
+             (/ (aref p 2) w)))
         (copy-sequence b))))
 
 (defun edraw-matrix-mul-mat-vec2 (a b)
