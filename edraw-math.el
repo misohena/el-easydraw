@@ -342,7 +342,7 @@
       (= 1 m11 m22 m33 m44)
       (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34)))))
 
-(defun edraw-matrix-mul (a b)
+(defun edraw-matrix-mul-dispatch (a b)
   (let (lb)
     (cond
      ((= (length a) 16)
@@ -355,6 +355,15 @@
        ((= lb 2) (edraw-matrix-mul-mat-vec2 a b))
        (t (error "no applicable method matrix-mul %s %s" a b))))
      (t (error "no applicable method matrix-mul %s %s" a b)))))
+
+(defmacro edraw-matrix-mul (&rest args)
+  (pcase (length args)
+    (0 nil)
+    (1 (car args))
+    (2 `(edraw-matrix-mul-dispatch ,(car args) ,(cadr args)))
+    (_ `(edraw-matrix-mul
+         (edraw-matrix-mul-dispatch ,(car args) ,(cadr args))
+         ,@(cddr args)))))
 
 (defmacro edraw-matrix-mul-element (lhs rhs col row)
   `(+ (* (aref ,lhs ,(+ row 0)) (aref ,rhs ,(+ (* col 4) 0)))
