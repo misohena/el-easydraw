@@ -288,6 +288,24 @@
          (s (sin rad)))
     (edraw-matrix (vector c s (- s) c 0 0))))
 
+(defun edraw-matrix-rotate-x (deg)
+  (let* ((rad (degrees-to-radians deg))
+         (c (cos rad))
+         (s (sin rad)))
+    (edraw-matrix (vector 1 0 0 0  0 c s 0  0 (- s) c 0  0 0 0 1))))
+
+(defun edraw-matrix-rotate-y (deg)
+  (let* ((rad (degrees-to-radians deg))
+         (c (cos rad))
+         (s (sin rad)))
+    (edraw-matrix (vector c 0 (- s) 0  0 1 0 0  s 0 c 0  0 0 0 1))))
+
+(defun edraw-matrix-rotate-z (deg)
+  (let* ((rad (degrees-to-radians deg))
+         (c (cos rad))
+         (s (sin rad)))
+    (edraw-matrix (vector c s 0 0  (- s) c 0 0  0 0 1 0  0 0 0 1))))
+
 (defun edraw-matrix-skew (ax-deg ay-deg)
   (let* ((ax-rad (degrees-to-radians ax-deg))
          (ay-rad (degrees-to-radians ay-deg))
