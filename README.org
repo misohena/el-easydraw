@@ -31,7 +31,7 @@ Draw something and type =C-c C-c= and the data will be saved in the buffer.
 #+begin_src org
 [​[edraw:file=./example.edraw.svg]​]
 
-[​[edraw:data=<base64data>​]
+[​[edraw:data=<base64data>​]]
 
 [​[*Example][edraw:file=./example.edraw.svg]​]
 
@@ -56,6 +56,16 @@ Customization Variables:
 
 - edraw-org-link-export-data-tag :: HTML tag used to export data links. (svg or img)
 - edraw-org-link-export-file-tag :: HTML tag used to export file links. (svg or img)
+
+Link Properties:
+
+- html-tag ::
+  HTML tag used to export the link. (svg or img)
+
+  Example:
+  #+begin_src org
+  [[edraw:html-tag=img;data=<base64data>]]
+  #+end_src
 
 * Edit a Single Edraw File - edraw-mode.el
 

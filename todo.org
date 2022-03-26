@@ -9,6 +9,7 @@ transform属性で平行移動しているのをどうするか。
 変換が平行移動だけならば子要素の内容を平行移動すれば良い。
 それ以上の変換ならば、子要素のtransform属性にグループのtransform属性を掛け合わせる必要がある。
 
+** TODO groupをコピーできるようにする。
 ** TODO GUIでtransform属性を変更できるようにする(図形オブジェクト全体の変形)
 ** TODO カラーピッカーでnoneを選べるようにする
 ** TODO 矩形や楕円をパスに変換できるようにする
@@ -40,9 +41,9 @@ path-cmdはともかく、path-pointは前後のアンカーやハンドルの�
 rectやellipse、textにもそういった問題はある。
 検出してshapeを消すべき。
 
-** TODO HTMLタグをリンク毎に指定できるようにする
-~[[edraw:html-tag=img;file=example.edraw-svg]]~ のような形式。
-属性を指定する構文も欲しいがこちらは幾分難しい。
+** TODO リンクをHTMLでエクスポートするときの属性値を指定できるようにする
+~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
+それともhtml-attr=で一つにまとめる？
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
@@ -52,7 +53,10 @@ rectやellipse、textにもそういった問題はある。
 最初にSHIFTが押されていれば分かるが、それ以降のmodifierの変化は分からない。
 S-mouse-movementが来たりは *しない* 。現在のキー状態を直接取得する方法も無い。
 ** TODO image要素に対応できる？
-+少し試した限りimage要素は表示できない。+ Emacs 26.3(Windows公式ビルド)はできた。Emacs 27以降はなぜか出来ない(Windows公式ビルド)。Emacs 28でbase uriを指定するプロパティが入るのでより使いやすくなるが、どうなるか。
++少し試した限りimage要素は表示できない。+ +Emacs 26.3(Windows公式ビルド)はできた。Emacs 27以降はなぜか出来ない(Windows公式ビルド)。Emacs 28でbase uriを指定するプロパティが入るのでより使いやすくなるが、どうなるか。+ 解決方法判明。emacs-27.2-x86_64.zipを展開してできるディレクトリの下のbin/gdk-pixbuf-query-loaders.exe --update-cacheを実行するとlib/gdk-pixbuf-2.0/2.10.0/loaders.cacheというファイルが出来る。そうすると表示されるようになる。librsvgが画像を読み込む際にgdk-pixbufを使っているみたい。
+
+- edraw-shape-imageクラス
+
 ** TODO DOMツリーの文字列化は変更のあったサブツリーのみに限定する
 ** TODO パスの内外判定、パス全体(全セグメント一括)のAABBチェック
 をした方が良いのでは？　速いし誤判定防止になる。
@@ -600,3 +604,6 @@ CLOSED: [2021-12-05 Sun 20:19]
 描いた物体を一つのものとして扱えるように。
 - [X] edraw-shape-groupを作る。
 - +子要素たちを元にAABBを計算する。それを矩形アンカーポイントとする。+
+** DONE HTMLタグをリンク毎に指定できるようにする
+CLOSED: [2022-03-26 Sat 22:32]
+~[[edraw:html-tag=img;file=example.edraw-svg]]~ のような形式。

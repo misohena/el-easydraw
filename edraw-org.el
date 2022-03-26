@@ -196,6 +196,10 @@ is expanded. Since the cause is not clear, it is expanded by default."
 (defun edraw-org-link-prop-get (key-str link-props)
   (alist-get key-str link-props nil nil #'string=))
 
+(defun edraw-org-link-prop-html-tag (link-props)
+  (when-let ((str (edraw-org-link-prop-get "html-tag" link-props)))
+    (intern str)))
+
 (defun edraw-org-link-prop-data (link-props)
   (edraw-org-link-prop-get "data" link-props))
 
@@ -634,23 +638,24 @@ If NOERROR is nil, signals an error."
     (pcase back-end
       ('html
        (if-let ((link-props (edraw-org-link-props-parse path nil t)))
-           (if-let ((data (edraw-org-link-prop-data link-props)))
-               (pcase edraw-org-link-export-data-tag
-                 ('svg (edraw-org-link-html-link-to-svg link-props link info))
-                 ('img (edraw-org-link-data-to-img data link info))
-                 ((and (pred functionp)
-                       func)
-                  (funcall func data))
-                 (_ (edraw-org-link-html-link-to-svg link-props link info)))
-             (if-let ((file (edraw-org-link-prop-file link-props)))
-                 (pcase edraw-org-link-export-file-tag
+           (let ((html-tag (edraw-org-link-prop-html-tag link-props)))
+             (if-let ((data (edraw-org-link-prop-data link-props)))
+                 (pcase (or html-tag edraw-org-link-export-data-tag)
                    ('svg (edraw-org-link-html-link-to-svg link-props link info))
-                   ('img (edraw-org-link-file-to-img file link info))
+                   ('img (edraw-org-link-data-to-img data link info))
                    ((and (pred functionp)
                          func)
-                    (funcall func file))
-                   (_ (edraw-org-link-file-to-img file link info)))
-               ""))
+                    (funcall func data))
+                   (_ (edraw-org-link-html-link-to-svg link-props link info)))
+               (if-let ((file (edraw-org-link-prop-file link-props)))
+                   (pcase (or html-tag edraw-org-link-export-file-tag)
+                     ('svg (edraw-org-link-html-link-to-svg link-props link info))
+                     ('img (edraw-org-link-file-to-img file link info))
+                     ((and (pred functionp)
+                           func)
+                      (funcall func file))
+                     (_ (edraw-org-link-file-to-img file link info)))
+                 "")))
          "")))))
 
 (defun edraw-org-link-data-to-data-uri (data)
