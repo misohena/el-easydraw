@@ -415,7 +415,7 @@
 .edraw-ui-grid-line {
   stroke: rgba(30, 150, 255, 0.75);
   stroke-dasharray: 2;
-  mix-blend-mode: difference;
+  /*[Too Slow] mix-blend-mode: difference; */
 }
 .edraw-ui-anchor-point {
   stroke: #f88; fill: none;
