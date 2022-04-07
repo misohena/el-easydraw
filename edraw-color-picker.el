@@ -67,6 +67,7 @@
 (require 'svg)
 (require 'edraw-color)
 (require 'edraw-util)
+(require 'delsel)
 
 ;;; Code:
 
