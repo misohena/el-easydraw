@@ -1707,7 +1707,9 @@ The undo data generated during undo is saved in redo-list."
 (defun edraw-editor-dispatch-event (event)
   "Call the editor's method corresponding to the EVENT.
 
-For example, if the event name is down-mouse-1, call edraw-on-down-mouse-1. Determine the editor object from the position where the EVENT occurred."
+For example, if the event name is down-mouse-1, call
+edraw-on-down-mouse-1. Determine the editor object from the
+position where the EVENT occurred."
   (interactive "e")
 
   (when-let ((editor (edraw-editor-at-input event)))

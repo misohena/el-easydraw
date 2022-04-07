@@ -731,7 +731,8 @@ Currently this function does two things:
 
 Sets the attribute specified by #+ATTR_HTML to the svg root element.
 
-Guarantees the uniqueness of ids defined by the SVG in the exported HTML. Add a random string to id."
+Guarantees the uniqueness of ids defined by the SVG in the
+exported HTML. Add a random string to id."
   ;; Apply attributes specified by #+ATTR_HTML to the root svg element
   (cl-loop for (key value) on attributes by #'cddr
            do (dom-set-attribute svg key value))

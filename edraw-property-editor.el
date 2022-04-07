@@ -739,7 +739,8 @@ editor when the selected shape changes."
     (widget-button-click event)))
 
 (defun edraw-property-editor-widget-button-release-event-p (event)
-  "An alternative to widget-button-release-event-p for double-click and triple-click."
+  "An alternative to widget-button-release-event-p for double-click
+and triple-click."
   (and (eventp event)
        (memq (event-basic-type event) '(mouse-1 mouse-2 mouse-3))
        (or (and (or (memq 'double (event-modifiers event)) ;;double click

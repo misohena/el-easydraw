@@ -793,7 +793,9 @@ The CMDLIST will be empty after calling this function. "
 
 Change a straight segment to a curved segment.
 
-The anchor point object in the C command is still the same as the one in the L command, and two new handle point objects will be created.
+The anchor point object in the C command is still the same as the
+one in the L command, and two new handle point objects will be
+created.
 "
   (pcase (edraw-path-cmd-type cmd)
     ('C
@@ -1012,7 +1014,9 @@ One M command may correspond to multiple Z commands (see: https://www.w3.org/TR/
 
 Return nil if include-closing-segment-p is nil and CMD is a closing segment.
 
-Specify t for include-closing-segment-p if you want the index of the anchor of closing segment, or specify 'fast if you know CMD is not a closing segment and do not need checking."
+Specify t for include-closing-segment-p if you want the index of
+the anchor of closing segment, or specify 'fast if you know CMD
+is not a closing segment and do not need checking."
   (pcase (edraw-path-cmd-type cmd)
     ('M 0)
     ('L (if (or include-closing-segment-p (not (edraw-path-cmd-closing-segment-p cmd))) 0))
@@ -1188,7 +1192,8 @@ command is exposed.
 ;;;;;; cmd - Point
 
 (defun edraw-path-cmd-pick-point (cmd xy anchor-radius handle-radius)
-  "Returns a edraw-path-point object that reference to the anchor point or handle point at the position specified by XY."
+  "Returns a edraw-path-point object that reference to the anchor
+point or handle point at the position specified by XY."
   (or
    ;; Find from handle points
    (seq-some
@@ -1237,7 +1242,9 @@ command is exposed.
 
 Insert a new command before CMD and return it.
 
-If there is a handle point for the previous anchor point, it will be transferred to the new command. New anchor points and handle points are created as needed."
+If there is a handle point for the previous anchor point, it will
+be transferred to the new command. New anchor points and handle
+points are created as needed."
   (pcase (edraw-path-cmd-type cmd)
     ('M
      ;; When closed path
@@ -1677,7 +1684,8 @@ handle point of ANCHOR-POINT. Return nil if it does not exist."
             (edraw-path-cmd-arg-pt next-cmd 0)))))))
 
 (defun edraw-path-anchor-create-backward-handle (anchor-point)
-  "Return a edraw-path-point object that reference to the backward handle point of ANCHOR-POINT. If it doesn't exist, create it."
+  "Return a edraw-path-point object that reference to the backward
+handle point of ANCHOR-POINT. If it doesn't exist, create it."
   (when (edraw-path-point-anchor-p anchor-point) ;;M, L, C
     (let ((cmd (edraw-path-point-cmd anchor-point)))
       (pcase (edraw-path-cmd-type cmd)
@@ -1704,7 +1712,8 @@ handle point of ANCHOR-POINT. Return nil if it does not exist."
          (edraw-path-cmd-arg-pt cmd 1))))))
 
 (defun edraw-path-anchor-create-forward-handle (anchor-point)
-  "Return a edraw-path-point object that reference to the forward handle point of ANCHOR-POINT. If it doesn't exist, create it."
+  "Return a edraw-path-point object that reference to the forward
+handle point of ANCHOR-POINT. If it doesn't exist, create it."
   (when (edraw-path-point-anchor-p anchor-point) ;;M, L, C
     (let ((cmd (edraw-path-point-cmd anchor-point)))
       ;; Skip closing segment
@@ -1888,7 +1897,8 @@ multiple subpaths from a single path data."
 ;;;;;; point - Handle Point
 
 (defun edraw-path-handle-forward-p (handle-point)
-  "Return t, if HANDLE-POINT is a control point of the next segment of the corresponding anchor point."
+  "Return t, if HANDLE-POINT is a control point of the next segment
+of the corresponding anchor point."
   (and (edraw-path-point-handle-p handle-point) ;;C, -fhp
        (edraw-path-cmd-is-type-p
         (edraw-path-point-cmd handle-point)
@@ -1914,7 +1924,8 @@ If HANDLE-POINT is the backward handle, return the forward handle."
         (edraw-path-anchor-forward-handle anchor-point)))))
 
 (defun edraw-path-handle-move-with-opposite-handle (handle-point new-xy)
-  "Move HANDLE-POINT and the point exactly 180 degrees opposite of the anchor point."
+  "Move HANDLE-POINT and the point exactly 180 degrees opposite of
+the anchor point."
   (when-let ((handle1 handle-point)
              (anchor (edraw-path-handle-parent-anchor handle1))
              (handle2 (if (edraw-path-handle-forward-p handle1)
