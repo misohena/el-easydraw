@@ -56,6 +56,9 @@
   ((_target edraw-property-editor-target) _function &rest _args))
 (cl-defmethod edraw-remove-change-hook
   ((_target edraw-property-editor-target) _function &rest _args))
+(cl-defgeneric edraw-property-editor-shape-p
+  (_target)
+  nil)
 
 
 ;;;; Property Editor Variables
@@ -176,6 +179,11 @@ editor when the selected shape changes."
       (setq-local edraw-property-editor--pedit pedit)
       (edraw-open pedit))))
 
+(defun edraw-property-editor-target-shape-p (target)
+  (and target
+       ;;(cl-typep target 'edraw-shape) ;;warning
+       (edraw-property-editor-shape-p target)))
+
 (cl-defmethod edraw-open ((pedit edraw-property-editor))
   (with-slots (target widgets) pedit
     (setq widgets nil)
@@ -204,7 +212,7 @@ editor when the selected shape changes."
     (widget-insert (make-string 2 ? ))
 
     (when target
-      (when (cl-typep target 'edraw-shape)
+      (when (edraw-property-editor-target-shape-p target)
         (widget-create 'push-button
                        :notify 'edraw-property-editor--prev
                        :keymap edraw-property-editor-push-button-map
@@ -520,7 +528,7 @@ editor when the selected shape changes."
            current-value
            '("" "none")
            `((:color-name-scheme . 'web)
-             ,@(when (and target (cl-typep target 'edraw-shape))
+             ,@(when (edraw-property-editor-target-shape-p target)
                  (list
                   (cons :on-input-change
                         (lambda (string color)
@@ -656,8 +664,7 @@ editor when the selected shape changes."
 (defun edraw-property-editor--prevnext (prev-or-next-func)
   (when-let ((pedit edraw-property-editor--pedit))
     (with-slots (target) pedit
-      (when (and target
-                 (cl-typep target 'edraw-shape))
+      (when (edraw-property-editor-target-shape-p target)
         (when-let ((new-target (funcall prev-or-next-func target)))
           (if edraw-property-editor-tracking-selected-shape
               (edraw-select new-target)
@@ -673,8 +680,7 @@ editor when the selected shape changes."
 (defun edraw-property-editor--set-as-default (&rest _ignore)
   (when-let ((pedit edraw-property-editor--pedit))
     (with-slots (target) pedit
-      (when (and target
-                 (cl-typep target 'edraw-shape))
+      (when (edraw-property-editor-target-shape-p target)
         (edraw-set-all-properties-as-default target)))))
 
 

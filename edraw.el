@@ -2793,7 +2793,7 @@ position where the EVENT occurred."
   (let (points)
     (dolist (node (dom-children (edraw-svg-body editor)))
       (when-let ((shape (edraw-shape-from-element node editor 'noerror)))
-        (when (cl-typep shape 'edraw-shape-path)
+        (when (edraw-shape-path-p shape);;or derived?
           ;;@todo include endpoint of subpaths?
           (dolist (anchor (list (edraw-get-first-anchor-point shape)
                                 (edraw-get-last-anchor-point shape)))
@@ -2945,6 +2945,13 @@ position where the EVENT occurred."
    (removed-p :initform nil))
   :abstract t)
 
+(defun edraw-shape-derived-p (obj)
+  (and obj (cl-typep obj 'edraw-shape)))
+
+(cl-defmethod edraw-property-editor-shape-p
+  ((_target edraw-shape))
+  t) ;;see: edraw-property-editor.el
+
 ;;;;;; Internal
 
 (cl-defmethod edraw-element ((shape edraw-shape))
@@ -3035,7 +3042,7 @@ position where the EVENT occurred."
     (when removed-p
       (let* ((parent-element
               (cond
-               ((cl-typep parent 'edraw-shape) (edraw-element parent))
+               ((edraw-shape-derived-p parent) (edraw-element parent))
                ((edraw-dom-element-p parent) parent)
                ((null parent) (edraw-svg-body editor))))
              (pos
