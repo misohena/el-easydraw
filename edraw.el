@@ -188,6 +188,20 @@
     (define-key km (kbd "M-[") 'edraw-editor-select-previous-shape)
     km))
 
+(defvar edraw-editor-disable-line-prefix t
+  "Disable line-prefix and wrap-prefix properties on editor overlays.
+
+There is a bug in Emacs where the coordinates of mouse events are
+misaligned when line-prefix is used and the image is at the top
+of the window.
+
+When this variable is t, the line-prefix and wrap-prefix
+properties of the editors are set to the empty string to
+disable the line-prefix and wrap-prefix already set in the
+buffer.
+
+line-prefix and wrap-prefix are used in org-indent.")
+
 ;;;;; Editor - Constructor
 
 (defun edraw-editor-create (overlay-spec &optional svg)
@@ -251,6 +265,9 @@
   (edraw-editor-clear-modified-vars)
 
   (with-slots (overlay) editor
+    (when edraw-editor-disable-line-prefix ;;for Emacs's line-prefix bug
+      (overlay-put overlay 'line-prefix "")
+      (overlay-put overlay 'wrap-prefix ""))
     (overlay-put overlay 'edraw-editor editor)
     (overlay-put overlay 'keymap edraw-editor-map)
     ;;(overlay-put overlay 'evaporate t)
