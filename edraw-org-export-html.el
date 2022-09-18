@@ -27,6 +27,13 @@
 (require 'ox-html)
 (require 'edraw-org-edit)
 
+;;;; Customize
+
+(defcustom edraw-org-link-html-use-viewbox nil
+  "Use viewBox attribute instead of width/height attributes when SVG export."
+  :group 'edraw-org
+  :type '(boolean))
+
 ;;;; Export
 
 (defun edraw-org-link-setup-html-exporter ()
@@ -146,6 +153,14 @@ Sets the attribute specified by #+ATTR_HTML to the svg root element.
 
 Guarantees the uniqueness of ids defined by the SVG in the
 exported HTML. Add a random string to id."
+  ;; Replace width= and height= with viewBox=
+  (when edraw-org-link-html-use-viewbox
+    (let ((width (dom-attr svg 'width))
+          (height (dom-attr svg 'height)))
+      (dom-remove-attribute svg 'width)
+      (dom-remove-attribute svg 'height)
+      (dom-set-attribute svg 'viewBox (format "%s %s %s %s" 0 0 width height))))
+
   ;; Apply attributes specified by #+ATTR_HTML to the root svg element
   (cl-loop for (key value) on attributes by #'cddr
            do (dom-set-attribute
