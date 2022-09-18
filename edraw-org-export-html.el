@@ -148,7 +148,13 @@ Guarantees the uniqueness of ids defined by the SVG in the
 exported HTML. Add a random string to id."
   ;; Apply attributes specified by #+ATTR_HTML to the root svg element
   (cl-loop for (key value) on attributes by #'cddr
-           do (dom-set-attribute svg key value))
+           do (dom-set-attribute
+               svg
+               (cond
+                ((keywordp key) (intern (substring (symbol-name key) 1)))
+                ((stringp key) (intern key))
+                (t key))
+               value))
 
   ;; Replace all ids (Make ids unique in the HTML)
   ;; e.g.

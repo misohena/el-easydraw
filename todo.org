@@ -41,7 +41,7 @@ path-cmdはともかく、path-pointは前後のアンカーやハンドルの�
 rectやellipse、textにもそういった問題はある。
 検出してshapeを消すべき。
 
-** TODO リンクをHTMLでエクスポートするときの属性値を指定できるようにする
+** TODO 個別のリンクをHTMLでエクスポートするときの属性値を指定できるようにする
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
 それともhtml-attr=で一つにまとめる？
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
@@ -607,3 +607,12 @@ CLOSED: [2021-12-05 Sun 20:19]
 ** DONE HTMLタグをリンク毎に指定できるようにする
 CLOSED: [2022-03-26 Sat 22:32]
 ~[[edraw:html-tag=img;file=example.edraw-svg]]~ のような形式。
+** DONE ATTR_HTMLが効かない不具合を修正する。
+CLOSED: [2022-09-19 Mon 00:22]
+
+#+begin_src org
+,#+ATTR_HTML: :viewBox 0 0 640 480
+[[edraw:.....
+#+end_src
+
+:viewBoxがそのままdom-set-attributeに渡されている。 :を取り除かなければならない。
