@@ -56,7 +56,7 @@ Customization Variables:
 
 - edraw-org-link-export-data-tag :: HTML tag used to export data links. (svg or img)
 - edraw-org-link-export-file-tag :: HTML tag used to export file links. (svg or img)
-- edraw-org-link-html-use-viewbox :: Use viewBox attribute instead of width/height attributes when SVG export.
+- edraw-org-link-html-use-viewbox :: Add viewBox= attribute to svg root elements when SVG export.
 
 Link Properties:
 
