@@ -1,5 +1,6 @@
 
 * Inbox
+** TODO org-modeでODTへのエクスポートに対応する。
 ** TODO textやgroupは選択時に境界ボックスを表示する
 選択時に何か表示しないとgroupが分からない。
 ついでにtextはアンカーポイントを表示した上で境界ボックスも表示したい。
@@ -622,3 +623,5 @@ width="640" height="480"だけだとレスポンシブにするのが面倒。
 viewBox="0 0 640 480"があれば比率を保ったまま拡大縮小するのが容易。
 
 edraw-org-export-html-use-viewboxオプションを追加。
+** DONE org-modeでLaTeXへのエクスポートに対応する。
+CLOSED: [2022-09-23 Fri 01:37]

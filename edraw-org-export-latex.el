@@ -44,22 +44,36 @@
   (require 'edraw)
   (if-let ((link-props (edraw-org-link-props-parse path nil t)))
       (if-let ((data (edraw-org-link-prop-data link-props)))
-          ;; export data=base64
-          ;; @todo support data= link
-          ;; create temporary file?
-          ""
+          ;; Export data=base64.
+          ;; Create temporary file.
+          (edraw-org-export-latex-link-file
+           (edraw-org-export-latex-create-temp-data-file data)
+           info link)
+
         (if-let ((file (edraw-org-link-prop-file link-props)))
-            ;; export file=
-            (let* ((element (org-element-copy link))
-                   (element (org-element-put-property element :path file))
-                   (parent (org-element-property :parent link))
-                   (element (org-element-put-property element :parent parent)))
-              ;; (concat "\\includesvg" "{" file "}\n")
-              ;; Delegate to ox-latex.
-              ;; To support caption, attributes, etc.
-              (org-latex--inline-image element info))
+            ;; Export file=.
+            (edraw-org-export-latex-link-file file info link)
           ""))
     ""))
+
+(defun edraw-org-export-latex-create-temp-data-file (data)
+  (let* ((svg-str (edraw-decode-string data t))
+         (hash (sha1 svg-str))
+         (file (format "link-data-%s.edraw.svg" hash))) ;;@todo customize
+    (with-temp-file file
+      (insert svg-str)
+      (set-buffer-file-coding-system 'utf-8))
+    file))
+
+(defun edraw-org-export-latex-link-file (file info link)
+  ;; (concat "\\includesvg" "{" file "}\n")
+  (let* ((element (org-element-copy link))
+         (element (org-element-put-property element :path file))
+         (parent (org-element-property :parent link))
+         (element (org-element-put-property element :parent parent)))
+    ;; Delegate to ox-latex.
+    ;; To support caption, attributes, etc.
+    (org-latex--inline-image element info)))
 
 (provide 'edraw-org-export-html)
 ;;; edraw-org-export-html.el ends here
