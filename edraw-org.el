@@ -59,28 +59,6 @@
   :group 'multimedia
   :group 'org)
 
-(defcustom edraw-org-link-export-data-tag 'svg
-  "HTML tag used to export data links.
-
-img = Data URI scheme (<img src=\"data:image/svg+xml;base64,.....\">)
-svg = Embed SVG element (<svg>...</svg>)
-"
-  :group 'edraw-org
-  :type '(choice (const :tag "<img>" img)
-                 (const :tag "<svg>" svg)
-                 (function)))
-
-(defcustom edraw-org-link-export-file-tag 'img
-  "HTML tag used to export file links.
-
-img = Simple file link (<img src=\"<path-to-file>\">)
-svg = Embed SVG element (<svg>...</svg>)
-"
-  :group 'edraw-org
-  :type '(choice (const :tag "<img>" img)
-                 (const :tag "<svg>" svg)
-                 (function)))
-
 (defcustom edraw-org-link-compress-data-p t
   "Non-nil means compress SVG on save to data links."
   :group 'edraw-org

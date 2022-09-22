@@ -29,6 +29,32 @@
 
 ;;;; Customize
 
+(define-obsolete-variable-alias 'edraw-org-link-export-data-tag
+  'edraw-org-export-html-data-tag "2022-09-22")
+(defcustom edraw-org-export-html-data-tag 'svg
+  "HTML tag used to export data links.
+
+img = Data URI scheme (<img src=\"data:image/svg+xml;base64,.....\">)
+svg = Embed SVG element (<svg>...</svg>)
+"
+  :group 'edraw-org
+  :type '(choice (const :tag "<img>" img)
+                 (const :tag "<svg>" svg)
+                 (function)))
+
+(define-obsolete-variable-alias 'edraw-org-link-export-file-tag
+  'edraw-org-export-html-file-tag "2022-09-22")
+(defcustom edraw-org-export-html-file-tag 'img
+  "HTML tag used to export file links.
+
+img = Simple file link (<img src=\"<path-to-file>\">)
+svg = Embed SVG element (<svg>...</svg>)
+"
+  :group 'edraw-org
+  :type '(choice (const :tag "<img>" img)
+                 (const :tag "<svg>" svg)
+                 (function)))
+
 (defcustom edraw-org-export-html-use-viewbox t
   "Add viewBox= attribute to svg root elements when SVG export."
   :group 'edraw-org
@@ -60,7 +86,7 @@
        (if-let ((link-props (edraw-org-link-props-parse path nil t)))
            (let ((html-tag (edraw-org-link-prop-html-tag link-props)))
              (if-let ((data (edraw-org-link-prop-data link-props)))
-                 (pcase (or html-tag edraw-org-link-export-data-tag)
+                 (pcase (or html-tag edraw-org-export-html-data-tag)
                    ('svg (edraw-org-link-html-link-to-svg link-props link info))
                    ('img (edraw-org-link-data-to-img data link info))
                    ((and (pred functionp)
@@ -68,7 +94,7 @@
                     (funcall func data))
                    (_ (edraw-org-link-html-link-to-svg link-props link info)))
                (if-let ((file (edraw-org-link-prop-file link-props)))
-                   (pcase (or html-tag edraw-org-link-export-file-tag)
+                   (pcase (or html-tag edraw-org-export-html-file-tag)
                      ('svg (edraw-org-link-html-link-to-svg link-props link info))
                      ('img (edraw-org-link-file-to-img file link info))
                      ((and (pred functionp)
