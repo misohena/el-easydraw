@@ -37,6 +37,8 @@
 (autoload 'edraw-org-edit-link "edraw-org-edit" "" nil)
 (autoload 'edraw-org-export-html-setup "edraw-org-export-html" "" nil)
 (autoload 'edraw-org-export-html-link "edraw-org-export-html" "" nil)
+(autoload 'edraw-org-export-latex-setup "edraw-org-export-latex" "" nil)
+(autoload 'edraw-org-export-latex-link "edraw-org-export-latex" "" nil)
 
 ;;;; Setup
 
@@ -422,9 +424,10 @@ If NOERROR is nil, signals an error."
   (with-eval-after-load 'ox
     (advice-add 'org-export-custom-protocol-maybe :around
                 'edraw-org-export-ad-export-custom-protocol-maybe))
-
   (with-eval-after-load 'ox-html
-    (edraw-org-export-html-setup)))
+    (edraw-org-export-html-setup))
+  (with-eval-after-load 'ox-latex
+    (edraw-org-export-latex-setup)))
 
 (defvar edraw-org-export-current-link nil)
 
@@ -437,7 +440,9 @@ If NOERROR is nil, signals an error."
   (let ((link edraw-org-export-current-link))
     (pcase back-end
       ('html
-       (edraw-org-export-html-link path description back-end info link)))))
+       (edraw-org-export-html-link path description back-end info link))
+      ('latex
+       (edraw-org-export-latex-link path description back-end info link)))))
 
 (provide 'edraw-org)
 ;;; edraw-org.el ends here
