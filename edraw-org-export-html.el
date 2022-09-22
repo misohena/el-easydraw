@@ -29,7 +29,7 @@
 
 ;;;; Customize
 
-(defcustom edraw-org-link-html-use-viewbox t
+(defcustom edraw-org-export-html-use-viewbox t
   "Add viewBox= attribute to svg root elements when SVG export."
   :group 'edraw-org
   :type '(boolean))
@@ -149,7 +149,7 @@
 
 Currently this function does three things:
 
-If edraw-org-link-html-use-viewbox is non-nil, add a viewBox
+If edraw-org-export-html-use-viewbox is non-nil, add a viewBox
 attribute to the svg root element.
 
 Sets the attribute specified by #+ATTR_HTML to the svg root element.
@@ -157,7 +157,7 @@ Sets the attribute specified by #+ATTR_HTML to the svg root element.
 Guarantees the uniqueness of ids defined by the SVG in the
 exported HTML. Add a random string to id."
   ;; Add viewBox= attribute
-  (when edraw-org-link-html-use-viewbox
+  (when edraw-org-export-html-use-viewbox
     (let ((width (dom-attr svg 'width))
           (height (dom-attr svg 'height)))
       (dom-set-attribute svg 'viewBox (format "%s %s %s %s" 0 0 width height))))

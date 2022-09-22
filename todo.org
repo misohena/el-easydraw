@@ -621,4 +621,4 @@ CLOSED: [2022-09-19 Mon 00:48]
 width="640" height="480"だけだとレスポンシブにするのが面倒。
 viewBox="0 0 640 480"があれば比率を保ったまま拡大縮小するのが容易。
 
-edraw-org-link-html-use-viewboxオプションを追加。
+edraw-org-export-html-use-viewboxオプションを追加。
