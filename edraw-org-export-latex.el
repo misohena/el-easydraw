@@ -75,5 +75,5 @@
     ;; To support caption, attributes, etc.
     (org-latex--inline-image element info)))
 
-(provide 'edraw-org-export-html)
-;;; edraw-org-export-html.el ends here
+(provide 'edraw-org-export-latex)
+;;; edraw-org-export-latex.el ends here
