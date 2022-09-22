@@ -62,47 +62,36 @@ svg = Embed SVG element (<svg>...</svg>)
 
 ;;;; Export
 
-(defun edraw-org-link-setup-html-exporter ()
+(defun edraw-org-export-html-setup ()
   (with-eval-after-load 'ox-html
     (setf (alist-get edraw-org-link-type
                      org-html-inline-image-rules nil nil #'equal)
-          ".*")
-    (advice-add 'org-export-custom-protocol-maybe :around 'edraw-org-advice-export-custom-protocol-maybe)))
+          ".*")))
 
-(defvar edraw-org-current-link nil)
-
-(defun edraw-org-advice-export-custom-protocol-maybe (old-func link &rest args)
-  (let ((edraw-org-current-link link))
-    (apply old-func link args)))
-
-(defun edraw-org-link-export (path _description back-end info)
+(defun edraw-org-export-html-link (path _description _back-end info link)
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]
   (require 'edraw)
-  (let ((link edraw-org-current-link))
-
-    (pcase back-end
-      ('html
-       (if-let ((link-props (edraw-org-link-props-parse path nil t)))
-           (let ((html-tag (edraw-org-link-prop-html-tag link-props)))
-             (if-let ((data (edraw-org-link-prop-data link-props)))
-                 (pcase (or html-tag edraw-org-export-html-data-tag)
-                   ('svg (edraw-org-link-html-link-to-svg link-props link info))
-                   ('img (edraw-org-link-data-to-img data link info))
-                   ((and (pred functionp)
-                         func)
-                    (funcall func data))
-                   (_ (edraw-org-link-html-link-to-svg link-props link info)))
-               (if-let ((file (edraw-org-link-prop-file link-props)))
-                   (pcase (or html-tag edraw-org-export-html-file-tag)
-                     ('svg (edraw-org-link-html-link-to-svg link-props link info))
-                     ('img (edraw-org-link-file-to-img file link info))
-                     ((and (pred functionp)
-                           func)
-                      (funcall func file))
-                     (_ (edraw-org-link-file-to-img file link info)))
-                 "")))
-         "")))))
+  (if-let ((link-props (edraw-org-link-props-parse path nil t)))
+      (let ((html-tag (edraw-org-link-prop-html-tag link-props)))
+        (if-let ((data (edraw-org-link-prop-data link-props)))
+            (pcase (or html-tag edraw-org-export-html-data-tag)
+              ('svg (edraw-org-link-html-link-to-svg link-props link info))
+              ('img (edraw-org-link-data-to-img data link info))
+              ((and (pred functionp)
+                    func)
+               (funcall func data))
+              (_ (edraw-org-link-html-link-to-svg link-props link info)))
+          (if-let ((file (edraw-org-link-prop-file link-props)))
+              (pcase (or html-tag edraw-org-export-html-file-tag)
+                ('svg (edraw-org-link-html-link-to-svg link-props link info))
+                ('img (edraw-org-link-file-to-img file link info))
+                ((and (pred functionp)
+                      func)
+                 (funcall func file))
+                (_ (edraw-org-link-file-to-img file link info)))
+            "")))
+    ""))
 
 (defun edraw-org-link-data-to-data-uri (data)
   (with-temp-buffer
