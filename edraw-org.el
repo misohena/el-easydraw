@@ -438,11 +438,11 @@ If NOERROR is nil, signals an error."
 
 (defun edraw-org-link-export (path description back-end info)
   (let ((link edraw-org-export-current-link))
-    (pcase back-end
-      ('html
-       (edraw-org-export-html-link path description back-end info link))
-      ('latex
-       (edraw-org-export-latex-link path description back-end info link)))))
+    (cond
+     ((org-export-derived-backend-p back-end 'html)
+      (edraw-org-export-html-link path description back-end info link))
+     ((org-export-derived-backend-p back-end 'latex)
+      (edraw-org-export-latex-link path description back-end info link)))))
 
 (provide 'edraw-org)
 ;;; edraw-org.el ends here
