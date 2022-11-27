@@ -510,6 +510,11 @@
     (stroke-dashoffset attr length nil)
     (style attr string nil)
     (transform attr string nil)))
+(defconst edraw-svg-element-properties-path-common
+  '((fill-rule attr (or "nonzero" "evenodd") nil)
+    (stroke-linecap attr (or "butt" "round" "square") nil)
+    (stroke-linejoin attr (or "miter" "round" "bevel") nil)
+    (stroke-miterlimit attr number nil)))
 (defconst edraw-svg-element-properties
   `((rect
      (x attr coordinate t)
@@ -533,10 +538,7 @@
     (path
      (d attr string t :internal t)
      ,@edraw-svg-element-properties-common
-     (fill-rule attr (or "nonzero" "evenodd") nil)
-     (stroke-linecap attr (or "butt" "round" "square") nil)
-     (stroke-linejoin attr (or "miter" "round" "bevel") nil)
-     (stroke-miterlimit attr number nil)
+     ,@edraw-svg-element-properties-path-common
      (marker-start attr-marker (or "arrow" "circle") nil)
      (marker-mid attr-marker (or "arrow" "circle") nil)
      (marker-end attr-marker (or "arrow" "circle") nil))
@@ -564,7 +566,8 @@
      ;;(baseline-shift attr number nil)
      ,@edraw-svg-element-properties-common)
     (g
-     (transform attr string nil :internal nil))))
+     ,@edraw-svg-element-properties-common
+     ,@edraw-svg-element-properties-path-common)))
 (defun edraw-svg-elem-prop-name (prop-def) (nth 0 prop-def))
 (defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
 (defun edraw-svg-elem-prop-type (prop-def) (nth 2 prop-def))
