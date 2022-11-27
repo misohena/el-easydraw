@@ -3087,8 +3087,7 @@ position where the EVENT occurred."
 
 ;;;;;; Insert
 
-;;@todo Change order of arguments to parent, shape, pos
-(cl-defmethod edraw-insert ((shape edraw-shape) &optional pos parent)
+(cl-defmethod edraw-insert (parent (shape edraw-shape) &optional pos)
   (with-slots (element editor removed-p) shape
     (when removed-p
       (let* ((parent-element
@@ -3114,9 +3113,10 @@ position where the EVENT occurred."
     (edraw-push-undo
      editor
      'shape-remove
-     (list 'edraw-insert shape
-           (edraw-node-position shape)
-           (edraw-parent-element shape)))
+     (list 'edraw-insert
+           (edraw-parent-element shape)
+           shape
+           (edraw-node-position shape)))
     (dom-remove-node (edraw-parent-element shape) element)
     (setq removed-p t)
     (edraw-on-shape-changed shape 'shape-remove)))
@@ -4184,7 +4184,7 @@ position where the EVENT occurred."
         (edraw-remove child))
       ;; add children
       (dolist (child children)
-        (edraw-insert child nil group)))))
+        (edraw-insert group child nil)))))
 
 (cl-defmethod edraw-ungroup ((group edraw-shape-group))
   ;;@todo apply transform attribute every children?
@@ -4196,7 +4196,7 @@ position where the EVENT occurred."
           (edraw-remove child))
         ;; add children to under the parent of the group
         (dolist (child children)
-          (edraw-insert child nil (edraw-parent group)))
+          (edraw-insert (edraw-parent group) child nil))
         ;; remove the group
         (edraw-remove group)))))
 

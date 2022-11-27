@@ -1,9 +1,5 @@
 
 * Inbox
-** TODO edraw-insertの引数順を変更する
-できれば(edraw-insert parent shape pos)にしたい。
-ただ、parentはedraw-shape、edraw-dom-element-p、nilのいずれかなのでcl-defmethodでどう書くのか知らない。特にedraw-dom-element-pは先頭がnilではないシンボルであるリストというだけなので注意が必要。
-
 ** TODO テキストエディタでSVGを直接編集できるようにする
 最終手段用。
 中身の無いgを選択して消す方法が無いので(中身の無いgを消す機能があっても良いけど)。
@@ -650,3 +646,8 @@ fill-opacityやstroke-opacityとは別に指定出来て良いはず。
 CLOSED: [2022-11-27 Sun 14:46]
 - edraw-shape-descriptorが子孫の情報を持つようにする。
 - edraw-shape-from-shape-descriptorが子孫も復元するようにする。
+** DONE edraw-insertの引数順を変更する
+CLOSED: [2022-11-27 Sun 17:16]
+できれば(edraw-insert parent shape pos)にしたい。
+ただ、parentはedraw-shape、edraw-dom-element-p、nilのいずれかなのでcl-defmethodでどう書くのか知らない。特にedraw-dom-element-pは先頭がnilではないシンボルであるリストというだけなので注意が必要。
+→複数の型にマッチしたり指定の述語にマッチする関数を書く方法が分からないのでparentはそのままにした。
