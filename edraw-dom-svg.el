@@ -464,7 +464,8 @@
     ('rect (edraw-svg-rect-summary element))
     ('ellipse (edraw-svg-ellipse-summary element))
     ('circle (edraw-svg-circle-summary element))
-    ('text (edraw-svg-text-summary element))))
+    ('text (edraw-svg-text-summary element))
+    ('g (edraw-svg-group-summary element))))
 
 (defun edraw-svg-path-summary (element)
   (format "path (%s)"
@@ -494,6 +495,10 @@
 (defun edraw-svg-text-summary (element)
   (format "text (%s)"
           (truncate-string-to-width (dom-text element) 20 nil nil "...")))
+
+(defun edraw-svg-group-summary (element)
+  (format "group (%s children)" ;;@todo edraw-msg (require 'edraw-util)
+          (length (dom-children element))))
 
 
 ;;;; SVG Shape Properties
