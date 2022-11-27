@@ -1,5 +1,9 @@
 
 * Inbox
+** TODO edraw-insertの引数順を変更する
+できれば(edraw-insert parent shape pos)にしたい。
+ただ、parentはedraw-shape、edraw-dom-element-p、nilのいずれかなのでcl-defmethodでどう書くのか知らない。特にedraw-dom-element-pは先頭がnilではないシンボルであるリストというだけなので注意が必要。
+
 ** TODO テキストエディタでSVGを直接編集できるようにする
 最終手段用。
 中身の無いgを選択して消す方法が無いので(中身の無いgを消す機能があっても良いけど)。
@@ -15,7 +19,6 @@
 
 ** TODO group化を解除するときに変形属性を適用出来るようにする
 適用するかy/nで聞いてyなら適用してからグループ化を解除する。
-** TODO groupをコピーできるようにする。
 ** TODO GUIでtransform属性を変更できるようにする(図形オブジェクト全体の変形)
 ** TODO カラーピッカーでnoneを選べるようにする
 ** TODO 矩形や楕円をパスに変換できるようにする
@@ -643,3 +646,7 @@ transform属性で平行移動しているのをどうするか。
 CLOSED: [2022-11-27 Sun 14:03]
 fill-opacityやstroke-opacityとは別に指定出来て良いはず。
 特にgroupに対するopacityは有用。
+** DONE groupをコピーできるようにする。
+CLOSED: [2022-11-27 Sun 14:46]
+- edraw-shape-descriptorが子孫の情報を持つようにする。
+- edraw-shape-from-shape-descriptorが子孫も復元するようにする。

@@ -3000,14 +3000,23 @@ position where the EVENT occurred."
         (edraw-get-property-info-list shape))))))
 
 (cl-defmethod edraw-shape-descriptor ((shape edraw-shape))
-  (list
-   (cons :type (edraw-shape-type shape))
-   (cons :properties (edraw-get-all-properties shape))))
+  (nconc
+   (list
+    (cons :type (edraw-shape-type shape))
+    (cons :properties (edraw-get-all-properties shape)))
+   (when-let ((children (edraw-children shape)))
+     (list
+      (cons :children (mapcar #'edraw-shape-descriptor children))))))
 
 (defun edraw-shape-from-shape-descriptor (editor parent shape-descriptor)
-  (let ((type (alist-get :type shape-descriptor))
-        (props (alist-get :properties shape-descriptor)))
-    (edraw-create-shape-without-default editor parent type props)))
+  (let* ((type (alist-get :type shape-descriptor))
+         (props (alist-get :properties shape-descriptor))
+         (children-descriptor (alist-get :children shape-descriptor))
+         (shape (edraw-create-shape-without-default editor parent type props)))
+    (when children-descriptor
+      (dolist (child-descriptor children-descriptor)
+        (edraw-shape-from-shape-descriptor
+         editor (edraw-element shape) child-descriptor)))))
 
 (cl-defmethod edraw-copy ((shape edraw-shape))
   (edraw-clipboard-set 'shape-descriptor-list
