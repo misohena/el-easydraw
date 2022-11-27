@@ -2987,17 +2987,25 @@ position where the EVENT occurred."
 (cl-defmethod edraw-clone ((shape edraw-shape))
   (with-slots (editor) shape
     (when-let ((shape-type (edraw-shape-type shape)))
-      (edraw-create-shape-without-default
-       editor
-       (edraw-parent-element shape)
-       shape-type
-       ;; Copy all properties
-       (mapcar
-        (lambda (prop-info)
-          (let* ((prop-name (car prop-info))
-                 (value (edraw-get-property shape prop-name)))
-            (cons prop-name value)))
-        (edraw-get-property-info-list shape))))))
+      (edraw-make-undo-group editor 'clone-shape
+        (let ((new-shape
+               (edraw-create-shape-without-default
+                editor
+                (edraw-parent-element shape)
+                shape-type
+                ;; Copy all properties
+                (mapcar
+                 (lambda (prop-info)
+                   (let* ((prop-name (car prop-info))
+                          (value (edraw-get-property shape prop-name)))
+                     (cons prop-name value)))
+                 (edraw-get-property-info-list shape)))))
+          ;; Copy all children and insert
+          (dolist (child (edraw-children shape))
+            (let ((new-child (edraw-clone child)))
+              (edraw-remove new-child)
+              (edraw-insert new-shape new-child)))
+          new-shape)))))
 
 (cl-defmethod edraw-shape-descriptor ((shape edraw-shape))
   (nconc
@@ -3110,16 +3118,18 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-remove ((shape edraw-shape))
   (with-slots (element editor removed-p) shape
-    (edraw-push-undo
-     editor
-     'shape-remove
-     (list 'edraw-insert
-           (edraw-parent-element shape)
-           shape
-           (edraw-node-position shape)))
-    (dom-remove-node (edraw-parent-element shape) element)
-    (setq removed-p t)
-    (edraw-on-shape-changed shape 'shape-remove)))
+    (when (or (not removed-p)
+              (edraw-parent-element shape))
+      (edraw-push-undo
+       editor
+       'shape-remove
+       (list 'edraw-insert
+             (edraw-parent-element shape)
+             shape
+             (edraw-node-position shape)))
+      (dom-remove-node (edraw-parent-element shape) element)
+      (setq removed-p t)
+      (edraw-on-shape-changed shape 'shape-remove))))
 
 (cl-defmethod edraw-removed-p ((shape edraw-shape))
   (oref shape removed-p))

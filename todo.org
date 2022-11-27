@@ -664,3 +664,6 @@ CLOSED: [2022-11-27 Sun 17:16]
 できれば(edraw-insert parent shape pos)にしたい。
 ただ、parentはedraw-shape、edraw-dom-element-p、nilのいずれかなのでcl-defmethodでどう書くのか知らない。特にedraw-dom-element-pは先頭がnilではないシンボルであるリストというだけなので注意が必要。
 →複数の型にマッチしたり指定の述語にマッチする関数を書く方法が分からないのでparentはそのままにした。
+** DONE groupを複製できるようにする。
+CLOSED: [2022-11-27 Sun 21:09]
+edraw-cloneで子孫を複製する。すっかり忘れてた。
