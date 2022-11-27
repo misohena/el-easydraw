@@ -506,7 +506,8 @@
 
 (defconst edraw-svg-element-properties-common
   ;;name source type required
-  '((fill attr-fill-stroke paint nil)
+  '((opacity attr opacity nil)
+    (fill attr-fill-stroke paint nil)
     (fill-opacity attr opacity nil)
     (stroke attr-fill-stroke paint nil)
     (stroke-opacity attr opacity nil)
