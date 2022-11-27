@@ -4200,7 +4200,7 @@ position where the EVENT occurred."
         ;; remove the group
         (edraw-remove group)))))
 
-(cl-defmethod edraw-get-actions ((shape edraw-shape-group))
+(cl-defmethod edraw-get-actions ((_shape edraw-shape-group))
   (let* ((items (copy-tree (cl-call-next-method))))
     (append
      items
