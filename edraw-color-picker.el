@@ -1136,6 +1136,8 @@ OVERLAY uses the display property to display the color PICKER."
                           (1- (line-beginning-position)) (line-end-position))
                       (if above-p
                           (line-beginning-position) (1+ (line-end-position))))
+        (overlay-put overlay 'wrap-prefix "") ;;Emacs has a bug that shifts mouse coordinates
+        (overlay-put overlay 'line-prefix "")
         (overlay-put overlay 'before-string (concat "\n" picker-left-string))
         (overlay-put overlay 'after-string "\n")
         t))))
