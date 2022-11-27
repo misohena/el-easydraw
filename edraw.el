@@ -3037,23 +3037,48 @@ position where the EVENT occurred."
   (with-slots (change-hook) shape
     (apply 'edraw-hook-remove change-hook function args)))
 
-;;;;;; Remove/Translate
+;;;;;; Parent
 
-(cl-defmethod edraw-remove ((shape edraw-shape))
-  (with-slots (element editor removed-p) shape
-    (edraw-push-undo
-     editor
-     'shape-remove
-     (list 'edraw-insert shape
-           (edraw-node-position shape)
-           (edraw-parent-element shape)))
-    (dom-remove-node (edraw-parent-element shape) element)
-    (setq removed-p t)
-    (edraw-on-shape-changed shape 'shape-remove)))
+(cl-defmethod edraw-parent ((shape edraw-shape))
+  (with-slots (editor) shape
+    (edraw-shape-from-element-no-create ;;Returns nil if under document root
+     (edraw-parent-element shape) editor 'noerror)))
 
-(cl-defmethod edraw-removed-p ((shape edraw-shape))
-  (oref shape removed-p))
+;;;;;; Children
 
+(cl-defmethod edraw-children ((shape edraw-shape))
+  (with-slots (editor) shape
+    (delq nil (mapcar (lambda (node)
+                        (edraw-shape-from-element node editor 'noerror))
+                      (dom-children (edraw-element shape))))))
+
+;;;;;; Siblings
+
+(cl-defmethod edraw-next-sibling ((shape edraw-shape))
+  (with-slots (editor) shape
+    (let ((parent (edraw-parent-element shape))
+          (node (edraw-element shape))
+          (shape nil))
+      ;; Find next supported element
+      (while (and (setq node (edraw-dom-next-sibling parent node))
+                  (null (setq shape (edraw-shape-from-element
+                                     node editor 'noerror)))))
+      shape)))
+
+(cl-defmethod edraw-previous-sibling ((shape edraw-shape))
+  (with-slots (editor) shape
+    (let ((parent (edraw-parent-element shape))
+          (node (edraw-element shape))
+          (shape nil))
+      ;; Find previous supported element
+      (while (and (setq node (edraw-dom-previous-sibling parent node))
+                  (null (setq shape (edraw-shape-from-element
+                                     node editor 'noerror)))))
+      shape)))
+
+;;;;;; Insert
+
+;;@todo Change order of arguments to parent, shape, pos
 (cl-defmethod edraw-insert ((shape edraw-shape) &optional pos parent)
   (with-slots (element editor removed-p) shape
     (when removed-p
@@ -3072,6 +3097,83 @@ position where the EVENT occurred."
         (setq removed-p nil)
         (edraw-push-undo editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
         (edraw-on-shape-changed shape 'shape-insert)))))
+
+;;;;;; Remove
+
+(cl-defmethod edraw-remove ((shape edraw-shape))
+  (with-slots (element editor removed-p) shape
+    (edraw-push-undo
+     editor
+     'shape-remove
+     (list 'edraw-insert shape
+           (edraw-node-position shape)
+           (edraw-parent-element shape)))
+    (dom-remove-node (edraw-parent-element shape) element)
+    (setq removed-p t)
+    (edraw-on-shape-changed shape 'shape-remove)))
+
+(cl-defmethod edraw-removed-p ((shape edraw-shape))
+  (oref shape removed-p))
+
+;;;;;; Z Order (Sibling Relationship)
+
+(cl-defmethod edraw-node-position ((shape edraw-shape))
+  (seq-position
+   (dom-children (edraw-parent-element shape))
+   (edraw-element shape)
+   #'eq))
+
+(cl-defmethod edraw-set-node-position ((shape edraw-shape) pos)
+  (let ((old-pos (edraw-node-position shape)))
+    (unless (equal pos old-pos)
+      (edraw-push-undo
+       (oref shape editor)
+       'shape-z-order (list 'edraw-set-node-position shape old-pos))
+      (let ((parent (edraw-parent-element shape))
+            (element (edraw-element shape)))
+        (dom-remove-node parent element)
+        (edraw-dom-insert-nth parent element pos))
+      (edraw-on-shape-changed shape 'shape-z-order))))
+
+(cl-defmethod edraw-front-p ((shape edraw-shape))
+  (edraw-dom-last-node-p (edraw-parent-element shape) (edraw-element shape)))
+
+(cl-defmethod edraw-back-p ((shape edraw-shape))
+  (edraw-dom-first-node-p (edraw-parent-element shape) (edraw-element shape)))
+
+(cl-defmethod edraw-bring-to-front ((shape edraw-shape))
+  (let ((old-pos (edraw-node-position shape)))
+    (when (edraw-dom-reorder-last (edraw-parent-element shape)
+                                  (edraw-element shape))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
+      (edraw-on-shape-changed shape 'shape-z-order))))
+
+(cl-defmethod edraw-bring-forward ((shape edraw-shape))
+  (let ((old-pos (edraw-node-position shape)))
+    (when (edraw-dom-reorder-next (edraw-parent-element shape)
+                                  (edraw-element shape))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
+      (edraw-on-shape-changed shape 'shape-z-order))))
+
+(cl-defmethod edraw-send-backward ((shape edraw-shape))
+  (let ((old-pos (edraw-node-position shape)))
+    (when (edraw-dom-reorder-prev (edraw-parent-element shape)
+                                  (edraw-element shape))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
+      (edraw-on-shape-changed shape 'shape-z-order))))
+
+(cl-defmethod edraw-send-to-back ((shape edraw-shape))
+  (let ((old-pos (edraw-node-position shape)))
+    (when (edraw-dom-reorder-first (edraw-parent-element shape)
+                                   (edraw-element shape))
+      (edraw-push-undo (oref shape editor) 'shape-z-order
+                       (list 'edraw-set-node-position shape old-pos))
+      (edraw-on-shape-changed shape 'shape-z-order))))
+
+;;;;;; Transform
 
 ;;(cl-defmethod edraw-translate ((shape edraw-shape) xy) )
 ;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
@@ -3228,90 +3330,6 @@ position where the EVENT occurred."
   (edraw-set-default-shape-properties-from-shape
    (oref shape editor)
    shape))
-
-
-
-;;;;;; Siblings
-
-(cl-defmethod edraw-next-sibling ((shape edraw-shape))
-  (with-slots (editor) shape
-    (let ((parent (edraw-parent-element shape))
-          (node (edraw-element shape))
-          (shape nil))
-      ;; Find next supported element
-      (while (and (setq node (edraw-dom-next-sibling parent node))
-                  (null (setq shape (edraw-shape-from-element
-                                     node editor 'noerror)))))
-      shape)))
-
-(cl-defmethod edraw-previous-sibling ((shape edraw-shape))
-  (with-slots (editor) shape
-    (let ((parent (edraw-parent-element shape))
-          (node (edraw-element shape))
-          (shape nil))
-      ;; Find previous supported element
-      (while (and (setq node (edraw-dom-previous-sibling parent node))
-                  (null (setq shape (edraw-shape-from-element
-                                     node editor 'noerror)))))
-      shape)))
-
-;;;;;; Z Order
-
-(cl-defmethod edraw-node-position ((shape edraw-shape))
-  (seq-position
-   (dom-children (edraw-parent-element shape))
-   (edraw-element shape)
-   #'eq))
-
-(cl-defmethod edraw-set-node-position ((shape edraw-shape) pos)
-  (let ((old-pos (edraw-node-position shape)))
-    (unless (equal pos old-pos)
-      (edraw-push-undo
-       (oref shape editor)
-       'shape-z-order (list 'edraw-set-node-position shape old-pos))
-      (let ((parent (edraw-parent-element shape))
-            (element (edraw-element shape)))
-        (dom-remove-node parent element)
-        (edraw-dom-insert-nth parent element pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
-
-(cl-defmethod edraw-front-p ((shape edraw-shape))
-  (edraw-dom-last-node-p (edraw-parent-element shape) (edraw-element shape)))
-
-(cl-defmethod edraw-back-p ((shape edraw-shape))
-  (edraw-dom-first-node-p (edraw-parent-element shape) (edraw-element shape)))
-
-(cl-defmethod edraw-bring-to-front ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
-    (when (edraw-dom-reorder-last (edraw-parent-element shape)
-                                  (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
-
-(cl-defmethod edraw-bring-forward ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
-    (when (edraw-dom-reorder-next (edraw-parent-element shape)
-                                  (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
-
-(cl-defmethod edraw-send-backward ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
-    (when (edraw-dom-reorder-prev (edraw-parent-element shape)
-                                  (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
-
-(cl-defmethod edraw-send-to-back ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
-    (when (edraw-dom-reorder-first (edraw-parent-element shape)
-                                   (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
 
 ;;;;;; Interactive Command
 
@@ -4142,7 +4160,7 @@ position where the EVENT occurred."
     (edraw-svg-element-transform-multiply element matrix)
     (edraw-on-shape-changed shape 'shape-transform)))
 
-(cl-defmethod edraw-shape-group-add-children (group children)
+(cl-defmethod edraw-shape-group-add-children ((group edraw-shape-group) children)
   ;; sort children by z-order
   (setq children
         (sort (copy-sequence children)
@@ -4159,6 +4177,25 @@ position where the EVENT occurred."
       (dolist (child children)
         (edraw-insert child nil group)))))
 
+(cl-defmethod edraw-ungroup ((group edraw-shape-group))
+  ;;@todo apply transform attribute every children?
+  (with-slots (editor) group
+    (edraw-make-undo-group editor 'ungroup-group
+      (let ((children (edraw-children group)))
+        ;; remove children from the group
+        (dolist (child children)
+          (edraw-remove child))
+        ;; add children to under the parent of the group
+        (dolist (child children)
+          (edraw-insert child nil (edraw-parent group)))
+        ;; remove the group
+        (edraw-remove group)))))
+
+(cl-defmethod edraw-get-actions ((shape edraw-shape-group))
+  (let* ((items (copy-tree (cl-call-next-method))))
+    (append
+     items
+     `(((edraw-msg "Ungroup") edraw-ungroup)))))
 
 ;;;; Shape Point
 
