@@ -3051,7 +3051,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-parent ((shape edraw-shape))
   (with-slots (editor) shape
     (edraw-shape-from-element-no-create ;;Returns nil if under document root
-     (edraw-parent-element shape) editor 'noerror)))
+     (edraw-parent-element shape))))
 
 ;;;;;; Children
 
