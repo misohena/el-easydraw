@@ -40,7 +40,7 @@ The following commands are available:
 
   (major-mode-suspend)
 
-  (let* ((svg (edraw-decode-svg (buffer-substring-no-properties
+  (let* ((svg (edraw-svg-decode (buffer-substring-no-properties
                                  (point-min) (point-max))
                                 nil))
          (editor (edraw-editor
@@ -120,7 +120,7 @@ The following commands are available:
   (edraw-mode-save))
 
 (defun edraw-mode-write-document (svg)
-  (let ((text (edraw-encode-svg
+  (let ((text (edraw-svg-encode
                svg nil edraw-mode-compress-file-p)))
     (let ((inhibit-read-only t))
       (erase-buffer)

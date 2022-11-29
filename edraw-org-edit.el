@@ -90,10 +90,10 @@
 
 (defun edraw-org-link-load-svg (link-props)
   (if-let ((data (edraw-org-link-prop-data link-props)))
-      (edraw-decode-svg data t)
+      (edraw-svg-decode data t)
     (if-let ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file)
-            (edraw-read-svg-from-file file)))))
+            (edraw-svg-read-from-file file)))))
 
 (defun edraw-org-link-make-writer (editor-overlay data-gzip-p file-gzip-p)
   (lambda (svg)
@@ -121,14 +121,14 @@
           (if-let ((file-path (edraw-org-link-prop-file link-props)))
               ;; file
               (progn
-                (edraw-write-svg-to-file svg file-path file-gzip-p) ;;signal an error
+                (edraw-svg-write-to-file svg file-path file-gzip-p) ;;signal an error
                 ;; Update inline image
                 (image-refresh (edraw-org-link-image-create link-props)) ;;update image if overlay already exists
                 (edraw-org-link-image-update link-begin link-end link-element) ;;create a new overlay if not exists
                 t)
             ;;data
             (setf (alist-get "data" link-props nil nil #'string=)
-                  (edraw-encode-svg svg t data-gzip-p))
+                  (edraw-svg-encode svg t data-gzip-p))
             (let ((edraw-org-enable-modification t)) ;; call modification hooks(inhibit-modification-hooks=nil) but allow modification. If inhibit-modification-hooks is t, inline images not updated.
               (unless (edraw-org-link-replace-at-point
                        (concat edraw-org-link-type ":"

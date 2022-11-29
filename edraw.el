@@ -4540,49 +4540,5 @@ position where the EVENT occurred."
 
 
 
-
-;;;; SVG Encode / Decode
-
-;;
-;;
-
-(defun edraw-decode-svg (data base64-p)
-  (with-temp-buffer
-    (insert data)
-    (edraw-decode-buffer base64-p)
-    (libxml-parse-xml-region (point-min) (point-max))))
-
-(defun edraw-encode-svg (svg base64-p gzip-p)
-  (with-temp-buffer
-    (edraw-svg-print
-     svg
-     nil
-     'edraw-svg-print-attr-filter)
-    (edraw-encode-buffer base64-p gzip-p)
-    (buffer-string)))
-
-
-
-
-;;;; SVG File I/O
-
-(defun edraw-make-file-writer (path gzip-p)
-  (lambda (svg)
-    (edraw-write-svg-to-file svg path gzip-p)))
-
-(defun edraw-write-svg-to-file (svg path gzip-p)
-  (with-temp-file path
-    (insert (edraw-encode-svg svg nil gzip-p))
-    (set-buffer-file-coding-system 'utf-8)))
-
-(defun edraw-read-svg-from-file (path)
-  (edraw-decode-svg
-   (with-temp-buffer
-     (insert-file-contents path)
-     (buffer-substring-no-properties (point-min) (point-max)))
-   nil))
-
-
-
 (provide 'edraw)
 ;;; edraw.el ends here

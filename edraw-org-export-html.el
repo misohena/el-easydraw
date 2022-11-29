@@ -129,7 +129,7 @@ svg = Embed SVG element (<svg>...</svg>)
       (message "Failed to load SVG %s" (prin1-to-string link-props)))
 
     ;; Set svg attributes, replace ids and return as string
-    (edraw-encode-svg
+    (edraw-svg-encode
      (edraw-org-link-html-convert-svg-for-embed-in-html svg attributes
                                                         link-ref)
      nil nil)))

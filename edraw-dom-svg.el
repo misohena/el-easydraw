@@ -28,7 +28,7 @@
 (require 'subr-x)
 (require 'edraw-math)
 (require 'edraw-path)
-
+(require 'edraw-util)
 
 ;;;; DOM Utility
 
@@ -194,6 +194,45 @@
 
 (defun edraw-svg-symbol-name (symbol-or-str)
   (format "%s" symbol-or-str))
+
+
+;;;; SVG Encode / Decode
+
+
+(defun edraw-svg-decode (data base64-p)
+  (with-temp-buffer
+    (insert data)
+    (edraw-decode-buffer base64-p)
+    (libxml-parse-xml-region (point-min) (point-max))))
+
+(defun edraw-svg-encode (svg base64-p gzip-p)
+  (with-temp-buffer
+    (edraw-svg-print
+     svg
+     nil
+     'edraw-svg-print-attr-filter)
+    (edraw-encode-buffer base64-p gzip-p)
+    (buffer-string)))
+
+
+;;;; SVG File I/O
+
+
+(defun edraw-svg-make-file-writer (path gzip-p)
+  (lambda (svg)
+    (edraw-svg-write-to-file svg path gzip-p)))
+
+(defun edraw-svg-write-to-file (svg path gzip-p)
+  (with-temp-file path
+    (insert (edraw-svg-encode svg nil gzip-p))
+    (set-buffer-file-coding-system 'utf-8)))
+
+(defun edraw-svg-read-from-file (path)
+  (edraw-svg-decode
+   (with-temp-buffer
+     (insert-file-contents path)
+     (buffer-substring-no-properties (point-min) (point-max)))
+   nil))
 
 
 ;;;; SVG Attributes
