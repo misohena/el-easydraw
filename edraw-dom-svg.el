@@ -1332,7 +1332,7 @@ This function does not consider the effect of the transform attribute."
   (let (segments)
     (dolist (child (dom-children element))
       (when (edraw-dom-element-p child)
-        (let ((child-segments (edraw-svg-element-to-seglist element matrix)))
+        (let ((child-segments (edraw-svg-element-to-seglist child matrix)))
           (setq segments (nconc segments child-segments)))))
     segments))
 
