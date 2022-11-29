@@ -1250,17 +1250,17 @@ The undo data generated during undo is saved in redo-list."
             (edraw-svg-ui-shape-points g
                                        shape selected-anchor selected-handle))
           ;; Boundary
-          (when (and (null (cdr selected-shapes))
-                     (memq (edraw-shape-type (car selected-shapes)) '(text g)))
-            (let ((aabb (edraw-shape-aabb (car selected-shapes))))
-              (unless (edraw-rect-empty-p aabb)
-                (svg-rectangle g
-                               (edraw-rect-left aabb)
-                               (edraw-rect-top aabb)
-                               (edraw-rect-width aabb)
-                               (edraw-rect-height aabb)
-                               :class
-                               "edraw-ui-shape-boundary")))))
+          (dolist (shape selected-shapes)
+            (when (memq (edraw-shape-type shape) '(text g))
+              (let ((aabb (edraw-shape-aabb shape)))
+                (unless (edraw-rect-empty-p aabb)
+                  (svg-rectangle g
+                                 (edraw-rect-left aabb)
+                                 (edraw-rect-top aabb)
+                                 (edraw-rect-width aabb)
+                                 (edraw-rect-height aabb)
+                                 :class
+                                 "edraw-ui-shape-boundary"))))))
       ;; Hide points
       (edraw-svg-ui-shape-points-remove-group
        (edraw-ui-foreground-svg editor))))
