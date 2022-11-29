@@ -2228,27 +2228,28 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
 
 (defun edraw-path-seglist-aabb (segments)
   "Return the exact axis-aligned bounding box of SEGMENTS."
-  (let (x-min-max
-        y-min-max)
-    (dolist (seg segments)
-      (if (= (length seg) 2)
+  (when segments
+    (let (x-min-max
+          y-min-max)
+      (dolist (seg segments)
+        (if (= (length seg) 2)
+            (let ((p0 (elt seg 0))
+                  (p1 (elt seg 1)))
+              (setq x-min-max (edraw-min-max-update x-min-max (car p0)))
+              (setq x-min-max (edraw-min-max-update x-min-max (car p1)))
+              (setq y-min-max (edraw-min-max-update y-min-max (cdr p0)))
+              (setq y-min-max (edraw-min-max-update y-min-max (cdr p1))))
           (let ((p0 (elt seg 0))
-                (p1 (elt seg 1)))
-            (setq x-min-max (edraw-min-max-update x-min-max (car p0)))
-            (setq x-min-max (edraw-min-max-update x-min-max (car p1)))
-            (setq y-min-max (edraw-min-max-update y-min-max (cdr p0)))
-            (setq y-min-max (edraw-min-max-update y-min-max (cdr p1))))
-        (let ((p0 (elt seg 0))
-              (p1 (elt seg 1))
-              (p2 (elt seg 2))
-              (p3 (elt seg 3)))
-          (setq x-min-max (edraw-cubic-bezier-min-max-update x-min-max (car p0) (car p1) (car p2) (car p3)))
-          (setq y-min-max (edraw-cubic-bezier-min-max-update y-min-max (cdr p0) (cdr p1) (cdr p2) (cdr p3))))))
-    (edraw-rect
-     (car x-min-max)
-     (car y-min-max)
-     (cdr x-min-max)
-     (cdr y-min-max))))
+                (p1 (elt seg 1))
+                (p2 (elt seg 2))
+                (p3 (elt seg 3)))
+            (setq x-min-max (edraw-cubic-bezier-min-max-update x-min-max (car p0) (car p1) (car p2) (car p3)))
+            (setq y-min-max (edraw-cubic-bezier-min-max-update y-min-max (cdr p0) (cdr p1) (cdr p2) (cdr p3))))))
+      (edraw-rect
+       (car x-min-max)
+       (car y-min-max)
+       (cdr x-min-max)
+       (cdr y-min-max)))))
 
 ;;TEST: (edraw-path-seglist-aabb (edraw-path-cmdlist-to-seglist (edraw-path-cmdlist-from-d "M10,20 L30,40 Z C20,0 80,0 100,20") nil)) => ((10 . 5.0) 100 . 40)
 
