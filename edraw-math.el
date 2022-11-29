@@ -173,6 +173,8 @@
 (defmacro edraw-rect-top (rect) `(cdar ,rect))
 (defmacro edraw-rect-right (rect) `(cadr ,rect))
 (defmacro edraw-rect-bottom (rect) `(cddr ,rect))
+(defmacro edraw-rect-width (rect) `(- (cadr ,rect) (caar ,rect)))
+(defmacro edraw-rect-height (rect) `(- (cddr ,rect) (cdar ,rect)))
 
 (defsubst edraw-rect (x0 y0 x1 y1)
   (cons
