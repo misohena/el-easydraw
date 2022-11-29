@@ -3465,8 +3465,9 @@ position where the EVENT occurred."
 
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-*)) )
-;;(cl-defmethod edraw-shape-type (edraw-shape-*) )
 
+(cl-defgeneric edraw-shape-type (shape) ;;(shape edraw-shape-*)
+  "Return a symbol representing the type of SHAPE.")
 
 
 ;;;;; Shape - Rect Boundary
