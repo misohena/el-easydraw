@@ -449,6 +449,10 @@ line-prefix and wrap-prefix are used in org-indent.")
 .edraw-ui-handle-line {
   stroke: #f88; fill: none;
 }
+.edraw-ui-shape-boundary {
+  stroke: #f88; fill: none;
+  stroke-dasharray: 4,2;
+}
 .edraw-ui-read-rectangle {
   stroke: #f88; fill: none;
   stroke-dasharray: 2;
@@ -1244,7 +1248,19 @@ The undo data generated during undo is saved in redo-list."
                   (edraw-ui-foreground-svg editor))))
           (dolist (shape selected-shapes)
             (edraw-svg-ui-shape-points g
-                                       shape selected-anchor selected-handle)))
+                                       shape selected-anchor selected-handle))
+          ;; Boundary
+          (when (and (null (cdr selected-shapes))
+                     (memq (edraw-shape-type (car selected-shapes)) '(text g)))
+            (let ((aabb (edraw-shape-aabb (car selected-shapes))))
+              (unless (edraw-rect-empty-p aabb)
+                (svg-rectangle g
+                               (edraw-rect-left aabb)
+                               (edraw-rect-top aabb)
+                               (edraw-rect-width aabb)
+                               (edraw-rect-height aabb)
+                               :class
+                               "edraw-ui-shape-boundary")))))
       ;; Hide points
       (edraw-svg-ui-shape-points-remove-group
        (edraw-ui-foreground-svg editor))))
@@ -3428,6 +3444,13 @@ position where the EVENT occurred."
    (edraw-get-summary shape)
    (edraw-get-actions shape)
    shape))
+
+;;;;;; Boundary
+
+(cl-defgeneric edraw-shape-aabb (shape)
+  "Return the axis aligned bounding box of the SHAPE.")
+(cl-defmethod edraw-shape-aabb ((shape edraw-shape))
+  (edraw-svg-shape-aabb (edraw-element shape))) ;;@todo cache?
 
 ;;;;;; Transform Property
 
