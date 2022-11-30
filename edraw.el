@@ -3040,7 +3040,8 @@ position where the EVENT occurred."
     (when children-descriptor
       (dolist (child-descriptor children-descriptor)
         (edraw-shape-from-shape-descriptor
-         editor (edraw-element shape) child-descriptor)))))
+         editor (edraw-element shape) child-descriptor)))
+    shape))
 
 (cl-defmethod edraw-copy ((shape edraw-shape))
   (edraw-clipboard-set 'shape-descriptor-list
