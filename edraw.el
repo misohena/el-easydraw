@@ -1493,11 +1493,8 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-paste ((editor edraw-editor))
   (when (eq (edraw-clipboard-type) 'shape-descriptor-list)
     (edraw-make-undo-group editor 'paste
-      (mapcar
-       (lambda (shape-descriptor)
-         (edraw-shape-from-shape-descriptor
-          editor (edraw-svg-body editor) shape-descriptor))
-       (edraw-clipboard-data)))))
+      (edraw-shape-from-shape-descriptor-list
+       editor (edraw-svg-body editor) (edraw-clipboard-data)))))
 
 (edraw-editor-defcmd edraw-paste-and-select)
 (cl-defmethod edraw-paste-and-select ((editor edraw-editor))
@@ -3046,6 +3043,17 @@ position where the EVENT occurred."
               (edraw-insert new-shape new-child)))
           new-shape)))))
 
+;;;;;; Shape Descriptor
+
+(cl-defmethod edraw-copy ((shape edraw-shape))
+  (edraw-clipboard-set 'shape-descriptor-list
+                       (list (edraw-shape-descriptor shape))))
+
+(cl-defmethod edraw-cut ((shape edraw-shape))
+  (edraw-clipboard-set 'shape-descriptor-list
+                       (list (edraw-shape-descriptor shape)))
+  (edraw-remove shape))
+
 (cl-defmethod edraw-shape-descriptor ((shape edraw-shape))
   (nconc
    (list
@@ -3066,14 +3074,12 @@ position where the EVENT occurred."
          editor (edraw-element shape) child-descriptor)))
     shape))
 
-(cl-defmethod edraw-copy ((shape edraw-shape))
-  (edraw-clipboard-set 'shape-descriptor-list
-                       (list (edraw-shape-descriptor shape))))
-
-(cl-defmethod edraw-cut ((shape edraw-shape))
-  (edraw-clipboard-set 'shape-descriptor-list
-                       (list (edraw-shape-descriptor shape)))
-  (edraw-remove shape))
+(defun edraw-shape-from-shape-descriptor-list (editor parent
+                                                      shape-descriptor-list)
+  (mapcar (lambda (shape-descriptor)
+            (edraw-shape-from-shape-descriptor
+             editor parent shape-descriptor))
+          shape-descriptor-list))
 
 ;;;;;; Hooks
 
