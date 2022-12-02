@@ -803,20 +803,31 @@ The undo data generated during undo is saved in redo-list."
     ;; #edraw-body
     (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)))
 
-(defun edraw-create-document-svg ()
-  (let* ((width (alist-get 'width edraw-default-document-properties))
-         (height (alist-get 'height edraw-default-document-properties))
-         (background (alist-get 'background edraw-default-document-properties))
+(defun edraw-create-document-svg (&optional width height background children)
+  (let* ((width (or width (alist-get 'width edraw-default-document-properties)))
+         (height (or height (alist-get 'height edraw-default-document-properties)))
+         (background (or background (alist-get 'background edraw-default-document-properties)))
          (svg (svg-create width height)))
     (when (and background (not (equal background "none")))
       (svg-rectangle svg 0 0 width height
                      :id edraw-editor-svg-background-id
                      :stroke "none"
                      :fill background))
+
+    ;; #edraw-body
+    ;; If children='(nil), create #edraw-body only.
+    (when children
+      (let ((body (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)))
+        (dolist (child children)
+          (when child ;;Enable '(nil) to create body node only.
+            (dom-append-child body child)))))
     svg))
 
+(defun edraw-get-document-body (svg)
+  (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
+
 (cl-defmethod edraw-svg-body ((editor edraw-editor))
-  (edraw-dom-get-by-id (oref editor svg) edraw-editor-svg-body-id))
+  (edraw-get-document-body (oref editor svg)))
 
 ;; Modification
 
