@@ -84,7 +84,7 @@
                       (or (overlay-get editor-overlay 'keymap)
                           edraw-editor-map))))
       ;; Hook kill buffer
-      (edraw-org-link-hook-kill-buffer-query)
+      (add-hook 'kill-buffer-query-functions 'edraw-buffer-kill-query nil t)
 
       (message "%s" (substitute-command-keys "\\[edraw-org-link-finish-edit]:Finish Edit, \\[edraw-org-link-cancel-edit]:Cancel Edit")))))
 
@@ -184,22 +184,6 @@
           (edraw-org-link-image-set-visible image-overlay t)))))
   ;; delete editor overlay
   (edraw-close editor))
-
-(defun edraw-org-link-hook-kill-buffer-query ()
-  (add-hook 'kill-buffer-query-functions
-            'edraw-org-link-kill-buffer-query nil t))
-
-(defun edraw-org-link-kill-buffer-query ()
-  (save-excursion
-    (save-restriction
-      (cl-loop for ov in (overlays-in (point-min) (point-max))
-               do (when-let ((editor (overlay-get ov 'edraw-editor)))
-                    (when (edraw-modified-p editor)
-                      (goto-char (overlay-start ov))
-                      (when (y-or-n-p
-                             "Edraw editor has unsaved changes. Save it ?")
-                        (edraw-save editor)))))))
-  t)
 
 
 

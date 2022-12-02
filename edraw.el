@@ -4565,5 +4565,28 @@ position where the EVENT occurred."
 
 
 
+;;;; Utility
+
+(defun edraw-buffer-kill-query ()
+  "Query user to discard all editor changes.
+
+This function is for registering with the `kill-buffer-query-functions' hook."
+  (save-excursion
+    (save-restriction
+      (widen)
+      (seq-every-p
+       (lambda (ov)
+         (if ov
+             (let ((editor (overlay-get ov 'edraw-editor)))
+               (or (null editor)
+                   (not (edraw-modified-p editor))
+                   (progn
+                     (goto-char (overlay-start ov))
+                     (y-or-n-p
+                      (edraw-msg "Edraw editor has unsaved changes. Discard changes ?")))))
+           t))
+       (overlays-in (point-min) (point-max))))))
+
+
 (provide 'edraw)
 ;;; edraw.el ends here
