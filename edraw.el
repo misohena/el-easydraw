@@ -1189,6 +1189,13 @@ The undo data generated during undo is saved in redo-list."
     (while selected-shapes
       (edraw-remove-shape-selection editor (car selected-shapes)))))
 
+(cl-defmethod edraw-select-shapes ((editor edraw-editor) shapes)
+  (edraw-deselect-all-shapes editor)
+  (dolist (shape shapes)
+    (edraw-add-shape-selection editor shape))
+  shapes)
+
+
 (cl-defmethod edraw-on-selected-shape-changed ((editor edraw-editor)
                                                shape type)
   ;;(message "changed!! %s" type)
@@ -1495,9 +1502,8 @@ The undo data generated during undo is saved in redo-list."
 (edraw-editor-defcmd edraw-paste-and-select)
 (cl-defmethod edraw-paste-and-select ((editor edraw-editor))
   (when-let ((shapes (edraw-paste editor)))
-    (edraw-deselect-all-shapes editor)
-    (dolist (shape shapes)
-      (edraw-add-shape-selection editor shape))))
+    (edraw-select-shapes editor shapes)
+    shapes))
 
 (edraw-editor-defcmd edraw-copy-selected-shapes)
 (cl-defmethod edraw-copy-selected-shapes ((editor edraw-editor))
@@ -2486,9 +2492,8 @@ position where the EVENT occurred."
      ;; Select by rectangle
      ((let ((rect (edraw-read-rectangle editor down-event nil)))
         (unless (edraw-rect-empty-p rect)
-          (edraw-deselect-all-shapes editor)
-          (dolist (shp (edraw-find-shapes-by-rect editor rect))
-            (edraw-add-shape-selection editor shp))
+          (edraw-select-shapes editor
+                               (edraw-find-shapes-by-rect editor rect))
           t)))
 
      ;; Deselect
