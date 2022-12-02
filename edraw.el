@@ -2453,8 +2453,13 @@ position where the EVENT occurred."
        (t
         (edraw-context-menu-at-point editor click-xy))))))
 
+(cl-defgeneric edraw-on-selected (target selector)
+  "Called when TARGET is selected by SELECTOR.")
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool) (editor edraw-editor))
   (oset tool editor editor))
+
+(cl-defgeneric edraw-on-unselected (target)
+  "Called when TARGET is unselected.")
 (cl-defmethod edraw-on-unselected ((tool edraw-editor-tool))
   (oset tool editor nil))
 
