@@ -37,6 +37,11 @@
 (require 'edraw-color-picker)
 (require 'edraw-property-editor)
 
+(autoload #'edraw-shape-picker-open "edraw-shape-picker")
+(declare-function #'edraw-shape-picker-connect "edraw-shape-picker")
+(declare-function #'edraw-shape-picker-disconnect "edraw-shape-picker")
+
+
 ;;;; Editor
 
 ;; edraw-editor------------------------------------------+
@@ -149,6 +154,7 @@
     (define-key km "a" 'edraw-editor-select-tool-path)
     (define-key km "f" 'edraw-editor-select-tool-freehand)
     (define-key km "t" 'edraw-editor-select-tool-text)
+    (define-key km "u" 'edraw-editor-select-tool-custom-shape)
     (define-key km "F" 'edraw-editor-edit-tool-default-fill)
     (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
     (define-key km "#" 'edraw-editor-toggle-grid-visible)
@@ -1809,7 +1815,7 @@ position where the EVENT occurred."
 
 ;;;;; Editor - Toolbar
 
-(defvar edraw-editor-tool-list '(select rect ellipse path freehand text))
+(defvar edraw-editor-tool-list '(select rect ellipse path freehand text custom-shape))
 (defvar edraw-editor-tool-map nil)
 
 (defconst edraw-editor-toolbar-button-w 30)
@@ -2081,6 +2087,11 @@ position where the EVENT occurred."
                (stroke . "#ccc")
                (stroke-width . 1)
                (fill . "url(#icon-fg-gradient)")))))
+
+(defun edraw-icon-tool-custom-shape (g)
+  (svg-node
+   g 'path :d "M14,4C16,2 18,0 20,2C22,4 18,6 20,8C22,10 26,8 26,12C26,14 22,12 20,14C18,16 24,20 20,22C16,24 16,16 12,16C8,16 4,20 4,16C4,14 6,12 8,10C10,8 4,6 6,4C8,2 12,6 14,4Z"
+   :stroke-width 1 :stroke "#ccc" :gradient "icon-fg-gradient"))
 
 ;; (defun edraw-preview-icon (name)
 ;;   (interactive "sIcon Name(e.g.tool-text): ")
@@ -2904,6 +2915,86 @@ position where the EVENT occurred."
           )))))
 
 
+;;;;; Tool - Custom Shape Tool
+
+(defclass edraw-editor-tool-custom-shape (edraw-editor-tool)
+  ((on-picker-notify :initform nil)
+   (picker-buffer :initform nil)
+   (shape-descriptor-list :initform nil)))
+
+(cl-defmethod edraw-on-selected ((tool edraw-editor-tool-custom-shape)
+                                 (_editor edraw-editor))
+  (prog1 (cl-call-next-method)
+    (edraw-connect-to-shape-picker tool)))
+
+(cl-defmethod edraw-on-unselected ((tool edraw-editor-tool-custom-shape))
+  (edraw-disconnect-from-shape-picker tool)
+  (cl-call-next-method))
+
+(cl-defmethod edraw-connect-to-shape-picker ((tool edraw-editor-tool-custom-shape))
+  (with-slots (on-picker-notify picker-buffer) tool
+    (when (or (null picker-buffer)
+              (not (buffer-live-p picker-buffer)))
+      (unless on-picker-notify
+        (setq on-picker-notify
+              (lambda (type &rest args)
+                ;; NOTE: Called from the picker buffer.
+                (edraw-on-shape-picker-notify tool type args))))
+      (setq picker-buffer (edraw-shape-picker-open)) ;; Open common buffer
+      (edraw-shape-picker-connect picker-buffer on-picker-notify)
+      ;; If you want to detect that a buffer has been killed arbitrarily, do:
+      ;; (with-current-buffer picker-buffer (add-hook 'kill-buffer-hook <callback> nil t))
+      ;; And add following before disconnect:
+      ;; (with-current-buffer picker-buffer (remove-hook 'kill-buffer-hook <callback> t))
+      )))
+
+(cl-defmethod edraw-disconnect-from-shape-picker ((tool edraw-editor-tool-custom-shape))
+  (with-slots (on-picker-notify picker-buffer) tool
+    (when picker-buffer
+      (when (buffer-live-p picker-buffer) ;;live buffer
+        (edraw-shape-picker-disconnect picker-buffer on-picker-notify)) ;;Close automatically
+      (setq on-picker-notify nil)
+      (setq picker-buffer nil))))
+
+(cl-defmethod edraw-on-shape-picker-notify
+  ((tool edraw-editor-tool-custom-shape) type args)
+  "Callback from edraw-shape-picker buffer."
+  ;; NOTE: Called from picker-buffer.
+  (with-slots (shape-descriptor-list editor) tool
+    (pcase type
+      ('deselect
+       (setq shape-descriptor-list nil))
+      ('select
+       (let ((shape-def (nth 0 args)))
+         (setq shape-descriptor-list
+               (edraw-shape-descriptor-list-from-shape-picker-shape
+                shape-def editor)))))))
+
+(cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-custom-shape)
+                                click-event)
+  (edraw-put-custom-shape tool click-event))
+
+(cl-defmethod edraw-put-custom-shape ((tool edraw-editor-tool-custom-shape)
+                                      click-event)
+  (with-slots (shape-descriptor-list editor) tool
+    (when shape-descriptor-list
+      (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
+             (click-xy-snapped (edraw-snap-xy editor click-xy)))
+
+        (edraw-deselect-all-shapes editor)
+
+        (edraw-make-undo-group editor 'put-custom-shape
+
+          (when-let ((shapes (edraw-shape-from-shape-descriptor-list
+                              editor
+                              (edraw-svg-body editor)
+                              shape-descriptor-list)))
+            (dolist (shape shapes)
+              (edraw-translate shape click-xy-snapped))
+
+            (edraw-select-shapes editor shapes)))))))
+
+
 
 ;;;; Shape
 
@@ -3081,6 +3172,30 @@ position where the EVENT occurred."
              editor parent shape-descriptor))
           shape-descriptor-list))
 
+(defun edraw-shape-descriptor-from-svg-element (svg-element editor)
+  (when (edraw-dom-element-p svg-element)
+    (if-let ((shape (edraw-shape-from-element svg-element editor 'noerror)))
+        (edraw-shape-descriptor shape)
+      (message (edraw-msg "Unsupported SVG element: %s") svg-element)
+      nil)))
+
+(defun edraw-shape-descriptor-list-from-svg-string (svg-text editor)
+  (when-let ((container (edraw-svg-decode (concat "<g>" svg-text "</g>") nil)))
+    (cl-loop for node in (dom-children container)
+             for desc = (edraw-shape-descriptor-from-svg-element node editor)
+             when desc collect desc)))
+
+(defun edraw-shape-descriptor-list-from-shape-picker-shape (shape-def editor)
+  (cond
+   ((eq (car-safe shape-def) 'shape-descriptor-list)
+    (cdr shape-def))
+   ((stringp shape-def)
+    (edraw-shape-descriptor-list-from-svg-string shape-def editor))
+   ((edraw-dom-element-p shape-def)
+    (list (edraw-shape-descriptor-from-svg-element shape-def editor)))
+   (t
+    (message (edraw-msg "Unknown type of shape definition"))
+    nil)))
 ;;;;;; Hooks
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)

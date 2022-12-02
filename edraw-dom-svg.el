@@ -154,9 +154,9 @@
    'svg t
    props))
 
-(defun edraw-svg-to-string (dom node-filter attr-filter)
+(defun edraw-svg-to-string (dom node-filter attr-filter &optional indent no-indent)
   (with-temp-buffer
-    (edraw-svg-print dom node-filter attr-filter)
+    (edraw-svg-print dom node-filter attr-filter indent no-indent)
     (buffer-string)))
 
 (defun edraw-svg-print (dom node-filter attr-filter &optional indent no-indent)
@@ -1482,6 +1482,110 @@ This function does not consider the effect of the transform attribute."
        (and (edraw-dom-element-p child)
             (edraw-svg-element-intersects-rect-p child rect sub-matrix)))
      (dom-children element))))
+
+
+;;;; SVG Shape Thumbnail
+
+(defun edraw-svg-shape-thumbnail-cover (svg svg-width svg-height spec
+                                            pl pt cw ch id)
+  (let ((bl 0)
+        (bt 0)
+        (bw svg-width)
+        (bh svg-height)
+        (attrs '((fill . "#ffffff"))))
+    ;; 'full
+    ;; 'content
+    ;; '(content (symbol . value)...)
+    ;; '(full (symbol . value)...)
+    ;; '((symbol . value)...)
+    (pcase spec
+      ('content
+       (setq bl pl bt pt bw cw bh ch))
+      (`(content . ,alist)
+       (setq bl pl bt pt bw cw bh ch attrs alist))
+      (`(full . ,alist)
+       (setq attrs alist))
+      ((and (pred listp) alist)
+       (setq attrs alist)))
+    (dom-append-child
+     svg
+     (dom-node 'rect
+               `((id . ,id)
+                 (x . ,bl)
+                 (y . ,bt)
+                 (width . ,bw)
+                 (height . ,bh)
+                 ,@attrs)))))
+
+(defun edraw-svg-shape-thumbnail (shape svg-width svg-height
+                                        &optional
+                                        padding background foreground
+                                        svg-max-width svg-max-height)
+  (let ((aabb (edraw-svg-shape-aabb shape)))
+    (unless (edraw-rect-empty-p aabb)
+      (setq padding
+            (pcase padding
+              (`(,pl ,pt ,pr ,pb) (list pl pt pr pb))
+              (`(,plr ,ptb) (list plr ptb plr ptb))
+              ('nil (list 0 0 0 0))
+              (n (list n n n n))))
+      (unless (seq-every-p #'numberp padding)
+        (error "Wrong padding spec %s" padding))
+
+      (let* (;;bounding box
+             (bl (edraw-rect-left aabb))
+             (bt (edraw-rect-top aabb))
+             (bw (edraw-rect-width aabb))
+             (bh (edraw-rect-height aabb))
+             ;;padding
+             (pl (nth 0 padding))
+             (pt (nth 1 padding))
+             (pr (nth 2 padding))
+             (pb (nth 3 padding))
+             ;;content (without padding)
+             (cw (max 0
+                      (- svg-width pl pr)
+                      (if svg-max-width (min (- svg-max-width pl pr) bw) 0)))
+             (ch (max 0
+                      (- svg-height pt pb)
+                      (if svg-max-height (min (- svg-max-height pt pb) bh) 0)))
+             ;;scale
+             (sx (/ (float cw) bw))
+             (sy (/ (float ch) bh))
+             (scale (min sx sy 1.0)))
+
+        (setq svg-width (+ pl cw pr)
+              svg-height (+ pt ch pb))
+
+        (let ((svg (svg-create svg-width svg-height)))
+          (when background
+            (edraw-svg-shape-thumbnail-cover
+             svg svg-width svg-height
+             background pl pt cw ch "background"))
+
+          ;; Body
+          (dom-append-child
+           svg
+           (dom-node 'g
+                     `((id . "body")
+                       (transform
+                        .
+                        ,(concat
+                          (format "translate(%s %s)"
+                                  (+ pl (/ (- cw (* bw scale)) 2))
+                                  (+ pt (/ (- ch (* bh scale)) 2)))
+                          " "
+                          (format "scale(%s)" scale)
+                          " "
+                          (format "translate(%s %s)" (- bl) (- bt)))))
+                     shape))
+
+          (when foreground
+            (edraw-svg-shape-thumbnail-cover
+             svg svg-width svg-height
+             foreground pl pt cw ch "foreground"))
+
+          svg)))))
 
 
 
