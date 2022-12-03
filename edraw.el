@@ -4691,24 +4691,6 @@ position where the EVENT occurred."
 
 
 
-;;;; Clipboard
-
-(defvar edraw-clipboard-type-data nil)
-
-(defun edraw-clipboard-set (type data)
-  (setq edraw-clipboard-type-data (cons type data)))
-
-(defun edraw-clipboard-empty-p ()
-  (null edraw-clipboard-type-data))
-
-(defun edraw-clipboard-type ()
-  (car edraw-clipboard-type-data))
-
-(defun edraw-clipboard-data ()
-  (cdr edraw-clipboard-type-data))
-
-
-
 ;;;; Utility
 
 (defun edraw-buffer-kill-query ()
