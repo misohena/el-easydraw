@@ -263,7 +263,7 @@
   (with-current-buffer (or buffer (current-buffer))
     (remove-hook 'edraw-shape-picker-notification-hook on-notify t)
     ;; Close automatically
-    (when (and (= (length edraw-shape-picker-notification-hook) 0)
+    (when (and (edraw-shape-picker-notification-hook-empty-p)
                (not edraw-shape-picker-opened-by-user))
       (edraw-shape-picker-close buffer))))
 
@@ -315,6 +315,9 @@
   "Major mode for edraw shape picker."
   (setq-local buffer-read-only t
               line-move-visual t))
+
+(defun edraw-shape-picker-notification-hook-empty-p ()
+  (null edraw-shape-picker-notification-hook))
 
 (defun edraw-shape-picker-quit ()
   (interactive)
