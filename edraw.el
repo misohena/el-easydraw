@@ -248,6 +248,7 @@ line-prefix and wrap-prefix are used in org-indent.")
                     (cons 'transparent-bg-visible
                           edraw-editor-default-transparent-bg-visible)
                     ))
+   (extra-properties :initform nil)
    (default-shape-properties
      :initform (if edraw-editor-share-default-shape-properties
                    edraw-default-shape-properties ;;@todo observe changes made by other editors
@@ -305,6 +306,13 @@ line-prefix and wrap-prefix are used in org-indent.")
   (alist-get key (oref editor settings)))
 (cl-defmethod edraw-set-setting ((editor edraw-editor) key value)
   (setf (alist-get key (oref editor settings)) value))
+
+;;;;; Editor - Extra Properties
+
+(cl-defmethod edraw-get-extra-prop ((editor edraw-editor) key)
+  (alist-get key (oref editor extra-properties)))
+(cl-defmethod edraw-set-extra-prop ((editor edraw-editor) key value)
+  (setf (alist-get key (oref editor extra-properties)) value))
 
 ;;;;; Editor - Hooks
 
