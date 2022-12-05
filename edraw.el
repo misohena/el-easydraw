@@ -316,6 +316,11 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 ;;;;; Editor - Hooks
 
+(cl-defmethod edraw-define-hook-type ((editor edraw-editor) hook-type)
+  (with-slots (hooks) editor
+    (unless (alist-get hook-type hooks)
+      (push (cons hook-type (edraw-hook-make)) hooks))))
+
 (cl-defmethod edraw-add-hook ((editor edraw-editor) hook-type
                               function &rest args)
   (with-slots (hooks) editor
