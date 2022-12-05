@@ -129,7 +129,7 @@
 ;;
 
 (defvar edraw-shape-picker-entries-default
-  ;; List of <entry>
+  ;; (:section <root-props>... <entry>...)
   ;;
   ;; <entry> :
   ;;   (:section <section-prop>... <entry>...)
@@ -140,7 +140,7 @@
   ;;
   ;;   (:shape <shape-prop>... <shape-def>)
   ;;     see: `edraw-shape-picker-insert-shape'
-  '(
+  '(:section :name "Default Shape Set"
     (:section :name "Test"
               (:shape :name "red square" "<rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"red\" />")
               (:shape :name "bg test" :background ((fill . "blue")) "<ellipse cx=\"0\" cy=\"0\" rx=\"100\" ry=\"100\" fill=\"red\" />")
@@ -497,39 +497,88 @@
 
 
 
-;;;; Entry Utility
+;;;; Entry
 
-;; (:<tag> <:keywordN> <valueN> ... <contents>...)
+;;;;; Entry Common
+
+;;;;;; Entry Type
+
+(defun edraw-shape-picker-entry-container-p (entry)
+  "Return non-nil if ENTRY can contain child entries."
+  (memq (edraw-shape-picker-entry-type entry) '(:section :layout)))
+
+(defun edraw-shape-picker-entry-can-have-name-p (entry)
+  (memq (edraw-shape-picker-entry-type entry) '(:section :shape)))
+
+;;;;;; Entry Name
+
+(defun edraw-shape-picker-entry-name-for-msg (entry)
+  (if-let ((name-p (edraw-shape-picker-entry-can-have-name-p entry))
+           (name (edraw-shape-picker-entry-prop-get entry :name)))
+      name
+    (substring (symbol-name (edraw-shape-picker-entry-type entry)) 1)))
+
+;;;;;; Entry Modification
+
+(defvar-local edraw-shape-picker-inhibit-refresh nil)
+
+(defun edraw-shape-picker-on-entry-modified (&rest _entries)
+  ;;@todo Do not update if entry has not been added yet
+  (set-buffer-modified-p t)
+
+  ;; Update thumbnail image
+  ;;@todo delay update?
+  (unless edraw-shape-picker-inhibit-refresh
+    ;;@todo Update only the entry?
+    ;;@todo keep point exact
+    (let ((point (point)))
+      (edraw-shape-picker-refresh)
+      (when (<= (point-min) point (point-max))
+        (goto-char point)))))
+
+;;;;;; Entry Basic Accessors
+
+;; (:<type> <:keywordN> <valueN> ... <contents>...)
+
+(defun edraw-shape-picker-entry-type (entry)
+  (and (consp entry)
+       (keywordp (car entry))
+       (car entry)))
 
 (defun edraw-shape-picker-entry-prev-contents (entry)
+  "Returns the previous link (cons cell) of the ENTRY's contents list."
   (let ((prev entry))
     (while (and (cddr prev)
                 (keywordp (cadr prev)))
       (setq prev (cddr prev)))
     prev))
-;; TEST: (edraw-shape-picker-entry-prev-contents '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => (22 "DAT1" "DAT2")
-;; TEST: (edraw-shape-picker-entry-prev-contents '(:tag)) => (:tag)
-;; TEST: (edraw-shape-picker-entry-prev-contents '(:tag "DAT1")) => (:tag "DAT1")
+;;TEST: (edraw-shape-picker-entry-prev-contents '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => (22 "DAT1" "DAT2")
+;;TEST: (edraw-shape-picker-entry-prev-contents '(:tag)) => (:tag)
+;;TEST: (edraw-shape-picker-entry-prev-contents '(:tag "DAT1")) => (:tag "DAT1")
 
 (defun edraw-shape-picker-entry-contents-get (entry)
   (cdr (edraw-shape-picker-entry-prev-contents entry)))
-;; TEST: (edraw-shape-picker-entry-contents-get '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => ("DAT1" "DAT2")
+;;TEST: (edraw-shape-picker-entry-contents-get '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => ("DAT1" "DAT2")
 
 (defun edraw-shape-picker-entry-contents-set (entry list)
-  (setcdr (edraw-shape-picker-entry-prev-contents entry) list))
+  (prog1 (setcdr (edraw-shape-picker-entry-prev-contents entry) list)
+    (edraw-shape-picker-on-entry-modified entry)))
 
 (defun edraw-shape-picker-entry-contents-first-get (entry)
   (car (edraw-shape-picker-entry-contents-get entry)))
-;; TEST: (edraw-shape-picker-entry-contents-first-get '(:tag :p1 11 :p2 22)) => nil
-;; TEST: (edraw-shape-picker-entry-contents-first-get '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => "DAT1"
+;;TEST: (edraw-shape-picker-entry-contents-first-get '(:tag :p1 11 :p2 22)) => nil
+;;TEST: (edraw-shape-picker-entry-contents-first-get '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => "DAT1"
 
 (defun edraw-shape-picker-entry-contents-first-set (entry val)
-  (let ((prev (edraw-shape-picker-entry-prev-contents entry)))
-    (if (cdr prev)
-        (setcar (cdr prev) val)
-      (setcdr prev (cons val nil)))))
+  (prog1
+      (let ((prev (edraw-shape-picker-entry-prev-contents entry)))
+        (if (cdr prev)
+            (setcar (cdr prev) val)
+          (setcdr prev (cons val nil))))
+    (edraw-shape-picker-on-entry-modified entry)))
 
 (defun edraw-shape-picker-entry-props (entry)
+  "Extract the property list part of the ENTRY."
   (cl-loop for curr on (cdr entry) by #'cddr
            while (and (cdr entry)
                       (keywordp (car curr)))
@@ -558,76 +607,152 @@
     (if (eq (car curr) prop)
         (setcar (cdr curr) val)
       (setcdr prev (cons prop (cons val (cdr prev))))))
+  (edraw-shape-picker-on-entry-modified entry)
   entry)
 
+;;;;;; Entry Tree
 
-;;;; Shape Entry
+(defun edraw-shape-picker-entry-child-entries (entry)
+  (when (edraw-shape-picker-entry-container-p entry)
+    ;; Only :section, :layout
+    (edraw-shape-picker-entry-contents-get entry)))
 
-(defun edraw-shape-picker-get-shape-entry-shape (entry)
+(defun edraw-shape-picker-entry-parent (target-entry &optional root)
+  (unless root (setq root edraw-shape-picker-entries))
+  (let ((children (edraw-shape-picker-entry-child-entries root)))
+    (if (memq target-entry children)
+        root
+      (cl-loop for child in children
+               for found = (edraw-shape-picker-entry-parent target-entry child)
+               when found
+               return found))))
+
+(defun edraw-shape-picker-entry-parent-index (target-entry &optional root)
+  "Return ENTRY's parent and index.
+
+(parent . index)"
+  (unless root (setq root edraw-shape-picker-entries))
+  (cl-loop for index from 0
+           for child in (edraw-shape-picker-entry-child-entries root)
+           when (eq child target-entry) return (cons root index)
+           for found = (edraw-shape-picker-entry-parent-index target-entry
+                                                              child)
+           when found return found))
+
+(defun edraw-shape-picker-entry-path (target-entry &optional root)
+  "Return path from ROOT to TARGET-ENTRY.
+
+((root . index) (ancestor . index) ... (parent . index))."
+  (unless root (setq root edraw-shape-picker-entries))
+  (cl-loop for index from 0
+           for child in (edraw-shape-picker-entry-child-entries root)
+           when (eq child target-entry) return (cons (cons root index) nil)
+           for found = (edraw-shape-picker-entry-path target-entry child)
+           when found return (cons (cons root index) found)))
+
+(defun edraw-shape-picker-entry-remove-child (parent child)
+  (when (and parent child
+             (edraw-shape-picker-entry-container-p parent))
+    (let ((prev (edraw-shape-picker-entry-prev-contents parent)))
+      (while (and (cdr prev)
+                  (not (eq (cadr prev) child)))
+        (setq prev (cdr prev)))
+      (when (eq (cadr prev) child)
+        (setcdr prev (cddr prev))
+        (edraw-shape-picker-on-entry-modified parent)
+        ;; Return removed entry
+        child))))
+
+(defun edraw-shape-picker-entry-remove (entry &optional root)
+  (unless root (setq root edraw-shape-picker-entries))
+  (edraw-shape-picker-entry-remove-child
+   (edraw-shape-picker-entry-parent entry root)
+   entry))
+
+(defun edraw-shape-picker-entry-insert (parent index child)
+  "The CHILD becomes the PARENT's INDEX-th child."
+  ;;@todo check CHILD already has parent?
+  (when (and parent child
+             (edraw-shape-picker-entry-container-p parent))
+    (let ((prev (nthcdr index (edraw-shape-picker-entry-prev-contents parent))))
+      (setcdr prev (cons child (cdr prev)))
+      (edraw-shape-picker-on-entry-modified parent)
+      ;; Return inserted entry
+      child)))
+
+(defun edraw-shape-picker-entries-insert (parent index children)
+  "The first of CHILDREN becomes the PARENT's INDEX-th child.
+
+CHILDREN list is not copied. At the end of Children, the
+subsequent entry will be connected."
+  ;;@todo check CHILDREN already has parent?
+  (when (and parent children
+             (edraw-shape-picker-entry-container-p parent))
+    (let ((prev (nthcdr index (edraw-shape-picker-entry-prev-contents parent))))
+      (setcdr (last children) (cdr prev))
+      (setcdr prev children)
+      (edraw-shape-picker-on-entry-modified parent)
+      ;; Return inserted entry
+      children)))
+
+(defun edraw-shape-picker-entries-insert-at (entries pos)
+  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+      (edraw-shape-picker-entries-insert (car parent-index) (cdr parent-index)
+                                         entries)
+    (message (edraw-msg "Failed to find insertion point"))))
+
+
+;;;;; Section
+
+;;;;; Layout
+
+;;;;; Shape
+
+(defun edraw-shape-picker-shape-entry-name-get (entry)
+  "Return the name of the shape ENTRY."
+  (edraw-shape-picker-entry-prop-get entry :name))
+
+(defun edraw-shape-picker-shape-entry-shape-get (entry)
+  "Return the shape definition of the shape ENTRY."
   (edraw-shape-picker-entry-contents-first-get entry))
 
-(defun edraw-shape-picker-set-shape-entry-shape (entry shape)
-  (edraw-shape-picker-entry-contents-first-set entry shape)
-  (set-buffer-modified-p t)
-  ;; Update thumbnail image
-  ;;@todo Update only the entry?
-  (edraw-shape-picker-refresh))
+(defun edraw-shape-picker-shape-entry-shape-set (entry shape)
+  "Change the SHAPE definition of the shape ENTRY."
+  (edraw-shape-picker-entry-contents-first-set entry shape))
 
-(defun edraw-shape-picker-get-shape-entry-properties (entry)
-  (edraw-shape-picker-entry-props entry))
-
-(defun edraw-shape-picker-get-shape-entry-property (entry prop)
-  (edraw-shape-picker-entry-prop-get entry prop))
-
-(defun edraw-shape-picker-set-shape-entry-property (entry prop val)
-  (edraw-shape-picker-entry-prop-put entry prop val)
-  (set-buffer-modified-p t)
-  ;; Update thumbnail image
-  ;;@todo Update only the entry?
-  (edraw-shape-picker-refresh))
-
-;;;;; Thumbnail
-
-(defclass edraw-shape-picker-thumbnail ()
-  ((entry :initarg :entry)
-   (params :initarg :params)))
-
-(defun edraw-shape-picker-thumbnail-shape (thumbnail)
-  (edraw-shape-picker-get-shape-entry-shape (oref thumbnail entry)))
-
-(defun edraw-shape-picker-thumbnail-name (thumbnail)
-  (edraw-shape-picker-get-shape-entry-property (oref thumbnail entry) :name))
-
-(defun edraw-shape-picker-thumbnail-params (thumbnail)
-  (oref thumbnail params))
-
-(defun edraw-shape-picker-thumbnail-entry (thumbnail)
-  (oref thumbnail entry))
-
-;;;;; Thumbnail Layout Parameters
-
-(defconst edraw-shape-picker-thumbnail-vars
+(defconst edraw-shape-picker-thumbnail-param-names
   '(width height max-width max-height
           padding background foreground-selected margin))
 
-(defun edraw-shape-picker-update-thumbnail-params (props prop-prefix params)
-  (dolist (name edraw-shape-picker-thumbnail-vars)
-    (when-let ((cell (plist-member props (intern (format ":%s%s" prop-prefix name)))))
-      (push (cons name (cadr cell)) params))) ;;Do not remove old
-  params)
+(defun edraw-shape-picker-shape-entry-thumbnail-params (entry)
+  (let (;; from custom variables
+        (params (mapcar
+                 (lambda (name)
+                   (cons
+                    name
+                    (symbol-value
+                     (intern (format "edraw-shape-picker-thumbnail-%s" name)))))
+                 edraw-shape-picker-thumbnail-param-names)))
 
-(defvar edraw-shape-picker-curr-thumbnail-params nil)
+    ;; from ancestors
+    (dolist (ancestor (mapcar #'car ;;discard index
+                              (edraw-shape-picker-entry-path entry)))
+      (dolist (name edraw-shape-picker-thumbnail-param-names)
+        (when-let ((prop (edraw-shape-picker-entry-prop-memq
+                          ancestor
+                          (intern (format ":thumbnail-%s" name)))))
+          (setf (alist-get name params) (cadr prop)))))
 
-(defmacro edraw-shape-picker-let-thumbnail-params (props prop-prefix
-                                                          &rest body)
-  (declare (indent 2))
-  `(let ((edraw-shape-picker-curr-thumbnail-params
-          (edraw-shape-picker-update-thumbnail-params
-           ,props ,prop-prefix
-           edraw-shape-picker-curr-thumbnail-params)))
-     ,@body))
+    ;; from shape entry
+    (dolist (name edraw-shape-picker-thumbnail-param-names)
+      (when-let ((prop (edraw-shape-picker-entry-prop-memq
+                        entry
+                        (intern (format ":%s" name)))))
+        (setf (alist-get name params) (cadr prop))))
 
-;;;;; Thumbnail Image
+    params))
+
+;;;; Thumbnail Image
 
 (defun edraw-shape-picker-shape-to-svg-node-list (shape)
   (cond
@@ -636,85 +761,80 @@
    ;;@todo Convert shape-descriptor to svg
    ((edraw-dom-element-p shape) (list shape))))
 
-(defun edraw-shape-picker-create-thumbnail-image (thumbnail &optional selected)
-  (let* ((params (edraw-shape-picker-thumbnail-params thumbnail))
-         (shape (edraw-shape-picker-thumbnail-shape thumbnail))
+(defun edraw-shape-picker-create-thumbnail-image (entry &optional selected)
+  (let* ((params (edraw-shape-picker-shape-entry-thumbnail-params entry))
+         (shape (edraw-shape-picker-shape-entry-shape-get entry))
          (svg-node-list (edraw-shape-picker-shape-to-svg-node-list shape)))
     (when svg-node-list
-      (cl-macrolet ((param-get
-                     (name)
-                     (let ((var-sym (intern (format "edraw-shape-picker-thumbnail-%s" name))))
-                       `(alist-get
-                         (quote ,name) params
-                         ,var-sym))))
-        (svg-image (edraw-svg-shape-thumbnail
-                    ;; to single element
-                    (if (<= (length svg-node-list) 1)
-                        (car svg-node-list)
-                      (apply #'dom-node 'g nil svg-node-list))
-                    (param-get width)
-                    (param-get height)
-                    (param-get padding)
-                    (param-get background)
-                    (when selected
-                      (param-get foreground-selected))
-                    (param-get max-width)
-                    (param-get max-height))
-                   :ascent 'center
-                   :margin (param-get margin))))))
+      (svg-image (edraw-svg-shape-thumbnail
+                  ;; to single element
+                  (if (<= (length svg-node-list) 1)
+                      (car svg-node-list)
+                    (apply #'dom-node 'g nil svg-node-list))
+                  (alist-get 'width params)
+                  (alist-get 'height params)
+                  (alist-get 'padding params)
+                  (alist-get 'background params)
+                  (when selected
+                    (alist-get 'foreground-selected params))
+                  (alist-get 'max-width params)
+                  (alist-get 'max-height params))
+                 :ascent 'center
+                 :margin (alist-get 'margin params)))))
 
-;;;;; Thumbnail Selection
+;;;; Shape Selection
+
+(defun edraw-shape-picker-selected-shape-entry ()
+  edraw-shape-picker-selected-shape-entry)
 
 (defun edraw-shape-picker-selected-shape ()
-  (when edraw-shape-picker-selected-thumbnail
-    (edraw-shape-picker-thumbnail-shape edraw-shape-picker-selected-thumbnail)))
+  (when edraw-shape-picker-selected-shape-entry
+    (edraw-shape-picker-shape-entry-shape-get
+     edraw-shape-picker-selected-shape-entry)))
 
-(defun edraw-shape-picker-thumbnail-at (pos)
-  (when-let ((thumbnail (get-text-property pos 'edraw-shape-picker-thumbnail)))
-    (cons
-     thumbnail
-     (cons
-      (if (or (= pos (point-min))
-              (not (eq (get-text-property (1- pos) 'edraw-shape-picker-thumbnail)
-                       thumbnail)))
-          pos
-        (previous-single-property-change pos 'edraw-shape-picker-thumbnail))
-      (next-single-property-change pos 'edraw-shape-picker-thumbnail)))))
+(defun edraw-shape-picker-ensure-deselect-shape (shape)
+  (when (eq edraw-shape-picker-selected-shape-entry shape)
+    (edraw-shape-picker-deselect-shape)))
 
-(defun edraw-shape-picker-deselect-thumbnail ()
-  (let ((mk edraw-shape-picker-selected-thumbnail-marker))
-    (when (and mk
-               (marker-position mk))
-      (pcase (edraw-shape-picker-thumbnail-at mk)
-        (`(,thumbnail . (,beg . ,end))
-         (let ((inhibit-read-only t))
-           (with-silent-modifications
-             (put-text-property beg end 'display
-                                (edraw-shape-picker-create-thumbnail-image
-                                 thumbnail nil))))
-         (set-marker edraw-shape-picker-selected-thumbnail-marker nil)
-         (setq-local edraw-shape-picker-selected-thumbnail nil)
-         (run-hook-with-args 'edraw-shape-picker-notification-hook 'deselect))))))
+(defun edraw-shape-picker-deselect-shape ()
+  (when edraw-shape-picker-selected-shape-entry
+    ;; Update Image
+    (when-let ((range (edraw-shape-picker-find-entry-text
+                       edraw-shape-picker-selected-shape-entry)))
+      (with-silent-modifications
+        (put-text-property (car range) (cdr range)
+                           'display
+                           (edraw-shape-picker-create-thumbnail-image
+                            edraw-shape-picker-selected-shape-entry
+                            nil))))
+    ;; Change Variables
+    (setq-local edraw-shape-picker-selected-shape-entry nil)
+    ;; Notify Changes
+    (edraw-shape-picker-notify 'deselect)))
 
-(defun edraw-shape-picker-select-thumbnail-at (pos)
+(defun edraw-shape-picker-select-shape-at (pos)
   (interactive "d")
-
-  (pcase (edraw-shape-picker-thumbnail-at pos)
-    (`(,thumbnail . (,beg . ,end))
-     (edraw-shape-picker-deselect-thumbnail)
-
-     (let ((inhibit-read-only t))
-       (with-silent-modifications
-         (put-text-property beg end 'display
-                            (edraw-shape-picker-create-thumbnail-image
-                             thumbnail t))))
-     (unless edraw-shape-picker-selected-thumbnail-marker
-       (setq-local edraw-shape-picker-selected-thumbnail-marker (make-marker)))
-     (set-marker edraw-shape-picker-selected-thumbnail-marker beg)
-     (setq-local edraw-shape-picker-selected-thumbnail thumbnail)
-     (message (edraw-msg "Select %s") (or (edraw-shape-picker-thumbnail-name thumbnail) "<no name>"))
-     (run-hook-with-args 'edraw-shape-picker-notification-hook 'select (edraw-shape-picker-thumbnail-shape thumbnail))
-     )))
+  (when-let ((entry (edraw-shape-picker-entry-at pos))
+             (range (edraw-shape-picker-lookup-text-entry-range pos))
+             (beg (car range))
+             (end (cdr range)))
+    (edraw-shape-picker-deselect-shape)
+    ;; Update Image
+    (with-silent-modifications
+      (put-text-property (car range) (cdr range)
+                         'display
+                         (edraw-shape-picker-create-thumbnail-image entry t)))
+    ;; Change Variables
+    (setq-local edraw-shape-picker-selected-shape-entry entry)
+    ;; Message
+    (message
+     (edraw-msg "Select %s")
+     (or (edraw-shape-picker-shape-entry-name-get entry)
+         (edraw-msg "<no name>")))
+    ;; Notify Changes
+    (edraw-shape-picker-notify
+     'select
+     (edraw-shape-picker-shape-entry-shape-get entry))))
 
 (defun edraw-shape-picker-on-click-thumbnail (event)
   (interactive "e")
@@ -723,39 +843,49 @@
              (window (posn-window startpos))
              (buffer (window-buffer window)))
     (with-current-buffer buffer
-      (edraw-shape-picker-select-thumbnail-at pos))))
+      (edraw-shape-picker-select-shape-at pos))))
 
 
-;;;; Expand Picker Entries
+;;;; Buffer Contents
+
+;;;;; Create
+
+(defvar-local edraw-shape-picker-section-level 0)
 
 (defun edraw-shape-picker-make-buffer-contents ()
-  (with-silent-modifications
-    (erase-buffer)
-    (edraw-shape-picker-insert-entries edraw-shape-picker-entries)
-    (goto-char (point-min))))
+  (let ((edraw-shape-picker-section-level 0))
+    (with-silent-modifications
+      (erase-buffer)
+      (edraw-shape-picker-insert-section edraw-shape-picker-entries)
+      (goto-char (point-min)))))
 
 (defun edraw-shape-picker-insert-entries (entries)
   (dolist (entry entries)
     (edraw-shape-picker-insert-entry entry)))
 
 (defun edraw-shape-picker-insert-entry (entry)
-  (cond
-   ;; (:keyword ....)
-   ((and (consp entry) (keywordp (car entry)))
-    (pcase (car entry)
-      (:section
-       (edraw-shape-picker-insert-section entry))
-      (:layout
-       (edraw-shape-picker-insert-layout entry))
-      (:shape
-       (edraw-shape-picker-insert-shape entry))))))
+  (pcase (edraw-shape-picker-entry-type entry)
+    (:section (edraw-shape-picker-insert-section entry))
+    (:layout  (edraw-shape-picker-insert-layout entry))
+    (:shape   (edraw-shape-picker-insert-shape entry))))
 
 (defun edraw-shape-picker-insert-section (entry)
   ;; (:section
   ;;     :name <string>
   ;;     <entry>...)
-  (let ((name (edraw-shape-picker-entry-prop-get entry :name)))
-    (insert "*" (or name "") "\n")
+  (unless (bolp)
+    (insert "\n"))
+  (let ((edraw-shape-picker-section-level
+         (1+ edraw-shape-picker-section-level))
+        (name (edraw-shape-picker-entry-prop-get entry :name)))
+    (insert
+     (propertize
+      (concat (make-string (1- edraw-shape-picker-section-level) ? )
+              "\u29bf"
+              (or (concat " " name) "")
+              "\n")
+      'edraw-shape-picker-entry entry))
+
     (edraw-shape-picker-insert-entries
      (edraw-shape-picker-entry-contents-get entry)))
   (insert "\n"))
@@ -773,10 +903,8 @@
   ;;     <entry>...)
   ;;
   ;; see: `edraw-shape-picker-thumbnail-*' variables.
-  (let* ((props (edraw-shape-picker-entry-props entry)))
-    (edraw-shape-picker-let-thumbnail-params props "thumbnail-"
-      (edraw-shape-picker-insert-entries
-       (edraw-shape-picker-entry-contents-get entry)))))
+  (edraw-shape-picker-insert-entries
+   (edraw-shape-picker-entry-contents-get entry)))
 
 (defun edraw-shape-picker-insert-shape (entry)
   ;; (:shape
@@ -803,22 +931,96 @@
     (insert edraw-shape-picker-string-between-thumbnails))
 
   ;; Thumbnail
-  (let ((props (edraw-shape-picker-get-shape-entry-properties entry)))
-    (edraw-shape-picker-let-thumbnail-params props ""
-      (let* ((name (edraw-shape-picker-get-shape-entry-property entry :name))
-             (thumbnail (edraw-shape-picker-thumbnail
-                         :entry entry
-                         :params edraw-shape-picker-curr-thumbnail-params)))
-        (insert
-         (propertize
-          (format "[%s]" (or name ""))
-          'display (edraw-shape-picker-create-thumbnail-image thumbnail nil)
-          'rear-nonsticky t
-          'keymap edraw-shape-picker-thumbnail-map
-          'pointer 'hand
-          'edraw-shape-picker-thumbnail thumbnail
-          'help-echo name
-          ))))))
+  (let ((name (edraw-shape-picker-shape-entry-name-get entry)))
+    (insert
+     (propertize
+      (format " [%s] " (or name ""))
+      'display (edraw-shape-picker-create-thumbnail-image
+                entry
+                ;; selected?
+                (eq (edraw-shape-picker-selected-shape-entry) entry))
+      'rear-nonsticky t
+      'keymap edraw-shape-picker-thumbnail-map
+      'pointer 'hand
+      'edraw-shape-picker-entry entry
+      'help-echo name
+      ))))
+
+;;;;; Detect Entry
+
+(defun edraw-shape-picker-entry-at (pos)
+  (get-text-property pos 'edraw-shape-picker-entry))
+
+(defun edraw-shape-picker-lookup-text-prop-range (pos prop val)
+  (cons
+   (if (or (= pos (point-min))
+           (not (eq (get-text-property (1- pos) prop)
+                    val)))
+       pos
+     (previous-single-property-change pos prop))
+   (next-single-property-change pos prop)))
+
+(defun edraw-shape-picker-lookup-text-entry-range (pos)
+  (when-let ((entry (get-text-property pos 'edraw-shape-picker-entry)))
+    (edraw-shape-picker-lookup-text-prop-range pos 'edraw-shape-picker-entry
+                                               entry)))
+
+(defun edraw-shape-picker-shape-entry-at (pos)
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (when (eq (edraw-shape-picker-entry-type entry) :shape)
+      entry)))
+
+(defun edraw-shape-picker-find-entry-text (entry)
+  (save-excursion
+    (goto-char (point-min))
+    (when-let ((match-data (text-property-search-forward
+                            'edraw-shape-picker-entry entry #'eq)))
+      (cons
+       (prop-match-beginning match-data)
+       (prop-match-end match-data)))))
+
+(defun edraw-shape-picker-entry-insertion-point-at (pos)
+  "Detect entry insertion point at POS."
+  (if-let* ((entry-at-pos (edraw-shape-picker-entry-at pos))
+            (range (edraw-shape-picker-lookup-text-entry-range pos))
+            (parent-index (edraw-shape-picker-entry-parent-index entry-at-pos))
+            (parent (car parent-index))
+            (index (cdr parent-index)))
+      ;; POS points to an entry
+      (if (= (car range) pos)
+          ;; before the entry
+          ;; |* SECTION
+          ;; [shape][shape]|[shape]
+          parent-index
+        (pcase (edraw-shape-picker-entry-type entry-at-pos)
+          (:section
+           ;; first child of the entry
+           ;; * SECTION|
+           (cons entry-at-pos 0))
+          (:shape
+           ;; after the entry
+           ;; [shape] [shape] [sh|ape]
+           (cons parent (1+ index)))))
+    ;; POS points between entries
+    ;; [shape][shape][shape]|
+    (when-let ((entry (edraw-shape-picker-search-backward-entry-pos pos nil))
+               (parent-index (edraw-shape-picker-entry-parent-index entry))
+               (parent (car parent-index))
+               (index (cdr parent-index)))
+      (cons parent (1+ index)))))
+
+(defun edraw-shape-picker-search-backward-entry-pos (pos include-pos-p)
+  (unless include-pos-p
+    (setq pos (1- pos)))
+  (let (entry)
+    (while (and (>= pos (point-min))
+                (null
+                 (setq entry
+                       (get-text-property pos 'edraw-shape-picker-entry))))
+      (setq pos (1- pos))) ;;@todo use previous-property-change?
+    (when entry
+      (cons entry pos))))
+
 
 
 ;;;; File I/O
