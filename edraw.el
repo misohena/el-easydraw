@@ -4726,6 +4726,129 @@ This function is for registering with the `kill-buffer-query-functions' hook."
            t))
        (overlays-in (point-min) (point-max))))))
 
+;;;; Simple Editor Function
+
+(defun edraw-edit-svg (source _source-type &optional ov-beg ov-end on-finish writer)
+  ;; @todo Convert SOURCE to SVG tree by SOURCE-TYPE
+  ;; SOURCE-TYPE : SOURCE => SVG
+  ;; edraw-svg : (svg .... (g id="edraw-body" ...)) => no conv
+  ;; general-svg : (svg <children>) => (svg ... (g id="edraw-body" <children>))
+  ;; element : (rect ...) => (svg ... (g id="edraw-body"  (rect ...)))
+  ;; element-list : ((rect ...) (circle ...) ...) => (svg ... (g id="edraw-body"  (rect ...) (circle ...) ...))
+  ;;
+  ;; Convert SVG tree back to SOURCE on finish
+
+  (let* ((original-buffer (current-buffer))
+         (new-buffer
+          (unless (and ov-beg ov-end)
+            (prog1
+                ;; [Change current buffer!!]
+                (pop-to-buffer (generate-new-buffer "*Easy Draw Shape Editor*"))
+              (with-silent-modifications
+                (insert " "))
+              (goto-char (point-min))
+              (setq ov-beg (point-min)
+                    ov-end (point-max))
+              (setq-local buffer-read-only t)))))
+
+    ;; Create editor
+    (let* ((svg source) ;;@todo convert
+           (editor-overlay (make-overlay ov-beg ov-end nil t nil))
+           (editor (edraw-editor
+                    :overlay editor-overlay
+                    :svg svg
+                    :document-writer writer
+                    :menu-filter #'edraw-edit-svg--menu-filter
+                    )))
+      (edraw-initialize editor)
+
+      ;; Add key bindings
+      (overlay-put editor-overlay 'keymap
+                   (edraw-edit-svg--make-keymap
+                    (or (overlay-get editor-overlay 'keymap)
+                        edraw-editor-map)))
+
+      ;; Set info to the editor object
+      (edraw-set-extra-prop editor 'edraw-edit-svg--original-buffer
+                            original-buffer)
+      (edraw-set-extra-prop editor 'edraw-edit-svg--new-buffer
+                            new-buffer)
+
+      ;; Add Finish Hook
+      (when on-finish
+        (edraw-define-hook-type editor 'edraw-edit-svg--finish)
+        (edraw-add-hook editor 'edraw-edit-svg--finish
+                        (lambda (&rest args)
+                          (if (buffer-live-p original-buffer)
+                              (with-current-buffer original-buffer
+                                (apply on-finish args))
+                            (message (edraw-msg "The buffer has been killed"))))))
+
+      ;; Hook kill buffer
+      (add-hook 'kill-buffer-query-functions 'edraw-buffer-kill-query nil t)
+
+      (message "%s"
+               (substitute-command-keys
+                (format
+                 "\\[%s]:%s, \\[%s]:%s"
+                 'edraw-edit-svg--finish-edit
+                 (edraw-msg "Finish Edit")
+                 'edraw-edit-svg--cancel-edit
+                 (edraw-msg "Cancel Edit")
+                 )))
+      editor)))
+
+(defun edraw-edit-svg--menu-filter (menu-type items)
+  (pcase menu-type
+    ('main-menu
+     (append
+      items
+      '(((edraw-msg "Finish Edit") edraw-edit-svg--finish-edit)
+        ((edraw-msg "Cancel Edit") edraw-edit-svg--cancel-edit))))
+    (_ items)))
+
+(defun edraw-edit-svg--make-keymap (original-keymap)
+  (let ((km (make-sparse-keymap)))
+    (set-keymap-parent km original-keymap)
+    (define-key km (kbd "C-c C-c") 'edraw-edit-svg--finish-edit)
+    (define-key km (kbd "C-c C-k") 'edraw-edit-svg--cancel-edit)
+    km))
+
+(defun edraw-edit-svg--finish-edit (&optional editor)
+  (interactive)
+  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+    (when (or (not (and (oref editor document-writer)
+                        (edraw-modified-p editor)))
+              (condition-case err
+                  (edraw-save editor)
+                (error
+                 (yes-or-no-p
+                  (format
+                   (edraw-msg "Failed to save. %s. Discard changes?")
+                   (error-message-string err))))))
+      (edraw-edit-svg--close-editor editor)
+      (edraw-call-hook editor 'edraw-edit-svg--finish
+                       t
+                       ;;@todo Convert by SOURCE-TYPE spec
+                       (edraw-document-svg editor)))))
+
+(defun edraw-edit-svg--cancel-edit (&optional editor)
+  (interactive)
+  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+    (when (or (null (edraw-modified-p editor))
+              (yes-or-no-p (edraw-msg "Discard changes?")))
+      (edraw-edit-svg--close-editor editor)
+      (edraw-call-hook editor 'edraw-edit-svg--finish
+                       nil nil))))
+
+(defun edraw-edit-svg--close-editor (editor)
+  (edraw-close editor)
+  (when-let ((buffer (edraw-get-extra-prop editor 'edraw-edit-svg--new-buffer)))
+    (when (and buffer
+               (eq (current-buffer) buffer))
+      (quit-window t))))
+
+
 
 (provide 'edraw)
 ;;; edraw.el ends here
