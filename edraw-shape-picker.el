@@ -29,6 +29,10 @@
 (require 'edraw-dom-svg)
 (require 'edraw-util)
 
+(autoload 'edraw-edit-svg "edraw")
+(declare-function edraw-get-document-body "edraw")
+(declare-function edraw-create-document-svg "edraw")
+
 ;;;; Customize
 
 (defgroup edraw-shape-picker nil
@@ -382,111 +386,40 @@
 
 ;;;;; Edit Shape
 
-;;@todo Combine common parts with `edraw-org-edit-link'. Create a library so that editors can be generated easily.
-
 (defun edraw-shape-picker-edit-shape-at (pos)
   (interactive "d")
 
-  (let ((picker-buffer (current-buffer)))
-    (pcase (edraw-shape-picker-thumbnail-at pos)
-      (`(,thumbnail . (,_beg . ,_end))
-       (with-slots (entry) thumbnail
+  (when-let ((entry (edraw-shape-picker-shape-entry-at pos)))
+    (edraw-edit-svg
+     ;; Source
+     (edraw-create-document-svg
+      nil nil nil
+      (edraw-shape-picker-shape-to-svg-node-list
+       (edraw-shape-picker-shape-entry-shape-get entry)))
+     'edraw-svg
+     ;; Overlay Range
+     nil nil
+     ;; On Finish
+     (lambda (ok svg)
+       ;; Called on the current buffer
+       (when ok
+         (edraw-shape-picker-edit-shape--save entry svg))))))
 
-         ;; Change current buffer
-         (pop-to-buffer (generate-new-buffer "*Easy Draw Shape Editor*"))
+(defun edraw-shape-picker-edit-shape--save (entry svg)
+  (edraw-shape-picker-shape-entry-shape-set
+   entry
+   ;;@todo add defs if using markers
+   ;; SVG string
+   (edraw-shape-picker-editor-svg-to-string svg)))
 
-         (with-silent-modifications
-           (insert " "))
-         (goto-char (point-min))
+(defun edraw-shape-picker-editor-svg-to-string (svg)
+  "Convert edraw-editor's SVG to SVG string."
+  (mapconcat
+   (lambda (node) (edraw-svg-encode node nil nil))
+   ;; Under body nodes
+   (dom-children (edraw-get-document-body svg))
+   ""))
 
-         (let* ((body (edraw-shape-picker-shape-to-svg-node-list
-                       (edraw-shape-picker-get-shape-entry-shape entry)))
-                (svg (edraw-create-document-svg nil nil nil body))
-                (editor-overlay (make-overlay (point-min) (point-max)))
-                (editor (edraw-editor
-                         :overlay editor-overlay
-                         :svg svg
-                         :document-writer (edraw-shape-picker-edit-make-writer
-                                           picker-buffer
-                                           entry)
-                         :menu-filter #'edraw-shape-picker-edit-menu-filter
-                         )))
-           (edraw-initialize editor)
-
-           ;; Add key bindings
-           (overlay-put editor-overlay 'keymap
-                        (edraw-shape-picker-edit-make-keymap
-                         (or (overlay-get editor-overlay 'keymap)
-                             edraw-editor-map))))
-         ;; Hook kill buffer
-         (add-hook 'kill-buffer-query-functions 'edraw-buffer-kill-query nil t)
-
-         (message "%s" (substitute-command-keys "\\[edraw-shape-picker-edit-finish-edit]:Finish Edit, \\[edraw-shape-picker-edit-cancel-edit]:Cancel Edit")))))))
-
-(defun edraw-shape-picker-edit-menu-filter (menu-type items)
-  (pcase menu-type
-    ('main-menu
-     (append
-      items
-      '(((edraw-msg "Finish Edit") edraw-shape-picker-edit-finish-edit)
-        ((edraw-msg "Cancel Edit") edraw-shape-picker-edit-cancel-edit))))
-    (_ items)))
-
-(defun edraw-shape-picker-edit-make-keymap (original-keymap)
-  (let ((km (make-sparse-keymap)))
-    (set-keymap-parent km original-keymap)
-    (define-key km (kbd "C-c C-c") 'edraw-shape-picker-edit-finish-edit)
-    (define-key km (kbd "C-c C-k") 'edraw-shape-picker-edit-cancel-edit)
-    km))
-
-(defun edraw-shape-picker-edit-finish-edit (&optional editor)
-  (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
-    (when (or (not (edraw-modified-p editor))
-              (condition-case err
-                  (edraw-save editor)
-                (error
-                 (yes-or-no-p
-                  (format
-                   (edraw-msg "Failed to save. %s. Discard changes?")
-                   (error-message-string err))))))
-      (edraw-shape-picker-edit-close-editor editor))))
-
-(defun edraw-shape-picker-edit-cancel-edit (&optional editor)
-  (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
-    (when (or (null (edraw-modified-p editor))
-              (yes-or-no-p (edraw-msg "Discard changes?")))
-      (edraw-shape-picker-edit-close-editor editor))))
-
-(defun edraw-shape-picker-edit-close-editor (editor)
-  (edraw-close editor)
-  (kill-buffer))
-
-(defun edraw-shape-picker-edit-make-writer (picker-buffer entry)
-  (lambda (svg)
-    (edraw-shape-picker-edit-save-svg svg picker-buffer entry)))
-
-(defun edraw-shape-picker-edit-save-svg (svg picker-buffer entry)
-  ;; Move to beginning of editing link
-  (unless (buffer-live-p picker-buffer)
-    (error "The picker buffer has been removed"))
-
-  ;; Modify ENTRY object and refresh image.
-  (with-current-buffer picker-buffer
-    (edraw-shape-picker-set-shape-entry-shape
-     entry
-     ;;@todo add defs
-     ;; SVG string
-     (mapconcat
-      (lambda (node) (edraw-svg-encode node nil nil))
-      ;; Under body nodes
-      (dom-children (edraw-get-document-body svg))
-      ""))))
-
-;;;;; Delete Shape
-
-(defun edraw-shape-picker-delete-shape-at (_pos)
   (interactive "d")
   ;;;@todo impl
   )
