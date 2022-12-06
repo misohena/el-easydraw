@@ -305,10 +305,13 @@
     ;;(define-key km "W" #'edraw-shape-picker-cut-shape-at)
     km))
 
+;;;;; Variables
+
 (defvar-local edraw-shape-picker-entries nil)
-(defvar-local edraw-shape-picker-selected-thumbnail-marker nil)
-(defvar-local edraw-shape-picker-selected-thumbnail nil)
 (defvar-local edraw-shape-picker-notification-hook nil)
+(defvar-local edraw-shape-picker-selected-shape-entry nil)
+(defvar-local edraw-shape-picker-inhibit-refresh nil)
+
 ;;;;; Mode
 
 (define-derived-mode edraw-shape-picker-ui-mode nil "EShapes UI"
@@ -329,6 +332,12 @@
 
 (defun edraw-shape-picker-notification-hook-empty-p ()
   (null edraw-shape-picker-notification-hook))
+
+(defun edraw-shape-picker-notify (type &rest args)
+  (apply #'run-hook-with-args
+         'edraw-shape-picker-notification-hook
+         type
+         args))
 
 ;;;;; Display
 
@@ -526,8 +535,6 @@
     (substring (symbol-name (edraw-shape-picker-entry-type entry)) 1)))
 
 ;;;;;; Entry Modification
-
-(defvar-local edraw-shape-picker-inhibit-refresh nil)
 
 (defun edraw-shape-picker-on-entry-modified (&rest _entries)
   ;;@todo Do not update if entry has not been added yet
