@@ -139,6 +139,13 @@
     (when (functionp fn)
       (apply fn args))))
 
+(defun edraw-popup-menu-call-interactively (name items)
+  (let* ((menu-map (edraw-make-menu-map name items))
+         (events (x-popup-menu t menu-map))
+         (fn (lookup-key menu-map (apply 'vector events))))
+    (when (functionp fn)
+      (call-interactively fn))))
+
 (defun edraw-make-menu-map (name items)
   (nconc
    (cons 'keymap (if name (list name)))

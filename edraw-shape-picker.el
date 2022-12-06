@@ -297,6 +297,7 @@
     (define-key km "q" #'edraw-shape-picker-quit)
     (define-key km "g" #'edraw-shape-picker-refresh)
     (define-key km [mouse-2] #'edraw-shape-picker-quit)
+    (define-key km [mouse-3] #'edraw-shape-picker-open-context-menu-at)
     (define-key km "i" #'edraw-shape-picker-insert-new-shape-at)
     (define-key km "y" #'edraw-shape-picker-paste-entry-at)
     (define-key km "R" #'edraw-shape-picker-rename-entry-at)
@@ -374,6 +375,54 @@
                (click-point (posn-point click-start)))
           (list click-point click-buffer))
       (list (point)))))
+
+;;;;; Menu
+
+(defun edraw-shape-picker-open-context-menu-at (pos &optional buffer)
+  (interactive (edraw-shape-picker-interactive-point-buffer))
+  (with-current-buffer (or buffer (current-buffer))
+    (goto-char pos)
+    (if-let ((entry (edraw-shape-picker-entry-at pos)))
+        (edraw-popup-menu-call-interactively
+         (edraw-shape-picker-entry-name-for-msg entry)
+         (edraw-shape-picker-entry-actions entry))
+      (edraw-popup-menu-call-interactively
+       "Buffer"
+       (edraw-shape-picker-buffer-actions)))))
+
+(defun edraw-shape-picker-buffer-actions ()
+  `((,(edraw-msg "Close") edraw-shape-picker-quit)
+    (,(edraw-msg "Save") save-buffer
+     :enable ,(buffer-modified-p))
+    (,(edraw-msg "Undo") undo)
+    (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
+    (,(edraw-msg "Paste") edraw-shape-picker-paste-entry-at
+     :enable ,(edraw-shape-picker-clipboard-not-empty-p))))
+
+(defun edraw-shape-picker-entry-actions (entry)
+  (pcase (edraw-shape-picker-entry-type entry)
+    (:section
+     `((,(edraw-msg "Move Forward") edraw-shape-picker-move-entry-forward)
+       (,(edraw-msg "Move Backward") edraw-shape-picker-move-entry-backward)
+       (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
+       (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
+       (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
+       (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
+       (,(edraw-msg "Cut") edraw-shape-picker-cut-entry-at)
+       (,(edraw-msg "Paste") edraw-shape-picker-paste-entry-at
+        :enable ,(edraw-shape-picker-clipboard-not-empty-p))))
+    (:shape
+     `((,(edraw-msg "Select") edraw-shape-picker-select-shape-at)
+       (,(edraw-msg "Move Forward") edraw-shape-picker-move-entry-forward)
+       (,(edraw-msg "Move Backward") edraw-shape-picker-move-entry-backward)
+       (,(edraw-msg "Edit") edraw-shape-picker-edit-shape-at)
+       (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
+       (,(edraw-msg "Insert New Shape Before") edraw-shape-picker-insert-new-shape-at)
+       (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
+       (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
+       (,(edraw-msg "Cut") edraw-shape-picker-cut-entry-at)
+       (,(edraw-msg "Paste Before") edraw-shape-picker-paste-entry-at
+        :enable ,(edraw-shape-picker-clipboard-not-empty-p))))))
 
 ;;;;; Quit
 
