@@ -37,9 +37,9 @@
 (require 'edraw-color-picker)
 (require 'edraw-property-editor)
 
-(autoload #'edraw-shape-picker-open "edraw-shape-picker")
-(declare-function #'edraw-shape-picker-connect "edraw-shape-picker")
-(declare-function #'edraw-shape-picker-disconnect "edraw-shape-picker")
+(autoload 'edraw-shape-picker-open "edraw-shape-picker")
+(declare-function edraw-shape-picker-connect "edraw-shape-picker")
+(declare-function edraw-shape-picker-disconnect "edraw-shape-picker")
 
 
 ;;;; Editor
