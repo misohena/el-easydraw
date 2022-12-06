@@ -227,7 +227,7 @@
   buffer)
 
 ;; For read-only buffers never associated with a file.
-;; Use edraw-shape-picker-mode (not -file-mode).
+;; Use edraw-shape-picker-ui-mode (not -file-mode).
 
 (defun edraw-shape-picker-open-neverfile (&optional buffer-name)
   (edraw-shape-picker-pop-to-buffer
@@ -250,7 +250,7 @@
       (edraw-shape-picker-set-local-entries
        edraw-shape-picker-entries-default t)
       (edraw-shape-picker-make-buffer-contents) ;;silent modification
-      (edraw-shape-picker-mode))
+      (edraw-shape-picker-ui-mode))
     buffer))
 
 ;;
@@ -285,9 +285,9 @@
         (message (edraw-msg "Custom shapes have unsaved changes."))
       (kill-buffer buffer))))
 
-;;;; Picker UI Mode
-
-(defvar edraw-shape-picker-mode-map
+;;;; Picker Mode (Picker Buffer Control)
+;;;;; Key Map
+(defvar edraw-shape-picker-ui-mode-map
   (let ((km (make-sparse-keymap)))
     (define-key km "q" #'edraw-shape-picker-quit)
     (define-key km "g" #'edraw-shape-picker-refresh)
@@ -310,9 +310,14 @@
 (defvar-local edraw-shape-picker-selected-thumbnail-marker nil)
 (defvar-local edraw-shape-picker-selected-thumbnail nil)
 (defvar-local edraw-shape-picker-notification-hook nil)
+;;;;; Mode
 
-(define-derived-mode edraw-shape-picker-mode nil "Edraw Shape Picker"
-  "Major mode for edraw shape picker."
+(define-derived-mode edraw-shape-picker-ui-mode nil "EShapes UI"
+  "Major mode for edraw shape picker UI.
+
+\\{edraw-shape-picker-ui-mode-map}
+
+\\{edraw-shape-picker-thumbnail-map}"
   (setq-local buffer-read-only t
               line-move-visual t))
 
@@ -1065,7 +1070,19 @@ subsequent entry will be connected."
     km))
 
 (defun edraw-shape-picker-file-mode ()
-  ""
+  "Major mode for visually editing .eshapes.el files.
+
+Like `hexl-mode', open a .eshapes.el file and then launch this
+mode to use it. Run `edraw-shape-picker-file-mode-exit' to return
+to the original mode.
+
+The following commands are available in buffer:
+
+\\{edraw-shape-picker-ui-mode-map}
+
+The following commands are available on thumbnails:
+
+\\{edraw-shape-picker-thumbnail-map}"
   (interactive)
 
   (delay-mode-hooks
@@ -1081,7 +1098,7 @@ subsequent entry will be connected."
         ;; When parsing is successful
 
         ;; Call parent mode (and kill all local variables)
-        (edraw-shape-picker-mode)
+        (edraw-shape-picker-ui-mode)
 
         ;; Discard undo list
         (setq buffer-undo-list nil)
@@ -1096,7 +1113,7 @@ subsequent entry will be connected."
       (set-keymap-parent edraw-shape-picker-file-mode-map (current-local-map))
       (use-local-map edraw-shape-picker-file-mode-map)
       ;;  Mode
-      (setq-local mode-name "Eshapes")
+      (setq-local mode-name "EShapes")
       (setq-local major-mode 'edraw-shape-picker-file-mode)
       ;;  Hooks
       (add-hook 'write-contents-functions #'edraw-shape-picker-file-mode--save-buffer nil t)
