@@ -3122,6 +3122,14 @@ position where the EVENT occurred."
      (edraw-svg-body editor)
      (edraw-element shape))))
 
+;;;;;; SVG
+
+(cl-defgeneric edraw-svg-string (obj)
+  "Make SVG string from OBJ.")
+(cl-defmethod edraw-svg-string ((shape edraw-shape))
+  (edraw-svg-to-string (edraw-element shape)
+                       nil 'edraw-svg-print-attr-filter 0 t))
+
 ;;;;;; Clone
 
 (cl-defmethod edraw-clone ((shape edraw-shape))
@@ -3209,6 +3217,42 @@ position where the EVENT occurred."
    (t
     (message (edraw-msg "Unknown type of shape definition"))
     nil)))
+
+(defun edraw-shape-descriptor-to-svg-element (shape-descriptor)
+  (let* ((type (alist-get :type shape-descriptor))
+         (props (alist-get :properties shape-descriptor))
+         (children-descriptor (alist-get :children shape-descriptor))
+         ;;@todo defrefs??? What happens when use marker attributes?
+         (defrefs (edraw-svg-defrefs (dom-node 'defs))) ;;Dummy defrefs
+         (element
+          (edraw-create-shape-svg-element
+           defrefs
+           nil ;;parent
+           type ;;tag
+           props)))
+    (when children-descriptor
+      (dolist (child-descriptor children-descriptor)
+        (dom-append-child
+         element
+         (edraw-shape-descriptor-to-svg-element child-descriptor))))
+    element))
+
+(defun edraw-shape-descriptor-to-svg-string (shape-descriptor &optional editor)
+  (if editor
+      (when-let ((shape (edraw-shape-from-shape-descriptor editor nil
+                                                           shape-descriptor)))
+        (edraw-svg-string shape))
+    (when-let ((element
+                (edraw-shape-descriptor-to-svg-element shape-descriptor)))
+      (edraw-svg-encode element nil nil))))
+
+(defun edraw-shape-descriptor-list-to-svg-string (shape-descriptor-list &optional editor)
+  (mapconcat
+   (lambda (shape-descriptor)
+     (edraw-shape-descriptor-to-svg-string shape-descriptor editor))
+   shape-descriptor-list
+   ""))
+
 ;;;;;; Hooks
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)

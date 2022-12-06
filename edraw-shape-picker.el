@@ -32,6 +32,7 @@
 (autoload 'edraw-edit-svg "edraw")
 (declare-function edraw-get-document-body "edraw")
 (declare-function edraw-create-document-svg "edraw")
+(autoload 'edraw-shape-descriptor-list-to-svg-string "edraw")
 
 ;;;; Customize
 
@@ -296,6 +297,21 @@
     (define-key km "q" #'edraw-shape-picker-quit)
     (define-key km "g" #'edraw-shape-picker-refresh)
     (define-key km [mouse-2] #'edraw-shape-picker-quit)
+    (define-key km "i" #'edraw-shape-picker-insert-new-shape-at)
+    (define-key km "y" #'edraw-shape-picker-paste-entry-at)
+    (define-key km "R" #'edraw-shape-picker-rename-entry-at)
+    (define-key km "D" #'edraw-shape-picker-delete-entry-at)
+    (define-key km "w" #'edraw-shape-picker-copy-entry-at)
+    (define-key km "W" #'edraw-shape-picker-cut-entry-at)
+    (define-key km [remap delete-char] #'edraw-shape-picker-delete-entry-at)
+    (define-key km [remap delete-backward-char] #'edraw-shape-picker-delete-backward-entry-at)
+    (define-key km [remap kill-ring-save] #'edraw-shape-picker-copy-entry-at)
+    (define-key km [remap kill-region] #'edraw-shape-picker-cut-entry-at)
+    (define-key km [remap yank] #'edraw-shape-picker-paste-entry-at)
+    (define-key km (kbd "M-<right>") #'edraw-shape-picker-move-entry-forward)
+    (define-key km (kbd "M-<left>") #'edraw-shape-picker-move-entry-backward)
+    (define-key km (kbd "F") #'edraw-shape-picker-move-entry-forward)
+    (define-key km (kbd "B") #'edraw-shape-picker-move-entry-backward)
     km))
 
 (defvar edraw-shape-picker-thumbnail-map
@@ -303,10 +319,6 @@
     (define-key km [mouse-1] #'edraw-shape-picker-select-shape-at)
     (define-key km (kbd "RET") #'edraw-shape-picker-select-shape-at)
     (define-key km "e" #'edraw-shape-picker-edit-shape-at)
-    (define-key km "R" #'edraw-shape-picker-rename-shape-at)
-    (define-key km "D" #'edraw-shape-picker-delete-shape-at)
-    ;;(define-key km "w" #'edraw-shape-picker-copy-shape-at)
-    ;;(define-key km "W" #'edraw-shape-picker-cut-shape-at)
     km))
 
 ;;;;; Variables
@@ -419,29 +431,214 @@
    (dom-children (edraw-get-document-body svg))
    ""))
 
+;;;;; Insert
+
+(defun edraw-shape-picker-insert-new-shape-at (pos)
   (interactive "d")
-  ;;;@todo impl
-  )
 
-;;;;; Kill/Yank Shape
+  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+      (progn
+        (edraw-edit-svg
+         ;; Source
+         (edraw-create-document-svg nil nil nil nil) ;;empty
+         'edraw-svg
+         ;; Overlay Range
+         nil nil
+         ;; On Finish
+         (lambda (ok svg)
+           ;; Called on the current buffer
+           (when ok
+             (edraw-shape-picker-insert-new-shape--save parent-index svg)))))
+    (message (edraw-msg "Failed to find insertion point"))))
 
-(defun edraw-shape-picker-copy-shape-at (_pos)
+(defun edraw-shape-picker-insert-new-shape--save (parent-index svg)
+  ;;@todo check parent-index exists
+  (let ((svg-str (edraw-shape-picker-editor-svg-to-string svg)))
+    (if (string-empty-p svg-str)
+        (message (edraw-msg "Empty shapes cannot be registered"))
+      (edraw-shape-picker-entry-insert
+       (car parent-index) (cdr parent-index)
+       ;;@todo Make shape constructor function
+       (list :shape
+             :name (read-string "Shape name: ")
+             svg-str)))))
+
+;;;;; Edit Structure
+
+(defun edraw-shape-picker-delete-entry-common (entry)
+  (when (eq entry edraw-shape-picker-entries)
+    (error (edraw-msg "The root entry cannot be deleted")))
+
+  ;; Deselect
+  (edraw-shape-picker-ensure-deselect-shape entry)
+
+  ;; Remove entry or parent?
+  (let ((parent (edraw-shape-picker-entry-parent entry)))
+    (if (and parent
+             (eq (edraw-shape-picker-entry-type parent) :layout)
+             (= (length (edraw-shape-picker-entry-child-entries parent)) 1))
+        ;; Remove empty layout
+        (unless (edraw-shape-picker-entry-remove parent)
+          (error (edraw-msg "Failed to delete entry")))
+      ;; Remove entry
+      (unless (edraw-shape-picker-entry-remove entry)
+        (error (edraw-msg "Failed to delete entry"))))
+    entry))
+
+(defun edraw-shape-picker-delete-entry-at (pos)
   (interactive "d")
-  ;;;@todo impl
-  )
+  (if-let ((entry (edraw-shape-picker-entry-at pos)))
+      (edraw-shape-picker-delete-entry-common entry)
+    (message (edraw-msg "No entries at point"))))
 
-(defun edraw-shape-picker-cut-shape-at (_pos)
+(defun edraw-shape-picker-delete-backward-entry-at (pos)
   (interactive "d")
-  ;;;@todo impl
-  )
+  (when-let ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos nil))
+             (entry (car entry-pos))
+             (range (edraw-shape-picker-lookup-text-entry-range (cdr entry-pos))))
+    (goto-char (car range))
+    (edraw-shape-picker-delete-entry-common entry)))
 
-(defun edraw-shape-picker-paste-shape-at (_pos)
+;;;;; Kill/Yank Entry
+
+(defun edraw-shape-picker-clipboard-set (entries)
+  ;; Completely clone entries
+  (edraw-clipboard-set 'shape-picker-entry-list (copy-tree entries)))
+
+(defun edraw-shape-picker-clipboard-not-empty-p ()
+  (not (null
+        (memq (edraw-clipboard-type)
+              '(shape-picker-entry-list
+                shape-descriptor-list)))))
+
+(defun edraw-shape-picker-clipboard-get ()
+  (copy-tree ;; Completely clone entries
+   (pcase (edraw-clipboard-type)
+     ('shape-picker-entry-list
+      (edraw-clipboard-data))
+     ('shape-descriptor-list
+      (let ((svg-str (edraw-shape-descriptor-list-to-svg-string
+                      (edraw-clipboard-data))))
+        (when (and svg-str (not (string-empty-p svg-str)))
+          (list
+           ;;@todo Make shape constructor function
+           (list
+            :shape
+            :name (read-string (edraw-msg "Shape name: "))
+            svg-str))))))))
+
+(defun edraw-shape-picker-copy-entry-at (pos)
   (interactive "d")
-  ;;;@todo impl
-  )
+  ;;@todo support region
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (edraw-shape-picker-clipboard-set (list entry))
+    (message (edraw-msg "Copied %s")
+             (edraw-shape-picker-entry-name-for-msg entry))
+    entry))
 
-;; Move Shape to Next
-;; Move Shape to Previous
+(defun edraw-shape-picker-cut-entry-at (pos)
+  (interactive "d")
+  ;;@todo support region
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (when (edraw-shape-picker-delete-entry-common entry)
+      (edraw-shape-picker-clipboard-set (list entry))
+      (message (edraw-msg "Cut %s")
+               (edraw-shape-picker-entry-name-for-msg entry)))
+    entry))
+
+(defun edraw-shape-picker-paste-entry-at (pos)
+  (interactive "d")
+  (when-let ((entries (edraw-shape-picker-clipboard-get)))
+    (edraw-shape-picker-entries-insert-at entries pos)))
+
+;;;; Move Entry
+
+(defun edraw-shape-picker-move-entry-forward (pos)
+  (interactive "d")
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (let ((ins-point
+           ;; Find next insertion point
+           (if-let ((parent-index (edraw-shape-picker-entry-parent-index entry))
+                    (parent (car parent-index))
+                    (index (cdr parent-index)))
+               (if (< index
+                      (1- (length (edraw-shape-picker-entry-child-entries parent))))
+                   ;; ENTRY is not the last child of PARENT
+                   (let ((next-entry
+                          (nth
+                           (1+ index)
+                           (edraw-shape-picker-entry-child-entries parent))))
+                     (if (edraw-shape-picker-entry-container-p next-entry)
+                         ;; NEXT-ENTRY is a container type.
+                         ;; ENTRY becomes the first child of NEXT-ENTRY
+                         (cons next-entry 0)
+                       ;; Skip NEXT-ENTRY
+                       (cons parent (1+ index))))
+                 ;; ENTRY is the last child of PARENT
+                 (if-let ((grandparent-index
+                           (edraw-shape-picker-entry-parent-index parent)))
+                     ;; ENTRY becomes next sibling of PARENT
+                     (cons
+                      (car grandparent-index)
+                      (1+ (cdr grandparent-index)))
+                   ;; ENTRY is the last child of ROOT
+                   nil))
+             ;; ENTRY is the ROOT
+             nil)))
+
+      (when ins-point
+        (let ((edraw-shape-picker-inhibit-refresh t))
+          (edraw-shape-picker-entry-remove entry)
+          (edraw-shape-picker-entry-insert (car ins-point) (cdr ins-point)
+                                           entry))
+        (edraw-shape-picker-on-entry-modified
+         (list (edraw-shape-picker-entry-parent entry)
+               (car ins-point))) ;; Change parent and ins-point
+        (goto-char (car (edraw-shape-picker-find-entry-text entry)))))))
+
+(defun edraw-shape-picker-move-entry-backward (pos)
+  (interactive "d")
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (let ((ins-point
+           ;; Find previous insertion point
+           (if-let ((parent-index (edraw-shape-picker-entry-parent-index entry))
+                    (parent (car parent-index))
+                    (index (cdr parent-index)))
+               (if (> index 0)
+                   ;; ENTRY is not the first child of PARENT
+                   (let ((prev-entry
+                          (nth
+                           (1- index)
+                           (edraw-shape-picker-entry-child-entries parent))))
+                     (if (edraw-shape-picker-entry-container-p prev-entry)
+                         ;; PREV-ENTRY is a container type.
+                         ;; ENTRY becomes the last child of PREV-ENTRY
+                         (cons prev-entry
+                               (length (edraw-shape-picker-entry-child-entries
+                                        prev-entry)))
+                       ;; Skip PREV-ENTRY
+                       (cons parent (1- index))))
+                 ;; ENTRY is the first child of PARENT
+                 (if-let ((grandparent-index
+                           (edraw-shape-picker-entry-parent-index parent)))
+                     ;; ENTRY becomes previous sibling of PARENT
+                     (cons
+                      (car grandparent-index)
+                      (cdr grandparent-index))
+                   ;; ENTRY is the first child of ROOT
+                   nil))
+             ;; ENTRY is the ROOT
+             nil)))
+
+      (when ins-point
+        (let ((edraw-shape-picker-inhibit-refresh t))
+          (edraw-shape-picker-entry-remove entry)
+          (edraw-shape-picker-entry-insert (car ins-point) (cdr ins-point)
+                                           entry))
+        (edraw-shape-picker-on-entry-modified
+         (list (edraw-shape-picker-entry-parent entry)
+               (car ins-point))) ;; Change parent and ins-point
+        (goto-char (car (edraw-shape-picker-find-entry-text entry)))))))
 
 
 
