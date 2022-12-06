@@ -318,8 +318,7 @@
 \\{edraw-shape-picker-ui-mode-map}
 
 \\{edraw-shape-picker-thumbnail-map}"
-  (setq-local buffer-read-only t
-              line-move-visual t))
+  (setq-local line-move-visual t))
 
 (defun edraw-shape-picker-notification-hook-empty-p ()
   (null edraw-shape-picker-notification-hook))
@@ -853,6 +852,11 @@ subsequent entry will be connected."
 
 ;;;; Buffer Contents
 
+(defun edraw-shape-picker-insert-text (str)
+  (insert (propertize str
+                      'read-only t
+                      'front-sticky t)))
+
 ;;;;; Create
 
 (defvar-local edraw-shape-picker-section-level 0)
@@ -862,6 +866,8 @@ subsequent entry will be connected."
     (with-silent-modifications
       (erase-buffer)
       (edraw-shape-picker-insert-section edraw-shape-picker-entries)
+      (unless (bolp)
+        (edraw-shape-picker-insert-text "\n"))
       (goto-char (point-min)))))
 
 (defun edraw-shape-picker-insert-entries (entries)
@@ -879,21 +885,25 @@ subsequent entry will be connected."
   ;;     :name <string>
   ;;     <entry>...)
   (unless (bolp)
-    (insert "\n"))
+    (edraw-shape-picker-insert-text "\n"))
   (let ((edraw-shape-picker-section-level
          (1+ edraw-shape-picker-section-level))
         (name (edraw-shape-picker-entry-prop-get entry :name)))
-    (insert
+    (edraw-shape-picker-insert-text
      (propertize
-      (concat (make-string (1- edraw-shape-picker-section-level) ? )
-              "\u29bf"
-              (or (concat " " name) "")
-              "\n")
+      (concat
+       ;; *
+       (propertize
+        (make-string edraw-shape-picker-section-level ?*)
+        'display (concat (make-string (1- edraw-shape-picker-section-level) ? )
+                         "\u29bf"))
+       ;;  <name>\n
+       (propertize
+        (concat (or (concat " " name) "") "\n")))
       'edraw-shape-picker-entry entry))
 
     (edraw-shape-picker-insert-entries
-     (edraw-shape-picker-entry-contents-get entry)))
-  (insert "\n"))
+     (edraw-shape-picker-entry-contents-get entry))))
 
 (defun edraw-shape-picker-insert-layout (entry)
   ;; (:layout
@@ -933,11 +943,11 @@ subsequent entry will be connected."
   ;; Space
   (when (and edraw-shape-picker-string-between-thumbnails
              (not (bolp)))
-    (insert edraw-shape-picker-string-between-thumbnails))
+    (edraw-shape-picker-insert-text edraw-shape-picker-string-between-thumbnails))
 
   ;; Thumbnail
   (let ((name (edraw-shape-picker-shape-entry-name-get entry)))
-    (insert
+    (edraw-shape-picker-insert-text
      (propertize
       (format " [%s] " (or name ""))
       'display (edraw-shape-picker-create-thumbnail-image
@@ -1130,8 +1140,7 @@ The following commands are available on thumbnails:
 
   (remove-hook 'write-contents-functions #'edraw-shape-picker-file-mode--save-buffer t)
   (remove-hook 'change-major-mode-hook #'edraw-shape-picker-file-mode--maybe-devisualize t)
-  (setq-local revert-buffer-function nil)
-  (setq-local buffer-read-only nil))
+  (setq-local revert-buffer-function nil))
 
 (defun edraw-shape-picker-file-mode-exit ()
   (interactive)
