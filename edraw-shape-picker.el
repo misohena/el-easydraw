@@ -291,14 +291,13 @@
   (let ((km (make-sparse-keymap)))
     (define-key km "q" #'edraw-shape-picker-quit)
     (define-key km "g" #'edraw-shape-picker-refresh)
-    (define-key km [mouse-3] #'edraw-shape-picker-quit-by-mouse)
-    ;;(define-key km "y" #'edraw-shape-picker-paste-shape-at)
+    (define-key km [mouse-2] #'edraw-shape-picker-quit)
     km))
 
 (defvar edraw-shape-picker-thumbnail-map
   (let ((km (make-sparse-keymap)))
-    (define-key km [mouse-1] #'edraw-shape-picker-on-click-thumbnail)
-    (define-key km (kbd "RET") #'edraw-shape-picker-select-thumbnail-at)
+    (define-key km [mouse-1] #'edraw-shape-picker-select-shape-at)
+    (define-key km (kbd "RET") #'edraw-shape-picker-select-shape-at)
     (define-key km "e" #'edraw-shape-picker-edit-shape-at)
     (define-key km "R" #'edraw-shape-picker-rename-shape-at)
     (define-key km "D" #'edraw-shape-picker-delete-shape-at)
@@ -337,20 +336,25 @@
   (interactive)
   (edraw-shape-picker-make-buffer-contents))
 
+;;;;; Mouse Support
+
+(defun edraw-shape-picker-interactive-point-buffer ()
+  (let ((event last-input-event))
+    (if (and (consp event)
+             (symbolp (car event))
+             (consp (cdr event))) ;;Click Event?
+        (let* ((click-start (event-start event))
+               (click-window (posn-window click-start))
+               (click-buffer (window-buffer click-window))
+               (click-point (posn-point click-start)))
+          (list click-point click-buffer))
+      (list (point)))))
+
 ;;;;; Quit
 
-(defun edraw-shape-picker-quit ()
-  (interactive)
-  (edraw-shape-picker-close))
-
-(defun edraw-shape-picker-quit-by-mouse (event)
-  (interactive "e")
-  (when-let ((startpos (event-start event)) ;;@todo macro?
-             (pos (posn-point startpos))
-             (window (posn-window startpos))
-             (buffer (window-buffer window)))
-    (with-current-buffer buffer
-      (edraw-shape-picker-close))))
+(defun edraw-shape-picker-quit (&optional _pos buffer)
+  (interactive (edraw-shape-picker-interactive-point-buffer))
+  (edraw-shape-picker-close buffer))
 
 ;;;;; Rename Shape
 
@@ -879,38 +883,30 @@ subsequent entry will be connected."
     ;; Notify Changes
     (edraw-shape-picker-notify 'deselect)))
 
-(defun edraw-shape-picker-select-shape-at (pos)
-  (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos))
-             (range (edraw-shape-picker-lookup-text-entry-range pos))
-             (beg (car range))
-             (end (cdr range)))
-    (edraw-shape-picker-deselect-shape)
-    ;; Update Image
-    (with-silent-modifications
-      (put-text-property (car range) (cdr range)
-                         'display
-                         (edraw-shape-picker-create-thumbnail-image entry t)))
-    ;; Change Variables
-    (setq-local edraw-shape-picker-selected-shape-entry entry)
-    ;; Message
-    (message
-     (edraw-msg "Select %s")
-     (or (edraw-shape-picker-shape-entry-name-get entry)
-         (edraw-msg "<no name>")))
-    ;; Notify Changes
-    (edraw-shape-picker-notify
-     'select
-     (edraw-shape-picker-shape-entry-shape-get entry))))
-
-(defun edraw-shape-picker-on-click-thumbnail (event)
-  (interactive "e")
-  (when-let ((startpos (event-start event)) ;;@todo macro?
-             (pos (posn-point startpos))
-             (window (posn-window startpos))
-             (buffer (window-buffer window)))
-    (with-current-buffer buffer
-      (edraw-shape-picker-select-shape-at pos))))
+(defun edraw-shape-picker-select-shape-at (pos &optional buffer)
+  (interactive (edraw-shape-picker-interactive-point-buffer))
+  (with-current-buffer (or buffer (current-buffer))
+    (when-let ((entry (edraw-shape-picker-entry-at pos))
+               (range (edraw-shape-picker-lookup-text-entry-range pos))
+               (beg (car range))
+               (end (cdr range)))
+      (edraw-shape-picker-deselect-shape)
+      ;; Update Image
+      (with-silent-modifications
+        (put-text-property (car range) (cdr range)
+                           'display
+                           (edraw-shape-picker-create-thumbnail-image entry t)))
+      ;; Change Variables
+      (setq-local edraw-shape-picker-selected-shape-entry entry)
+      ;; Message
+      (message
+       (edraw-msg "Select %s")
+       (or (edraw-shape-picker-shape-entry-name-get entry)
+           (edraw-msg "<no name>")))
+      ;; Notify Changes
+      (edraw-shape-picker-notify
+       'select
+       (edraw-shape-picker-shape-entry-shape-get entry)))))
 
 
 ;;;; Buffer Contents
