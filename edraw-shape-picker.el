@@ -1064,25 +1064,26 @@ subsequent entry will be connected."
             (parent-index (edraw-shape-picker-entry-parent-index entry-at-pos))
             (parent (car parent-index))
             (index (cdr parent-index)))
-      ;; POS points to an entry
+      ;; POS points to ENTRY-AT-POS
       (if (= (car range) pos)
-          ;; before the entry
+          ;; Insert before ENTRY-AT-POS
           ;; |* SECTION
           ;; [shape][shape]|[shape]
           parent-index
         (pcase (edraw-shape-picker-entry-type entry-at-pos)
           (:section
-           ;; first child of the entry
+           ;; Insert as first child of ENTRY-AT-POS
            ;; * SECTION|
            (cons entry-at-pos 0))
           (:shape
            ;; after the entry
-           ;; [shape] [shape] [sh|ape]
+           ;; [shape][shape][sh|ape]
            (cons parent (1+ index)))))
     ;; POS points between entries
     ;; [shape][shape][shape]|
-    (when-let ((entry (edraw-shape-picker-search-backward-entry-pos pos nil))
-               (parent-index (edraw-shape-picker-entry-parent-index entry))
+    ;; [shape][shape] | [shape]
+    (when-let ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos nil))
+               (parent-index (edraw-shape-picker-entry-parent-index (car entry-pos)))
                (parent (car parent-index))
                (index (cdr parent-index)))
       (cons parent (1+ index)))))
