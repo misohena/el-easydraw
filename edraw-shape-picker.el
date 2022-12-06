@@ -42,7 +42,7 @@
   :group 'edraw-editor)
 
 (defcustom edraw-shape-picker-entries-file
-  (locate-user-emacs-file "edraw-custom.edraw-shapes")
+  (locate-user-emacs-file "edraw-custom.eshapes")
   ""
   :type 'file
   :group 'edraw-shape-picker)
@@ -195,7 +195,7 @@
      (find-file-noselect edraw-shape-picker-entries-file)
      ;;@todo run edraw-shape-picker-org-mode minor mode
      )
-    ;; .edraw-shapes format
+    ;; .eshapes format
     (t
      (edraw-shape-picker-get-buffer-file-mode edraw-shape-picker-entries-file)))))
 ;;(edraw-shape-picker-open)
@@ -1325,9 +1325,9 @@ subsequent entry will be connected."
     km))
 
 (defun edraw-shape-picker-file-mode ()
-  "Major mode for visually editing .eshapes.el files.
+  "Major mode for visually editing .eshapes files.
 
-Like `hexl-mode', open a .eshapes.el file and then launch this
+Like `hexl-mode', open a .eshapes file and then launch this
 mode to use it. Run `edraw-shape-picker-file-mode-exit' to return
 to the original mode.
 
