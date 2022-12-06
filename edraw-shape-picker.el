@@ -527,7 +527,9 @@
 
 (defun edraw-shape-picker-on-entry-modified (&rest _entries)
   ;;@todo Do not update if entry has not been added yet
-  (set-buffer-modified-p t)
+  (unless (buffer-modified-p)
+    (set-buffer-modified-p t)
+    (push (cons t (visited-file-modtime)) buffer-undo-list))
 
   ;; Update thumbnail image
   ;;@todo delay update?
@@ -564,8 +566,12 @@
 ;;TEST: (edraw-shape-picker-entry-contents-get '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => ("DAT1" "DAT2")
 
 (defun edraw-shape-picker-entry-contents-set (entry list)
-  (prog1 (setcdr (edraw-shape-picker-entry-prev-contents entry) list)
-    (edraw-shape-picker-on-entry-modified entry)))
+  (let* ((prev (edraw-shape-picker-entry-prev-contents entry))
+         (old-list (cdr prev)))
+    (setcdr prev list)
+    ;;@todo check attached to buffer
+    (edraw-shape-picker-on-entry-modified entry)
+    (push (list 'apply #'edraw-shape-picker-entry-contents-set entry old-list) buffer-undo-list)))
 
 (defun edraw-shape-picker-entry-contents-first-get (entry)
   (car (edraw-shape-picker-entry-contents-get entry)))
@@ -573,12 +579,20 @@
 ;;TEST: (edraw-shape-picker-entry-contents-first-get '(:tag :p1 11 :p2 22 "DAT1" "DAT2")) => "DAT1"
 
 (defun edraw-shape-picker-entry-contents-first-set (entry val)
-  (prog1
-      (let ((prev (edraw-shape-picker-entry-prev-contents entry)))
-        (if (cdr prev)
-            (setcar (cdr prev) val)
-          (setcdr prev (cons val nil))))
-    (edraw-shape-picker-on-entry-modified entry)))
+  (let ((prev (edraw-shape-picker-entry-prev-contents entry)))
+    (if (cdr prev)
+        ;; Change
+        (let ((old-val (cadr prev)))
+          (setcar (cdr prev) val)
+          ;;@todo check attached to buffer
+          (edraw-shape-picker-on-entry-modified entry)
+          (push (list 'apply #'edraw-shape-picker-entry-contents-first-set entry old-val) buffer-undo-list))
+      ;; Add
+      (setcdr prev (cons val nil))
+      ;;@todo check attached to buffer
+      (edraw-shape-picker-on-entry-modified entry)
+      (push (list 'apply #'edraw-shape-picker-entry-contents-set entry nil) buffer-undo-list)))
+  entry)
 
 (defun edraw-shape-picker-entry-props (entry)
   "Extract the property list part of the ENTRY."
@@ -608,9 +622,34 @@
       (setq prev (cdr curr)
             curr (cddr curr)))
     (if (eq (car curr) prop)
-        (setcar (cdr curr) val)
-      (setcdr prev (cons prop (cons val (cdr prev))))))
-  (edraw-shape-picker-on-entry-modified entry)
+        (let ((old-val (cadr curr)))
+          ;; Change Value
+          (setcar (cdr curr) val)
+          ;;@todo check attached to buffer
+          (edraw-shape-picker-on-entry-modified entry)
+          (push (list 'apply #'edraw-shape-picker-entry-prop-put entry prop old-val) buffer-undo-list))
+      ;; Add new
+      (setcdr prev (cons prop (cons val (cdr prev))))
+      ;;@todo check attached to buffer
+      (edraw-shape-picker-on-entry-modified entry)
+      (push (list 'apply #'edraw-shape-picker-entry-prop-remove entry prop) buffer-undo-list)))
+  entry)
+
+(defun edraw-shape-picker-entry-prop-remove (entry prop)
+  (let ((prev entry)
+        (curr (cdr entry)))
+    (while (and (cdr curr)
+                (keywordp (car curr))
+                (not (eq (car curr) prop)))
+      (setq prev (cdr curr)
+            curr (cddr curr)))
+    (when (eq (car curr) prop)
+      ;; Remove
+      (let ((old-val (cadr curr)))
+        (setcdr prev (cddr curr))
+        ;;@todo check attached to buffer
+        (edraw-shape-picker-on-entry-modified entry)
+        (push (list 'apply #'edraw-shape-picker-entry-prop-put entry prop old-val) buffer-undo-list)))) ;;@todo preserve property order?
   entry)
 
 ;;;;;; Entry Tree
@@ -656,13 +695,17 @@
 (defun edraw-shape-picker-entry-remove-child (parent child)
   (when (and parent child
              (edraw-shape-picker-entry-container-p parent))
-    (let ((prev (edraw-shape-picker-entry-prev-contents parent)))
+    (let ((prev (edraw-shape-picker-entry-prev-contents parent))
+          (index 0))
       (while (and (cdr prev)
                   (not (eq (cadr prev) child)))
-        (setq prev (cdr prev)))
+        (setq prev (cdr prev)
+              index (1+ index)))
       (when (eq (cadr prev) child)
         (setcdr prev (cddr prev))
+        ;;@todo check attached to buffer
         (edraw-shape-picker-on-entry-modified parent)
+        (push (list 'apply #'edraw-shape-picker-entry-insert parent index child) buffer-undo-list)
         ;; Return removed entry
         child))))
 
@@ -672,6 +715,22 @@
    (edraw-shape-picker-entry-parent entry root)
    entry))
 
+(defun edraw-shape-picker-entry-remove-children (parent index count)
+  (when (and parent
+             (> count 0)
+             (edraw-shape-picker-entry-container-p parent))
+    (let* ((prev (nthcdr index (edraw-shape-picker-entry-prev-contents parent))))
+      (when prev
+        (let ((removed-children (cdr prev))
+              (prev-last-removed-child (nthcdr count prev)))
+          (setcdr prev (cdr prev-last-removed-child))
+          (setcdr prev-last-removed-child nil)
+          ;;@todo check attached to buffer
+          (edraw-shape-picker-on-entry-modified parent)
+          (push (list 'apply #'edraw-shape-picker-entries-insert parent index removed-children) buffer-undo-list)
+          ;; Return removed entries
+          removed-children)))))
+
 (defun edraw-shape-picker-entry-insert (parent index child)
   "The CHILD becomes the PARENT's INDEX-th child."
   ;;@todo check CHILD already has parent?
@@ -679,7 +738,9 @@
              (edraw-shape-picker-entry-container-p parent))
     (let ((prev (nthcdr index (edraw-shape-picker-entry-prev-contents parent))))
       (setcdr prev (cons child (cdr prev)))
+      ;;@todo check attached to buffer
       (edraw-shape-picker-on-entry-modified parent)
+      (push (list 'apply #'edraw-shape-picker-entry-remove-child parent child) buffer-undo-list)
       ;; Return inserted entry
       child)))
 
@@ -691,10 +752,13 @@ subsequent entry will be connected."
   ;;@todo check CHILDREN already has parent?
   (when (and parent children
              (edraw-shape-picker-entry-container-p parent))
-    (let ((prev (nthcdr index (edraw-shape-picker-entry-prev-contents parent))))
+    (let ((prev (nthcdr index (edraw-shape-picker-entry-prev-contents parent)))
+          (count (length children)))
       (setcdr (last children) (cdr prev))
       (setcdr prev children)
+      ;;@todo check attached to buffer
       (edraw-shape-picker-on-entry-modified parent)
+      (push (list 'apply #'edraw-shape-picker-entry-remove-children parent index count) buffer-undo-list)
       ;; Return inserted entry
       children)))
 
