@@ -320,8 +320,24 @@
 \\{edraw-shape-picker-thumbnail-map}"
   (setq-local line-move-visual t))
 
+(defun edraw-shape-picker-set-local-entries (entries copy)
+  (setq-local edraw-shape-picker-entries
+              (if copy
+                  (copy-tree entries)
+                entries)))
+
+;;;;; Notification
+
 (defun edraw-shape-picker-notification-hook-empty-p ()
   (null edraw-shape-picker-notification-hook))
+
+;;;;; Display
+
+(defun edraw-shape-picker-refresh ()
+  (interactive)
+  (edraw-shape-picker-make-buffer-contents))
+
+;;;;; Quit
 
 (defun edraw-shape-picker-quit ()
   (interactive)
@@ -335,23 +351,6 @@
              (buffer (window-buffer window)))
     (with-current-buffer buffer
       (edraw-shape-picker-close))))
-
-(defun edraw-shape-picker-set-local-entries (entries copy)
-  (setq-local edraw-shape-picker-entries
-              (if copy
-                  (copy-tree entries)
-                entries)))
-
-(defun edraw-shape-picker-refresh ()
-  (interactive)
-  (edraw-shape-picker-make-buffer-contents))
-
-;;;;; Menu on Shape
-
-(defun edraw-shape-picker-open-shape-menu-at ()
-  (interactive)
-  ;;;@todo impl
-  )
 
 ;;;;; Rename Shape
 
