@@ -369,20 +369,19 @@
   (interactive (edraw-shape-picker-interactive-point-buffer))
   (edraw-shape-picker-close buffer))
 
-;;;;; Rename Shape
+;;;;; Edit Entry Properties
 
-(defun edraw-shape-picker-rename-shape-at (pos)
+(defun edraw-shape-picker-rename-entry-at (pos)
   (interactive "d")
-  (pcase (edraw-shape-picker-thumbnail-at pos)
-    (`(,thumbnail . (,_beg . ,_end))
-     (with-slots (entry) thumbnail
-       (let* ((old-name
-               (or (edraw-shape-picker-get-shape-entry-property entry :name)
-                   ""))
-              (new-name
-               (read-string (edraw-msg "Input name: ") old-name old-name)))
-         (edraw-shape-picker-set-shape-entry-property
-          entry :name new-name))))))
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (when (edraw-shape-picker-entry-can-have-name-p entry)
+      ;; :section, :shape
+      (let* ((old-name
+              (or (edraw-shape-picker-entry-prop-get entry :name)
+                  ""))
+             (new-name
+              (read-string (edraw-msg "Input name: ") old-name old-name)))
+        (edraw-shape-picker-entry-prop-put entry :name new-name)))))
 
 ;;;;; Edit Shape
 
