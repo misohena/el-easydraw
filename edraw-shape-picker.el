@@ -1113,6 +1113,9 @@ The following commands are available on thumbnails:
         ;; Discard undo list
         (setq buffer-undo-list nil)
 
+        ;; Disable auto save
+        (auto-save-mode -1)
+
         ;; Refresh buffer contents
         (edraw-shape-picker-set-local-entries entries nil)
         (edraw-shape-picker-make-buffer-contents) ;;silent modification
