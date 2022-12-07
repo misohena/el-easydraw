@@ -301,6 +301,7 @@
     (define-key km [mouse-2] #'edraw-shape-picker-quit)
     (define-key km [mouse-3] #'edraw-shape-picker-open-context-menu-at)
     (define-key km "i" #'edraw-shape-picker-insert-new-shape-at)
+    (define-key km "I" #'edraw-shape-picker-insert-new-section-at)
     (define-key km "y" #'edraw-shape-picker-paste-entry-at)
     (define-key km "R" #'edraw-shape-picker-rename-entry-at)
     (define-key km "D" #'edraw-shape-picker-delete-entry-at)
@@ -399,6 +400,7 @@
      :enable ,(buffer-modified-p))
     (,(edraw-msg "Undo") undo)
     (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
+    (,(edraw-msg "Insert New Section") edraw-shape-picker-insert-new-section-at)
     (,(edraw-msg "Paste") edraw-shape-picker-paste-entry-at
      :enable ,(edraw-shape-picker-clipboard-not-empty-p))))
 
@@ -410,6 +412,7 @@
        (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
        (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
        (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
+       (,(edraw-msg "Insert New Section") edraw-shape-picker-insert-new-section-at)
        (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
        (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
        (,(edraw-msg "Cut") edraw-shape-picker-cut-entry-at)
@@ -423,6 +426,7 @@
        (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
        (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
        (,(edraw-msg "Insert New Shape Before") edraw-shape-picker-insert-new-shape-at)
+       (,(edraw-msg "Insert New Section Before") edraw-shape-picker-insert-new-section-at)
        (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
        (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
        (,(edraw-msg "Cut") edraw-shape-picker-cut-entry-at)
@@ -599,6 +603,17 @@
        (list :shape
              :name (read-string "Shape name: ")
              svg-str)))))
+
+(defun edraw-shape-picker-insert-new-section-at (pos)
+  (interactive "d")
+
+  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+      (edraw-shape-picker-entry-insert
+       (car parent-index) (cdr parent-index)
+       ;;@todo Make shape constructor function
+       (list :section
+             :name (read-string "Section name: ")))
+    (message (edraw-msg "Failed to find insertion point"))))
 
 ;;;;; Edit Structure
 
