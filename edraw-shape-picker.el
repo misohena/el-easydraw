@@ -321,6 +321,7 @@
     ;; File
     (define-key km "fi" #'edraw-shape-picker-import-section-at)
     (define-key km "fx" #'edraw-shape-picker-export-section-at)
+    (define-key km "fR" #'edraw-shape-picker-reset-entries-to-default)
     km))
 
 (defvar edraw-shape-picker-thumbnail-map
@@ -406,6 +407,7 @@
     (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
     (,(edraw-msg "Insert New Section") edraw-shape-picker-insert-new-section-at)
     (,(edraw-msg "Import Section") edraw-shape-picker-import-section-at)
+    (,(edraw-msg "Reset to Default") edraw-shape-picker-reset-entries-to-default)
     (,(edraw-msg "Paste") edraw-shape-picker-paste-entry-at
      :enable ,(edraw-shape-picker-clipboard-not-empty-p))))
 
@@ -828,6 +830,13 @@
          entry))
     (message (edraw-msg "Failed to find insertion point"))))
 
+;;;;; Reset
+
+(defun edraw-shape-picker-reset-entries-to-default ()
+  (interactive)
+  (edraw-shape-picker-entry-reset-root
+   (copy-tree edraw-shape-picker-entries-default)))
+
 
 
 ;;;; Entry
@@ -981,6 +990,14 @@
   entry)
 
 ;;;;;; Entry Tree
+
+(defun edraw-shape-picker-entry-reset-root (new-root-entry)
+  (when (eq (edraw-shape-picker-entry-type new-root-entry) :section)
+    (let ((old-root-entry edraw-shape-picker-entries))
+      (setq-local edraw-shape-picker-entries new-root-entry)
+      (edraw-shape-picker-on-entry-modified new-root-entry)
+      (push (list 'apply #'edraw-shape-picker-entry-reset-root old-root-entry)
+            buffer-undo-list))))
 
 (defun edraw-shape-picker-entry-child-entries (entry)
   (when (edraw-shape-picker-entry-container-p entry)
