@@ -1250,7 +1250,10 @@ subsequent entry will be connected."
       'edraw-shape-picker-entry entry))
 
     (edraw-shape-picker-insert-entries
-     (edraw-shape-picker-entry-contents-get entry))))
+     (edraw-shape-picker-entry-contents-get entry)))
+
+  (unless (bolp)
+    (edraw-shape-picker-insert-text "\n")))
 
 (defun edraw-shape-picker-insert-layout (entry)
   ;; (:layout
