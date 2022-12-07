@@ -300,8 +300,9 @@
     (define-key km "g" #'edraw-shape-picker-refresh)
     (define-key km [mouse-2] #'edraw-shape-picker-quit)
     (define-key km [mouse-3] #'edraw-shape-picker-open-context-menu-at)
-    (define-key km "i" #'edraw-shape-picker-insert-new-shape-at)
-    (define-key km "I" #'edraw-shape-picker-insert-new-section-at)
+    (define-key km "ii" #'edraw-shape-picker-insert-new-shape-at)
+    (define-key km "is" #'edraw-shape-picker-insert-new-section-at)
+    (define-key km "ix" #'edraw-shape-picker-import-section-at)
     (define-key km "y" #'edraw-shape-picker-paste-entry-at)
     (define-key km "R" #'edraw-shape-picker-rename-entry-at)
     (define-key km "D" #'edraw-shape-picker-delete-entry-at)
@@ -317,6 +318,9 @@
     (define-key km "F" #'edraw-shape-picker-move-entry-forward)
     (define-key km "B" #'edraw-shape-picker-move-entry-backward)
     (define-key km "p" #'edraw-shape-picker-set-entry-property-at)
+    ;; File
+    (define-key km "fi" #'edraw-shape-picker-import-section-at)
+    (define-key km "fx" #'edraw-shape-picker-export-section-at)
     km))
 
 (defvar edraw-shape-picker-thumbnail-map
@@ -401,6 +405,7 @@
     (,(edraw-msg "Undo") undo)
     (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
     (,(edraw-msg "Insert New Section") edraw-shape-picker-insert-new-section-at)
+    (,(edraw-msg "Import Section") edraw-shape-picker-import-section-at)
     (,(edraw-msg "Paste") edraw-shape-picker-paste-entry-at
      :enable ,(edraw-shape-picker-clipboard-not-empty-p))))
 
@@ -413,6 +418,8 @@
        (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
        (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
        (,(edraw-msg "Insert New Section") edraw-shape-picker-insert-new-section-at)
+       (,(edraw-msg "Import Section") edraw-shape-picker-import-section-at)
+       (,(edraw-msg "Export Section") edraw-shape-picker-export-section-at)
        (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
        (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
        (,(edraw-msg "Cut") edraw-shape-picker-cut-entry-at)
@@ -427,6 +434,7 @@
        (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
        (,(edraw-msg "Insert New Shape Before") edraw-shape-picker-insert-new-shape-at)
        (,(edraw-msg "Insert New Section Before") edraw-shape-picker-insert-new-section-at)
+       (,(edraw-msg "Import Section Before") edraw-shape-picker-import-section-at)
        (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
        (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
        (,(edraw-msg "Cut") edraw-shape-picker-cut-entry-at)
@@ -791,6 +799,34 @@
          (list (edraw-shape-picker-entry-parent entry)
                (car ins-point))) ;; Change parent and ins-point
         (goto-char (car (edraw-shape-picker-find-entry-text entry)))))))
+
+;;;;; Import/Export
+
+(defun edraw-shape-picker-export-section-at (pos)
+  (interactive "d")
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (when (eq (edraw-shape-picker-entry-type entry) :section)
+      (let* ((name (or (edraw-shape-picker-entry-prop-get entry :name) ""))
+             (filename-initial
+              (concat
+               (replace-regexp-in-string "[ \t\n'`\"/:]" "-" (downcase name))
+               ".eshapes"))
+             (filename
+              (read-file-name "Export filename: " nil nil nil filename-initial)))
+        (when (or (not (file-exists-p filename))
+                  (yes-or-no-p "File already exists. Overwrite?"))
+          (edraw-shape-picker-save-entries filename entry))))))
+
+(defun edraw-shape-picker-import-section-at (pos)
+  (interactive "d")
+  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+      (let* ((filename (read-file-name "Import .eshapes file: " nil nil t))
+             (entry (edraw-shape-picker-load-entries filename)))
+
+        (edraw-shape-picker-entry-insert
+         (car parent-index) (cdr parent-index)
+         entry))
+    (message (edraw-msg "Failed to find insertion point"))))
 
 
 
@@ -1414,6 +1450,8 @@ subsequent entry will be connected."
       (error "Invalid file format: %s" format))
     (unless (eq version 1)
       (error "Invalid file version: %s" version))
+    (unless (eq (edraw-shape-picker-entry-type entries) :section)
+      (error "Invalid top level entry type"))
     entries))
 
 (defun edraw-shape-picker-load-entries (file)
