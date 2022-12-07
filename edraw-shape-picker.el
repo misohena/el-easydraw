@@ -34,6 +34,8 @@
 (declare-function edraw-create-document-svg "edraw")
 (autoload 'edraw-shape-descriptor-list-to-svg-string "edraw")
 
+(autoload 'edraw-color-picker-read-color "edraw-color-picker")
+
 ;;;; Customize
 
 (defgroup edraw-shape-picker nil
@@ -311,8 +313,9 @@
     (define-key km [remap yank] #'edraw-shape-picker-paste-entry-at)
     (define-key km (kbd "M-<right>") #'edraw-shape-picker-move-entry-forward)
     (define-key km (kbd "M-<left>") #'edraw-shape-picker-move-entry-backward)
-    (define-key km (kbd "F") #'edraw-shape-picker-move-entry-forward)
-    (define-key km (kbd "B") #'edraw-shape-picker-move-entry-backward)
+    (define-key km "F" #'edraw-shape-picker-move-entry-forward)
+    (define-key km "B" #'edraw-shape-picker-move-entry-backward)
+    (define-key km "p" #'edraw-shape-picker-set-entry-property-at)
     km))
 
 (defvar edraw-shape-picker-thumbnail-map
@@ -405,6 +408,7 @@
      `((,(edraw-msg "Move Forward") edraw-shape-picker-move-entry-forward)
        (,(edraw-msg "Move Backward") edraw-shape-picker-move-entry-backward)
        (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
+       (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
        (,(edraw-msg "Insert New Shape") edraw-shape-picker-insert-new-shape-at)
        (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
        (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
@@ -417,6 +421,7 @@
        (,(edraw-msg "Move Backward") edraw-shape-picker-move-entry-backward)
        (,(edraw-msg "Edit") edraw-shape-picker-edit-shape-at)
        (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
+       (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
        (,(edraw-msg "Insert New Shape Before") edraw-shape-picker-insert-new-shape-at)
        (,(edraw-msg "Delete") edraw-shape-picker-delete-entry-at)
        (,(edraw-msg "Copy") edraw-shape-picker-copy-entry-at)
@@ -443,6 +448,89 @@
              (new-name
               (read-string (edraw-msg "Input name: ") old-name old-name)))
         (edraw-shape-picker-entry-prop-put entry :name new-name)))))
+
+(defconst edraw-shape-picker-entry-prop-defs
+  '((:section
+     (name string)
+     (thumbnail-width integer)
+     (thumbnail-height integer)
+     (thumbnail-max-width integer)
+     (thumbnail-max-height integer)
+     (thumbnail-background cover)
+     (thumbnail-foreground-selected cover)
+     (thumbnail-padding integer) ;;@todo or (x y) or (left top right bottom)
+     (thumbnail-margin integer)) ;;@todo or (x y)
+    (:layout
+     (thumbnail-width integer)
+     (thumbnail-height integer)
+     (thumbnail-max-width integer)
+     (thumbnail-max-height integer)
+     (thumbnail-background cover)
+     (thumbnail-foreground-selected cover)
+     (thumbnail-padding integer) ;;@todo or (x y) or (left top right bottom)
+     (thumbnail-margin integer)) ;;@todo or (x y)
+    (:shape
+     (name string)
+     (width integer)
+     (height integer)
+     (max-width integer)
+     (max-height integer)
+     (background cover)
+     (foreground-selected cover)
+     (padding integer) ;;@todo or (x y) or (left top right bottom)
+     (margin integer)))) ;;@todo or (x y)
+
+
+(defun edraw-shape-picker-set-entry-property-at (pos)
+  (interactive "d")
+  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (let* ((prop-defs (alist-get (edraw-shape-picker-entry-type entry)
+                                 edraw-shape-picker-entry-prop-defs))
+           (prop-name (completing-read (edraw-msg "Property: ")
+                                       (mapcar #'car prop-defs)))
+           (prop-sym (intern (concat ":" prop-name)))
+           (prop-def (alist-get (intern prop-name) prop-defs))
+           (prop-type (nth 0 prop-def))
+           (prompt (format "%s(%s or empty): " prop-name prop-type))
+           (curr-val (edraw-shape-picker-entry-prop-get entry prop-sym))
+           (new-val (pcase prop-type
+                      ('string
+                       (let ((str (read-string prompt (or curr-val ""))))
+                         (if (string-empty-p str) nil str)))
+                      ('integer
+                       (edraw-read-integer-or-nil prompt curr-val))
+                      ('cover
+                       ;; see: `edraw-svg-shape-thumbnail-cover'
+                       (let* ((fill (edraw-color-picker-read-color
+                                     "Fill Color: "
+                                     (alist-get 'fill (cdr curr-val) "")
+                                     '("none" "")))
+                              (fill (if (string-empty-p fill) nil fill))
+                              (stroke (edraw-color-picker-read-color
+                                       "Stroke Color: "
+                                       (alist-get 'stroke (cdr curr-val) "")
+                                       '("none" "")))
+                              (stroke (if (string-empty-p stroke) nil stroke))
+                              (stroke-width (when stroke
+                                              (edraw-read-integer-or-nil
+                                               "Stroke Width: "
+                                               (alist-get 'stroke-width
+                                                          (cdr curr-val) "")))))
+                         (if (or fill stroke stroke-width)
+                             (nconc
+                              (list 'full)
+                              (when fill
+                                (list (cons 'fill fill)))
+                              (when stroke
+                                (list (cons 'stroke stroke)))
+                              (when stroke-width
+                                (list (cons 'stroke-width
+                                            (format "%s" stroke-width)))))
+                           nil))))))
+      (unless (equal new-val curr-val)
+        (if new-val
+            (edraw-shape-picker-entry-prop-put entry prop-sym new-val)
+          (edraw-shape-picker-entry-prop-remove entry prop-sym))))))
 
 ;;;;; Edit Shape
 

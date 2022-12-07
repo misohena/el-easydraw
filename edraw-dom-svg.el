@@ -1493,19 +1493,12 @@ This function does not consider the effect of the transform attribute."
         (bw svg-width)
         (bh svg-height)
         (attrs '((fill . "#ffffff"))))
-    ;; 'full
-    ;; 'content
     ;; '(content (symbol . value)...)
     ;; '(full (symbol . value)...)
-    ;; '((symbol . value)...)
     (pcase spec
-      ('content
-       (setq bl pl bt pt bw cw bh ch))
       (`(content . ,alist)
        (setq bl pl bt pt bw cw bh ch attrs alist))
       (`(full . ,alist)
-       (setq attrs alist))
-      ((and (pred listp) alist)
        (setq attrs alist)))
     (dom-append-child
      svg

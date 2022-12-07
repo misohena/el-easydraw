@@ -279,6 +279,21 @@
   (when (cl-typep obj type)
     obj))
 
+(defun edraw-read-integer-or-nil (prompt &optional initial-input)
+  (let (str)
+    (while (progn
+             (setq str (read-string
+                        prompt
+                        (format "%s" (or initial-input ""))))
+             (null (string-match-p
+                    "\\`\\(-?[0-9]+\\|\\)\\'"
+                    str)))
+      (message (edraw-msg "Please enter a integer or empty."))
+      (sit-for 1))
+    (if (string-empty-p str)
+        nil
+      (string-to-number str))))
+
 
 
 (provide 'edraw-util)
