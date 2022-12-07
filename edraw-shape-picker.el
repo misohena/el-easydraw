@@ -168,7 +168,7 @@
               (:layout
                :thumbnail-max-width 400
                :thumbnail-max-height 200
-               :thumbnail-background ((fill . "#333"))
+               :thumbnail-background (full (fill . "#333"))
                (:shape :name "star" "<path stroke=\"#eee\" stroke-width=\"4\" fill=\"none\" d=\"M-12,-16L5,-43L18,-15L51,-12C51,-12 26,10 25,10C24,10 36,45 36,45L1,24C1,24 -35,41 -35,40C-35,39 -20,7 -20,7L-44,-15L-12,-16Z\" />")
                (:shape :name "fujisan" "<path stroke=\"#999\" stroke-width=\"4\" d=\"M6,100C50,61 73,32 87,3C87,3 119,5 136,3C154,32 209,94 217,100C195,99 29,101 6,100Z\" fill=\"#8c94b1\" /><path d=\"M67,38C74,26 73,32 87,3C87,3 119,5 136,3C154,32 156,33 164,39C163.75,38.9375 139,23 139,23L129,38C129,38 114.0,20.0 114,20C114.0,20.0 100.0,39.0 100,39C100.0,39.0 89.0,23.0 89,23C89.0,23.0 70.5,37.5 67,38Z\" stroke=\"#999\" stroke-width=\"4\" fill=\"#eeeeee\" />")
                )
