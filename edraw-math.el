@@ -278,6 +278,19 @@
    ;;@todo support string
    (t (error "Invalid init argument"))))
 
+(defun edraw-matrix-move-origin (mat ox oy oz)
+  (if (or (/= ox 0) (/= oy 0)(/= oz 0))
+      (edraw-matrix-mul
+       (edraw-matrix-translate ox oy oz)
+       mat
+       (edraw-matrix-translate (- ox) (- oy) (- oz)))
+    mat))
+
+(defun edraw-matrix-move-origin-xy (mat xy)
+  (if xy
+      (edraw-matrix-move-origin mat (edraw-x xy) (edraw-y xy) 0)
+    mat))
+
 (defun edraw-matrix-translate (dx dy dz)
   (edraw-matrix (vector 1 0 0 0  0 1 0 0  0 0 1 0  dx dy dz 1)))
 

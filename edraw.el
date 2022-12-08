@@ -173,6 +173,9 @@
     (define-key km (kbd "C-c C-x C-y") 'edraw-editor-paste-and-select)
     (define-key km (kbd "C-c C-x C-w") 'edraw-editor-cut-selected-shapes)
     (define-key km (kbd "C-c C-x M-w") 'edraw-editor-copy-selected-shapes)
+    (define-key km "Tt" 'edraw-editor-translate-selected)
+    (define-key km "Ts" 'edraw-editor-scale-selected)
+    (define-key km "Tr" 'edraw-editor-rotate-selected)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
@@ -1387,6 +1390,10 @@ The undo data generated during undo is saved in redo-list."
       ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
       ((edraw-msg "Group") edraw-editor-group-selected-shapes)
+      ((edraw-msg "Transform")
+       (((edraw-msg "Translate...") edraw-editor-translate-selected)
+        ((edraw-msg "Scale...") edraw-editor-scale-selected)
+        ((edraw-msg "Rotate...") edraw-editor-rotate-selected)))
       ((edraw-msg "Z-Order")
        ;;@todo check :enable when multiple shapes are selected
        (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
@@ -1426,7 +1433,15 @@ The undo data generated during undo is saved in redo-list."
                   (_ (cons 0 0)))))
         (edraw-translate-selected editor v)))))
 
-(cl-defmethod edraw-translate-selected ((editor edraw-editor) xy)
+(defmacro edraw-read-translate-params ()
+  `(unless xy
+     (setq xy (edraw-xy
+               (read-number (edraw-msg "Delta X: ") 0)
+               (read-number (edraw-msg "Delta Y: ") 0)))))
+
+(edraw-editor-defcmd edraw-translate-selected)
+(cl-defmethod edraw-translate-selected ((editor edraw-editor) &optional xy)
+  (edraw-read-translate-params)
   (with-slots (selected-shapes selected-anchor selected-handle) editor
     (cond
      (selected-handle
@@ -1439,6 +1454,63 @@ The undo data generated during undo is saved in redo-list."
       (edraw-make-undo-group editor 'selected-shapes-translate
         (dolist (shape selected-shapes)
           (edraw-translate shape xy)))))))
+
+(defmacro edraw-read-scale-params ()
+  `(progn
+     (unless origin-xy
+       (setq origin-xy
+             (edraw-xy
+              ;;@todo default to center of shape
+              (read-number (edraw-msg "Origin X: ") 0)
+              (read-number (edraw-msg "Origin Y: ") 0))))
+     (unless sx
+       (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
+     (unless sy
+       (setq sy (read-number (edraw-msg "Scale Y: ") 1.0)))))
+
+(edraw-editor-defcmd edraw-scale-selected)
+(cl-defmethod edraw-scale-selected ((editor edraw-editor) &optional origin-xy sx sy)
+  (edraw-read-scale-params)
+  (edraw-transform-selected
+   editor
+   (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+
+(defmacro edraw-read-rotate-params ()
+  `(progn
+     (unless origin-xy
+       (setq origin-xy
+             (edraw-xy
+              ;;@todo default to center of shape
+              (read-number (edraw-msg "Origin X: ") 0)
+              (read-number (edraw-msg "Origin Y: ") 0))))
+     (unless angle
+       (setq angle (read-number (edraw-msg "Angle: ") 0)))))
+
+(edraw-editor-defcmd edraw-rotate-selected)
+(cl-defmethod edraw-rotate-selected ((editor edraw-editor) &optional origin-xy angle)
+  (edraw-read-rotate-params)
+  (edraw-transform-selected
+   editor
+   (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy)))
+
+(cl-defmethod edraw-transform-selected ((editor edraw-editor) matrix)
+  (unless (edraw-matrix-identity-p matrix)
+    (with-slots (selected-shapes selected-anchor selected-handle) editor
+      (cond
+       (selected-handle
+        (edraw-move-on-transformed selected-handle
+                                   (edraw-matrix-mul-mat-xy
+                                    matrix
+                                    (edraw-get-xy-transformed selected-handle))))
+       (selected-anchor
+        (edraw-move-on-transformed selected-anchor
+                                   (edraw-matrix-mul-mat-xy
+                                    matrix
+                                    (edraw-get-xy-transformed selected-anchor))))
+       (selected-shapes
+        (edraw-make-undo-group editor 'selected-shapes-transform
+          (dolist (shape selected-shapes)
+            (edraw-transform shape matrix))))))))
 
 (edraw-editor-defcmd edraw-delete-selected)
 (cl-defmethod edraw-delete-selected ((editor edraw-editor))
@@ -1685,6 +1757,11 @@ The undo data generated during undo is saved in redo-list."
            :enable ,(not (null selected-shapes)))
           ((edraw-msg "Cut") edraw-editor-cut-selected-shapes
            :enable ,(not (null selected-shapes)))
+          ((edraw-msg "Group") edraw-editor-group-selected-shapes)
+          ((edraw-msg "Transform")
+           (((edraw-msg "Translate...") edraw-editor-translate-selected)
+            ((edraw-msg "Scale...") edraw-editor-scale-selected)
+            ((edraw-msg "Rotate...") edraw-editor-rotate-selected)))
           ((edraw-msg "Z-Order")
            ;;@todo check :enable when multiple shapes are selected
            (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
@@ -3415,6 +3492,20 @@ position where the EVENT occurred."
 ;;(cl-defmethod edraw-translate ((shape edraw-shape) xy) )
 ;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
 
+(cl-defmethod edraw-scale ((shape edraw-shape) &optional origin-xy sx sy)
+  (edraw-read-scale-params)
+
+  (edraw-transform
+   shape
+   (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+
+(cl-defmethod edraw-rotate ((shape edraw-shape) &optional origin-xy angle)
+  (edraw-read-rotate-params)
+
+  (edraw-transform
+   shape
+   (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy)))
+
 ;;;;;; Search
 
 (cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy)
@@ -3627,6 +3718,10 @@ position where the EVENT occurred."
     ((edraw-msg "Set")
      (((edraw-msg "Fill...") edraw-edit-fill)
       ((edraw-msg "Stroke...") edraw-edit-stroke)))
+    ((edraw-msg "Transform")
+     (((edraw-msg "Translate...") edraw-translate)
+      ((edraw-msg "Scale...") edraw-scale)
+      ((edraw-msg "Rotate...") edraw-rotate)))
     ((edraw-msg "Z-Order")
      (((edraw-msg "Bring to Front") edraw-bring-to-front
        :enable ,(not (edraw-front-p shape)))
@@ -3778,7 +3873,8 @@ position where the EVENT occurred."
   (with-slots (p0p1) shape
     (edraw-aabb (car p0p1) (cdr p0p1))))
 
-(cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) xy)
+(cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) &optional xy)
+  (edraw-read-translate-params)
   (if (edraw-transform-prop-exists-p shape)
       (edraw-transform-prop-translate shape xy)
     (edraw-make-anchor-points-from-element shape);;Make sure p0p1 is initialized
@@ -4103,7 +4199,8 @@ position where the EVENT occurred."
                                   '(transform)
                                 '(x y))))
 
-(cl-defmethod edraw-translate ((shape edraw-shape-text) xy)
+(cl-defmethod edraw-translate ((shape edraw-shape-text) &optional xy)
+  (edraw-read-translate-params)
   (if (edraw-transform-prop-exists-p shape)
       (edraw-transform-prop-translate shape xy)
     (when (and xy (not (edraw-xy-zero-p xy)))
@@ -4218,7 +4315,8 @@ position where the EVENT occurred."
                                   '(transform)
                                 '(d))))
 
-(cl-defmethod edraw-translate ((shape edraw-shape-path) xy)
+(cl-defmethod edraw-translate ((shape edraw-shape-path) &optional xy)
+  (edraw-read-translate-params)
   (if (edraw-transform-prop-exists-p shape)
       (edraw-transform-prop-translate shape xy)
     (when (and xy (not (edraw-xy-zero-p xy)))
@@ -4396,7 +4494,8 @@ position where the EVENT occurred."
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-group))
   (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
 
-(cl-defmethod edraw-translate ((shape edraw-shape-group) xy)
+(cl-defmethod edraw-translate ((shape edraw-shape-group) &optional xy)
+  (edraw-read-translate-params)
   (edraw-transform-prop-translate shape xy))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
