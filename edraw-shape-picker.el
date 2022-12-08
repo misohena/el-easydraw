@@ -116,7 +116,7 @@
   :group 'edraw-shape-picker)
 
 (defcustom edraw-shape-picker-thumbnail-margin
-  1
+  '(1 . 2) ;; 2 means show active region
   "Thumbnail margin."
   :type '(choice (integer)
                  (cons
@@ -347,7 +347,8 @@
 \\{edraw-shape-picker-ui-mode-map}
 
 \\{edraw-shape-picker-thumbnail-map}"
-  (setq-local line-move-visual t))
+  (setq-local line-move-visual t
+              line-spacing 0))
 
 (defun edraw-shape-picker-set-local-entries (entries copy)
   (setq-local edraw-shape-picker-entries
