@@ -170,6 +170,7 @@
     (define-key km "z" 'edraw-editor-undo)
     (define-key km "Z" 'edraw-editor-redo)
     ;; Selected Object
+    (define-key km "A" 'edraw-editor-toggle-selection-all)
     (define-key km (kbd "C-c C-x C-y") 'edraw-editor-paste-and-select)
     (define-key km (kbd "C-c C-x C-w") 'edraw-editor-cut-selected-shapes)
     (define-key km (kbd "C-c C-x M-w") 'edraw-editor-copy-selected-shapes)
@@ -1128,6 +1129,12 @@ The undo data generated during undo is saved in redo-list."
        ((edraw-msg "Clear...") edraw-editor-clear)
        ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
        ((edraw-msg "Export to File") edraw-editor-export-to-file)))
+     ((edraw-msg "Select All") edraw-editor-toggle-selection-all
+      :visible ,(not (edraw-selected-shapes editor))
+      :enable ,(not (edraw-selected-shapes editor)))
+     ((edraw-msg "Deselect All") edraw-editor-toggle-selection-all
+      :visible ,(not (null (edraw-selected-shapes editor)))
+      :enable ,(not (null (edraw-selected-shapes editor))))
      ((edraw-msg "Undo") edraw-editor-undo
       :enable ,(not (edraw-empty-undo-p editor)))
      ((edraw-msg "Redo") edraw-editor-redo
@@ -1213,9 +1220,18 @@ The undo data generated during undo is saved in redo-list."
 
 (cl-defmethod edraw-select-shapes ((editor edraw-editor) shapes)
   (edraw-deselect-all-shapes editor)
-  (dolist (shape shapes)
+  (dolist (shape shapes) ;;@todo Add edraw-add-shapes-selection?
     (edraw-add-shape-selection editor shape))
   shapes)
+
+(cl-defmethod edraw-select-all-shapes ((editor edraw-editor))
+  (edraw-select-shapes editor (edraw-all-shapes editor)))
+
+(edraw-editor-defcmd edraw-toggle-selection-all)
+(cl-defmethod edraw-toggle-selection-all ((editor edraw-editor))
+  (if (edraw-selected-shapes editor)
+      (edraw-deselect-all-shapes editor)
+    (edraw-select-all-shapes editor)))
 
 
 (cl-defmethod edraw-on-selected-shape-changed ((editor edraw-editor)
