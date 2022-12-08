@@ -1727,7 +1727,7 @@ The following commands are available on thumbnails:
   (major-mode-restore))
 
 (defun edraw-shape-picker-file-mode--maybe-devisualize ()
-  (when (y-or-n-p "Convert contents back to binary format? ")
+  (when (y-or-n-p (edraw-msg "Convert contents back to text format? "))
     (edraw-shape-picker-file-mode--exit)))
 
 (defun edraw-shape-picker-file-mode--revert-buffer-function (_ignore-auto _noconfirm)
