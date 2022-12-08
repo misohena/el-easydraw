@@ -1466,7 +1466,7 @@ ROOT is the top level entry of the tree containing ENTRY."
            (not (eq (get-text-property (1- pos) prop)
                     val)))
        pos
-     (previous-single-property-change pos prop))
+     (previous-single-property-change pos prop nil (point-min)))
    (next-single-property-change pos prop)))
 
 (defun edraw-shape-picker-lookup-text-entry-range (pos)
@@ -1490,34 +1490,31 @@ ROOT is the top level entry of the tree containing ENTRY."
 
 (defun edraw-shape-picker-entry-insertion-point-at (pos)
   "Detect entry insertion point at POS."
-  (if-let* ((entry-at-pos (edraw-shape-picker-entry-at pos))
-            (range (edraw-shape-picker-lookup-text-entry-range pos))
-            (parent-index (edraw-shape-picker-entry-parent-index entry-at-pos))
-            (parent (car parent-index))
-            (index (cdr parent-index)))
-      ;; POS points to ENTRY-AT-POS
+  (when-let ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos t))) ;;include POS
+    (let* ((entry (car entry-pos))
+           (pos (cdr entry-pos))
+           (range (edraw-shape-picker-lookup-text-entry-range pos))
+           (parent-index (edraw-shape-picker-entry-parent-index entry))
+           (parent (car parent-index))
+           (index (cdr parent-index)))
+      ;; POS points to ENTRY
       (if (= (car range) pos)
-          ;; Insert before ENTRY-AT-POS
+          ;; Insert before ENTRY
           ;; |* SECTION
           ;; [shape][shape]|[shape]
-          parent-index
-        (pcase (edraw-shape-picker-entry-type entry-at-pos)
+          parent-index ;;null if ENTRY is root
+        (pcase (edraw-shape-picker-entry-type entry)
           (:section
-           ;; Insert as first child of ENTRY-AT-POS
+           ;; Insert as first child of ENTRY
            ;; * SECTION|
-           (cons entry-at-pos 0))
+           ;; * SECTION\n|\n
+           (cons entry 0))
           (:shape
            ;; after the entry
-           ;; [shape][shape][sh|ape]
-           (cons parent (1+ index)))))
-    ;; POS points between entries
-    ;; [shape][shape][shape]|
-    ;; [shape][shape] | [shape]
-    (when-let ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos nil))
-               (parent-index (edraw-shape-picker-entry-parent-index (car entry-pos)))
-               (parent (car parent-index))
-               (index (cdr parent-index)))
-      (cons parent (1+ index)))))
+           ;; [shape][shape][SH|APE]
+           ;; [shape][shape][SHAPE]|
+           ;; [shape][SHAPE] | [shape]
+           (cons parent (1+ index)))))))) ;;assert (not (null parent))
 
 (defun edraw-shape-picker-search-backward-entry-pos (pos include-pos-p)
   (unless include-pos-p
