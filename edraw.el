@@ -3,7 +3,11 @@
 ;; Copyright (C) 2021 AKIYAMA Kouhei
 
 ;; Author: AKIYAMA Kouhei <misohena@gmail.com>
+;; Homepage: https://github.com/misohena/el-easydraw
 ;; Keywords: Graphics,Drawing,SVG
+
+;; Package-Version: 1.0.1
+;; Package-Requires: ((emacs "27.1"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -3871,7 +3875,7 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-set-rect ((shape edraw-shape-with-rect-boundary) xy0 xy1)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
-  ;;@todo 
+  ;;@todo
   (with-slots (p0p1) shape
     (when (or (/= (caar p0p1) (car xy0))
               (/= (cdar p0p1) (cdr xy0))
