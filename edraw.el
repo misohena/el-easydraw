@@ -1473,16 +1473,16 @@ The undo data generated during undo is saved in redo-list."
 
 (defmacro edraw-read-scale-params ()
   `(progn
+     (unless sx
+       (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
+     (unless sy
+       (setq sy (read-number (edraw-msg "Scale Y: ") 1.0)))
      (unless origin-xy
        (setq origin-xy
              (edraw-xy
               ;;@todo default to center of shape
               (read-number (edraw-msg "Origin X: ") 0)
-              (read-number (edraw-msg "Origin Y: ") 0))))
-     (unless sx
-       (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
-     (unless sy
-       (setq sy (read-number (edraw-msg "Scale Y: ") 1.0)))))
+              (read-number (edraw-msg "Origin Y: ") 0))))))
 
 (edraw-editor-defcmd edraw-scale-selected)
 (cl-defmethod edraw-scale-selected ((editor edraw-editor) &optional origin-xy sx sy)
@@ -1493,14 +1493,14 @@ The undo data generated during undo is saved in redo-list."
 
 (defmacro edraw-read-rotate-params ()
   `(progn
+     (unless angle
+       (setq angle (read-number (edraw-msg "Angle: ") 0)))
      (unless origin-xy
        (setq origin-xy
              (edraw-xy
               ;;@todo default to center of shape
               (read-number (edraw-msg "Origin X: ") 0)
-              (read-number (edraw-msg "Origin Y: ") 0))))
-     (unless angle
-       (setq angle (read-number (edraw-msg "Angle: ") 0)))))
+              (read-number (edraw-msg "Origin Y: ") 0))))))
 
 (edraw-editor-defcmd edraw-rotate-selected)
 (cl-defmethod edraw-rotate-selected ((editor edraw-editor) &optional origin-xy angle)
