@@ -297,11 +297,19 @@
 (defun edraw-matrix-scale (sx sy sz)
   (edraw-matrix (vector sx 0 0 0  0 sy 0 0  0 0 sz 0  0 0 0 1)))
 
+
 (defun edraw-matrix-rotate (deg)
-  (let* ((rad (degrees-to-radians deg))
-         (c (cos rad))
-         (s (sin rad)))
-    (edraw-matrix (vector c s (- s) c 0 0))))
+  (let ((d (mod deg 360)))
+    (cond
+     ((= d 0) (edraw-matrix (vector 1 0 0 1 0 0)))
+     ((= d 90) (edraw-matrix (vector 0 1 -1 0 0 0)))
+     ((= d 180) (edraw-matrix (vector -1 0 0 -1 0 0)))
+     ((= d 270) (edraw-matrix (vector 0 -1 1 0 0 0)))
+     (t
+      (let* ((rad (degrees-to-radians deg))
+             (c (cos rad))
+             (s (sin rad)))
+        (edraw-matrix (vector c s (- s) c 0 0)))))))
 
 (defun edraw-matrix-rotate-x (deg)
   (let* ((rad (degrees-to-radians deg))
