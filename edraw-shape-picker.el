@@ -809,6 +809,8 @@
              nil)))
 
       (when ins-point
+        (message "Under %s"
+                 (edraw-shape-picker-entry-name-for-msg (car ins-point)))
         (edraw-shape-picker-combine-refresh
          (edraw-shape-picker-entry-remove entry)
          (edraw-shape-picker-entry-insert (car ins-point) (cdr ins-point)
@@ -850,6 +852,8 @@
              nil)))
 
       (when ins-point
+        (message "Under %s"
+                 (edraw-shape-picker-entry-name-for-msg (car ins-point)))
         (edraw-shape-picker-combine-refresh
          (edraw-shape-picker-entry-remove entry)
          (edraw-shape-picker-entry-insert (car ins-point) (cdr ins-point)
@@ -909,10 +913,13 @@
 ;;;;;; Entry Name
 
 (defun edraw-shape-picker-entry-name-for-msg (entry)
-  (if-let ((name-p (edraw-shape-picker-entry-can-have-name-p entry))
-           (name (edraw-shape-picker-entry-prop-get entry :name)))
-      name
-    (substring (symbol-name (edraw-shape-picker-entry-type entry)) 1)))
+  (let ((type-name
+         (substring (symbol-name (edraw-shape-picker-entry-type entry)) 1))
+        (entry-name
+         (or (and (edraw-shape-picker-entry-can-have-name-p entry)
+                  (edraw-shape-picker-entry-prop-get entry :name))
+             "<no name>")))
+    (format "`%s' %s" entry-name type-name)))
 
 ;;;;;; Entry Modification
 
