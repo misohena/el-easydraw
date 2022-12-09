@@ -53,17 +53,10 @@ edraw-shape-descriptor-to-svg-element にダミーのdefrefsを使っている�
 基本的には後者は全ての図形が正しく変形できない。rectやellipseは軸に沿った形状しか表現できず、それ以外はtransform属性を使用する必要がある。線の太さといったものをどうするかも問題。
 
 ** TODO 左右上下反転コマンドを追加する
-選択中とドキュメント全体と。
+ドキュメント全体と選択図形と図形単体で。
 -1倍しても良いけど、簡単に反転できると良い。
 dtfh dtfvとか?
 要らないかも。
-** TODO 変形時にデフォルトの原点を図形の中心にする
-ついでにleft, right, top, bottom, centerと入力できるようにする。
-Origin X(left=100.0, center=150.0(default), right=200.0):
-Origin Y(top=100.0, center=150.0(default), bottom=200.0):
-(let ((input "c"))
- (seq-filter (lambda (candidate) (string-prefix-p input candidate t)) '("left" "center" "right")))
-
 ** TODO 座標を表示する機能を追加する
 何らかの方法で座標が知りたい場合がある。
 問題はEmacsではモーションイベントを積極的に使いづらい所。
@@ -848,3 +841,12 @@ CLOSED: [2022-12-10 Sat 00:04]
 CLOSED: [2022-12-10 Sat 00:05]
 矩形や楕円、テキストはtransformを使わないと出来ないけど、パスだけは元データのレベルで変形できる。
 ↑一応出来るようにはなっている。出来ない要素も回転できてしまうけど。
+** DONE 変形時にデフォルトの原点を図形の中心にする・その他変形入力改善
+CLOSED: [2022-12-10 Sat 02:23]
+ついでにleft, right, top, bottom, centerと入力できるようにする。
+プロンプト:
+- Origin X(left=100.0, center=150.0(default), right=200.0):
+- Origin Y(top=100.0, center=150.0(default), bottom=200.0):
+ドキュメント全体、選択図形、図形単体で対処する。
+変形不要時(angle=0, scale=1)は即時終了。
+対象図形無しは即時終了。

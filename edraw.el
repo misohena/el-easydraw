@@ -1080,53 +1080,107 @@ The undo data generated during undo is saved in redo-list."
 
 (edraw-editor-defcmd edraw-translate-all-shapes)
 (cl-defmethod edraw-translate-all-shapes ((editor edraw-editor) &optional xy)
-  (edraw-read-translate-params)
-  (edraw-make-undo-group editor 'all-shapes-translate
-    (dolist (shape (edraw-all-shapes editor))
-      (edraw-translate shape xy))))
+  (let ((shapes (edraw-all-shapes editor)))
+    (if (null shapes)
+        (message (edraw-msg "No shapes"))
+      (edraw-read-translate-params)
+      (edraw-make-undo-group editor 'all-shapes-translate
+        (dolist (shape shapes)
+          (edraw-translate shape xy))))))
 
-(defmacro edraw-read-scale-params ()
+(defun edraw-read-origin-number (axis candidates)
+  (let ((prompt (format "Origin %s(%s): "
+                        axis
+                        (mapconcat
+                         (lambda (cand)
+                           (format "%s=%g%s" (nth 0 cand) (nth 1 cand)
+                                   (if (nth 2 cand) "(default)" "")))
+                         candidates
+                         ", ")))
+        result)
+    (while (null result)
+      (setq result
+            (let ((input (read-string prompt)))
+              (cond
+               ;; Default
+               ((equal input "")
+                (nth 1 (seq-find (lambda (cand) (nth 2 cand)) candidates)))
+               ;; Candidate
+               ((nth 1 (seq-find (lambda (cand)
+                                   (string-prefix-p input (nth 0 cand) t))
+                                 candidates)))
+               ;; Number
+               (t (ignore-errors (read input))))))
+      (unless (numberp result)
+        (message (edraw-msg "Please enter a number, %s, or empty.")
+                 (mapconcat #'car candidates ", "))
+        (sit-for 2)
+        (setq result nil)))
+    result))
+
+(defun edraw-read-origin-xy (aabb)
+  (edraw-xy
+   (if aabb
+       (edraw-read-origin-number
+        "X"
+        `(("left" ,(edraw-rect-left aabb))
+          ("center" ,(/ (+ (edraw-rect-left aabb) (edraw-rect-right aabb)) 2) t)
+          ("right" ,(edraw-rect-right aabb))))
+     (read-number "Origin X: " 0))
+   (if aabb
+       (edraw-read-origin-number
+        "Y"
+        `(("top" ,(edraw-rect-top aabb))
+          ("center" ,(/ (+ (edraw-rect-top aabb) (edraw-rect-bottom aabb)) 2) t)
+          ("bottom" ,(edraw-rect-bottom aabb))))
+     (read-number "Origin Y: " 0))))
+
+(defmacro edraw-read-scale-params (aabb-expr)
   `(progn
      (unless sx
        (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
      (unless sy
        (setq sy (read-number (edraw-msg "Scale Y: ") sx)))
+     (when (and (= sx 1) (= sy 1))
+       (error (edraw-msg "No need to scale")))
      (unless origin-xy
-       (setq origin-xy
-             (edraw-xy
-              ;;@todo default to center of shape
-              (read-number (edraw-msg "Origin X: ") 0)
-              (read-number (edraw-msg "Origin Y: ") 0))))))
+       (setq origin-xy (edraw-read-origin-xy ,aabb-expr)))))
 
 (edraw-editor-defcmd edraw-scale-all-shapes)
 (cl-defmethod edraw-scale-all-shapes ((editor edraw-editor) &optional origin-xy sx sy)
-  (edraw-read-scale-params)
+  (let ((shapes (edraw-all-shapes editor)))
+    (if (null shapes)
+        (message (edraw-msg "No shapes"))
+      (edraw-read-scale-params (edraw-rect 0 0
+                                           (edraw-width editor)
+                                           (edraw-height editor)))
+      (edraw-make-undo-group editor 'all-shapes-scale
+        (let ((matrix (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+          (dolist (shape shapes)
+            (edraw-transform shape matrix)))))))
 
-  (edraw-make-undo-group editor 'all-shapes-scale
-    (let ((matrix (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
-      (dolist (shape (edraw-all-shapes editor))
-        (edraw-transform shape matrix)))))
-
-(defmacro edraw-read-rotate-params ()
+(defmacro edraw-read-rotate-params (aabb-expr)
   `(progn
      (unless angle
        (setq angle (read-number (edraw-msg "Angle: ") 0)))
+     (when (= (mod angle 360) 0)
+       (error (edraw-msg "No need to rotate")))
      (unless origin-xy
-       (setq origin-xy
-             (edraw-xy
-              ;;@todo default to center of shape
-              (read-number (edraw-msg "Origin X: ") 0)
-              (read-number (edraw-msg "Origin Y: ") 0))))))
+       (setq origin-xy (edraw-read-origin-xy ,aabb-expr)))))
 
 (edraw-editor-defcmd edraw-rotate-all-shapes)
 (cl-defmethod edraw-rotate-all-shapes ((editor edraw-editor) &optional origin-xy angle)
-  (edraw-read-rotate-params)
-
-  (edraw-make-undo-group editor 'all-shapes-rotate
-    (let ((matrix (edraw-matrix-move-origin-xy
-                   (edraw-matrix-rotate angle) origin-xy)))
-      (dolist (shape (edraw-all-shapes editor))
-        (edraw-transform shape matrix)))))
+  (let ((shapes (edraw-all-shapes editor)))
+    (if (null shapes)
+        (message (edraw-msg "No shapes"))
+      (edraw-read-rotate-params (edraw-rect 0 0
+                                            (edraw-width editor)
+                                            (edraw-height editor)))
+      (edraw-make-undo-group editor 'all-shapes-rotate
+        (let ((matrix (edraw-matrix-move-origin-xy
+                       (edraw-matrix-rotate angle) origin-xy)))
+          (dolist (shape shapes)
+            (edraw-transform shape matrix)))))))
 
 (cl-defmethod edraw-notify-document-close-to-all-shapes ((editor edraw-editor))
   (dolist (node (dom-children (edraw-svg-body editor)))
@@ -1196,6 +1250,14 @@ The undo data generated during undo is saved in redo-list."
 
 (cl-defmethod edraw-selected-shapes ((editor edraw-editor))
   (oref editor selected-shapes))
+
+(cl-defgeneric edraw-selected-shapes-aabb (selector)
+  "Return axis aligned bounding box of shapes selected by SELECTOR.")
+(cl-defmethod edraw-selected-shapes-aabb ((editor edraw-editor))
+  (let (aabb)
+    (dolist (shape (edraw-selected-shapes editor))
+      (setq aabb (edraw-rect-union aabb (edraw-shape-aabb shape))))
+    aabb))
 
 (cl-defmethod edraw-selected-shapes-back-to-front ((editor edraw-editor))
   (seq-filter
@@ -1492,15 +1554,21 @@ The undo data generated during undo is saved in redo-list."
 
 (edraw-editor-defcmd edraw-translate-selected)
 (cl-defmethod edraw-translate-selected ((editor edraw-editor) &optional xy)
-  (edraw-read-translate-params)
   (with-slots (selected-shapes selected-anchor selected-handle) editor
+    (if (not (or selected-handle
+                 selected-anchor
+                 selected-shapes))
+        (message (edraw-msg "No shape selected"))
+      (edraw-read-translate-params))
     (cond
      (selected-handle
-      (edraw-move-on-transformed selected-handle
-                  (edraw-xy-add (edraw-get-xy-transformed selected-handle) xy)))
+      (edraw-move-on-transformed
+       selected-handle
+       (edraw-xy-add (edraw-get-xy-transformed selected-handle) xy)))
      (selected-anchor
-      (edraw-move-on-transformed selected-anchor
-                  (edraw-xy-add (edraw-get-xy-transformed selected-anchor) xy)))
+      (edraw-move-on-transformed
+       selected-anchor
+       (edraw-xy-add (edraw-get-xy-transformed selected-anchor) xy)))
      (selected-shapes
       (edraw-make-undo-group editor 'selected-shapes-translate
         (dolist (shape selected-shapes)
@@ -1508,17 +1576,21 @@ The undo data generated during undo is saved in redo-list."
 
 (edraw-editor-defcmd edraw-scale-selected)
 (cl-defmethod edraw-scale-selected ((editor edraw-editor) &optional origin-xy sx sy)
-  (edraw-read-scale-params)
-  (edraw-transform-selected
-   editor
-   (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+  (if (null (edraw-selected-shapes editor))
+      (message (edraw-msg "No shape selected"))
+    (edraw-read-scale-params (edraw-selected-shapes-aabb editor))
+    (edraw-transform-selected
+     editor
+     (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy))))
 
 (edraw-editor-defcmd edraw-rotate-selected)
 (cl-defmethod edraw-rotate-selected ((editor edraw-editor) &optional origin-xy angle)
-  (edraw-read-rotate-params)
-  (edraw-transform-selected
-   editor
-   (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy)))
+  (if (null (edraw-selected-shapes editor))
+      (message (edraw-msg "No shape selected"))
+    (edraw-read-rotate-params (edraw-selected-shapes-aabb editor))
+    (edraw-transform-selected
+     editor
+     (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy))))
 
 (cl-defmethod edraw-transform-selected ((editor edraw-editor) matrix)
   (unless (edraw-matrix-identity-p matrix)
@@ -3520,14 +3592,14 @@ position where the EVENT occurred."
 ;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
 
 (cl-defmethod edraw-scale ((shape edraw-shape) &optional origin-xy sx sy)
-  (edraw-read-scale-params)
+  (edraw-read-scale-params (edraw-shape-aabb shape))
 
   (edraw-transform
    shape
    (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
 
 (cl-defmethod edraw-rotate ((shape edraw-shape) &optional origin-xy angle)
-  (edraw-read-rotate-params)
+  (edraw-read-rotate-params (edraw-shape-aabb shape))
 
   (edraw-transform
    shape
