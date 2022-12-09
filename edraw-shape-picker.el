@@ -409,15 +409,24 @@
   (edraw-shape-picker-refresh-on-entry-modified))
 
 (defmacro edraw-shape-picker-combine-refresh (&rest body)
-  `(push (list
-          'apply
-          #'edraw-shape-picker-undo-combined
-          (let ((edraw-shape-picker-inhibit-refresh t)
-                (buffer-undo-list nil))
-            ,@body
-            (edraw-shape-picker-refresh-on-entry-modified)
-            buffer-undo-list))
-         buffer-undo-list))
+  (let ((actions (gensym 'actions-)))
+    `(let* ((,actions
+             (let ((edraw-shape-picker-inhibit-refresh t)
+                   (buffer-undo-list nil))
+               ,@body
+               buffer-undo-list))
+            (last-action (car (last ,actions))))
+       ;; Refresh
+       (edraw-shape-picker-refresh-on-entry-modified)
+       ;; Move last time-flag to original undo list
+       (when (eq (car last-action) t) ;; (t . time-flag)
+         (push last-action
+               buffer-undo-list)
+         (setq ,actions (nbutlast ,actions))) ;;remove last
+       ;; Push combined actions to undo list
+       (when ,actions
+         (push (list 'apply #'edraw-shape-picker-undo-combined ,actions)
+               buffer-undo-list)))))
 
 ;;;;; Mouse Support
 
