@@ -1,9 +1,5 @@
 
 * Inbox
-** TODO カスタムシェイプ/shape pickerでセクションの見出しを折りたたむ
-今回のケースではoutline-minor-modeでは正しく折りたためない！　sectionの末尾とshapeとの間に何も目印が無いので。
-やるならエントリーツリーを見てちゃんとやらないとダメ。
-
 ** TODO カスタムシェイプ/shape pickerでドラッグ&ドロップできるようにする
 範囲選択したものをドラッグして別の場所へ移動できるようにする。
 
@@ -834,3 +830,7 @@ CLOSED: [2022-12-09 Fri 18:41]
 CLOSED: [2022-12-09 Fri 20:23]
 entry-backwardとentry-forwardだとかなり特殊な移動になってしまう。
 M-up、M-downで移動できた方が良い。
+** DONE カスタムシェイプ/shape pickerでセクションの見出しを折りたたむ
+CLOSED: [2022-12-09 Fri 23:03]
+今回のケースではoutline-minor-modeでは正しく折りたためない！　sectionの末尾とshapeとの間に何も目印が無いので。
+やるならエントリーツリーを見てちゃんとやらないとダメ。
