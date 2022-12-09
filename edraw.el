@@ -166,8 +166,9 @@
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
     (define-key km "db" 'edraw-editor-set-background)
     (define-key km "dr" 'edraw-editor-set-size)
-    (define-key km "dt" 'edraw-editor-translate-all-shapes)
-    (define-key km "ds" 'edraw-editor-scale-all-shapes)
+    (define-key km "dtt" 'edraw-editor-translate-all-shapes)
+    (define-key km "dts" 'edraw-editor-scale-all-shapes)
+    (define-key km "dtr" 'edraw-editor-rotate-all-shapes)
     (define-key km "deb" 'edraw-editor-export-to-buffer)
     (define-key km "def" 'edraw-editor-export-to-file)
     (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
@@ -1071,23 +1072,59 @@ The undo data generated during undo is saved in redo-list."
                       (edraw-shape-from-element node editor 'noerror))
                     (dom-children (edraw-svg-body editor)))))
 
-(edraw-editor-defcmd edraw-translate-all-shapes)
-(cl-defmethod edraw-translate-all-shapes ((editor edraw-editor) &optional dx dy)
-  (unless dx (setq dx (read-number "Delta X: " 0)))
-  (unless dy (setq dy (read-number "Delta Y: " 0)))
+(defmacro edraw-read-translate-params ()
+  `(unless xy
+     (setq xy (edraw-xy
+               (read-number (edraw-msg "Delta X: ") 0)
+               (read-number (edraw-msg "Delta Y: ") 0)))))
 
+(edraw-editor-defcmd edraw-translate-all-shapes)
+(cl-defmethod edraw-translate-all-shapes ((editor edraw-editor) &optional xy)
+  (edraw-read-translate-params)
   (edraw-make-undo-group editor 'all-shapes-translate
-    (let ((delta-xy (edraw-xy dx dy)))
-      (dolist (shape (edraw-all-shapes editor))
-        (edraw-translate shape delta-xy)))))
+    (dolist (shape (edraw-all-shapes editor))
+      (edraw-translate shape xy))))
+
+(defmacro edraw-read-scale-params ()
+  `(progn
+     (unless sx
+       (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
+     (unless sy
+       (setq sy (read-number (edraw-msg "Scale Y: ") sx)))
+     (unless origin-xy
+       (setq origin-xy
+             (edraw-xy
+              ;;@todo default to center of shape
+              (read-number (edraw-msg "Origin X: ") 0)
+              (read-number (edraw-msg "Origin Y: ") 0))))))
 
 (edraw-editor-defcmd edraw-scale-all-shapes)
-(cl-defmethod edraw-scale-all-shapes ((editor edraw-editor) &optional sx sy)
-  (unless sx (setq sx (read-number "Scale X: " 1.0)))
-  (unless sy (setq sy (read-number "Scale Y: " sx)))
+(cl-defmethod edraw-scale-all-shapes ((editor edraw-editor) &optional origin-xy sx sy)
+  (edraw-read-scale-params)
 
   (edraw-make-undo-group editor 'all-shapes-scale
-    (let ((matrix (edraw-matrix-scale (float sx) (float sy) 1.0)))
+    (let ((matrix (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+      (dolist (shape (edraw-all-shapes editor))
+        (edraw-transform shape matrix)))))
+
+(defmacro edraw-read-rotate-params ()
+  `(progn
+     (unless angle
+       (setq angle (read-number (edraw-msg "Angle: ") 0)))
+     (unless origin-xy
+       (setq origin-xy
+             (edraw-xy
+              ;;@todo default to center of shape
+              (read-number (edraw-msg "Origin X: ") 0)
+              (read-number (edraw-msg "Origin Y: ") 0))))))
+
+(edraw-editor-defcmd edraw-rotate-all-shapes)
+(cl-defmethod edraw-rotate-all-shapes ((editor edraw-editor) &optional origin-xy angle)
+  (edraw-read-rotate-params)
+
+  (edraw-make-undo-group editor 'all-shapes-rotate
+    (let ((matrix (edraw-matrix-move-origin-xy
+                   (edraw-matrix-rotate angle) origin-xy)))
       (dolist (shape (edraw-all-shapes editor))
         (edraw-transform shape matrix)))))
 
@@ -1453,12 +1490,6 @@ The undo data generated during undo is saved in redo-list."
                   (_ (cons 0 0)))))
         (edraw-translate-selected editor v)))))
 
-(defmacro edraw-read-translate-params ()
-  `(unless xy
-     (setq xy (edraw-xy
-               (read-number (edraw-msg "Delta X: ") 0)
-               (read-number (edraw-msg "Delta Y: ") 0)))))
-
 (edraw-editor-defcmd edraw-translate-selected)
 (cl-defmethod edraw-translate-selected ((editor edraw-editor) &optional xy)
   (edraw-read-translate-params)
@@ -1475,36 +1506,12 @@ The undo data generated during undo is saved in redo-list."
         (dolist (shape selected-shapes)
           (edraw-translate shape xy)))))))
 
-(defmacro edraw-read-scale-params ()
-  `(progn
-     (unless sx
-       (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
-     (unless sy
-       (setq sy (read-number (edraw-msg "Scale Y: ") 1.0)))
-     (unless origin-xy
-       (setq origin-xy
-             (edraw-xy
-              ;;@todo default to center of shape
-              (read-number (edraw-msg "Origin X: ") 0)
-              (read-number (edraw-msg "Origin Y: ") 0))))))
-
 (edraw-editor-defcmd edraw-scale-selected)
 (cl-defmethod edraw-scale-selected ((editor edraw-editor) &optional origin-xy sx sy)
   (edraw-read-scale-params)
   (edraw-transform-selected
    editor
    (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
-
-(defmacro edraw-read-rotate-params ()
-  `(progn
-     (unless angle
-       (setq angle (read-number (edraw-msg "Angle: ") 0)))
-     (unless origin-xy
-       (setq origin-xy
-             (edraw-xy
-              ;;@todo default to center of shape
-              (read-number (edraw-msg "Origin X: ") 0)
-              (read-number (edraw-msg "Origin Y: ") 0))))))
 
 (edraw-editor-defcmd edraw-rotate-selected)
 (cl-defmethod edraw-rotate-selected ((editor edraw-editor) &optional origin-xy angle)
