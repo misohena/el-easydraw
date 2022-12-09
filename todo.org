@@ -1,8 +1,5 @@
 
 * Inbox
-** TODO カスタムシェイプ/shape pickerでセクションの兄妹移動できるようにする
-entry-backwardとentry-forwardだとかなり特殊な移動になってしまう。
-M-up、M-downで移動できた方が良い。
 ** TODO カスタムシェイプ/shape pickerでセクションの見出しを折りたたむ
 今回のケースではoutline-minor-modeでは正しく折りたためない！　sectionの末尾とshapeとの間に何も目印が無いので。
 やるならエントリーツリーを見てちゃんとやらないとダメ。
@@ -833,3 +830,7 @@ CLOSED: [2022-12-09 Fri 18:41]
 - 見た目を水平バーにする。
 - マウスカーソルを +hand+ arrowにする。
 - +折りたたみできるようにする。outline-minor-modeを使う。見出しのクリックで折りたたみを切り替える。+ 今回のケースではoutline-minor-modeでは正しく折りたためない！　sectionの末尾とshapeとの間に何も目印が無いので。
+** DONE カスタムシェイプ/shape pickerでセクションの兄妹移動できるようにする
+CLOSED: [2022-12-09 Fri 20:23]
+entry-backwardとentry-forwardだとかなり特殊な移動になってしまう。
+M-up、M-downで移動できた方が良い。

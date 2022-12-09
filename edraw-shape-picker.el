@@ -342,8 +342,8 @@
     (define-key km [remap yank] #'edraw-shape-picker-paste-entry-at)
     (define-key km (kbd "M-<right>") #'edraw-shape-picker-move-entry-forward)
     (define-key km (kbd "M-<left>") #'edraw-shape-picker-move-entry-backward)
-    (define-key km "F" #'edraw-shape-picker-move-entry-forward)
-    (define-key km "B" #'edraw-shape-picker-move-entry-backward)
+    (define-key km (kbd "M-<down>") #'edraw-shape-picker-move-entry-forward-same-level)
+    (define-key km (kbd "M-<up>") #'edraw-shape-picker-move-entry-backward-same-level)
     (define-key km "p" #'edraw-shape-picker-set-entry-property-at)
     ;; File
     (define-key km "fi" #'edraw-shape-picker-import-section-at)
@@ -481,7 +481,9 @@
 (defun edraw-shape-picker-entry-actions (entry)
   (pcase (edraw-shape-picker-entry-type entry)
     (:section
-     `((,(edraw-msg "Move Forward") edraw-shape-picker-move-entry-forward)
+     `((,(edraw-msg "Move Forward Same Level") edraw-shape-picker-move-entry-forward-same-level)
+       (,(edraw-msg "Move Backward Same Level") edraw-shape-picker-move-entry-backward-same-level)
+       (,(edraw-msg "Move Forward") edraw-shape-picker-move-entry-forward)
        (,(edraw-msg "Move Backward") edraw-shape-picker-move-entry-backward)
        (,(edraw-msg "Rename") edraw-shape-picker-rename-entry-at)
        (,(edraw-msg "Set Property") edraw-shape-picker-set-entry-property-at)
@@ -811,7 +813,8 @@
 
 ;;;;; Move Entry
 
-(defun edraw-shape-picker-move-entry-forward (pos)
+(defun edraw-shape-picker-move-entry-forward (pos &optional
+                                                  no-enter-p no-leave-p)
   (interactive "d")
   (when-let ((entry (edraw-shape-picker-entry-at pos)))
     (let ((ins-point
@@ -826,21 +829,24 @@
                           (nth
                            (1+ index)
                            (edraw-shape-picker-entry-child-entries parent))))
-                     (if (edraw-shape-picker-entry-container-p next-entry)
+                     (if (and (not no-enter-p)
+                              (edraw-shape-picker-entry-container-p next-entry))
                          ;; NEXT-ENTRY is a container type.
                          ;; ENTRY becomes the first child of NEXT-ENTRY
                          (cons next-entry 0)
                        ;; Skip NEXT-ENTRY
                        (cons parent (1+ index))))
                  ;; ENTRY is the last child of PARENT
-                 (if-let ((grandparent-index
-                           (edraw-shape-picker-entry-parent-index parent)))
-                     ;; ENTRY becomes next sibling of PARENT
-                     (cons
-                      (car grandparent-index)
-                      (1+ (cdr grandparent-index)))
-                   ;; ENTRY is the last child of ROOT
-                   nil))
+                 (if no-leave-p
+                     nil
+                   (if-let ((grandparent-index
+                             (edraw-shape-picker-entry-parent-index parent)))
+                       ;; ENTRY becomes next sibling of PARENT
+                       (cons
+                        (car grandparent-index)
+                        (1+ (cdr grandparent-index)))
+                     ;; ENTRY is the last child of ROOT
+                     nil)))
              ;; ENTRY is the ROOT
              nil)))
 
@@ -853,7 +859,8 @@
                                           entry))
         (goto-char (car (edraw-shape-picker-find-entry-text entry)))))))
 
-(defun edraw-shape-picker-move-entry-backward (pos)
+(defun edraw-shape-picker-move-entry-backward (pos &optional
+                                                   no-enter-p no-leave-p)
   (interactive "d")
   (when-let ((entry (edraw-shape-picker-entry-at pos)))
     (let ((ins-point
@@ -867,7 +874,8 @@
                           (nth
                            (1- index)
                            (edraw-shape-picker-entry-child-entries parent))))
-                     (if (edraw-shape-picker-entry-container-p prev-entry)
+                     (if (and (not no-enter-p)
+                              (edraw-shape-picker-entry-container-p prev-entry))
                          ;; PREV-ENTRY is a container type.
                          ;; ENTRY becomes the last child of PREV-ENTRY
                          (cons prev-entry
@@ -876,14 +884,16 @@
                        ;; Skip PREV-ENTRY
                        (cons parent (1- index))))
                  ;; ENTRY is the first child of PARENT
-                 (if-let ((grandparent-index
-                           (edraw-shape-picker-entry-parent-index parent)))
-                     ;; ENTRY becomes previous sibling of PARENT
-                     (cons
-                      (car grandparent-index)
-                      (cdr grandparent-index))
-                   ;; ENTRY is the first child of ROOT
-                   nil))
+                 (if no-leave-p
+                     nil
+                   (if-let ((grandparent-index
+                             (edraw-shape-picker-entry-parent-index parent)))
+                       ;; ENTRY becomes previous sibling of PARENT
+                       (cons
+                        (car grandparent-index)
+                        (cdr grandparent-index))
+                     ;; ENTRY is the first child of ROOT
+                     nil)))
              ;; ENTRY is the ROOT
              nil)))
 
@@ -895,6 +905,15 @@
          (edraw-shape-picker-entry-insert (car ins-point) (cdr ins-point)
                                           entry))
         (goto-char (car (edraw-shape-picker-find-entry-text entry)))))))
+
+(defun edraw-shape-picker-move-entry-forward-same-level (pos)
+  (interactive "d")
+  (edraw-shape-picker-move-entry-forward pos t t))
+
+(defun edraw-shape-picker-move-entry-backward-same-level (pos)
+  (interactive "d")
+  (edraw-shape-picker-move-entry-backward pos t t))
+
 
 ;;;;; Import/Export
 
