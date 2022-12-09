@@ -133,6 +133,13 @@
   :type 'string
   :group 'edraw-shape-picker)
 
+;; Face
+
+(defface edraw-shape-picker-heading
+  '((t :background "#444" :foreground "#eee" :underline "#000" :extend t))
+  "Face used for section headings."
+  :group 'edraw-shape-picker)
+
 ;;
 
 (defvar edraw-shape-picker-entries-default
@@ -1418,7 +1425,9 @@ ROOT is the top level entry of the tree containing ENTRY."
        ;;  <name>\n
        (propertize
         (concat (or (concat " " name) "") "\n")))
-      'edraw-shape-picker-entry entry))
+      'edraw-shape-picker-entry entry
+      'font-lock-face 'edraw-shape-picker-heading
+      'pointer 'arrow))
 
     (edraw-shape-picker-insert-entries
      (edraw-shape-picker-entry-contents-get entry)))
