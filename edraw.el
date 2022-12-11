@@ -44,6 +44,7 @@
 (autoload 'edraw-shape-picker-open "edraw-shape-picker")
 (declare-function edraw-shape-picker-connect "edraw-shape-picker")
 (declare-function edraw-shape-picker-disconnect "edraw-shape-picker")
+(declare-function edraw-shape-picker-selected-args "edraw-shape-picker")
 
 
 ;;;; Editor
@@ -3109,7 +3110,8 @@ position where the EVENT occurred."
 (defclass edraw-editor-tool-custom-shape (edraw-editor-tool)
   ((on-picker-notify :initform nil)
    (picker-buffer :initform nil)
-   (shape-descriptor-list :initform nil)))
+   (selected-shape-descriptor-list :initform nil)
+   (selected-picker-entry-properties :initform nil)))
 
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool-custom-shape)
                                  (_editor edraw-editor))
@@ -3121,21 +3123,31 @@ position where the EVENT occurred."
   (cl-call-next-method))
 
 (cl-defmethod edraw-connect-to-shape-picker ((tool edraw-editor-tool-custom-shape))
-  (with-slots (on-picker-notify picker-buffer) tool
-    (when (or (null picker-buffer)
-              (not (buffer-live-p picker-buffer)))
-      (unless on-picker-notify
-        (setq on-picker-notify
-              (lambda (type &rest args)
-                ;; NOTE: Called from the picker buffer.
-                (edraw-on-shape-picker-notify tool type args))))
-      (setq picker-buffer (edraw-shape-picker-open)) ;; Open common buffer
-      (edraw-shape-picker-connect picker-buffer on-picker-notify)
-      ;; If you want to detect that a buffer has been killed arbitrarily, do:
-      ;; (with-current-buffer picker-buffer (add-hook 'kill-buffer-hook <callback> nil t))
-      ;; And add following before disconnect:
-      ;; (with-current-buffer picker-buffer (remove-hook 'kill-buffer-hook <callback> t))
-      )))
+  (let ((editor-buffer (current-buffer))) ;;@todo get from overlay?
+    (with-slots (on-picker-notify picker-buffer) tool
+      (when (or (null picker-buffer)
+                (not (buffer-live-p picker-buffer)))
+        (unless on-picker-notify
+          (setq on-picker-notify
+                (lambda (type &rest args)
+                  ;; NOTE: Called from the picker buffer.
+                  (if (buffer-live-p editor-buffer)
+                      (with-current-buffer editor-buffer
+                        ;; Call with editor's buffer
+                        (edraw-on-shape-picker-notify tool type args))
+                    ;; editor is killed!
+                    (edraw-disconnect-from-shape-picker tool)))))
+        (setq picker-buffer (edraw-shape-picker-open)) ;; Open common buffer
+        (edraw-shape-picker-connect picker-buffer on-picker-notify)
+        ;; If you want to detect that a buffer has been killed arbitrarily, do:
+        ;; (with-current-buffer picker-buffer (add-hook 'kill-buffer-hook <callback> nil t))
+        ;; And add following before disconnect:
+        ;; (with-current-buffer picker-buffer (remove-hook 'kill-buffer-hook <callback> t))
+
+        ;; Update selection
+        (if-let ((args (edraw-shape-picker-selected-args picker-buffer)))
+            (apply #'edraw-select-shape-picker-shape tool args)
+          (edraw-select-shape-picker-shape tool nil nil))))))
 
 (cl-defmethod edraw-disconnect-from-shape-picker ((tool edraw-editor-tool-custom-shape) &optional no-disconnect-needed)
   (with-slots (on-picker-notify picker-buffer) tool
@@ -3149,18 +3161,32 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-shape-picker-notify
   ((tool edraw-editor-tool-custom-shape) type args)
   "Callback from edraw-shape-picker buffer."
-  ;; NOTE: Called from picker-buffer.
-  (with-slots (shape-descriptor-list editor) tool
-    (pcase type
-      ('exit
-       (edraw-disconnect-from-shape-picker tool t))
-      ('deselect
-       (setq shape-descriptor-list nil))
-      ('select
-       (let ((shape-def (nth 0 args)))
-         (setq shape-descriptor-list
-               (edraw-shape-descriptor-list-from-shape-picker-shape
-                shape-def editor)))))))
+  ;; NOTE: Called from editor's buffer.
+  (pcase type
+    ('exit
+     (edraw-disconnect-from-shape-picker tool t))
+    ('deselect
+     (edraw-select-shape-picker-shape tool nil nil))
+    ('select
+     (apply #'edraw-select-shape-picker-shape tool args))))
+
+(cl-defmethod edraw-select-shape-picker-shape
+  ((tool edraw-editor-tool-custom-shape) shape-def props)
+  (with-slots (selected-shape-descriptor-list
+               selected-picker-entry-properties
+               editor)
+      tool
+    (if shape-def
+        (progn
+          (setq selected-shape-descriptor-list
+                (edraw-shape-descriptor-list-from-shape-picker-shape
+                 shape-def editor))
+          (setq selected-picker-entry-properties props)
+          (message (edraw-msg "Select %s")
+                   (or (plist-get props :name)
+                       (edraw-msg "<no name>"))))
+      (setq selected-shape-descriptor-list nil)
+      (setq selected-picker-entry-properties nil))))
 
 (cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-custom-shape)
                                 click-event)
@@ -3168,8 +3194,8 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-put-custom-shape ((tool edraw-editor-tool-custom-shape)
                                       click-event)
-  (with-slots (shape-descriptor-list editor) tool
-    (when shape-descriptor-list
+  (with-slots (selected-shape-descriptor-list editor) tool
+    (when selected-shape-descriptor-list
       (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
              (click-xy-snapped (edraw-snap-xy editor click-xy)))
 
@@ -3180,7 +3206,7 @@ position where the EVENT occurred."
           (when-let ((shapes (edraw-shape-from-shape-descriptor-list
                               editor
                               (edraw-svg-body editor)
-                              shape-descriptor-list)))
+                              selected-shape-descriptor-list)))
             (dolist (shape shapes)
               (edraw-translate shape click-xy-snapped))
 

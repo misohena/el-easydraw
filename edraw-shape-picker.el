@@ -1317,33 +1317,50 @@ ROOT is the top level entry of the tree containing ENTRY."
   '(width height max-width max-height
           padding background foreground-selected margin))
 
-(defun edraw-shape-picker-shape-entry-thumbnail-params (entry)
-  (let (;; from custom variables
-        (params (mapcar
-                 (lambda (name)
-                   (cons
-                    name
-                    (symbol-value
-                     (intern (format "edraw-shape-picker-thumbnail-%s" name)))))
-                 edraw-shape-picker-thumbnail-param-names)))
+(defconst edraw-shape-picker-entry-inherit-props
+  (append
+   (mapcar (lambda (name) (list name "thumbnail-" '(:shape "")
+                                "edraw-shape-picker-thumbnail-"))
+           edraw-shape-picker-thumbnail-param-names)
+   (mapcar (lambda (name) (list name "shape-" '(:shape "") nil))
+           '(keep-attributes ref-box))))
 
-    ;; from ancestors
-    (dolist (ancestor (mapcar #'car ;;discard index
-                              (edraw-shape-picker-entry-path entry)))
-      (dolist (name edraw-shape-picker-thumbnail-param-names)
-        (when-let ((prop (edraw-shape-picker-entry-prop-memq
-                          ancestor
-                          (intern (format ":thumbnail-%s" name)))))
-          (setf (alist-get name params) (cadr prop)))))
+(defun edraw-shape-picker-entry-inherit-props--name
+    (entry basename default-prefix type-prefix)
+  (intern
+   (format ":%s%s"
+           (or
+            (plist-get type-prefix
+                       (edraw-shape-picker-entry-type entry))
+            default-prefix)
+           basename)))
 
-    ;; from shape entry
-    (dolist (name edraw-shape-picker-thumbnail-param-names)
-      (when-let ((prop (edraw-shape-picker-entry-prop-memq
-                        entry
-                        (intern (format ":%s" name)))))
-        (setf (alist-get name params) (cadr prop))))
+(defun edraw-shape-picker-entry-inherit-props (entry)
+  (let ((props (edraw-shape-picker-entry-props entry))
+        (ancestors (nreverse
+                    (mapcar #'car ;;discard index
+                            (edraw-shape-picker-entry-path entry)))))
+    (pcase-dolist (`(,basename ,default-prefix ,type-prefix ,var-prefix)
+                   edraw-shape-picker-entry-inherit-props)
+      (let ((name (edraw-shape-picker-entry-inherit-props--name
+                   entry basename default-prefix type-prefix)))
+        ;; If ENTRY does not contains NAME property
+        (unless (plist-member props name)
+          ;; Get value from ancestor
+          (if-let ((found-prop
+                    (seq-some (lambda (anc)
+                                (edraw-shape-picker-entry-prop-memq
+                                 anc
+                                 (edraw-shape-picker-entry-inherit-props--name
+                                  anc basename default-prefix type-prefix)))
+                              ancestors)))
+              (setq props (plist-put props name (cadr found-prop)))
+            ;; Get value from global variable
+            (when var-prefix
+              (setq props (plist-put props name
+                                     (symbol-value (intern (format "%s%s" var-prefix basename))))))))))
+    props))
 
-    params))
 
 ;;;; Thumbnail Image
 
@@ -1355,7 +1372,7 @@ ROOT is the top level entry of the tree containing ENTRY."
    ((edraw-dom-element-p shape) (list shape))))
 
 (defun edraw-shape-picker-create-thumbnail-image (entry &optional selected)
-  (let* ((params (edraw-shape-picker-shape-entry-thumbnail-params entry))
+  (let* ((props (edraw-shape-picker-entry-inherit-props entry))
          (shape (edraw-shape-picker-shape-entry-shape-get entry))
          (svg-node-list (edraw-shape-picker-shape-to-svg-node-list shape)))
     (when svg-node-list
@@ -1364,16 +1381,16 @@ ROOT is the top level entry of the tree containing ENTRY."
                   (if (<= (length svg-node-list) 1)
                       (car svg-node-list)
                     (apply #'dom-node 'g nil svg-node-list))
-                  (alist-get 'width params)
-                  (alist-get 'height params)
-                  (alist-get 'padding params)
-                  (alist-get 'background params)
+                  (plist-get props :width)
+                  (plist-get props :height)
+                  (plist-get props :padding)
+                  (plist-get props :background)
                   (when selected
-                    (alist-get 'foreground-selected params))
-                  (alist-get 'max-width params)
-                  (alist-get 'max-height params))
+                    (plist-get props :foreground-selected))
+                  (plist-get props :max-width)
+                  (plist-get props :max-height))
                  :ascent 'center
-                 :margin (alist-get 'margin params)))))
+                 :margin (plist-get props :margin)))))
 
 ;;;; Shape Selection
 
@@ -1422,15 +1439,22 @@ ROOT is the top level entry of the tree containing ENTRY."
                            (edraw-shape-picker-create-thumbnail-image entry t)))
       ;; Change Variables
       (setq-local edraw-shape-picker-selected-shape-entry entry)
-      ;; Message
-      (message
-       (edraw-msg "Select %s")
-       (or (edraw-shape-picker-shape-entry-name-get entry)
-           (edraw-msg "<no name>")))
       ;; Notify Changes
-      (edraw-shape-picker-notify
-       'select
-       (edraw-shape-picker-shape-entry-shape-get entry)))))
+      (apply #'edraw-shape-picker-notify
+             'select
+             (edraw-shape-picker-make-selected-shape-args entry)))))
+
+(defun edraw-shape-picker-make-selected-shape-args (entry)
+  (list
+   ;; 0: shape-def
+   (edraw-shape-picker-shape-entry-shape-get entry)
+   ;; 1: properties
+   (edraw-shape-picker-entry-inherit-props entry)))
+
+(defun edraw-shape-picker-selected-args (buffer)
+  (with-current-buffer (or buffer (current-buffer))
+    (when-let ((entry edraw-shape-picker-selected-shape-entry))
+      (edraw-shape-picker-make-selected-shape-args entry))))
 
 
 ;;;; Buffer Contents
