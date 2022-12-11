@@ -1408,6 +1408,8 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-select-shape-at (pos &optional buffer)
   (interactive (edraw-shape-picker-interactive-point-buffer))
   (with-current-buffer (or buffer (current-buffer))
+    (when (edraw-shape-picker-notification-hook-empty-p)
+      (error (edraw-msg "This shape picker is not connected to an editor")))
     (when-let ((entry (edraw-shape-picker-entry-at pos))
                (range (edraw-shape-picker-lookup-text-entry-range pos))
                (beg (car range))
