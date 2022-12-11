@@ -3137,10 +3137,11 @@ position where the EVENT occurred."
       ;; (with-current-buffer picker-buffer (remove-hook 'kill-buffer-hook <callback> t))
       )))
 
-(cl-defmethod edraw-disconnect-from-shape-picker ((tool edraw-editor-tool-custom-shape))
+(cl-defmethod edraw-disconnect-from-shape-picker ((tool edraw-editor-tool-custom-shape) &optional no-disconnect-needed)
   (with-slots (on-picker-notify picker-buffer) tool
     (when picker-buffer
-      (when (buffer-live-p picker-buffer) ;;live buffer
+      (when (and (not no-disconnect-needed)
+                 (buffer-live-p picker-buffer)) ;;live buffer
         (edraw-shape-picker-disconnect picker-buffer on-picker-notify)) ;;Close automatically
       (setq on-picker-notify nil)
       (setq picker-buffer nil))))
@@ -3151,6 +3152,8 @@ position where the EVENT occurred."
   ;; NOTE: Called from picker-buffer.
   (with-slots (shape-descriptor-list editor) tool
     (pcase type
+      ('exit
+       (edraw-disconnect-from-shape-picker tool t))
       ('deselect
        (setq shape-descriptor-list nil))
       ('select

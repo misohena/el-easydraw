@@ -381,10 +381,17 @@
 \\{edraw-shape-picker-ui-mode-map}
 
 \\{edraw-shape-picker-thumbnail-map}"
+  ;; Local Variables
   (setq-local line-move-visual t
               line-spacing 0)
+  (edraw-shape-picker-init-entry-folding)
 
-  (edraw-shape-picker-init-entry-folding))
+  ;; Hook
+  (add-hook 'change-major-mode-hook #'edraw-shape-picker-ui-mode--on-change-major-mode nil t))
+
+(defun edraw-shape-picker-ui-mode--on-change-major-mode ()
+  (remove-hook 'change-major-mode-hook #'edraw-shape-picker-ui-mode--on-change-major-mode t)
+  (edraw-shape-picker-notify 'exit))
 
 (defun edraw-shape-picker-set-local-entries (entries copy)
   (setq-local edraw-shape-picker-entries
