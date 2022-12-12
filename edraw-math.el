@@ -284,9 +284,10 @@
 
 (defun edraw-matrix-move-origin (mat ox oy oz)
   (if (or (/= ox 0) (/= oy 0)(/= oz 0))
-      (edraw-matrix-mul
-       (edraw-matrix-translate ox oy oz)
-       mat
+      (edraw-matrix-mul-mat-mat
+       (edraw-matrix-mul-mat-mat
+        (edraw-matrix-translate ox oy oz)
+        mat)
        (edraw-matrix-translate (- ox) (- oy) (- oz)))
     mat))
 
