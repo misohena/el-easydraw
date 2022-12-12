@@ -175,6 +175,10 @@
 (defmacro edraw-rect-bottom (rect) `(cddr ,rect))
 (defmacro edraw-rect-width (rect) `(- (cadr ,rect) (caar ,rect)))
 (defmacro edraw-rect-height (rect) `(- (cddr ,rect) (cdar ,rect)))
+(defmacro edraw-rect-xy0 (rect) `(car ,rect))
+(defmacro edraw-rect-xy1 (rect) `(cdr ,rect))
+(defmacro edraw-rect-lt (rect) `(edraw-rect-xy0 ,rect))
+(defmacro edraw-rect-rb (rect) `(edraw-rect-xy1 ,rect))
 
 (defsubst edraw-rect (x0 y0 x1 y1)
   (cons
@@ -186,7 +190,7 @@
    (cons x y)
    (cons (+ x w) (+ y h))))
 
-(defun edraw-rect-pp (p0 p1)
+(defsubst edraw-rect-pp (p0 p1)
   (cons
    (edraw-xy-clone p0)
    (edraw-xy-clone p1)))
