@@ -144,6 +144,7 @@
 
 (defvar edraw-editor-map
   (let ((km (make-sparse-keymap)))
+    (define-key km [remap self-insert-command] 'ignore)
     (define-key km [down-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [double-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [mouse-1] 'edraw-editor-dispatch-event)
