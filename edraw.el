@@ -1255,10 +1255,7 @@ The undo data generated during undo is saved in redo-list."
 (cl-defgeneric edraw-selected-shapes-aabb (selector)
   "Return axis aligned bounding box of shapes selected by SELECTOR.")
 (cl-defmethod edraw-selected-shapes-aabb ((editor edraw-editor))
-  (let (aabb)
-    (dolist (shape (edraw-selected-shapes editor))
-      (setq aabb (edraw-rect-union aabb (edraw-shape-aabb shape))))
-    aabb))
+  (edraw-shape-aabb (edraw-selected-shapes editor)))
 
 (cl-defmethod edraw-selected-shapes-back-to-front ((editor edraw-editor))
   (seq-filter
@@ -3188,30 +3185,97 @@ position where the EVENT occurred."
       (setq selected-shape-descriptor-list nil)
       (setq selected-picker-entry-properties nil))))
 
-(cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-custom-shape)
-                                click-event)
-  (edraw-put-custom-shape tool click-event))
+(defmacro edraw-editor-independent-undo-list (editor &rest body)
+  "Evaluate the BODY under a new independent undo list."
+  (declare (indent 1))
+  (let ((sym-editor (gensym 'editor-))
+        (sym-old-undo-list (gensym 'old-undo-list-))
+        (sym-old-redo-list (gensym 'old-redo-list-)))
+    `(let* ((,sym-editor ,editor)
+            (,sym-old-undo-list (oref ,sym-editor undo-list))
+            (,sym-old-redo-list (oref ,sym-editor redo-list)))
+       (setf (oref ,sym-editor undo-list) nil
+             (oref ,sym-editor redo-list) nil)
+       (unwind-protect
+           (progn
+             ,@body)
+         (setf (oref ,sym-editor undo-list) ,sym-old-undo-list
+               (oref ,sym-editor redo-list) ,sym-old-redo-list)))))
 
-(cl-defmethod edraw-put-custom-shape ((tool edraw-editor-tool-custom-shape)
-                                      click-event)
+(cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-custom-shape)
+                                     down-event)
+  (with-slots (selected-shape-descriptor-list editor) tool
+    (when selected-shape-descriptor-list ;;selected
+      (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+            (move-xy nil))
+        ;; Preview
+        (edraw-editor-independent-undo-list editor
+          (let* ((edraw-editor-keep-modified-flag t)
+                 (shapes (let ((edraw-editor-inhibit-make-undo-data t))
+                           (edraw-create-selected-custom-shapes tool)))
+                 (ref-box (edraw-selected-custom-shapes-ref-box tool shapes)))
+            (unwind-protect
+                (progn
+                  (edraw-make-undo-group editor 'put-custom-shape--preview
+                    (edraw-translate shapes down-xy))
+
+                  (edraw-track-dragging
+                   down-event
+                   (lambda (move-event)
+                     (setq move-xy
+                           (edraw-mouse-event-to-xy-snapped editor move-event))
+                     ;; Cancel previous transform
+                     (when (oref editor undo-list)
+                       (edraw-undo editor))
+                     ;; Apply new transform
+                     (let ((matrix
+                            (if (edraw-xy-equal-p move-xy down-xy)
+                                (edraw-matrix-translate-xy down-xy)
+                              (edraw-matrix-fit-rect-to-rect
+                               ref-box (edraw-rect-pp down-xy move-xy)))))
+                       (edraw-make-undo-group editor 'put-custom-shape--preview
+                         (edraw-transform shapes matrix))))))
+              (dolist (shape shapes)
+                (edraw-remove shape)))))
+
+        ;; Create
+        (cond
+         ;; Click or same points
+         ((or (null move-xy)
+              (edraw-xy-equal-p down-xy move-xy))
+          (edraw-make-undo-group editor 'put-custom-shape
+            (edraw-translate ;;@todo should I use edraw-transform? or not?
+             (edraw-create-selected-custom-shapes tool)
+             down-xy)))
+         ;; Drag
+         ((and move-xy
+               (not (edraw-xy-equal-p down-xy move-xy)))
+          (edraw-make-undo-group editor 'put-custom-shape
+            (let* ((shapes (edraw-create-selected-custom-shapes tool))
+                   (ref-box (edraw-selected-custom-shapes-ref-box tool shapes))
+                   (matrix (edraw-matrix-fit-rect-to-rect
+                            ref-box (edraw-rect-pp down-xy move-xy))))
+              (unless (edraw-matrix-identity-p matrix)
+                (edraw-transform shapes matrix))))))))))
+
+(cl-defmethod edraw-create-selected-custom-shapes
+  ((tool edraw-editor-tool-custom-shape))
   (with-slots (selected-shape-descriptor-list editor) tool
     (when selected-shape-descriptor-list
-      (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
-             (click-xy-snapped (edraw-snap-xy editor click-xy)))
+      (when-let ((shapes (edraw-shape-from-shape-descriptor-list
+                          editor
+                          (edraw-svg-body editor)
+                          selected-shape-descriptor-list)))
+        (edraw-select-shapes editor shapes)
+        shapes))))
 
-        (edraw-deselect-all-shapes editor)
-
-        (edraw-make-undo-group editor 'put-custom-shape
-
-          (when-let ((shapes (edraw-shape-from-shape-descriptor-list
-                              editor
-                              (edraw-svg-body editor)
-                              selected-shape-descriptor-list)))
-            (dolist (shape shapes)
-              (edraw-translate shape click-xy-snapped))
-
-            (edraw-select-shapes editor shapes)))))))
-
+(cl-defmethod edraw-selected-custom-shapes-ref-box
+  ((tool edraw-editor-tool-custom-shape) shapes)
+  (when shapes
+    (with-slots (selected-picker-entry-properties editor) tool
+      (or
+       (plist-get selected-picker-entry-properties :ref-box)
+       (edraw-shape-aabb shapes)))))
 
 
 ;;;; Shape
@@ -3617,8 +3681,23 @@ position where the EVENT occurred."
 
 ;;;;;; Transform
 
+(cl-defgeneric edraw-translate (object xy)
+  "Translate OBJECT by vector XY.")
+
 ;;(cl-defmethod edraw-translate ((shape edraw-shape) xy) )
+
+(cl-defmethod edraw-translate ((shapes list) xy)
+  (dolist (shape shapes)
+    (edraw-translate shape xy)))
+
+(cl-defgeneric edraw-transform (object matrix)
+  "Transform OBJECT by MATRIX.")
+
 ;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
+
+(cl-defmethod edraw-transform ((shapes list) matrix)
+  (dolist (shape shapes)
+    (edraw-transform shape matrix)))
 
 (cl-defmethod edraw-scale ((shape edraw-shape) &optional origin-xy sx sy)
   (edraw-read-scale-params (edraw-shape-aabb shape))
@@ -3876,6 +3955,12 @@ position where the EVENT occurred."
   "Return the axis aligned bounding box of the SHAPE.")
 (cl-defmethod edraw-shape-aabb ((shape edraw-shape))
   (edraw-svg-shape-aabb (edraw-element shape))) ;;@todo cache?
+
+(cl-defmethod edraw-shape-aabb ((shapes list))
+  (let (aabb)
+    (dolist (shape shapes)
+      (setq aabb (edraw-rect-union aabb (edraw-shape-aabb shape))))
+    aabb))
 
 ;;;;;; Transform Property
 

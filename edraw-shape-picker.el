@@ -156,52 +156,87 @@
   ;;   (:shape <shape-prop>... <shape-def>)
   ;;     see: `edraw-shape-picker-insert-shape'
   '(:section :name "Default Shape Set"
-             (:section :name "Basic Shapes"
-                       (:shape :name "Trigon(3)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-34.641,20L34.641,20z\" />")
-                       (:shape :name "Tetragon(4)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-40,0L0,40L40,0z\" />")
-                       (:shape :name "Pentagon(5)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-38.0423,-12.3607L-23.5114,32.3607L23.5114,32.3607L38.0423,-12.3607z\" />")
-                       (:shape :name "Hexagon(6)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-34.641,-20L-34.641,20L0,40L34.641,20L34.641,-20z\" />")
-                       (:shape :name "Heptagon(7)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-31.2733,-24.9396L-38.9971,8.90084L-17.3553,36.0388L17.3553,36.0388L38.9971,8.90084L31.2733,-24.9396z\" />")
-                       (:shape :name "Octagon(8)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-28.2843,-28.2843L-40,0L-28.2843,28.2843L0,40L28.2843,28.2843L40,0L28.2843,-28.2843z\" />")
-                       (:shape :name "Nonagon(9)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-25.7115,-30.6418L-39.3923,-6.94593L-34.641,20L-13.6808,37.5877L13.6808,37.5877L34.641,20L39.3923,-6.94593L25.7115,-30.6418z\" />")
-                       (:shape :name "Decagon(10)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-23.5114,-32.3607L-38.0423,-12.3607L-38.0423,12.3607L-23.5114,32.3607L0,40L23.5114,32.3607L38.0423,12.3607L38.0423,-12.3607L23.5114,-32.3607z\" />")
-                       (:shape :name "Star(5)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-8.98056,-12.3607L-38.0423,-12.3607L-14.5309,4.72136L-23.5114,32.3607L0,15.2786L23.5114,32.3607L14.5309,4.72136L38.0423,-12.3607L8.98056,-12.3607z\" />")
-                       (:shape :name "Star(6)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-11.547,-20L-34.641,-20L-23.094,0L-34.641,20L-11.547,20L0,40L11.547,20L34.641,20L23.094,0L34.641,-20L11.547,-20z\" />")
-                       (:shape :name "Star(7)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-12.0103,-24.9396L-31.2733,-24.9396L-26.9868,-6.15957L-38.9971,8.90084L-21.6418,17.2587L-17.3553,36.0388L0,27.6809L17.3553,36.0388L21.6418,17.2587L38.9971,8.90084L26.9868,-6.15957L31.2733,-24.9396L12.0103,-24.9396z\" />")
-                       (:shape :name "Star(8)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-11.7157,-28.2843L-28.2843,-28.2843L-28.2843,-11.7157L-40,0L-28.2843,11.7157L-28.2843,28.2843L-11.7157,28.2843L0,40L11.7157,28.2843L28.2843,28.2843L28.2843,11.7157L40,0L28.2843,-11.7157L28.2843,-28.2843L11.7157,-28.2843z\" />")
-                       (:shape :name "Star(9)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-11.1527,-30.6418L-25.7115,-30.6418L-28.2396,-16.3041L-39.3923,-6.94593L-32.1129,5.66237L-34.641,20L-20.9602,24.9794L-13.6808,37.5877L0,32.6083L13.6808,37.5877L20.9602,24.9794L34.641,20L32.1129,5.66237L39.3923,-6.94593L28.2396,-16.3041L25.7115,-30.6418L11.1527,-30.6418z\" />")
-                       (:shape :name "Star(10)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-10.5146,-32.3607L-23.5114,-32.3607L-27.5276,-20L-38.0423,-12.3607L-34.026,0L-38.0423,12.3607L-27.5276,20L-23.5114,32.3607L-10.5146,32.3607L0,40L10.5146,32.3607L23.5114,32.3607L27.5276,20L38.0423,12.3607L34.026,0L38.0423,-12.3607L27.5276,-20L23.5114,-32.3607L10.5146,-32.3607z\" />"))
+             (:section :name "Basic Shapes" :shape-ref-box
+                       ((-40 . -40)
+                        40 . 40)
+                       (:shape :name "Trigon(3)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-34.641,20L34.641,20z\" />")
+                       (:shape :name "Tetragon(4)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-40,-2.44921e-15L-4.89843e-15,40L40,7.34764e-15z\" />")
+                       (:shape :name "Pentagon(5)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-38.0423,-12.3607L-23.5114,32.3607L23.5114,32.3607L38.0423,-12.3607z\" />")
+                       (:shape :name "Hexagon(6)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-34.641,-20L-34.641,20L-4.89843e-15,40L34.641,20L34.641,-20z\" />")
+                       (:shape :name "Heptagon(7)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-31.2733,-24.9396L-38.9971,8.90084L-17.3553,36.0388L17.3553,36.0388L38.9971,8.90084L31.2733,-24.9396z\" />")
+                       (:shape :name "Octagon(8)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-28.2843,-28.2843L-40,-2.44921e-15L-28.2843,28.2843L-4.89843e-15,40L28.2843,28.2843L40,7.34764e-15L28.2843,-28.2843z\" />")
+                       (:shape :name "Nonagon(9)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-25.7115,-30.6418L-39.3923,-6.94593L-34.641,20L-13.6808,37.5877L13.6808,37.5877L34.641,20L39.3923,-6.94593L25.7115,-30.6418z\" />")
+                       (:shape :name "Decagon(10)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-23.5114,-32.3607L-38.0423,-12.3607L-38.0423,12.3607L-23.5114,32.3607L-4.89843e-15,40L23.5114,32.3607L38.0423,12.3607L38.0423,-12.3607L23.5114,-32.3607z\" />")
+                       (:shape :name "Star(5)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-8.98056,-12.3607L-38.0423,-12.3607L-14.5309,4.72136L-23.5114,32.3607L-1.87103e-15,15.2786L23.5114,32.3607L14.5309,4.72136L38.0423,-12.3607L8.98056,-12.3607z\" />")
+                       (:shape :name "Star(6)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-11.547,-20L-34.641,-20L-23.094,-1.41405e-15L-34.641,20L-11.547,20L-4.89843e-15,40L11.547,20L34.641,20L23.094,4.24216e-15L34.641,-20L11.547,-20z\" />")
+                       (:shape :name "Star(7)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-12.0103,-24.9396L-31.2733,-24.9396L-26.9868,-6.15957L-38.9971,8.90084L-21.6418,17.2587L-17.3553,36.0388L-3.38982e-15,27.6809L17.3553,36.0388L21.6418,17.2587L38.9971,8.90084L26.9868,-6.15957L31.2733,-24.9396L12.0103,-24.9396z\" />")
+                       (:shape :name "Star(8)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-11.7157,-28.2843L-28.2843,-28.2843L-28.2843,-11.7157L-40,-2.44921e-15L-28.2843,11.7157L-28.2843,28.2843L-11.7157,28.2843L-4.89843e-15,40L11.7157,28.2843L28.2843,28.2843L28.2843,11.7157L40,7.34764e-15L28.2843,-11.7157L28.2843,-28.2843L11.7157,-28.2843z\" />")
+                       (:shape :name "Star(9)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-11.1527,-30.6418L-25.7115,-30.6418L-28.2396,-16.3041L-39.3923,-6.94593L-32.1129,5.66237L-34.641,20L-20.9602,24.9794L-13.6808,37.5877L-3.99323e-15,32.6083L13.6808,37.5877L20.9602,24.9794L34.641,20L32.1129,5.66237L39.3923,-6.94593L28.2396,-16.3041L25.7115,-30.6418L11.1527,-30.6418z\" />")
+                       (:shape :name "Star(10)" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-10.5146,-32.3607L-23.5114,-32.3607L-27.5276,-20L-38.0423,-12.3607L-34.026,-2.08342e-15L-38.0423,12.3607L-27.5276,20L-23.5114,32.3607L-10.5146,32.3607L-4.89843e-15,40L10.5146,32.3607L23.5114,32.3607L27.5276,20L38.0423,12.3607L34.026,6.25027e-15L38.0423,-12.3607L27.5276,-20L23.5114,-32.3607L10.5146,-32.3607z\" />"))
              (:section :name "Arrows"
-                       (:shape :name "Up Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,40L-20,40L-20,80L20,80L20,40L40,40L0,0Z\" />")
-                       (:shape :name "Right Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,-40L-40,-20L-80,-20L-80,20L-40,20L-40,40L0,0Z\" />")
-                       (:shape :name "Down Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,-40L-20,-40L-20,-80L20,-80L20,-40L40,-40L0,0Z\" />")
-                       (:shape :name "Left Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L40,-40L40,-20L80,-20L80,20L40,20L40,40L0,0Z\" />")
-                       (:shape :name "Up Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L20,40L5,30L5,80L-5,80L-5,30L-20,40L0,0Z\" />")
-                       (:shape :name "Left Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,20L-30,5L-80,5L-80,-5L-30,-5L-40,-20L0,0Z\" />")
-                       (:shape :name "Left Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-20,-40L-5,-30L-5,-80L5,-80L5,-30L20,-40L0,0Z\" />")
-                       (:shape :name "Left Arrow" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L40,-20L30,-5L80,-5L80,5L30,5L40,20L0,0Z\" />"))
-             (:section :name "Unknown Symbols"
+                       (:shape :name "Up Arrow" :ref-box
+                               ((-40 . 0)
+                                40 . 80)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,40L-20,40L-20,80L20,80L20,40L40,40L0,0Z\" />")
+                       (:shape :name "Right Arrow" :ref-box
+                               ((-80 . -40)
+                                0 . 40)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,-40L-40,-20L-80,-20L-80,20L-40,20L-40,40L0,0Z\" />")
+                       (:shape :name "Down Arrow" :ref-box
+                               ((-40 . -80)
+                                40 . 0)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,-40L-20,-40L-20,-80L20,-80L20,-40L40,-40L0,0Z\" />")
+                       (:shape :name "Left Arrow" :ref-box
+                               ((0 . -40)
+                                80 . 40)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L40,-40L40,-20L80,-20L80,20L40,20L40,40L0,0Z\" />")
+                       (:shape :name "Up Arrow" :ref-box
+                               ((-20 . 0)
+                                20 . 80)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L20,40L5,30L5,80L-5,80L-5,30L-20,40L0,0Z\" />")
+                       (:shape :name "Left Arrow" :ref-box
+                               ((-80 . -20)
+                                0 . 20)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-40,20L-30,5L-80,5L-80,-5L-30,-5L-40,-20L0,0Z\" />")
+                       (:shape :name "Left Arrow" :ref-box
+                               ((-20 . -80)
+                                20 . 0)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L-20,-40L-5,-30L-5,-80L5,-80L5,-30L20,-40L0,0Z\" />")
+                       (:shape :name "Left Arrow" :ref-box
+                               ((0 . -20)
+                                80 . 20)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,0L40,-20L30,-5L80,-5L80,5L30,5L40,20L0,0Z\" />"))
+             (:section :name "Unknown Symbols" :shape-ref-box
+                       ((-40 . -40)
+                        40 . 40)
                        (:shape :name "Uzu" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M3,9C8,11 17,4 17,-2C17,-10 11,-16 1,-16C-11,-16 -18,-6.049334505329199 -18,4C-18,17 -8,29 7,29C25,29 37,12.868873853548592 37,0C37,-20 22,-35.226 2,-36C-20,-37 -39.0439523289494,-19.077001092062517 -40,1C-41,22 -32,33 -18,43\" />")
-                       (:shape :name "Star" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M0,-40L-12.9313,-17.7984L-38.0423,-12.3607L-20.9232,6.79837L-23.5114,32.3607L0,22L23.5114,32.3607L20.9232,6.79837L38.0423,-12.3607L12.9313,-17.7984z\" />")
+                       (:shape :name "Star" "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-0,-40L-12.9313,-17.7984L-38.0423,-12.3607L-20.9232,6.79837L-23.5114,32.3607L-2.69413e-15,22L23.5114,32.3607L20.9232,6.79837L38.0423,-12.3607L12.9313,-17.7984z\" />")
                        (:shape :name "Wave" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-27,-40.5C-18,-31.5 -18,-22.5 -27,-13.5C-33.3639,-7.1352 -33.3639,7.1352 -27,13.5C-18,22.5 -18,31.5 -27,40.5\" /><path d=\"M0,-40.5C9,-31.5 9,-22.5 0,-13.5C-6.3639,-7.1352 -6.3639,7.1352 0,13.5C9,22.5 9,31.5 0,40.5\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M27,-40.5C36,-31.5 36,-22.5 27,-13.5C20.6352,-7.1352 20.6352,7.1352 27,13.5C36,22.5 36,31.5 27,40.5\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" />")
                        (:shape :name "Plus" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-10,-10L-10,-40L10,-40L10,-10L40,-10L40,10L10,10L10,40L-10,40L-10,10L-40,10L-40,-10L-10,-10Z\" />")
-                       (:shape :name "Onsen" "<path d=\"M20,-20C26.666666,-13.333333 26.666666,-6.666666 20,0.0C13.333333,6.666666 13.333333,13.333333 20,20\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M-20,-20C-13.333333,-13.333333 -13.333333,-6.666666 -20,0.0C-26.666666,6.666666 -26.666666,13.333333 -20,20\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M0.0,-26.666666C6.666666,-20 6.666666,-6.666666 0.0,0.0C-6.666666,6.666666 -6.666666,20 0.0,26.666666\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M26.666666,6.666666C33.333333,10 40,13.333333 40,20C40,28 20,33.333333 0.0,33.333333C-20,33.333333 -40,28 -40,20C-40,13.333333 -33.333333,10 -26.666666,6.666666\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" />"))
-             (:section :name "Weather"
+                       (:shape :name "Onsen" "<path d=\"M20.000000000010004,-20.000000000010004C26.666666666679987,-13.33333333334 26.666666666679987,-6.666666666670004 20.000000000010004,0.0C13.333333333339993,6.666666666670011 13.333333333339993,13.333333333339993 20.000000000010004,20.000000000010004\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M-20.000000000010004,-20.000000000010004C-13.33333333334,-13.33333333334 -13.33333333334,-6.666666666670004 -20.000000000010004,0.0C-26.66666666668,6.666666666670011 -26.66666666668,13.333333333339993 -20.000000000010004,20.000000000010004\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M0.0,-26.66666666668C6.666666666670011,-20.000000000010004 6.666666666670011,-6.666666666670004 0.0,0.0C-6.666666666670004,6.666666666670011 -6.666666666670004,20.000000000010004 0.0,26.666666666679987\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M26.666666666679987,6.666666666670011C33.33333333335,10.000000000005002 40.00000000002001,13.333333333339993 40.00000000002001,20.000000000010004C40.00000000002001,28.000000000014012 20.000000000010004,33.33333333335 0.0,33.33333333335C-20.000000000010004,33.33333333335 -40.00000000002,28.000000000014012 -40.00000000002,20.000000000010004C-40.00000000002,13.333333333339993 -33.33333333335,10.000000000005002 -26.66666666668,6.666666666670011\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" />"))
+             (:section :name "Weather" :shape-ref-box
+                       ((-40 . -40)
+                        40 . 40)
                        (:shape :name "Sunny" "<g><ellipse cx=\"0\" cy=\"0\" rx=\"20\" ry=\"20\" fill=\"#888\" stroke=\"none\" /><path d=\"M-30,0L-40,0\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M0,-30L0,-40\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M30,0L40,0\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M0,30L0,40\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M-21.213203435596427,21.213203435596427L-28.284271247461895,28.284271247461902\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M21.213203435596427,21.213203435596427L28.284271247461902,28.284271247461888\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M21.213203435596427,-21.213203435596434L28.284271247461902,-28.28427124746191\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /><path d=\"M-21.213203435596427,-21.213203435596427L-28.284271247461902,-28.284271247461902\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" /></g>")
                        (:shape :name "Cloudy" "<path d=\"M-20,-10C-20,-20 -10,-30 0,-30C10,-30 20,-20 20,-10C30,-10 40,0 40,10C40,20 30,30 20,30C10,30 -10,30 -20,30C-30,30 -40,20 -40,10C-40,0 -30,-10 -20,-10Z\" fill=\"#888\" stroke=\"none\" />")
                        (:shape :name "Rainy" "<path d=\"M-20,-25C-20,-30 -10,-35 0,-35C10,-35 20,-30 20,-25C30,-25 40,-20 40,-15C40,-10 30,-5 20,-5C10,-5 -10,-5 -20,-5C-30,-5 -40,-10 -40,-15C-40,-20 -30,-25 -20,-25Z\" fill=\"#888\" stroke=\"none\" /><path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-20,0L-30,40\" stroke-dasharray=\"8 3\" /><path d=\"M-10,0L-20,40\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" stroke-dasharray=\"8 3\" /><path d=\"M0,0L-10,40\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" stroke-dasharray=\"8 3\" /><path d=\"M10,0L0,40\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" stroke-dasharray=\"8 3\" /><path d=\"M20,0L10,40\" fill=\"none\" stroke=\"#888\" stroke-width=\"4\" stroke-dasharray=\"8 3\" />")
                        (:shape :name "Lightning" "<path stroke-width=\"4\" d=\"M10,-40L-15,0L0,5L-10,40L15,0L0,-5L10,-40Z\" fill=\"#888\" stroke=\"none\" />"))
-             (:section :name "Game"
-                       (:shape :name "Spade" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-14.285714285694993,40C-5.714285714260001,28.57142857148 -5.714285714260001,22.857142857190013 -5.714285714260001,11.428571428610013C-11.42857142855,17.1428571429 -17.14285714284,20 -22.85714285713,20C-34.28571428571,20 -40,11.428571428610013 -40,2.857142857175006C-40,-10.71428571426 -13.571428571404994,-25 0,-40C13.571428571465006,-25 40,-10.71428571426 40,2.857142857175006C40,11.428571428610013 34.28571428577001,20 22.857142857190013,20C17.1428571429,20 11.428571428610013,17.1428571429 5.714285714319999,11.428571428610013C5.714285714319999,22.857142857190013 5.714285714319999,28.57142857148 14.285714285755006,40C2.857142857175006,40 -2.8571428571149937,40 -14.285714285694993,40Z\" />")
+             (:section :name "Game" :shape-ref-box
+                       ((-40 . -40)
+                        40 . 40)
+                       (:shape :name "Spade" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-14.285714285694993,40C-5.714285714260001,28.57142857148 -5.714285714260001,22.857142857190013 -5.714285714260001,11.428571428610013C-11.42857142855,17.1428571429 -17.14285714284,20 -22.85714285713,20C-34.28571428571,20 -40,11.428571428610013 -40,2.857142857175006C-40,-10.71428571426 -13.571428571404994,-25 3.001332515850663e-11,-40C13.571428571465006,-25 40,-10.71428571426 40,2.857142857175006C40,11.428571428610013 34.28571428577001,20 22.857142857190013,20C17.1428571429,20 11.428571428610013,17.1428571429 5.714285714319999,11.428571428610013C5.714285714319999,22.857142857190013 5.714285714319999,28.57142857148 14.285714285755006,40C2.857142857175006,40 -2.8571428571149937,40 -14.285714285694993,40Z\" />")
                        (:shape :name "Heart" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,35C-20,15 -40,5 -40,-15C-40,-25 -30,-35 -20,-35C-15,-35 -10,-35 0,-25C10,-35 15,-35 20,-35C30,-35 40,-25 40,-15C40,5 20,15 0,35Z\" />")
                        (:shape :name "Diamond" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,-40C-10,-20 -20,-10 -30,0C-20,10 -10,20 0,40C10,20 20,10 30,0C20,-10 10,-20 0,-40Z\" />")
-                       (:shape :name "Club" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-14.285714285694997,40C-5.714285714259994,28.571428571480013 -5.714285714259994,22.85714285719 -5.714285714259994,11.42857142861C-11.428571428549997,17.1428571429 -17.142857142839997,20 -22.857142857129997,20C-34.28571428571,20 -40,11.42857142861 -40,2.857142857175006C-40,-5.714285714259994 -31.428571428565,-14.285714285694997 -22.857142857129997,-14.285714285694997C-17.142857142839997,-14.285714285694997 -14.285714285694997,-11.428571428549997 -11.428571428549997,-8.571428571404997C-17.142857142839997,-14.285714285694997 -17.142857142839997,-14.285714285694997 -17.142857142839997,-22.857142857129997C-17.142857142839997,-31.428571428565 -8.571428571404997,-40 0,-40C8.571428571465006,-40 17.14285714290,-31.428571428565 17.14285714290,-22.857142857129997C17.14285714290,-14.285714285694997 14.285714285755006,-11.428571428549997 11.42857142861,-8.571428571404997C17.14285714290,-14.285714285694997 17.14285714290,-14.285714285694997 22.85714285719,-14.285714285694997C31.428571428625006,-14.285714285694997 40,-5.714285714259994 40,2.857142857175006C40,11.42857142861 34.28571428577001,20 22.85714285719,20C17.14285714290,20 11.42857142861,17.1428571429 5.71428571432,11.42857142861C5.71428571432,22.85714285719 5.71428571432,28.571428571480013 14.285714285755006,40C2.857142857175006,40 -2.8571428571149937,40 -14.285714285694997,40Z\" />"))
+                       (:shape :name "Club" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M-14.285714285694997,40C-5.714285714259994,28.571428571480013 -5.714285714259994,22.85714285719 -5.714285714259994,11.42857142861C-11.428571428549997,17.1428571429 -17.142857142839997,20 -22.857142857129997,20C-34.28571428571,20 -40,11.42857142861 -40,2.857142857175006C-40,-5.714285714259994 -31.428571428565,-14.285714285694997 -22.857142857129997,-14.285714285694997C-17.142857142839997,-14.285714285694997 -14.285714285694997,-11.428571428549997 -11.428571428549997,-8.571428571404997C-17.142857142839997,-14.285714285694997 -17.142857142839997,-14.285714285694997 -17.142857142839997,-22.857142857129997C-17.142857142839997,-31.428571428565 -8.571428571404997,-40 3.000621973114903e-11,-40C8.571428571465006,-40 17.14285714290,-31.428571428565 17.14285714290,-22.857142857129997C17.14285714290,-14.285714285694997 14.285714285755006,-11.428571428549997 11.42857142861,-8.571428571404997C17.14285714290,-14.285714285694997 17.14285714290,-14.285714285694997 22.85714285719,-14.285714285694997C31.428571428625006,-14.285714285694997 40,-5.714285714259994 40,2.857142857175006C40,11.42857142861 34.28571428577001,20 22.85714285719,20C17.14285714290,20 11.42857142861,17.1428571429 5.71428571432,11.42857142861C5.71428571432,22.85714285719 5.71428571432,28.571428571480013 14.285714285755006,40C2.857142857175006,40 -2.8571428571149937,40 -14.285714285694997,40Z\" />"))
              (:section :name "Custom"
                        (:shape :name "fujisan" :background
                                (full
                                 (fill . "#333"))
                                :width 100 "<path stroke=\"#888\" stroke-width=\"4\" d=\"M-104,40C-60,1 -37,-28 -23,-57C-23,-57 9,-55 26,-57C44,-28 99,34 107,40C85,39 -81,41 -104,40Z\" fill=\"#8c94b1\" /><path d=\"M-43,-22C-36,-34 -37,-28 -23,-57C-23,-57 9,-55 26,-57C44,-28 44,-27 52,-21C51.75,-21.0625 29,-37 29,-37L19,-22C19,-22 4,-40 4,-40C4,-40 -10,-21 -10,-21C-10,-21 -21,-37 -21,-37C-21,-37 -39.5,-22.5 -43,-22Z\" stroke=\"#888\" stroke-width=\"4\" fill=\"#eeeeee\" />")
-                       (:shape :name "Bou-ningen" "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,-8C-9.2,-8 -16,-14.8 -16,-24C-16,-33.2 -9.2,-40 0,-40C9.2,-40 16,-33.2 16,-24C16,-14.8 9.2,-8 0,-8C0,-8 2,-8 2,-8L24,12L22.8,13.6C22.8,13.6 0.82,-6.4 0.82,-6.4C0.82,-6.4 0.82,14.8 0.82,14.8L24,38L22.8,39.6L0,16.8L-22.8,39.6L-24,38C-24,38 -0.82,14.8 -0.82,14.8C-0.82,14.8 -0.82,-6.4 -0.82,-6.4L-22.8,13.6L-24,12L-2,-8C-2,-8 0,-8 0,-8Z\" />"))))
+                       (:shape :name "Bou-ningen" :ref-box
+                               ((-40 . -40)
+                                40 . 40)
+                               "<path stroke=\"#888\" stroke-width=\"4\" fill=\"none\" d=\"M0,-8C-9.2,-8 -16,-14.8 -16,-24C-16,-33.2 -9.2,-40 0,-40C9.2,-40 16,-33.2 16,-24C16,-14.8 9.2,-8 0,-8C0,-8 2,-8 2,-8L24,12L22.8,13.6C22.8,13.6 0.82,-6.4 0.82,-6.4C0.82,-6.4 0.82,14.8 0.82,14.8L24,38L22.8,39.6L0,16.8L-22.8,39.6L-24,38C-24,38 -0.82,14.8 -0.82,14.8C-0.82,14.8 -0.82,-6.4 -0.82,-6.4L-22.8,13.6L-24,12L-2,-8C-2,-8 0,-8 0,-8Z\" />"))))
 
 
 ;;;; Setup
@@ -561,7 +596,8 @@
      (thumbnail-background cover)
      (thumbnail-foreground-selected cover)
      (thumbnail-padding integer) ;;@todo or (x y) or (left top right bottom)
-     (thumbnail-margin integer)) ;;@todo or (x y)
+     (thumbnail-margin integer) ;;@todo or (x y)
+     (shape-ref-box rect))
     (:layout
      (thumbnail-width integer)
      (thumbnail-height integer)
@@ -570,7 +606,8 @@
      (thumbnail-background cover)
      (thumbnail-foreground-selected cover)
      (thumbnail-padding integer) ;;@todo or (x y) or (left top right bottom)
-     (thumbnail-margin integer)) ;;@todo or (x y)
+     (thumbnail-margin integer) ;;@todo or (x y)
+     (shape-ref-box rect))
     (:shape
      (name string)
      (width integer)
@@ -580,8 +617,9 @@
      (background cover)
      (foreground-selected cover)
      (padding integer) ;;@todo or (x y) or (left top right bottom)
-     (margin integer)))) ;;@todo or (x y)
-
+     (margin integer) ;;@todo or (x y)
+     (ref-box rect)
+     )))
 
 (defun edraw-shape-picker-set-entry-property-at (pos)
   (interactive "d")
@@ -597,42 +635,62 @@
            (curr-val (edraw-shape-picker-entry-prop-get entry prop-sym))
            (new-val (pcase prop-type
                       ('string
-                       (let ((str (read-string prompt (or curr-val ""))))
-                         (if (string-empty-p str) nil str)))
+                       (edraw-read-string-or-nil prompt curr-val))
                       ('integer
                        (edraw-read-integer-or-nil prompt curr-val))
                       ('cover
-                       ;; see: `edraw-svg-shape-thumbnail-cover'
-                       (let* ((fill (edraw-color-picker-read-color
-                                     "Fill Color: "
-                                     (alist-get 'fill (cdr curr-val) "")
-                                     '("none" "")))
-                              (fill (if (string-empty-p fill) nil fill))
-                              (stroke (edraw-color-picker-read-color
-                                       "Stroke Color: "
-                                       (alist-get 'stroke (cdr curr-val) "")
-                                       '("none" "")))
-                              (stroke (if (string-empty-p stroke) nil stroke))
-                              (stroke-width (when stroke
-                                              (edraw-read-integer-or-nil
-                                               "Stroke Width: "
-                                               (alist-get 'stroke-width
-                                                          (cdr curr-val) "")))))
-                         (if (or fill stroke stroke-width)
-                             (nconc
-                              (list 'full)
-                              (when fill
-                                (list (cons 'fill fill)))
-                              (when stroke
-                                (list (cons 'stroke stroke)))
-                              (when stroke-width
-                                (list (cons 'stroke-width
-                                            (format "%s" stroke-width)))))
-                           nil))))))
+                       (edraw-shape-picker-read-prop-value-cover curr-val))
+                      ('rect
+                       (edraw-shape-picker-read-prop-value-rect curr-val)))))
       (unless (equal new-val curr-val)
         (if new-val
             (edraw-shape-picker-entry-prop-put entry prop-sym new-val)
           (edraw-shape-picker-entry-prop-remove entry prop-sym))))))
+
+(defun edraw-shape-picker-read-prop-value-cover (curr-val)
+  ;; see: `edraw-svg-shape-thumbnail-cover'
+  (let* ((fill (edraw-color-picker-read-color
+                "Fill Color: "
+                (alist-get 'fill (cdr curr-val) "")
+                '("none" "")))
+         (fill (if (string-empty-p fill) nil fill))
+         (stroke (edraw-color-picker-read-color
+                  "Stroke Color: "
+                  (alist-get 'stroke (cdr curr-val) "")
+                  '("none" "")))
+         (stroke (if (string-empty-p stroke) nil stroke))
+         (stroke-width (when stroke
+                         (edraw-read-integer-or-nil
+                          "Stroke Width: "
+                          (alist-get 'stroke-width
+                                     (cdr curr-val) "")))))
+    (if (or fill stroke stroke-width)
+        (nconc
+         (list 'full)
+         (when fill
+           (list (cons 'fill fill)))
+         (when stroke
+           (list (cons 'stroke stroke)))
+         (when stroke-width
+           (list (cons 'stroke-width
+                       (format "%s" stroke-width)))))
+      nil)))
+
+(defun edraw-shape-picker-read-prop-value-rect (curr-val)
+  (if-let ((left
+            (edraw-read-number-or-nil
+             "Left: " (and curr-val (edraw-rect-left curr-val))))
+           (top
+            (edraw-read-number-or-nil
+             "Top: " (and curr-val (edraw-rect-top curr-val))))
+           (right
+            (edraw-read-number-or-nil
+             "Right: " (and curr-val (edraw-rect-right curr-val))))
+           (bottom
+            (edraw-read-number-or-nil
+             "Bottom: " (and curr-val (edraw-rect-bottom curr-val)))))
+      (edraw-rect left top right bottom)
+    nil))
 
 ;;;;; Edit Shape
 
@@ -1491,6 +1549,15 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-insert-section (entry)
   ;; (:section
   ;;     :name <string>
+  ;;     :thumbnail-width <integer>
+  ;;     :thumbnail-height <integer>
+  ;;     :thumbnail-max-width <integer>
+  ;;     :thumbnail-max-height <integer>
+  ;;     :thumbnail-padding <padding-spec>
+  ;;     :thumbnail-background <svg-attrs-spec>
+  ;;     :thumbnail-foreground-selected <svg-attrs-spec>
+  ;;     :thumbnail-margin <margin-spec>
+  ;;     :shape-box-ref ((<left> . <top>) . (<right> . <bottom>))
   ;;     <entry>...)
   (unless (edraw-shape-picker-bolp)
     (edraw-shape-picker-insert-text "\n"))
@@ -1532,6 +1599,7 @@ ROOT is the top level entry of the tree containing ENTRY."
   ;;     :thumbnail-background <svg-attrs-spec>
   ;;     :thumbnail-foreground-selected <svg-attrs-spec>
   ;;     :thumbnail-margin <margin-spec>
+  ;;     :shape-box-ref ((<left> . <top>) . (<right> . <bottom>))
   ;;     <entry>...)
   ;;
   ;; see: `edraw-shape-picker-thumbnail-*' variables.
@@ -1573,6 +1641,7 @@ ROOT is the top level entry of the tree containing ENTRY."
   ;;     :background <svg-attrs-spec>
   ;;     :foreground-selected <svg-attrs-spec>
   ;;     :margin <margin-spec>
+  ;;     :box-ref ((<left> . <top>) . (<right> . <bottom>))
   ;;     <shape-def>)
   ;;
   ;; see: `edraw-shape-picker-thumbnail-*' variables.

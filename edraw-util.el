@@ -280,22 +280,42 @@
   (when (cl-typep obj type)
     obj))
 
+(defun edraw-read-string-or-nil (prompt &optional initial-input)
+  (let ((input (read-string prompt (or initial-input ""))))
+    (if (string-empty-p input) nil input)))
+
 (defun edraw-read-integer-or-nil (prompt &optional initial-input)
-  (let (str)
-    (while (progn
-             (setq str (read-string
-                        prompt
-                        (format "%s" (or initial-input ""))))
-             (null (string-match-p
-                    "\\`\\(-?[0-9]+\\|\\)\\'"
-                    str)))
-      (message (edraw-msg "Please enter a integer or empty."))
+  (edraw-read-number prompt initial-input t t))
+
+(defun edraw-read-number-or-nil (prompt &optional initial-input)
+  (edraw-read-number prompt initial-input nil t))
+
+(defun edraw-read-integer (prompt &optional initial-input)
+  (edraw-read-number prompt initial-input t nil))
+
+(defun edraw-read-number (prompt &optional initial-input integer-p nullable-p)
+  (let ((pred (if integer-p #'integerp #'numberp))
+        result)
+    (while (let ((input (read-string
+                         prompt
+                         (format "%s" (or initial-input "")))))
+             (not
+              (if (string-empty-p input)
+                  nullable-p
+                (let ((value (ignore-errors (read input))))
+                  (when (funcall pred value)
+                    (setq result value)
+                    t)))))
+      (message
+       (if nullable-p
+           (if integer-p
+               (edraw-msg "Please enter a integer or empty.")
+             (edraw-msg "Please enter a number or empty."))
+         (if integer-p
+             (edraw-msg "Please enter a integer.")
+           (edraw-msg "Please enter a number."))))
       (sit-for 1))
-    (if (string-empty-p str)
-        nil
-      (string-to-number str))))
-
-
+    result))
 
 (provide 'edraw-util)
 ;;; edraw-util.el ends here

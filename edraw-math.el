@@ -299,6 +299,9 @@
 (defun edraw-matrix-translate (dx dy dz)
   (edraw-matrix (vector 1 0 0 0  0 1 0 0  0 0 1 0  dx dy dz 1)))
 
+(defun edraw-matrix-translate-xy (xy)
+  (edraw-matrix-translate (edraw-x xy) (edraw-y xy) 0))
+
 (defun edraw-matrix-scale (sx sy sz)
   (edraw-matrix (vector sx 0 0 0  0 sy 0 0  0 0 sz 0  0 0 0 1)))
 
@@ -340,6 +343,22 @@
          (tx (tan ax-rad))
          (ty (tan ay-rad)))
     (edraw-matrix (vector 1 ty tx 1 0 0))))
+
+(defun edraw-matrix-fit-rect-to-rect (src-rect dst-rect)
+  (edraw-matrix-mul-mat-mat
+   (edraw-matrix-mul-mat-mat
+    (edraw-matrix-translate
+     (edraw-rect-left dst-rect)
+     (edraw-rect-top dst-rect)
+     0)
+    (edraw-matrix-scale
+     (/ (float (edraw-rect-width dst-rect)) (edraw-rect-width src-rect))
+     (/ (float (edraw-rect-height dst-rect)) (edraw-rect-height src-rect))
+     1))
+   (edraw-matrix-translate
+    (- (edraw-rect-left src-rect))
+    (- (edraw-rect-top src-rect))
+    0)))
 
 (defmacro edraw-matrix-at (mat index)
   `(aref ,mat ,index))
