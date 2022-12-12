@@ -25,6 +25,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'text-property-search)
 (require 'eieio)
 (require 'edraw-dom-svg)
 (require 'edraw-util)
