@@ -25,6 +25,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'subr-x)
 
 
 ;;;; Message Catalog
