@@ -331,6 +331,17 @@
     (setq buffer (current-buffer)))
   (when (buffer-live-p buffer)
     ;; Kill Window
+    (edraw-shape-picker-quit-window buffer)
+    ;; Kill buffer?
+    (if (buffer-modified-p buffer)
+        (message (edraw-msg "Custom shapes have unsaved changes."))
+      (kill-buffer buffer))))
+
+(defun edraw-shape-picker-quit-window (&optional buffer)
+  (unless buffer
+    (setq buffer (current-buffer)))
+  (when (buffer-live-p buffer)
+    ;; Kill Window
     (with-current-buffer buffer
       (if (and edraw-shape-picker-initial-window
                (window-live-p edraw-shape-picker-initial-window))
@@ -338,11 +349,7 @@
         (when-let ((window (get-buffer-window buffer)))
           (when (window-parent window)
             (delete-window window))))
-      (setq-local edraw-shape-picker-initial-window nil))
-    ;; Kill buffer?
-    (if (buffer-modified-p buffer)
-        (message (edraw-msg "Custom shapes have unsaved changes."))
-      (kill-buffer buffer))))
+      (setq-local edraw-shape-picker-initial-window nil))))
 
 ;;;; Picker Mode (Picker Buffer Control)
 ;;;;; Key Map
@@ -392,6 +399,8 @@
 
 ;;;;; Variables
 
+(defvar edraw-shape-picker-file-last-selection nil) ;; (("<file>" . ((1 2 3) . (:shape ...)))...)
+
 (defvar-local edraw-shape-picker-entries nil)
 (defvar-local edraw-shape-picker-notification-hook nil)
 (defvar-local edraw-shape-picker-selected-shape-entry nil)
@@ -422,7 +431,10 @@
   (setq-local edraw-shape-picker-entries
               (if copy
                   (copy-tree entries)
-                entries)))
+                entries))
+  ;; Restore selection
+  (when-let ((entry (edraw-shape-picker-file-last-selection-get)))
+    (setq-local edraw-shape-picker-selected-shape-entry entry)))
 
 ;;;;; Notification
 
@@ -1508,6 +1520,8 @@ ROOT is the top level entry of the tree containing ENTRY."
                            (edraw-shape-picker-create-thumbnail-image entry t)))
       ;; Change Variables
       (setq-local edraw-shape-picker-selected-shape-entry entry)
+      ;; Save Last Selection
+      (edraw-shape-picker-file-last-selection-put)
       ;; Notify Changes
       (apply #'edraw-shape-picker-notify
              'select
@@ -1521,10 +1535,34 @@ ROOT is the top level entry of the tree containing ENTRY."
    (edraw-shape-picker-entry-inherit-props entry)))
 
 (defun edraw-shape-picker-selected-args (buffer)
-  (with-current-buffer (or buffer (current-buffer))
-    (when-let ((entry edraw-shape-picker-selected-shape-entry))
-      (edraw-shape-picker-make-selected-shape-args entry))))
+  (unless buffer
+    (setq buffer (current-buffer)))
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (when-let ((entry edraw-shape-picker-selected-shape-entry))
+        (edraw-shape-picker-make-selected-shape-args entry)))))
 
+;; Save Last Selection per File
+
+(defun edraw-shape-picker-file-last-selection-put ()
+  "Save current selection to `edraw-shape-picker-file-last-selection'."
+  (when-let ((file (buffer-file-name)))
+    (let* ((entry (edraw-shape-picker-selected-shape-entry))
+           (indices (mapcar #'cdr (edraw-shape-picker-entry-path entry))))
+      (setf (alist-get file edraw-shape-picker-file-last-selection)
+            (cons indices entry)))))
+
+(defun edraw-shape-picker-file-last-selection-get ()
+  "Get last selection from `edraw-shape-picker-file-last-selection'."
+  (when-let* ((file (buffer-file-name))
+             (info (alist-get file edraw-shape-picker-file-last-selection nil nil #'equal))
+             (indices (car info))
+             (shape (cdr info))
+             (entry edraw-shape-picker-entries))
+    (dolist (index indices)
+      (setq entry (nth index (edraw-shape-picker-entry-child-entries entry))))
+    (when (equal entry shape)
+      entry)))
 
 ;;;; Buffer Contents
 

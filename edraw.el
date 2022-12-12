@@ -3146,9 +3146,14 @@ position where the EVENT occurred."
         ;; (with-current-buffer picker-buffer (remove-hook 'kill-buffer-hook <callback> t))
 
         ;; Update selection
-        (if-let ((args (edraw-shape-picker-selected-args picker-buffer)))
-            (apply #'edraw-select-shape-picker-shape tool args)
-          (edraw-select-shape-picker-shape tool nil nil))))))
+        (edraw-update-custom-shape-selection tool)))))
+
+(cl-defmethod edraw-update-custom-shape-selection ((tool edraw-editor-tool-custom-shape))
+  (with-slots (picker-buffer) tool
+    (when-let ((args (edraw-shape-picker-selected-args picker-buffer)))
+      (apply #'edraw-select-shape-picker-shape tool args))
+    ;;else (edraw-select-shape-picker-shape tool nil nil) ;;Do not deselect. Keep current selection
+    ))
 
 (cl-defmethod edraw-disconnect-from-shape-picker ((tool edraw-editor-tool-custom-shape) &optional no-disconnect-needed)
   (with-slots (on-picker-notify picker-buffer) tool
@@ -3208,6 +3213,8 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-custom-shape)
                                      down-event)
+  (edraw-update-custom-shape-selection tool)
+
   (with-slots (selected-shape-descriptor-list editor) tool
     (when selected-shape-descriptor-list ;;selected
       (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
