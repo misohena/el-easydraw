@@ -3110,6 +3110,10 @@ position where the EVENT occurred."
    (selected-shape-descriptor-list :initform nil)
    (selected-picker-entry-properties :initform nil)))
 
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-custom-shape))
+  ;;@todo Default values should be per tool, not per type
+  'path) ;;Although not only path, default properties can be set only for path
+
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool-custom-shape)
                                  (_editor edraw-editor))
   (prog1 (cl-call-next-method)
@@ -3260,12 +3264,38 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-create-selected-custom-shapes
   ((tool edraw-editor-tool-custom-shape))
-  (with-slots (selected-shape-descriptor-list editor) tool
+  (with-slots (selected-shape-descriptor-list
+               selected-picker-entry-properties
+               editor)
+      tool
     (when selected-shape-descriptor-list
       (when-let ((shapes (edraw-shape-from-shape-descriptor-list
                           editor
                           (edraw-svg-body editor)
                           selected-shape-descriptor-list)))
+
+        ;; Apply default properties
+        (let ((keep-properties (plist-get selected-picker-entry-properties
+                                          :keep-properties))
+              ;;@todo Default values should be per tool, not per type
+              (default-props (cdr
+                              (edraw-get-default-shape-properties-by-tag
+                               editor 'path))))
+          ;; Filter default properties
+          (pcase keep-properties
+            ('nil )
+            ('none )
+            ('all
+             (setq default-props nil))
+            ((pred listp)
+             (setq default-props
+                   (seq-remove (lambda (prop)
+                                 (memq (car prop) keep-properties))
+                               default-props))))
+          (dolist (shape shapes)
+            (edraw-set-properties shape default-props)))
+
+        ;; Select the shapes
         (edraw-select-shapes editor shapes)
         shapes))))
 
