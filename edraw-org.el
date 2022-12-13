@@ -42,7 +42,10 @@
 
 ;;;; Setup
 
+;;;###autoload
 (defun edraw-org-setup-default ()
+  "Setup default environment for usage of Emacs Easy Draw."
+  (interactive)
   (edraw-org-setup-exporter)
   (edraw-org-setup-inline-images))
 
