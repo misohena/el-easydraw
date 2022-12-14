@@ -528,6 +528,7 @@ editor when the selected shape changes."
            current-value
            '("" "none")
            `((:color-name-scheme . 'web)
+             (:no-color . "none")
              ,@(when (edraw-property-editor-target-shape-p target)
                  (list
                   (cons :on-input-change

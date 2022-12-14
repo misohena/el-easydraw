@@ -43,6 +43,9 @@
 ;;    function : callback (funcall f picker)
 ;; :cancel
 ;;    function : callback (funcall f picker)
+;; :no-color
+;;    nil : disabled
+;;    string : a string indicating no color (e.g. "none")
 ;; :enable-opacity
 ;;    boolean
 ;; :enable-recent-colors
@@ -233,6 +236,35 @@
         (fill . "#222")
         (stroke . "none"))
       text))))
+
+;;;;; Area - No Color Button ("none")
+
+(defclass edraw-color-picker-area-no-color (edraw-color-picker-area)
+  ())
+
+(cl-defmethod edraw-create-element ((area edraw-color-picker-area-no-color))
+  (with-slots (left top width height) area
+    (dom-node
+     'g nil
+     (edraw-color-picker-rect
+      left top width height "#000000")
+     (edraw-color-picker-rect
+      (+ left 0.5) (+ top 0.5) (- width 1) (- height 1) "#ffffff")
+     (dom-node
+      'path
+      `((d .
+           ,(concat "M"
+                    (mapconcat
+                     #'number-to-string
+                     (list
+                      (+ left 7) (+ top 0.5)
+                      (+ left 0.5) (+ top 0.5)
+                      (+ left width -7) (+ top height -0.5)
+                      (+ left width -0.5) (+ top height -0.5))
+                     " ")
+                    "Z"))
+        (stroke . "none")
+        (fill . "#f00000"))))))
 
 ;;;;; Area - Colored
 
@@ -750,6 +782,12 @@
     :width (* 4 edraw-color-picker-font-size)
     :height 24
     :text "Cancel")
+   (when (alist-get :no-color options)
+     (edraw-color-picker-area-no-color
+      :name "no-color"
+      :spacing 32
+      :width (* 4 edraw-color-picker-font-size)
+      :height 24))
    '(flow-dir right)
 
    ;; Recent Colors
@@ -909,7 +947,8 @@
    (hooks :initform (list
                      (cons 'color-change (edraw-hook-make))
                      (cons 'ok (edraw-hook-make))
-                     (cons 'cancel (edraw-hook-make))))))
+                     (cons 'cancel (edraw-hook-make))
+                     (cons 'no-color (edraw-hook-make))))))
 
 (cl-defmethod edraw-initialize ((picker edraw-color-picker)
                                 &optional options)
@@ -976,6 +1015,11 @@
               (when-let ((fun (alist-get :cancel options)))
                 (funcall fun picker))
               (edraw-hook-call (alist-get 'cancel (oref picker hooks)) picker))))
+    (when-let ((button (edraw-color-picker-areas-find-by-name areas "no-color")))
+      (oset button on-click
+            (lambda (_area)
+              ;; Callback
+              (edraw-hook-call (alist-get 'no-color (oref picker hooks)) picker))))
     (edraw-add-hook
      model
      (lambda ()
@@ -1309,6 +1353,12 @@ OVERLAY uses the display property to display the color PICKER."
           (lambda (_picker)
             (with-current-buffer buffer
               (minibuffer-keyboard-quit))))
+         (on-no-color
+          (lambda (_picker)
+            (with-current-buffer buffer
+              (delete-minibuffer-contents)
+              (goto-char (minibuffer-prompt-end))
+              (insert (alist-get :no-color options "")))))
          (on-color-change
           (lambda (_picker)
             (when (and buffer
@@ -1335,6 +1385,8 @@ OVERLAY uses the display property to display the color PICKER."
 
     (edraw-add-hook picker 'ok on-ok)
     (edraw-add-hook picker 'cancel on-cancel)
+    (when (alist-get :no-color options)
+      (edraw-add-hook picker 'no-color on-no-color))
     (edraw-add-hook picker 'color-change on-color-change)
 
     (unwind-protect

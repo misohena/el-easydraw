@@ -1,6 +1,21 @@
 
 * Inbox
-** TODO カラーピッカーでnoneを選べるようにする
+** TODO ズーム時(に限らず?)にエディタを大きくする
+編集時の画像のサイズを元の大きさよりも大きくした方が良い。
+100x100程度の小さなSVGを編集したいとき、どんなにズームイン出来ても編集する領域が小さいので使いづらい。
+
+[[edraw:data=H4sIAMCjmWMAA3VPQQ6CMBD8SrNeka5ICBjKC/AD3tCWtgFbUqrV39sgGi8edrKTyczs1vNdkqC5Vwx2iECU0FL5ldyFm7U1kaU7II/raGYGyvvpQGkIIQ371DpJM0SkMQia2omL/5/3YBDxuWCvx5HBpu97ILN3dhAMjDUCiOYMBHdd2J67yyCdvRkOhDa1/JUsf8a+qfPqa99UVfUJ265H5J+md3b0HzNMcmxzTDJsS0wKbAtMSmyzZV/U09JHZZz4V/MCx2/D5CYBAAA=]]
+
+やるなら[[elisp-function:edraw-scroll-view-screen-width][edraw-scroll-view-screen-width]]や[[elisp-function:edraw-scroll-view-screen-width][edraw-scroll-view-screen-width]]が大きな値を返せば良い。[[elisp-function:edraw-update-root-transform][edraw-update-root-transform]]等各所はすでにこの関数を使うようになっている。
+
+ただ、最大サイズを制限する必要がある。例によってフレームの大きさから自動的に最大サイズを算出すべきか。その場合、元々大きな画像は縮小するべきなのか。
+
+サイズを手動で指定出来るような機能があっても良い。
+
+設定でデフォルトの大きさを指定出来ても良い。
+
+適当にview-screenなんて付けちゃったけど、本当は何と呼べば良いんだろう。このサイズは自動スケーリングを適用する前のサイズ。
+
 ** TODO デフォルトプロパティ値は種類毎に持つべきでは無い？
 カスタムシェイプツールでpath以外(rectやellipse)にも同一の属性を適用したくなる。
 とは言えrectツールではstrokeを入れたくないし、pathではfillを入れたくない。
@@ -9,7 +24,7 @@
 カスタムシェイプにtextなんて入れることがある？
 
 ** TODO カスタムシェイプ/shape pickerでドラッグ&ドロップできるようにする
-範囲選択したものをドラッグして別の場所へ移動できるようにする。
+範囲選択したentryをドラッグして別の場所へ移動できるようにする。
 
 ** TODO カスタムシェイプ/shape pickerで変形を指定出来るようにする
 任意の点を原点にしたり拡大縮小できるようにする。
@@ -907,3 +922,8 @@ C-wheelを使うべき。C-ドラッグでスクロール? ツールで使って
 - キーでスクロール出来るようにする。マウスでスクロールを試す。
 - 座標軸を表示する。
 - エディタ画像全体の最大サイズを決める仕組みも必要かもね。
+** DONE カラーピッカーでnoneを選べるようにする
+CLOSED: [2022-12-15 Thu 02:12]
+いちいちキーで打たなければならないのは地味に面倒くさい。
+斜線が入ったボタンをキャンセルの下あたりにでも表示したい。
+パレットの端っこでも良いが、パレットは案外目立たないのでどうか。

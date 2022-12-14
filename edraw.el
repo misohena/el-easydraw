@@ -1396,6 +1396,7 @@ The undo data generated during undo is saved in redo-list."
                    (or current-value "")
                    '("" "none")
                    `((:color-name-scheme . web)
+                     (:no-color . "none")
                      (:on-input-change
                       . ,(lambda (string color)
                            (when (or (member string '("" "none"))
@@ -2727,7 +2728,8 @@ position where the EVENT occurred."
                       (format "%s %s: " (car tag-value) prop-name)
                       (cdr tag-value)
                       '("" "none")
-                      '((:color-name-scheme . 'web)))))
+                      '((:color-name-scheme . 'web)
+                        (:no-color . "none")))))
       (edraw-set-selected-tool-default-shape-property
        editor prop-name new-value)
       (edraw-update-toolbar editor))))
@@ -4307,6 +4309,7 @@ position where the EVENT occurred."
                  (or curr-value "")
                  '("" "none")
                  `((:color-name-scheme . 'web)
+                   (:no-color . "none")
                    (:on-input-change
                     . ,(lambda (string color)
                          (when (or (member string '("" "none"))
