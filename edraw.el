@@ -116,7 +116,7 @@
   :group 'edraw-editor
   :type 'boolean)
 
-(defcustom edraw-editor-default-transparent-bg-visible nil
+(defcustom edraw-editor-default-transparent-bg-visible t
   "non-nil means the transparent background is colored by default."
   :group 'edraw-editor
   :type 'boolean)
@@ -153,6 +153,10 @@
     (define-key km [C-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-down-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [down-mouse-2] 'edraw-editor-scroll-by-dragging)
+    (define-key km (vector (intern (format "C-%s" mouse-wheel-up-event))) 'edraw-editor-zoom-out-by-mouse)
+    (define-key km (vector (intern (format "C-%s" mouse-wheel-down-event))) 'edraw-editor-zoom-in-by-mouse)
+    (define-key km " " 'edraw-editor-interactive-scroll-and-zoom)
     (define-key km "m" 'edraw-editor-main-menu)
     (define-key km "s" 'edraw-editor-select-tool-select)
     (define-key km "r" 'edraw-editor-select-tool-rect)
@@ -176,6 +180,9 @@
     (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
     (define-key km "z" 'edraw-editor-undo)
     (define-key km "Z" 'edraw-editor-redo)
+    (define-key km "+" 'edraw-editor-zoom-in)
+    (define-key km "-" 'edraw-editor-zoom-out)
+    (define-key km "0" 'edraw-editor-reset-scroll-and-zoom)
     ;; Selected Object
     (define-key km "A" 'edraw-editor-toggle-selection-all)
     (define-key km [remap yank] 'edraw-editor-paste-and-select)
@@ -245,10 +252,12 @@ line-prefix and wrap-prefix are used in org-indent.")
   ((overlay :initarg :overlay :initform nil :reader edraw-overlay)
    (svg :initarg :svg :initform nil)
    (svg-document-size)
+   (svg-document-view-box)
    (defrefs)
    (document-writer :initarg :document-writer :initform nil)
    (menu-filter :initarg :menu-filter :initform nil)
 
+   (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
    (image-scale
     :initform (image-compute-scaling-factor image-scaling-factor)
     :type number)
@@ -399,24 +408,28 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 ;;;;; Editor - SVG Structure
 
-;; <svg width= height=> ;;Document(width=, height=)
+;; <svg width= height= viewBox=> ;;Document(width=, height=)
+;;   <defs id="edraw-ui-defs"></defs>
+;;   <g id="edraw-ui-background">
+;;     <g id="edraw-ui-transparent-bg">...</g>
+;;   </g>
 ;;   <defs id="edraw-defs"> ;;Document
 ;;     <linearGradient>
 ;;     <radialGradient>
 ;;     <marker>
 ;;   </defs>
-;;   <rect id="edraw-background"> ;;Document
+;;   <rect id="edraw-background" /> ;;Document
 ;;   <g id="edraw-body"> ;;Document
-;;     <rect>
-;;     <ellipse>
-;;     <text>
-;;     <path>
-;;     <image>
+;;     <rect />
+;;     <ellipse />
+;;     <text />
+;;     <path />
+;;     <image />
 ;;   </g>
 ;;   <g id="edraw-ui-foreground">
-;;     <defs id="edraw-ui-defs"></defs>
 ;;     <style id="edraw-ui-style"></style>
-;;     <g id="edraw-ui-grid"></g>
+;;     <g id="edraw-ui-grid">...</g>
+;;     <g id="edraw-ui-shape-points">...</g>
 ;;   </g>
 ;; </svg>
 ;; ;; elements #edraw-ui-* are removed on save
@@ -434,14 +447,38 @@ line-prefix and wrap-prefix are used in org-indent.")
     (edraw-ui-background-svg editor) ;;insert first
     (edraw-ui-defs-svg editor) ;;insert first
     (edraw-initialize-transparent-bg editor)
+    (edraw-update-transparent-bg editor)
     ;; UI Elements (Foreground)
     (let ((fore-g (edraw-dom-get-or-create svg 'g "edraw-ui-foreground")))
       (edraw-dom-get-or-create fore-g 'style "edraw-ui-style")
       (edraw-dom-get-or-create fore-g 'g "edraw-ui-grid"))
-
-    (edraw-update-root-transform editor) ;; Document & UI
     (edraw-update-ui-style-svg editor)
-    (edraw-update-grid editor)))
+    (edraw-update-grid editor)
+
+    (edraw-update-root-transform editor) ;;<svg width= height= viewBox=>
+    (edraw-update-scroll-transform editor) ;;background, body transform=
+    ))
+
+(cl-defmethod edraw-update-all-ui-svg ((editor edraw-editor))
+  ;; Target: svg width= height= viewBox=
+  ;; Deps: view-screen
+  (edraw-update-root-transform editor)
+  ;; Target: rect#edraw-background transform=
+  ;;          g#edraw-body transform=
+  ;; Deps: scroll-transform
+  (edraw-update-scroll-transform editor)
+  ;; Target: g#edraw-ui-background > g#edraw-ui-transparent-bg
+  ;; Deps: background state, view-screen
+  (edraw-update-transparent-bg editor)
+  ;; Target: g#edraw-ui-foreground > g#edraw-ui-style
+  ;;(edraw-update-ui-style-svg editor) ;; Immutable
+  ;; Target: g#edraw-ui-foreground > g#edraw-ui-grid
+  ;; Deps: scroll-transform, view-screen
+  (edraw-update-grid editor)
+  ;; Target: g#edraw-ui-foreground > #edraw-ui-shape-points
+  ;; Deps: selection state, scroll-transform, view-screen
+  (edraw-update-selection-ui editor)
+  (edraw-invalidate-image editor))
 
 (cl-defmethod edraw-ui-defs-svg ((editor edraw-editor))
   (with-slots (svg) editor
@@ -466,6 +503,11 @@ line-prefix and wrap-prefix are used in org-indent.")
 (defconst edraw-editor-ui-style "
 .edraw-ui-grid-line {
   stroke: rgba(30, 150, 255, 0.75);
+  stroke-dasharray: 2;
+  /*[Too Slow] mix-blend-mode: difference; */
+}
+.edraw-ui-axis-line {
+  stroke: rgba(255, 50, 30, 0.75);
   stroke-dasharray: 2;
   /*[Too Slow] mix-blend-mode: difference; */
 }
@@ -501,44 +543,24 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 (cl-defmethod edraw-update-root-transform ((editor edraw-editor))
   (with-slots (svg image-scale) editor
-    (let ((back-ui (edraw-ui-background-svg editor))
-          (background (edraw-svg-background editor)) ;;element or nil
-          (body (edraw-svg-body editor))
-          (fore-ui (edraw-ui-foreground-svg editor)))
-      (when svg
-        (dom-set-attribute svg 'width
-                           (ceiling (* image-scale (edraw-width editor))))
-        (dom-set-attribute svg 'height
-                           (ceiling (* image-scale (edraw-height editor)))))
-      (when back-ui
-        (dom-set-attribute back-ui 'transform
-                           (format "scale(%s)" image-scale)))
-      (when background
-        (dom-set-attribute background 'transform
-                           (format "scale(%s)" image-scale)));;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
-      (when body
-        (dom-set-attribute body 'transform
-                           (format "scale(%s)" image-scale)))
-      (when fore-ui
-        (dom-set-attribute fore-ui 'transform
-                           (format "scale(%s) translate(0.5 0.5)" image-scale))))))
-
-(defun edraw-editor-remove-root-transform (svg svg-document-size)
-  (let ((back-ui (edraw-dom-get-by-id svg "edraw-ui-background")) ;;Do not use (edraw-ui-background-svg editor)
-        (background (edraw-dom-get-by-id svg edraw-editor-svg-background-id))
-        (body (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
-        (fore-ui (edraw-dom-get-by-id svg "edraw-ui-foreground"))) ;;Do not use (edraw-ui-foreground-svg editor)
     (when svg
-      (dom-set-attribute svg 'width (car svg-document-size))
-      (dom-set-attribute svg 'height (cdr svg-document-size)))
-    (when back-ui
-      (edraw-dom-remove-attr back-ui 'transform))
-    (when background
-      (edraw-dom-remove-attr background 'transform))
-    (when body
-      (edraw-dom-remove-attr body 'transform))
-    (when fore-ui
-      (edraw-dom-remove-attr fore-ui 'transform)))
+      (let ((width (edraw-scroll-view-screen-width editor))
+            (height (edraw-scroll-view-screen-height editor)))
+        (dom-set-attribute svg 'width
+                           (ceiling (* image-scale width)))
+        (dom-set-attribute svg 'height
+                           (ceiling (* image-scale height)))
+        (dom-set-attribute svg 'viewBox
+                           (format "0 0 %s %s" width height))))))
+
+(defun edraw-editor-remove-root-transform (svg svg-document-size
+                                               svg-document-view-box)
+  (when svg
+    (dom-set-attribute svg 'width (car svg-document-size))
+    (dom-set-attribute svg 'height (cdr svg-document-size))
+    (if svg-document-view-box
+        (dom-set-attribute svg 'viewBox svg-document-view-box)
+      (dom-remove-attribute svg 'viewBox)))
   svg)
 
 (defun edraw-editor-remove-ui-element-from-svg (svg)
@@ -551,6 +573,261 @@ line-prefix and wrap-prefix are used in org-indent.")
       (dom-remove-node svg elem))
     svg))
 
+;;;;; Editor - Scroll and Zoom
+
+;; Get
+
+(cl-defmethod edraw-scroll-pos-x ((editor edraw-editor))
+  (nth 0 (oref editor scroll-transform)))
+
+(cl-defmethod edraw-scroll-pos-y ((editor edraw-editor))
+  (nth 1 (oref editor scroll-transform)))
+
+(cl-defmethod edraw-scroll-scale ((editor edraw-editor))
+  (nth 2 (oref editor scroll-transform)))
+
+;; Transform Coordinates
+
+;; Scale then translate. To avoid problems with floating point numbers.
+
+(cl-defmethod edraw-scroll-transform-xy ((editor edraw-editor) xy)
+  (when xy
+    (let ((scale (edraw-scroll-scale editor)))
+      (edraw-xy
+       (+ (* scale (edraw-x xy)) (edraw-scroll-pos-x editor))
+       (+ (* scale (edraw-y xy)) (edraw-scroll-pos-y editor))))))
+
+(cl-defmethod edraw-scroll-transform-x ((editor edraw-editor) x)
+  (+ (* (edraw-scroll-scale editor) x) (edraw-scroll-pos-x editor)))
+
+(cl-defmethod edraw-scroll-transform-y ((editor edraw-editor) y)
+  (+ (* (edraw-scroll-scale editor) y) (edraw-scroll-pos-y editor)))
+
+(cl-defmethod edraw-scroll-transform-rect ((editor edraw-editor) rect)
+  (edraw-rect-pp
+   (edraw-scroll-transform-xy editor (edraw-rect-xy0 rect))
+   (edraw-scroll-transform-xy editor (edraw-rect-xy1 rect))))
+
+(cl-defmethod edraw-scroll-reverse-transform-xy ((editor edraw-editor) xy)
+  (when xy
+    (let ((scale (edraw-scroll-scale editor)))
+      (edraw-xy
+       (/ (- (edraw-x xy) (edraw-scroll-pos-x editor)) scale)
+       (/ (- (edraw-y xy) (edraw-scroll-pos-y editor)) scale)))))
+
+;; Screen Area
+
+(cl-defmethod edraw-scroll-view-screen-width ((editor edraw-editor))
+  (edraw-width editor))
+
+(cl-defmethod edraw-scroll-view-screen-height ((editor edraw-editor))
+  (edraw-height editor))
+
+(cl-defmethod edraw-scroll-view-screen-xy-from-mouse-event
+  ((editor edraw-editor) event)
+  (with-slots (image-scale) editor
+    (let* ((xy-on-overlay (posn-object-x-y (event-start event)))
+           (xy-on-scroll-view-screen
+            ;; Apply image-scale only.
+            (edraw-xy (/ (car xy-on-overlay) image-scale)
+                      (/ (cdr xy-on-overlay) image-scale))))
+      ;;@todo round? or not
+      ;; Must be able to point to integer pixel coordinates on
+      ;; high DPI environment(image-scale > 1.0).
+      ;; But when adding zoom function, float coordinates is required.
+      (cons (round (edraw-x xy-on-scroll-view-screen))
+            (round (edraw-y xy-on-scroll-view-screen))))))
+
+;; Visible Area
+
+(cl-defmethod edraw-scroll-visible-area-left ((editor edraw-editor))
+  (/ (- (edraw-scroll-pos-x editor)) (edraw-scroll-scale editor)))
+
+(cl-defmethod edraw-scroll-visible-area-top ((editor edraw-editor))
+  (/ (- (edraw-scroll-pos-y editor)) (edraw-scroll-scale editor)))
+
+(cl-defmethod edraw-scroll-visible-area-right ((editor edraw-editor))
+  (/ (- (edraw-scroll-view-screen-width editor) (edraw-scroll-pos-x editor))
+     (edraw-scroll-scale editor)))
+
+(cl-defmethod edraw-scroll-visible-area-bottom ((editor edraw-editor))
+  (/ (- (edraw-scroll-view-screen-height editor) (edraw-scroll-pos-y editor))
+     (edraw-scroll-scale editor)))
+
+(cl-defmethod edraw-scroll-visible-area-width ((editor edraw-editor))
+  (/ (edraw-scroll-view-screen-width editor) (edraw-scroll-scale editor)))
+
+(cl-defmethod edraw-scroll-visible-area-height ((editor edraw-editor))
+  (/ (edraw-scroll-view-screen-height editor) (edraw-scroll-scale editor)))
+
+;; SVG
+
+(cl-defmethod edraw-update-scroll-transform ((editor edraw-editor))
+  (with-slots (svg) editor
+    (when svg
+      (let ((background (edraw-svg-background editor)) ;;element or nil
+            (body (edraw-svg-body editor))
+            (transform (format "translate(%s %s) scale(%s)"
+                               (edraw-scroll-pos-x editor)
+                               (edraw-scroll-pos-y editor)
+                               (edraw-scroll-scale editor))))
+        (when background
+          (dom-set-attribute background 'transform transform)) ;;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
+        (when body
+          (dom-set-attribute body 'transform transform))))))
+
+(defun edraw-editor-remove-scroll-transform (svg)
+  (when svg
+    (let ((background (edraw-dom-get-by-id svg edraw-editor-svg-background-id))
+          (body (edraw-dom-get-by-id svg edraw-editor-svg-body-id))) ;;Do not use (edraw-svg-body editor)
+      (when background
+        (edraw-dom-remove-attr background 'transform))
+      (when body
+        (edraw-dom-remove-attr body 'transform)))))
+
+;; Set
+
+(cl-defmethod edraw-set-scroll-transform ((editor edraw-editor) x y scale)
+  (with-slots (scroll-transform) editor
+    (setq scroll-transform
+          (list
+           (or (round x) ;;Keep the scroll amount as an integer
+               (nth 0 scroll-transform))
+           (or (round y) ;;Keep the scroll amount as an integer
+               (nth 1 scroll-transform))
+           (or scale
+               (nth 2 scroll-transform))))
+    (edraw-update-all-ui-svg editor)
+    (edraw-invalidate-image editor)))
+
+;; Commands
+
+(edraw-editor-defcmd edraw-reset-scroll-and-zoom)
+(cl-defmethod edraw-reset-scroll-and-zoom ((editor edraw-editor))
+  (edraw-set-scroll-transform editor 0 0 1))
+
+(cl-defmethod edraw-scroll ((editor edraw-editor) dx dy)
+  (edraw-set-scroll-transform
+   editor
+   (when dx (+ (edraw-scroll-pos-x editor) dx))
+   (when dy (+ (edraw-scroll-pos-y editor) dy))
+   nil))
+
+(cl-defmethod edraw-zoom ((editor edraw-editor) magnification &optional cx cy)
+  ;; (cx, cy) are the coordinates in view-screen-width/height.
+  (edraw-set-scroll-transform
+   editor
+   (- (* (edraw-scroll-pos-x editor) magnification)
+      (* (or cx (/ (edraw-scroll-view-screen-width editor) 2))
+         (1- magnification)))
+   (- (* (edraw-scroll-pos-y editor) magnification)
+      (* (or cy (/ (edraw-scroll-view-screen-height editor) 2))
+         (1- magnification)))
+   (* (edraw-scroll-scale editor) magnification)))
+
+(edraw-editor-defcmd edraw-zoom-in)
+(cl-defmethod edraw-zoom-in ((editor edraw-editor))
+  (edraw-zoom editor 2))
+
+(edraw-editor-defcmd edraw-zoom-out)
+(cl-defmethod edraw-zoom-out ((editor edraw-editor))
+  (edraw-zoom editor 0.5))
+
+(defun edraw-editor-zoom-by-mouse (event magnification)
+  (when-let* ((editor (edraw-editor-at-input event))
+              (center-xy-on-screen
+               (edraw-scroll-view-screen-xy-from-mouse-event editor event)))
+    (edraw-zoom editor magnification
+                (edraw-x center-xy-on-screen)
+                (edraw-y center-xy-on-screen))))
+
+(defun edraw-editor-zoom-in-by-mouse (event)
+  (interactive "e")
+  (edraw-editor-zoom-by-mouse event 2))
+
+(defun edraw-editor-zoom-out-by-mouse (event)
+  (interactive "e")
+  (edraw-editor-zoom-by-mouse event 0.5))
+
+(defun edraw-editor-scroll-by-arrow-key (&optional editor n)
+  (interactive "i\np")
+  (let ((event last-input-event))
+    (when-let ((editor (or editor (edraw-editor-at-input event))))
+      (let* ((mods (event-modifiers event))
+             (d (* (or n 1)
+                   (cond
+                    ((memq 'meta mods) (read-number (edraw-msg "Moving Distance: ") 20))
+                    ((memq 'shift mods) 50)
+                    (t 1))))
+             (v (pcase (event-basic-type event)
+                  ('left (cons (- d) 0))
+                  ('right (cons d 0))
+                  ('up (cons 0 (- d)))
+                  ('down (cons 0 d))
+                  (_ (cons 0 0)))))
+        (edraw-scroll editor (car v) (cdr v))))))
+
+(defun edraw-editor-scroll-by-dragging (down-event)
+  (interactive "e")
+  (when-let* ((editor (edraw-editor-at-input down-event)))
+    ;; Wait for mouse down event
+    (unless (consp down-event)
+      (setq down-event nil)
+      (while (null down-event)
+        (let ((new-event (read-event)))
+          (cond
+           ((eq (car-safe new-event) 'down-mouse-1)
+            (setq down-event new-event))))))
+
+    ;; Drag and scroll
+    (let ((button (event-basic-type down-event)))
+      (unless (memq button '(mouse-1 mouse-2 mouse-3))
+        (error "edraw-editor-scroll-by-dragging does not support events other than mouse-1 through mouse-3."))
+      (unless (memq 'down (event-modifiers down-event))
+        (error "edraw-editor-scroll-by-dragging requires a down event."))
+
+      (let ((scroll-xy-start (edraw-xy (edraw-scroll-pos-x editor)
+                                       (edraw-scroll-pos-y editor)))
+            (down-xy (edraw-scroll-view-screen-xy-from-mouse-event
+                      editor down-event)))
+        (edraw-track-dragging
+         down-event
+         (lambda (move-event)
+           (let* ((move-xy (edraw-scroll-view-screen-xy-from-mouse-event
+                            editor move-event))
+                  (new-scroll-xy(edraw-xy-add scroll-xy-start
+                                              (edraw-xy-sub move-xy down-xy))))
+             (edraw-set-scroll-transform
+              editor
+              (edraw-x new-scroll-xy)
+              (edraw-y new-scroll-xy)
+              nil))))))))
+
+(edraw-editor-defcmd edraw-interactive-scroll-and-zoom)
+(cl-defmethod edraw-interactive-scroll-and-zoom ((editor edraw-editor))
+  (let (quit)
+    (while (not quit)
+      (let ((event (read-event
+                    (edraw-msg "drag:Scroll wheel:Zoom 0:reset q/r-click:quit"))))
+        (cond
+         ;; Drag and scroll
+         ((eq (car-safe event) 'down-mouse-1)
+          (edraw-editor-scroll-by-dragging event))
+         ((or (eq (car-safe event) 'mouse-3)
+              (eq event ?q)
+              (eq event ? ))
+          (setq quit t))
+         ((eq (car-safe event) mouse-wheel-down-event)
+          (edraw-zoom-in editor))
+         ((eq (car-safe event) mouse-wheel-up-event)
+          (edraw-zoom-out editor))
+         ((eq event ?0)
+          (edraw-reset-scroll-and-zoom editor))
+         ((memq (event-basic-type event) '(left up right down))
+          (edraw-editor-scroll-by-arrow-key editor)
+          ))))))
+
+
 ;;;;; Editor - Grid
 
 (cl-defmethod edraw-update-grid ((editor edraw-editor))
@@ -558,17 +835,31 @@ line-prefix and wrap-prefix are used in org-indent.")
     (when-let ((g (edraw-dom-get-by-id svg "edraw-ui-grid")))
       (edraw-dom-remove-all-children g)
       (when (edraw-get-setting editor 'grid-visible)
-        (let ((x-min 0)
-              (y-min 0)
-              (x-max (edraw-width editor))
-              (y-max (edraw-height editor))
-              (interval (edraw-get-setting editor 'grid-interval)))
-          (cl-loop for x from x-min to x-max by interval
-                   do (svg-line g x y-min x y-max :class "edraw-ui-grid-line"))
-          (cl-loop for y from y-min to y-max by interval
-                   do (svg-line g x-min y x-max y :class "edraw-ui-grid-line")))
+        (let* ((interval (edraw-get-setting editor 'grid-interval))
+               (x0 (edraw-grid-ceil (edraw-scroll-visible-area-left editor) interval))
+               (y0 (edraw-grid-ceil (edraw-scroll-visible-area-top editor) interval))
+               (x1 (edraw-grid-ceil (edraw-scroll-visible-area-right editor) interval))
+               (y1 (edraw-grid-ceil (edraw-scroll-visible-area-bottom editor) interval))
+               (view-screen-x-min 0)
+               (view-screen-y-min 0)
+               (view-screen-x-max (edraw-scroll-view-screen-width editor))
+               (view-screen-y-max (edraw-scroll-view-screen-height editor))
+               )
+          (cl-loop for x from x0 to x1 by interval
+                   for xv = (edraw-scroll-transform-x editor x)
+                   do (svg-line g xv view-screen-y-min xv view-screen-y-max
+                                :class (if (= x 0)
+                                           "edraw-ui-axis-line"
+                                         "edraw-ui-grid-line")))
+          (cl-loop for y from y0 to y1 by interval
+                   for yv = (edraw-scroll-transform-y editor y)
+                   do (svg-line g view-screen-x-min yv view-screen-x-max yv
+                                :class (if (= y 0)
+                                           "edraw-ui-axis-line"
+                                         "edraw-ui-grid-line"))))
+
         ;;(edraw-dom-invalidate g)
-      ))))
+        ))))
 
 (cl-defmethod edraw-set-grid-visible ((editor edraw-editor) visible)
   (edraw-set-setting editor 'grid-visible visible)
@@ -603,11 +894,23 @@ line-prefix and wrap-prefix are used in org-indent.")
 (cl-defmethod edraw-update-transparent-bg ((editor edraw-editor))
   (let ((back-ui (edraw-ui-background-svg editor)))
     (edraw-dom-remove-by-id back-ui "edraw-ui-transparent-bg")
-    (when (edraw-get-transparent-bg-visible editor)
+    (when (and (edraw-get-transparent-bg-visible editor)
+               ;; Is not visible area covered by opaque background?
+               (not (and (edraw-editor-background-fill-opaque-p
+                          (edraw-get-background editor))
+                         (<= (edraw-background-left editor)
+                             (edraw-scroll-visible-area-left editor))
+                         (>= (edraw-background-right editor)
+                             (edraw-scroll-visible-area-right editor))
+                         (<= (edraw-background-top editor)
+                             (edraw-scroll-visible-area-top editor))
+                         (>= (edraw-background-bottom editor)
+                             (edraw-scroll-visible-area-bottom editor)))))
       (edraw-dom-insert-first
        back-ui
-       (edraw-svg-ui-transparent-bg (edraw-width editor)
-                                    (edraw-height editor))))))
+       (edraw-svg-ui-transparent-bg
+        (edraw-scroll-view-screen-width editor)
+        (edraw-scroll-view-screen-height editor))))))
 
 (cl-defmethod edraw-get-transparent-bg-visible ((editor edraw-editor))
   (edraw-get-setting editor 'transparent-bg-visible))
@@ -817,13 +1120,15 @@ The undo data generated during undo is saved in redo-list."
 ;; SVG
 
 (cl-defmethod edraw-initialize-svg-document ((editor edraw-editor))
-  (with-slots (svg svg-document-size defrefs) editor
+  (with-slots (svg svg-document-size svg-document-view-box defrefs) editor
     (when (null svg)
       (setq svg (edraw-create-document-svg)))
 
     ;; Backup SVG Size
     (setq svg-document-size (cons (edraw-svg-attr-length svg 'width)
                                   (edraw-svg-attr-length svg 'height)))
+    ;; Backup SVG View Box
+    (setq svg-document-view-box (dom-attr svg 'viewBox))
 
     ;; #edraw-defs
     (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
@@ -888,7 +1193,7 @@ The undo data generated during undo is saved in redo-list."
 
 (edraw-editor-defcmd edraw-save)
 (cl-defmethod edraw-save ((editor edraw-editor))
-  (with-slots (document-writer svg svg-document-size) editor
+  (with-slots (document-writer svg) editor
     (when (and document-writer
                (edraw-modified-p editor))
       (let ((doc-svg (edraw-document-svg editor)))
@@ -898,9 +1203,12 @@ The undo data generated during undo is saved in redo-list."
           (edraw-set-modified-p editor nil))))))
 
 (cl-defmethod edraw-document-svg ((editor edraw-editor))
-  (with-slots (svg svg-document-size) editor
+  (with-slots (svg svg-document-size svg-document-view-box) editor
     (let ((doc-svg (edraw-editor-remove-ui-element-from-svg svg)))
-      (edraw-editor-remove-root-transform doc-svg svg-document-size)
+      (edraw-editor-remove-scroll-transform doc-svg)
+      (edraw-editor-remove-root-transform doc-svg
+                                          svg-document-size
+                                          svg-document-view-box)
       ;; Add xmlns
       (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
       ;;(dom-set-attribute doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
@@ -994,9 +1302,8 @@ The undo data generated during undo is saved in redo-list."
          editor 'document-size
          (list 'edraw-set-size editor old-width old-height))
         (setq svg-document-size (cons width height))
-        (edraw-update-background editor)
-        (edraw-update-root-transform editor) ;;update <svg width= height=>
-        (edraw-update-grid editor)
+        (edraw-update-background editor) ;; Update Document Background
+        (edraw-update-all-ui-svg editor) ;; Update <svg width= height=> etc...
         (edraw-on-document-changed editor 'document-size)))))
 
 (defun edraw-editor-set-size (&optional editor)
@@ -1013,16 +1320,44 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-svg-background ((editor edraw-editor))
   (edraw-dom-get-by-id (oref editor svg) edraw-editor-svg-background-id))
 
+(cl-defmethod edraw-background-left ((_editor edraw-editor))
+  0)
+
+(cl-defmethod edraw-background-top ((_editor edraw-editor))
+  0)
+
+(cl-defmethod edraw-background-right ((editor edraw-editor))
+  (edraw-width editor))
+
+(cl-defmethod edraw-background-bottom ((editor edraw-editor))
+  (edraw-height editor))
+
+(cl-defmethod edraw-background-width ((editor edraw-editor))
+  (edraw-width editor))
+
+(cl-defmethod edraw-background-height ((editor edraw-editor))
+  (edraw-height editor))
+
 (cl-defmethod edraw-update-background ((editor edraw-editor))
   (when-let ((element (edraw-svg-background editor)))
-    (dom-set-attribute element 'x 0)
-    (dom-set-attribute element 'y 0)
-    (dom-set-attribute element 'width (edraw-width editor))
-    (dom-set-attribute element 'height (edraw-height editor))))
+    (dom-set-attribute element 'x (edraw-background-left editor))
+    (dom-set-attribute element 'y (edraw-background-top editor))
+    (dom-set-attribute element 'width (edraw-background-width editor))
+    (dom-set-attribute element 'height (edraw-background-height editor))))
 
 (cl-defmethod edraw-get-background ((editor edraw-editor))
   (when-let ((element (edraw-svg-background editor)))
     (dom-attr element 'fill)))
+
+(defun edraw-editor-background-fill-empty-p (fill)
+  (or (null fill) (string= fill "none") (string-empty-p fill)))
+
+(defun edraw-editor-background-fill-opaque-p (fill)
+  (when (stringp fill)
+    (when-let ((color (edraw-color-picker-color-from-string
+                       fill
+                       '((:color-name-scheme . 'web) (:enable-opacity . t)))))
+      (>= (edraw-color-a color) 1))))
 
 (cl-defmethod edraw-set-background ((editor edraw-editor) fill)
   (edraw-push-undo
@@ -1030,7 +1365,7 @@ The undo data generated during undo is saved in redo-list."
    'document-background
    (list 'edraw-set-background editor (edraw-get-background editor)))
   (with-slots (svg) editor
-    (if (or (null fill) (string= fill "none") (string-empty-p fill))
+    (if (edraw-editor-background-fill-empty-p fill)
         ;; remove background
         (edraw-dom-remove-by-id svg edraw-editor-svg-background-id)
       (if-let ((element (edraw-svg-background editor)))
@@ -1043,8 +1378,9 @@ The undo data generated during undo is saved in redo-list."
                                (cons 'id edraw-editor-svg-background-id)))
          (edraw-svg-body editor))
         (edraw-update-background editor)
-        (edraw-update-root-transform editor) ;;update <rect transform=>
+        (edraw-update-scroll-transform editor) ;;update <rect transform=>
         ))
+    (edraw-update-transparent-bg editor) ;;update opaque state
     (edraw-on-document-changed editor 'document-background)))
 
 (defun edraw-editor-set-background (&optional editor)
@@ -1412,12 +1748,13 @@ The undo data generated during undo is saved in redo-list."
         (let ((g (edraw-svg-ui-shape-points-create-group
                   (edraw-ui-foreground-svg editor))))
           (dolist (shape selected-shapes)
-            (edraw-svg-ui-shape-points g
+            (edraw-svg-ui-shape-points g editor
                                        shape selected-anchor selected-handle))
           ;; Boundary
           (dolist (shape selected-shapes)
             (when (memq (edraw-shape-type shape) '(text g))
-              (let ((aabb (edraw-shape-aabb shape)))
+              (let ((aabb (edraw-scroll-transform-rect
+                           editor (edraw-shape-aabb shape))))
                 (unless (edraw-rect-empty-p aabb)
                   (svg-rectangle g
                                  (edraw-rect-left aabb)
@@ -1444,6 +1781,7 @@ The undo data generated during undo is saved in redo-list."
       g)))
 
 (defun edraw-svg-ui-shape-points (parent
+                                  editor
                                   shape
                                   selected-anchor
                                   selected-handle)
@@ -1453,7 +1791,9 @@ The undo data generated during undo is saved in redo-list."
         (next-selected-anchor (when selected-anchor
                                 (edraw-next-anchor selected-anchor))))
     (dolist (anchor anchor-points)
-      (let ((anchor-xy (edraw-get-xy-transformed anchor))
+      (let ((anchor-xy
+             (edraw-scroll-transform-xy editor
+                                        (edraw-get-xy-transformed anchor)))
             (anchor-selected-p (edraw-same-point-p anchor selected-anchor)))
         (edraw-svg-ui-anchor-point parent anchor-xy anchor-selected-p)
 
@@ -1466,7 +1806,8 @@ The undo data generated during undo is saved in redo-list."
             (dolist (handle handle-points)
               (edraw-svg-ui-handle-point
                parent
-               (edraw-get-xy-transformed handle)
+               (edraw-scroll-transform-xy editor
+                                          (edraw-get-xy-transformed handle))
                anchor-xy
                (and selected-handle
                     (edraw-same-point-p handle selected-handle))))))))))
@@ -1852,7 +2193,10 @@ The undo data generated during undo is saved in redo-list."
            :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
           ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
            :button (:toggle . ,(edraw-get-grid-visible editor)))
-          ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)))
+          ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)
+          ((edraw-msg "Zoom In") edraw-editor-zoom-in)
+          ((edraw-msg "Zoom Out") edraw-editor-zoom-out)
+          ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)))
         ((edraw-msg "Selected Object")
          (((edraw-msg "Delete") edraw-editor-delete-selected
            :enable ,(not (null (or (edraw-selected-handle editor)
@@ -1911,14 +2255,18 @@ The undo data generated during undo is saved in redo-list."
 
 (cl-defmethod edraw-mouse-event-to-xy ((editor edraw-editor) event)
   (with-slots (image-scale) editor
-    (let* ((xy (posn-object-x-y (event-start event)))
-           ;;@todo round? or not
-           ;; Must be able to point to integer pixel coordinates on
-           ;; high DPI environment(image-scale > 1.0).
-           ;; But when adding zoom function, float coordinates is required.
-           (x (round (/ (car xy) image-scale)))
-           (y (round (/ (cdr xy) image-scale))))
-      (cons x y))))
+    (let* ((xy-on-overlay (posn-object-x-y (event-start event)))
+           (xy-on-document
+            (edraw-scroll-reverse-transform-xy
+             editor
+             (edraw-xy (/ (car xy-on-overlay) image-scale)
+                       (/ (cdr xy-on-overlay) image-scale)))))
+      ;;@todo round? or not
+      ;; Must be able to point to integer pixel coordinates on
+      ;; high DPI environment(image-scale > 1.0).
+      ;; But when adding zoom function, float coordinates is required.
+      (cons (round (edraw-x xy-on-document))
+            (round (edraw-y xy-on-document))))))
 
 (cl-defmethod edraw-snap-xy ((editor edraw-editor) xy)
   (if (edraw-get-setting editor 'grid-visible)
@@ -1954,6 +2302,10 @@ The undo data generated during undo is saved in redo-list."
           (edraw-editor-at pos)))
     (edraw-editor-at (point))))
 
+(defconst edraw-event-remap-table
+  `((,mouse-wheel-up-event . wheel-down)
+    (,mouse-wheel-down-event . wheel-up)))
+
 (defun edraw-editor-dispatch-event (event)
   "Call the editor's method corresponding to the EVENT.
 
@@ -1964,6 +2316,9 @@ position where the EVENT occurred."
 
   (when-let ((editor (edraw-editor-at-input event)))
     (let* ((event-name (car event))
+           ;; Remap mouse-5 to wheel-down
+           (event-name (alist-get event-name edraw-event-remap-table
+                                  event-name))
            (method-name (intern (concat "edraw-on-" (symbol-name event-name)))))
       (when (fboundp method-name)
         (funcall method-name editor event)))))
@@ -2531,8 +2886,10 @@ position where the EVENT occurred."
     (edraw-ui-foreground-svg editor)
     (let ((ui-parent (edraw-ui-foreground-svg editor))
           (ui-preview (dom-node 'rect `((class . "edraw-ui-read-rectangle")
-                                        (x . ,(car down-xy))
-                                        (y . ,(cdr down-xy))
+                                        (x . ,(edraw-scroll-transform-x
+                                               editor (car down-xy)))
+                                        (y . ,(edraw-scroll-transform-x
+                                               editor (cdr down-xy)))
                                         (width . 1)
                                         (height . 1))))
           move-xy)
@@ -2545,7 +2902,10 @@ position where the EVENT occurred."
                    (if snap-p
                        (edraw-mouse-event-to-xy-snapped editor move-event)
                      (edraw-mouse-event-to-xy editor move-event)))
-             (edraw-svg-rect-set-range ui-preview down-xy move-xy)
+             (edraw-svg-rect-set-range
+              ui-preview
+              (edraw-scroll-transform-xy editor down-xy)
+              (edraw-scroll-transform-xy editor move-xy))
              (edraw-invalidate-image editor))))
       (dom-remove-node ui-parent ui-preview)
       (edraw-invalidate-image editor)

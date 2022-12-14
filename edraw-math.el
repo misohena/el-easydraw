@@ -58,6 +58,15 @@
        (t x-min-max))
     (cons n n)))
 
+(defun edraw-grid-floor (n interval)
+  (- n (mod n interval)))
+
+(defun edraw-grid-ceil (n interval)
+  (let ((m (mod n interval)))
+    (if (= m 0)
+        n
+      (+ (- n m) interval))))
+
 ;;;; Vector
 
 (defmacro edraw-xy (x y) `(cons ,x ,y))
