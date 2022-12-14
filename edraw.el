@@ -2196,7 +2196,8 @@ The undo data generated during undo is saved in redo-list."
           ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)
           ((edraw-msg "Zoom In") edraw-editor-zoom-in)
           ((edraw-msg "Zoom Out") edraw-editor-zoom-out)
-          ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)))
+          ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)
+          ((edraw-msg "Scroll and Zoom") edraw-editor-interactive-scroll-and-zoom)))
         ((edraw-msg "Selected Object")
          (((edraw-msg "Delete") edraw-editor-delete-selected
            :enable ,(not (null (or (edraw-selected-handle editor)
