@@ -1000,7 +1000,7 @@
   (edraw-update (oref picker display) picker))
 
 (cl-defmethod edraw-get-image ((picker edraw-color-picker))
-  (svg-image (oref picker svg)))
+  (svg-image (oref picker svg) :scale 1.0)) ;;Cancel image-scale effect
 
 (cl-defmethod edraw-on-down-mouse-1 ((picker edraw-color-picker) down-event)
   (with-slots (areas image-scale display) picker
