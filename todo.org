@@ -136,11 +136,7 @@ rectやellipse、textにもそういった問題はある。
 ** TODO SHIFT+ドラッグで水平垂直45度移動に限定する(可能?)
 最初にSHIFTが押されていれば分かるが、それ以降のmodifierの変化は分からない。
 S-mouse-movementが来たりは *しない* 。現在のキー状態を直接取得する方法も無い。
-** TODO image要素に対応できる？
-+少し試した限りimage要素は表示できない。+ +Emacs 26.3(Windows公式ビルド)はできた。Emacs 27以降はなぜか出来ない(Windows公式ビルド)。Emacs 28でbase uriを指定するプロパティが入るのでより使いやすくなるが、どうなるか。+ 解決方法判明。emacs-27.2-x86_64.zipを展開してできるディレクトリの下のbin/gdk-pixbuf-query-loaders.exe --update-cacheを実行するとlib/gdk-pixbuf-2.0/2.10.0/loaders.cacheというファイルが出来る。そうすると表示されるようになる。librsvgが画像を読み込む際にgdk-pixbufを使っているみたい。
-
-- edraw-shape-imageクラス
-
+read-eventで何かキーが押されたらモードを切り替えるというようなことなら出来る？
 ** TODO DOMツリーの文字列化は変更のあったサブツリーのみに限定する
 ** TODO パスの内外判定、パス全体(全セグメント一括)のAABBチェック
 をした方が良いのでは？　速いし誤判定防止になる。
@@ -931,3 +927,21 @@ CLOSED: [2022-12-15 Thu 02:12]
 CLOSED: [2022-12-15 Thu 18:37]
 もちろん編集には何も影響しなくて良い。あくまで編集後のSVGのviewBoxの値(文字列)を直接指定できれば十分。強いて言えば、デフォルトのスクロール・ズーム位置に影響しても良いが、viewBoxに指定できる全てのパターンに対応するのは大変かもしれないので別に必要ない。
 エクスポート時にviewBoxをいじっていたような気がするので要確認。
+** DONE image要素に対応できる？
+CLOSED: [2022-12-15 Thu 23:03]
++少し試した限りimage要素は表示できない。+ +Emacs 26.3(Windows公式ビルド)はできた。Emacs 27以降はなぜか出来ない(Windows公式ビルド)。Emacs 28でbase uriを指定するプロパティが入るのでより使いやすくなるが、どうなるか。+ 解決方法判明。emacs-27.2-x86_64.zipを展開してできるディレクトリの下のbin/gdk-pixbuf-query-loaders.exe --update-cacheを実行するとlib/gdk-pixbuf-2.0/2.10.0/loaders.cacheというファイルが出来る。そうすると表示されるようになる。librsvgが画像を読み込む際にgdk-pixbufを使っているみたい。
+
+- [X] edraw-shape-imageクラス作成
+  基本的にrectみたいなもの。
+- [X] edraw-editor-tool-imageクラス作成
+  クリックまたはドラッグで位置または範囲を指定する。
+  ファイル名を読み込む。
+  位置だけを指定した場合は画像のサイズで範囲を確定させる。
+  image要素を追加する。
+- [X] アイコンとツールリストの変更
+- [X] edraw-svg-dom.el内にimage要素のコードを足す。ほとんどはrectと同じだと思う。
+  - hrefがある
+  - fillとかstrokeとかは効かないので削除する
+  - preserveAspectRatio属性が欲しい
+- [X] クリックでも配置
+- [X] ファイル名を入力する

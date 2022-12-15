@@ -2419,7 +2419,7 @@ position where the EVENT occurred."
 
 ;;;;; Editor - Toolbar
 
-(defvar edraw-editor-tool-list '(select rect ellipse path freehand text custom-shape))
+(defvar edraw-editor-tool-list '(select rect ellipse path freehand text image custom-shape))
 (defvar edraw-editor-tool-map nil)
 
 (defconst edraw-editor-toolbar-button-w 30)
@@ -2691,6 +2691,14 @@ position where the EVENT occurred."
                (stroke . "#ccc")
                (stroke-width . 1)
                (fill . "url(#icon-fg-gradient)")))))
+
+(defun edraw-icon-tool-image (g)
+  (svg-rectangle
+   g 4.5 4.5 22 15 :stroke-width 1 :stroke "#ccc" :gradient "icon-fg-gradient")
+  (svg-ellipse
+   g 11 9 2.5 2.5 :fill "#888")
+  (svg-node
+   g 'path :d "M10 13 14 15 20 10 26 16 26 18 5 18 10 13Z" :fill "#666"))
 
 (defun edraw-icon-tool-custom-shape (g)
   (svg-node
@@ -3284,6 +3292,43 @@ position where the EVENT occurred."
            (+ (cdr center) (* 0.4 font-size)))))))) ;;@todo ascent font-size ratio
 
 
+;;;;; Tool - Image Tool
+
+(defclass edraw-editor-tool-image (edraw-editor-tool)
+  ()
+  )
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-image))
+  'image)
+
+(cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-image)
+                                     down-event)
+  (with-slots (editor) tool
+    (when-let ((rect (edraw-read-rectangle editor down-event t))
+               (file (read-file-name (edraw-msg "Image File: "))))
+
+      (when (edraw-rect-empty-p rect)
+        (let* ((image-spec (create-image file nil nil :scale 1))
+               (image-size (progn
+                             (image-flush image-spec)
+                             (image-size image-spec t))))
+          (edraw-xy-assign (edraw-rect-xy1 rect)
+                           (edraw-xy-add (edraw-rect-xy1 rect) image-size))))
+
+      ;; Create
+      (let ((shape (edraw-create-shape ;;notify modification
+                    editor
+                    (edraw-svg-body editor)
+                    'image
+                    'x (edraw-rect-left rect)
+                    'y (edraw-rect-top rect)
+                    'width (edraw-rect-width rect)
+                    'height (edraw-rect-height rect)
+                    'href (file-relative-name file))))
+        (edraw-select-shape editor shape)))))
+
+
+
 ;;;;; Tool - Path Tool
 
 (defclass edraw-editor-tool-path (edraw-editor-tool)
@@ -3776,6 +3821,7 @@ position where the EVENT occurred."
                          ('ellipse (edraw-shape-ellipse-create element editor))
                          ('circle (edraw-shape-circle-create element editor))
                          ('text (edraw-shape-text-create element editor))
+                         ('image (edraw-shape-image-create element editor))
                          ('path (edraw-shape-path-create element editor))
                          ('g (edraw-shape-group-create element editor))
                          (_ (unless noerror-node-type
@@ -4875,6 +4921,73 @@ position where the EVENT occurred."
       (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
       (edraw-svg-text-set-xy element new-xy)
       (edraw-on-shape-changed shape 'shape-transform)))) ;;or anchor-position?
+
+
+
+;;;;; Shape - Image
+
+(defun edraw-shape-image-create (element editor)
+  (let ((shape (edraw-shape-image)))
+    (oset shape element element)
+    (oset shape editor editor)
+    shape))
+
+(defclass edraw-shape-image (edraw-shape-with-rect-boundary)
+  ())
+
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-image))
+  'image)
+
+(cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-image))
+  (with-slots (element) shape
+    (let ((x (or (edraw-svg-attr-coord element 'x) 0))
+          (y (or (edraw-svg-attr-coord element 'y) 0))
+          (width (or (edraw-svg-attr-length element 'width) 0))
+          (height (or (edraw-svg-attr-length element 'height) 0)))
+      (cons (cons x y)
+            (cons (+ x width) (+ y height))))))
+
+(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-image))
+  (edraw-push-undo-properties shape
+                              'shape-image-anchors
+                              (if (edraw-transform-prop-exists-p shape)
+                                  '(transform)
+                                '(x y width height))))
+
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image))
+  (with-slots (element p0p1) shape
+    (edraw-push-undo-properties shape 'shape-image-anchor '(x y width height))
+    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-image-anchor)
+    (edraw-svg-image-set-range element (car p0p1) (cdr p0p1))
+    (edraw-on-shape-changed shape 'anchor-position)))
+
+(cl-defmethod edraw-set-properties ((shape edraw-shape-image) prop-list)
+  (let ((undo-list-end (edraw-undo-list (oref shape editor)))
+        (changed nil))
+    ;; apply x= y= width= height= properties
+    (let* ((rect (edraw-get-rect shape))
+           (old-x (caar rect))
+           (old-y (cdar rect))
+           (old-w (- (cadr rect) (caar rect)))
+           (old-h (- (cddr rect) (cdar rect)))
+           (new-x (edraw-alist-get-as-number 'x prop-list old-x))
+           (new-y (edraw-alist-get-as-number 'y prop-list old-y))
+           (new-w (edraw-alist-get-as-number 'width prop-list old-w))
+           (new-h (edraw-alist-get-as-number 'height prop-list old-h)))
+      (when (or (/= new-x old-x)
+                (/= new-y old-y)
+                (/= new-w old-w)
+                (/= new-h old-h))
+        (setq changed t)
+        (edraw-set-rect shape
+                        (cons new-x new-y)
+                        (cons (+ new-x new-w) (+ new-y new-h)))))
+    (setf (alist-get 'x prop-list nil 'remove) nil)
+    (setf (alist-get 'y prop-list nil 'remove) nil)
+    (setf (alist-get 'width prop-list nil 'remove) nil)
+    (setf (alist-get 'height prop-list nil 'remove) nil)
+    ;; other properties
+    (edraw-set-properties-internal shape prop-list undo-list-end changed)))
 
 
 

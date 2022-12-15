@@ -477,6 +477,12 @@
   (dom-set-attribute element 'rx (* 0.5 (abs (- (car xy0) (car xy1)))))
   (dom-set-attribute element 'ry (* 0.5 (abs (- (cdr xy0) (cdr xy1))))))
 
+(defun edraw-svg-image-set-range (element xy0 xy1)
+  (dom-set-attribute element 'x (min (car xy0) (car xy1)))
+  (dom-set-attribute element 'y (min (cdr xy0) (cdr xy1)))
+  (dom-set-attribute element 'width (abs (- (car xy0) (car xy1))))
+  (dom-set-attribute element 'height (abs (- (cdr xy0) (cdr xy1)))))
+
 ;; (defun edraw-svg-path (parent d &rest args)
 ;;   (let ((element (dom-node 'path
 ;;                            `((d . ,d)
@@ -504,6 +510,7 @@
     ('ellipse (edraw-svg-ellipse-summary element))
     ('circle (edraw-svg-circle-summary element))
     ('text (edraw-svg-text-summary element))
+    ('image (edraw-svg-image-summary element))
     ('g (edraw-svg-group-summary element))))
 
 (defun edraw-svg-path-summary (element)
@@ -534,6 +541,16 @@
 (defun edraw-svg-text-summary (element)
   (format "text (%s)"
           (truncate-string-to-width (dom-text element) 20 nil nil "...")))
+
+(defun edraw-svg-image-summary (element)
+  (format "image (%s,%s,%s,%s,%s)"
+          (edraw-svg-attr-coord element 'x)
+          (edraw-svg-attr-coord element 'y)
+          (edraw-svg-attr-length element 'width)
+          (edraw-svg-attr-length element 'height)
+          (truncate-string-to-width
+           (or (dom-attr element 'href) "")
+           20 nil nil "...")))
 
 (defun edraw-svg-group-summary (element)
   (format "group (%s children)" ;;@todo edraw-msg (require 'edraw-util)
@@ -610,6 +627,16 @@
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
      ;;(baseline-shift attr number nil)
      ,@edraw-svg-element-properties-common)
+    (image
+     (x attr coordinate t)
+     (y attr coordinate t)
+     (width attr length t)
+     (height attr length t)
+     (href attr string t)
+     (preserveAspectRatio attr string nil)
+     (opacity attr opacity nil)
+     (style attr string nil)
+     (transform attr string nil))
     (g
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common)))
@@ -1027,7 +1054,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-translate (element xy)
   (let ((transform (edraw-svg-element-transform-get element)))
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle 'text)
+      ((or 'path 'rect 'ellipse 'circle 'text 'image)
        (if transform ;;(not (edraw-matrix-translate-only-p transform)) ?
            (progn
              (edraw-matrix-translate-add transform (car xy) (cdr xy))
@@ -1048,6 +1075,7 @@ This function does not consider the effect of the transform attribute."
     ('ellipse (edraw-svg-ellipse-translate-contents element xy))
     ('circle (edraw-svg-circle-translate-contents element xy))
     ('text (edraw-svg-text-translate-contents element xy))
+    ('image (edraw-svg-image-translate-contents element xy))
     ('path (edraw-svg-path-translate-contents element xy))
     ('g (edraw-svg-group-translate-contents element xy)))
   element)
@@ -1073,6 +1101,12 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-text-translate-contents (element xy)
   ;;@todo support list-of-coordinates
   (edraw-svg-text-set-x element (+ (or (edraw-svg-attr-coord element 'x) 0)
+                                   (car xy)))
+  (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
+                                   (cdr xy))))
+
+(defun edraw-svg-image-translate-contents (element xy)
+  (dom-set-attribute element 'x (+ (or (edraw-svg-attr-coord element 'x) 0)
                                    (car xy)))
   (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
                                    (cdr xy))))
@@ -1103,7 +1137,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-contents-to-path-cmdlist (element &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle 'text)
+      ((or 'path 'rect 'ellipse 'circle 'text 'image)
        (let ((cmdlist (edraw-svg-shape-contents-to-path-cmdlist element)))
          (unless (edraw-matrix-identity-p matrix)
            (edraw-path-cmdlist-transform cmdlist matrix))
@@ -1118,7 +1152,8 @@ This function does not consider the effect of the transform attribute."
       ('rect (edraw-svg-rect-contents-to-path-cmdlist element))
       ('ellipse (edraw-svg-ellipse-contents-to-path-cmdlist element))
       ('circle (edraw-svg-circle-contents-to-path-cmdlist element))
-      ('text (edraw-svg-text-contents-to-path-cmdlist element)))))
+      ('text (edraw-svg-text-contents-to-path-cmdlist element))
+      ('image (edraw-svg-image-contents-to-path-cmdlist element)))))
 
 (defun edraw-svg-path-contents-to-path-cmdlist (element)
   (let ((fill (dom-attr element 'fill))
@@ -1240,6 +1275,24 @@ This function does not consider the effect of the transform attribute."
     (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
     cmdlist))
 
+(defun edraw-svg-image-contents-to-path-cmdlist (element)
+  ;; https://www.w3.org/TR/SVG11/struct.html#ImageElement
+  (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
+         (top    (or (edraw-svg-attr-coord element 'y) 0))
+         (width  (or (edraw-svg-attr-coord element 'width) 0))
+         (height (or (edraw-svg-attr-coord element 'height) 0))
+         (right  (+ left width))
+         (bottom (+ top height))
+         (cmdlist (edraw-path-cmdlist)))
+    ;;@todo support overflow? clip?
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'M (cons left top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left bottom)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left top)))
+    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
+    cmdlist))
+
 (defun edraw-svg-group-contents-to-path-cmdlist (element &optional matrix)
   (let (cmdlist)
     (dolist (child (dom-children element))
@@ -1266,7 +1319,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-contents-to-seglist (element &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle 'text)
+      ((or 'path 'rect 'ellipse 'circle 'text 'image)
        (let ((segments (edraw-svg-shape-contents-to-seglist element)))
          (unless (edraw-matrix-identity-p matrix)
            (edraw-path-seglist-transform segments matrix))
@@ -1281,7 +1334,8 @@ This function does not consider the effect of the transform attribute."
       ('rect (edraw-svg-rect-contents-to-seglist element))
       ('ellipse (edraw-svg-ellipse-contents-to-seglist element))
       ('circle (edraw-svg-circle-contents-to-seglist element))
-      ('text (edraw-svg-text-contents-to-seglist element)))))
+      ('text (edraw-svg-text-contents-to-seglist element))
+      ('image (edraw-svg-image-contents-to-seglist element)))))
 
 (defun edraw-svg-path-contents-to-seglist (element)
   (let ((fill (dom-attr element 'fill))
@@ -1367,6 +1421,21 @@ This function does not consider the effect of the transform attribute."
                          (vector (cons left  bottom) (cons left  top)))))
     segments))
 
+(defun edraw-svg-image-contents-to-seglist (element)
+  ;; https://www.w3.org/TR/SVG11/struct.html#ImageElement
+  (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
+         (top    (or (edraw-svg-attr-coord element 'y) 0))
+         (width  (or (edraw-svg-attr-coord element 'width) 0))
+         (height (or (edraw-svg-attr-coord element 'height) 0))
+         (right  (+ left width))
+         (bottom (+ top height))
+         ;;@todo support overflow? clip?
+         (segments (list (vector (cons left  top   ) (cons right top   ))
+                         (vector (cons right top   ) (cons right bottom))
+                         (vector (cons right bottom) (cons left  bottom))
+                         (vector (cons left  bottom) (cons left  top)))))
+    segments))
+
 (defun edraw-svg-group-contents-to-seglist (element &optional matrix)
   (let (segments)
     (dolist (child (dom-children element))
@@ -1391,7 +1460,7 @@ This function does not consider the effect of the transform attribute."
 
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle 'text)
+      ((or 'path 'rect 'ellipse 'circle 'text 'image)
        (edraw-svg-shape-contains-point-p element xy))
       ('g
        (edraw-svg-group-contains-point-p element xy)))))
@@ -1439,7 +1508,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-intersects-rect-p (element rect &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ((or 'path 'rect 'ellipse 'circle 'text)
+      ((or 'path 'rect 'ellipse 'circle 'text 'image)
        (edraw-svg-shape-intersects-rect-p element rect matrix))
       ('g
        (edraw-svg-group-intersects-rect-p element rect matrix)))))
