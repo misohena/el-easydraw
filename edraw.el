@@ -318,7 +318,7 @@ line-prefix and wrap-prefix are used in org-indent.")
   (with-slots (overlay) editor
     (when (and overlay (overlay-buffer overlay))
       (edraw-deselect-all-shapes editor)
-      (edraw-select-tool editor nil) ;;unselect tool (some tools need to disconnect)
+      (edraw-select-tool editor nil) ;;deselect tool (some tools need to disconnect)
       (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?
       (edraw-update-image-timer-cancel editor)
       (delete-overlay overlay))))
@@ -2899,7 +2899,7 @@ position where the EVENT occurred."
                  (edraw-selected-p (car shapes)))
             ;; multiple selected shapes
             (edraw-popup-context-menu-for-selected-shapes editor)
-          ;; single selected shape or unselected shape
+          ;; single selected shape or deselected shapes
           (edraw-popup-context-menu (if (cdr shapes)
                                         (edraw-popup-shape-selection-menu shapes)
                                       (car shapes)))))
@@ -2950,7 +2950,7 @@ position where the EVENT occurred."
 
   (with-slots (tool) editor
     (when tool
-      (edraw-on-unselected tool))
+      (edraw-on-deselected tool))
     (setq tool new-tool)
     (when tool
       (edraw-on-selected tool editor))
@@ -3048,9 +3048,9 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool) (editor edraw-editor))
   (oset tool editor editor))
 
-(cl-defgeneric edraw-on-unselected (target)
-  "Called when TARGET is unselected.")
-(cl-defmethod edraw-on-unselected ((tool edraw-editor-tool))
+(cl-defgeneric edraw-on-deselected (target)
+  "Called when TARGET is deselected.")
+(cl-defmethod edraw-on-deselected ((tool edraw-editor-tool))
   (oset tool editor nil))
 
 
@@ -3060,8 +3060,8 @@ position where the EVENT occurred."
 (defclass edraw-editor-tool-select (edraw-editor-tool)
   ())
 
-(cl-defmethod edraw-on-unselected ((_tool edraw-editor-tool-select))
-  ;;(edraw-unselect-shape (oref tool editor))
+(cl-defmethod edraw-on-deselected ((_tool edraw-editor-tool-select))
+  ;;(edraw-deselect-shape (oref tool editor))
   (cl-call-next-method))
 
 (cl-defmethod edraw-on-C-down-mouse-1 ((tool edraw-editor-tool-select)
@@ -3266,7 +3266,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-path))
   'path)
 
-(cl-defmethod edraw-on-unselected ((tool edraw-editor-tool-path))
+(cl-defmethod edraw-on-deselected ((tool edraw-editor-tool-path))
   (edraw-clear tool)
   (cl-call-next-method))
 
@@ -3514,7 +3514,7 @@ position where the EVENT occurred."
   (prog1 (cl-call-next-method)
     (edraw-connect-to-shape-picker tool)))
 
-(cl-defmethod edraw-on-unselected ((tool edraw-editor-tool-custom-shape))
+(cl-defmethod edraw-on-deselected ((tool edraw-editor-tool-custom-shape))
   (edraw-disconnect-from-shape-picker tool)
   (cl-call-next-method))
 
