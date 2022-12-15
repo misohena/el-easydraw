@@ -532,6 +532,7 @@ The undo data generated during undo is saved in redo-list."
 (defmacro edraw-editor-independent-undo-list (editor &rest body)
   "Evaluate the BODY under a new independent undo list."
   (declare (indent 1))
+  ;;@todo Increase undo limit?
   (let ((sym-editor (gensym 'editor-))
         (sym-old-undo-list (gensym 'old-undo-list-))
         (sym-old-redo-list (gensym 'old-redo-list-)))
