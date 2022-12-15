@@ -172,7 +172,8 @@ Sets the attribute specified by #+ATTR_HTML to the svg root element.
 Guarantees the uniqueness of ids defined by the SVG in the
 exported HTML. Add a random string to id."
   ;; Add viewBox= attribute
-  (when edraw-org-export-html-use-viewbox
+  (when (and edraw-org-export-html-use-viewbox
+             (null (dom-attr svg 'viewBox)))
     (let ((width (dom-attr svg 'width))
           (height (dom-attr svg 'height)))
       (dom-set-attribute svg 'viewBox (format "%s %s %s %s" 0 0 width height))))

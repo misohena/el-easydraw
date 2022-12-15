@@ -758,6 +758,31 @@ The undo data generated during undo is saved in redo-list."
                        (edraw-msg "Document Height: ") (edraw-height editor))))
     (edraw-set-size editor width height)))
 
+;;;;;; Editor - Document - View Box
+
+(cl-defmethod edraw-set-view-box ((editor edraw-editor) new-value)
+  (with-slots (svg-document-view-box) editor
+    (let ((old-value svg-document-view-box))
+      (unless (equal new-value old-value)
+        (edraw-push-undo
+         editor 'document-view-box
+         (list 'edraw-set-view-box editor old-value))
+        ;; The value set here is reflected to the SVG element by
+        ;; `edraw-editor-remove-root-transform' function
+        (setq svg-document-view-box new-value)
+        (edraw-on-document-changed editor 'document-view-box)))))
+
+(defun edraw-editor-set-view-box (&optional editor)
+  (interactive)
+  (when-let* ((editor (or editor (edraw-editor-at-input last-input-event)))
+              (view-box (read-string
+                         (edraw-msg "SVG viewBox: ")
+                         (or (oref editor svg-document-view-box) ""))))
+    (edraw-set-view-box editor
+                        (if (string-empty-p view-box)
+                            nil
+                          view-box))))
+
 ;;;;;; Editor - Document - Background
 
 (cl-defmethod edraw-svg-background ((editor edraw-editor))
@@ -1004,6 +1029,7 @@ The undo data generated during undo is saved in redo-list."
    `(((edraw-msg "Document")
       (((edraw-msg "Set Background...") edraw-editor-set-background)
        ((edraw-msg "Resize...") edraw-editor-set-size)
+       ((edraw-msg "View Box...") edraw-editor-set-view-box)
        ((edraw-msg "Transform")
         (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
          ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
@@ -2207,6 +2233,7 @@ The undo data generated during undo is saved in redo-list."
       `(((edraw-msg "Document")
          (((edraw-msg "Set Background...") edraw-editor-set-background)
           ((edraw-msg "Resize...") edraw-editor-set-size)
+          ((edraw-msg "View Box...") edraw-editor-set-view-box)
           ((edraw-msg "Transform")
            (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
             ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
