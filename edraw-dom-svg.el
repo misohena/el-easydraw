@@ -1127,6 +1127,8 @@ This function does not consider the effect of the transform attribute."
 
 ;;;; SVG Shapes to edraw-path-cmdlist
 
+(defconst edraw-bezier-circle-point 0.552284749831) ;;https://stackoverflow.com/questions/1734745/how-to-create-circle-with-b%C3%A9zier-curves
+
 ;; (Depends on edraw-path.el)
 
 (defun edraw-svg-element-to-path-cmdlist (element &optional matrix)
@@ -1167,20 +1169,79 @@ This function does not consider the effect of the transform attribute."
 
 (defun edraw-svg-rect-contents-to-path-cmdlist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
-  (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
-         (top    (or (edraw-svg-attr-coord element 'y) 0))
-         (width  (or (edraw-svg-attr-coord element 'width) 0))
+  (let* ((x0 (or (edraw-svg-attr-coord element 'x) 0))
+         (y0 (or (edraw-svg-attr-coord element 'y) 0))
+         (width (or (edraw-svg-attr-coord element 'width) 0))
          (height (or (edraw-svg-attr-coord element 'height) 0))
-         (right  (+ left width))
-         (bottom (+ top height))
+         (x3 (+ x0 width))
+         (y3 (+ y0 height))
+         (rx-spec (edraw-svg-attr-length element 'rx))
+         (ry-spec (edraw-svg-attr-length element 'ry))
+         (rx (edraw-clamp (if (numberp rx-spec) rx-spec
+                            (if (numberp ry-spec) ry-spec 0))
+                          0 (/ width 2.0)))
+         (ry (edraw-clamp (if (numberp ry-spec) ry-spec
+                            (if (numberp rx-spec) rx-spec 0))
+                          0 (/ height 2.0)))
+         (c edraw-bezier-circle-point)
+         (crx (* c rx))
+         (cry (* c ry))
+         (x1 (+ x0 rx))
+         (y1 (+ y0 ry))
+         (x2 (max x1 (- x3 rx)))
+         (y2 (max y1 (- y3 ry)))
          (cmdlist (edraw-path-cmdlist)))
-    ;;@todo support rx, ry
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'M (cons left top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
+
+    (cond
+     ((or (= rx 0) (= ry 0))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'M (cons x0 y0)))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'L (cons x3 y0)))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'L (cons x3 y3)))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'L (cons x0 y3)))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'L (cons x0 y0)))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z)))
+
+     (t
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'M (cons x1 y0)))
+      (unless (= x1 x2)
+        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                               'L (cons x2 y0))))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'C
+                                             (cons (+ x2 crx) y0)
+                                             (cons x3 (- y1 cry))
+                                             (cons x3 y1)))
+      (unless (= y1 y2)
+        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                               'L (cons x3 y2))))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'C
+                                             (cons x3 (+ y2 cry))
+                                             (cons (+ x2 crx) y3)
+                                             (cons x2 y3)))
+      (unless (= x1 x2)
+        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                               'L (cons x1 y3))))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'C
+                                             (cons (- x1 crx) y3)
+                                             (cons x0 (+ y2 cry))
+                                             (cons x0 y2)))
+      (unless (= y1 y2)
+        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                               'L (cons x0 y1))))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
+                                             'C
+                                             (cons x0 (- y1 cry))
+                                             (cons (- x1 crx) y0)
+                                             (cons x1 y0)))
+      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))))
     cmdlist))
 
 (defun edraw-svg-ellipse-contents-to-path-cmdlist (element)
@@ -1193,7 +1254,7 @@ This function does not consider the effect of the transform attribute."
          (top    (- cy ry))
          (right  (+ cx rx))
          (bottom (+ cy ry))
-         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (c edraw-bezier-circle-point)
          (crx (* c rx))
          (cry (* c ry))
          (cmdlist (edraw-path-cmdlist)))
@@ -1231,7 +1292,7 @@ This function does not consider the effect of the transform attribute."
          (top    (- cy r))
          (right  (+ cx r))
          (bottom (+ cy r))
-         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (c edraw-bezier-circle-point)
          (cr (* c r))
          (cmdlist (edraw-path-cmdlist)))
     (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
@@ -1347,17 +1408,55 @@ This function does not consider the effect of the transform attribute."
 
 (defun edraw-svg-rect-contents-to-seglist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
-  (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
-         (top    (or (edraw-svg-attr-coord element 'y) 0))
-         (width  (or (edraw-svg-attr-coord element 'width) 0))
+  (let* ((x0 (or (edraw-svg-attr-coord element 'x) 0))
+         (y0 (or (edraw-svg-attr-coord element 'y) 0))
+         (width (or (edraw-svg-attr-coord element 'width) 0))
          (height (or (edraw-svg-attr-coord element 'height) 0))
-         (right  (+ left width))
-         (bottom (+ top height))
-         ;;@todo support rx, ry
-         (segments (list (vector (cons left  top   ) (cons right top   ))
-                         (vector (cons right top   ) (cons right bottom))
-                         (vector (cons right bottom) (cons left  bottom))
-                         (vector (cons left  bottom) (cons left  top)))))
+         (x3 (+ x0 width))
+         (y3 (+ y0 height))
+         (rx-spec (edraw-svg-attr-length element 'rx))
+         (ry-spec (edraw-svg-attr-length element 'ry))
+         (rx (edraw-clamp (if (numberp rx-spec) rx-spec
+                            (if (numberp ry-spec) ry-spec 0))
+                          0 (/ width 2.0)))
+         (ry (edraw-clamp (if (numberp ry-spec) ry-spec
+                            (if (numberp rx-spec) rx-spec 0))
+                          0 (/ height 2.0)))
+         (c edraw-bezier-circle-point)
+         (crx (* c rx))
+         (cry (* c ry))
+         (x1 (+ x0 rx))
+         (y1 (+ y0 ry))
+         (x2 (max x1 (- x3 rx)))
+         (y2 (max y1 (- y3 ry)))
+         (segments
+          (cond
+           ((or (= rx 0) (= ry 0))
+            (list (vector (cons x0 y0) (cons x3 y0))
+                  (vector (cons x3 y0) (cons x3 y3))
+                  (vector (cons x3 y3) (cons x0 y3))
+                  (vector (cons x0 y3) (cons x0 y0))))
+           (t
+            (delq
+             nil
+             (list
+              (unless (= x1 x2)
+                (vector (cons x1 y0) (cons x2 y0)))
+              (vector (cons x2 y0) (cons (+ x2 crx) y0)
+                      (cons x3 (- y1 cry)) (cons x3 y1))
+              (unless (= y1 y2)
+                (vector (cons x3 y1) (cons x3 y2)))
+              (vector (cons x3 y2) (cons x3 (+ y2 cry))
+                      (cons (+ x2 crx) y3) (cons x2 y3))
+              (unless (= x1 x2)
+                (vector (cons x2 y3) (cons x1 y3)))
+              (vector (cons x1 y3) (cons (- x1 crx) y3)
+                      (cons x0 (+ y2 cry)) (cons x0 y2))
+              (unless (= y1 y2)
+                (vector (cons x0 y2) (cons x0 y1)))
+
+              (vector (cons x0 y1) (cons x0 (- y1 cry))
+                      (cons (- x1 crx) y0) (cons x1 y0))))))))
     segments))
 
 (defun edraw-svg-ellipse-contents-to-seglist (element)
@@ -1370,7 +1469,7 @@ This function does not consider the effect of the transform attribute."
          (top    (- cy ry))
          (right  (+ cx rx))
          (bottom (+ cy ry))
-         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (c edraw-bezier-circle-point)
          (crx (* c rx))
          (cry (* c ry))
          (segments
@@ -1394,7 +1493,7 @@ This function does not consider the effect of the transform attribute."
          (top    (- cy r))
          (right  (+ cx r))
          (bottom (+ cy r))
-         (c 0.551915024494) ;;https://spencermortensen.com/articles/bezier-circle/
+         (c edraw-bezier-circle-point)
          (cr (* c r))
          (segments
           (list

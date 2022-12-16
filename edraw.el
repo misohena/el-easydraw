@@ -3869,7 +3869,7 @@ position where the EVENT occurred."
 
 (defun edraw-create-shape (editor parent tag &rest props)
   (edraw-create-shape-without-default
-   editor parent
+   editor parent nil
    tag
    ;; Complete property values with default values
    (edraw-merge-properties
@@ -3878,16 +3878,16 @@ position where the EVENT occurred."
     (cl-loop for (prop-name value) on props by #'cddr
              collect (cons prop-name value)))))
 
-(defun edraw-create-shape-without-default (editor parent tag props-alist)
+(defun edraw-create-shape-without-default (editor parent index tag props-alist)
   (let* ((shape (edraw-shape-from-element
                  (edraw-create-shape-svg-element (oref editor defrefs)
-                                                 parent tag props-alist)
+                                                 parent index tag props-alist)
                  editor)))
     (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
     (edraw-on-shape-changed shape 'shape-create)
     shape))
 
-(defun edraw-create-shape-svg-element (defrefs parent tag props-alist)
+(defun edraw-create-shape-svg-element (defrefs parent index tag props-alist)
   (let ((element (dom-node tag)))
     ;; Set properties
     (dolist (prop props-alist)
@@ -3896,7 +3896,9 @@ position where the EVENT occurred."
         (edraw-svg-element-set-property element prop-name value defrefs)))
     ;; Add element to parent
     (when parent
-      (dom-append-child parent element))
+      (if index
+          (edraw-dom-insert-nth parent element index)
+        (dom-append-child parent element)))
     element))
 
 (defun edraw-shape-from-element (element editor &optional noerror-node-type)
@@ -3988,6 +3990,7 @@ position where the EVENT occurred."
                (edraw-create-shape-without-default
                 editor
                 (edraw-parent-element shape)
+                nil
                 shape-type
                 ;; Copy all properties
                 (mapcar
@@ -4002,6 +4005,29 @@ position where the EVENT occurred."
               (edraw-remove new-child)
               (edraw-insert new-shape new-child)))
           new-shape)))))
+
+(cl-defmethod edraw-convert-to-path-shape ((shape edraw-shape))
+  (with-slots (editor) shape
+    (when-let ((cmdlist
+                (edraw-svg-element-to-path-cmdlist (edraw-element shape)))
+               (shape-descriptor
+                (edraw-shape-descriptor shape)))
+      (edraw-shape-descriptor-set-type shape-descriptor 'path)
+      (edraw-shape-descriptor-put-property shape-descriptor 'd
+                                           (edraw-path-cmdlist-to-string
+                                            cmdlist))
+      (edraw-make-undo-group editor 'convert-to-path
+        ;; Create a new shape
+        (when-let ((new-shape (edraw-shape-from-shape-descriptor
+                               editor
+                               (edraw-parent-element shape)
+                               (edraw-node-position shape)
+                               shape-descriptor)))
+          ;; Select the new shape
+          (when (edraw-selected-shape-p editor shape)
+            (edraw-add-shape-selection editor new-shape))
+          ;; Remove the old shape
+          (edraw-remove shape))))))
 
 ;;;;;; Shape Descriptor
 
@@ -4023,22 +4049,30 @@ position where the EVENT occurred."
      (list
       (cons :children (mapcar #'edraw-shape-descriptor children))))))
 
-(defun edraw-shape-from-shape-descriptor (editor parent shape-descriptor)
+(defun edraw-shape-descriptor-set-type (shape-descriptor type)
+  (setf (alist-get :type shape-descriptor) type))
+
+(defun edraw-shape-descriptor-put-property (shape-descriptor prop-name value)
+  ;;@todo remove property if value is nil?
+  (setf (alist-get prop-name (alist-get :properties shape-descriptor))
+        value))
+
+(defun edraw-shape-from-shape-descriptor (editor parent index shape-descriptor)
   (let* ((type (alist-get :type shape-descriptor))
          (props (alist-get :properties shape-descriptor))
          (children-descriptor (alist-get :children shape-descriptor))
-         (shape (edraw-create-shape-without-default editor parent type props)))
+         (shape (edraw-create-shape-without-default editor parent index type props)))
     (when children-descriptor
       (dolist (child-descriptor children-descriptor)
         (edraw-shape-from-shape-descriptor
-         editor (edraw-element shape) child-descriptor)))
+         editor (edraw-element shape) nil child-descriptor)))
     shape))
 
 (defun edraw-shape-from-shape-descriptor-list (editor parent
                                                       shape-descriptor-list)
   (mapcar (lambda (shape-descriptor)
             (edraw-shape-from-shape-descriptor
-             editor parent shape-descriptor))
+             editor parent nil shape-descriptor))
           shape-descriptor-list))
 
 (defun edraw-shape-descriptor-from-svg-element (svg-element editor)
@@ -4076,6 +4110,7 @@ position where the EVENT occurred."
           (edraw-create-shape-svg-element
            defrefs
            nil ;;parent
+           nil ;;index
            type ;;tag
            props)))
     (when children-descriptor
@@ -4087,7 +4122,7 @@ position where the EVENT occurred."
 
 (defun edraw-shape-descriptor-to-svg-string (shape-descriptor &optional editor)
   (if editor
-      (when-let ((shape (edraw-shape-from-shape-descriptor editor nil
+      (when-let ((shape (edraw-shape-from-shape-descriptor editor nil nil
                                                            shape-descriptor)))
         (edraw-svg-string shape))
     (when-let ((element
@@ -4762,6 +4797,12 @@ position where the EVENT occurred."
     ;; other properties
     (edraw-set-properties-internal shape prop-list undo-list-end changed)))
 
+(cl-defmethod edraw-get-actions ((_shape edraw-shape-rect))
+  (let* ((items (copy-tree (cl-call-next-method))))
+    (append
+     items
+     `(((edraw-msg "Convert To Path") edraw-convert-to-path-shape)))))
+
 
 
 ;;;;; Shape - Ellipse
@@ -4832,6 +4873,12 @@ position where the EVENT occurred."
     (setf (alist-get 'ry prop-list nil 'remove) nil)
     ;; other properties
     (edraw-set-properties-internal shape prop-list undo-list-end changed)))
+
+(cl-defmethod edraw-get-actions ((_shape edraw-shape-ellipse))
+  (let* ((items (copy-tree (cl-call-next-method))))
+    (append
+     items
+     `(((edraw-msg "Convert To Path") edraw-convert-to-path-shape)))))
 
 
 
@@ -4949,6 +4996,12 @@ position where the EVENT occurred."
     (setf (alist-get 'r prop-list nil 'remove) nil)
     ;; other properties
     (edraw-set-properties-internal shape prop-list undo-list-end changed)))
+
+(cl-defmethod edraw-get-actions ((_shape edraw-shape-circle))
+  (let* ((items (copy-tree (cl-call-next-method))))
+    (append
+     items
+     `(((edraw-msg "Convert To Path") edraw-convert-to-path-shape)))))
 
 
 
