@@ -144,6 +144,8 @@ When nil, disable auto view enlargement."
                   (integer :tag "Width")
                   (integer :tag "Height"))))
 
+(defconst edraw-grid-display-min-interval 4.0)
+
 (defconst edraw-anchor-point-radius 3.5)
 (defconst edraw-handle-point-radius 3.0)
 (defconst edraw-anchor-point-input-radius (+ 1.0 edraw-anchor-point-radius))
@@ -1354,22 +1356,32 @@ The undo data generated during undo is saved in redo-list."
       (edraw-dom-remove-all-children g)
       (when (edraw-get-setting editor 'grid-visible)
         (let* ((interval (edraw-get-setting editor 'grid-interval))
-               (x0 (edraw-grid-ceil (edraw-scroll-visible-area-left editor) interval))
-               (y0 (edraw-grid-ceil (edraw-scroll-visible-area-top editor) interval))
-               (x1 (edraw-grid-ceil (edraw-scroll-visible-area-right editor) interval))
-               (y1 (edraw-grid-ceil (edraw-scroll-visible-area-bottom editor) interval))
+               (scaled-interval (* interval (edraw-scroll-scale editor)))
+               (step-lines (if (< scaled-interval edraw-grid-display-min-interval)
+                               (ceiling
+                                (/ (float edraw-grid-display-min-interval)
+                                   scaled-interval))
+                             1))
+               (step-interval (* step-lines interval))
+               (x0 (edraw-grid-ceil (edraw-scroll-visible-area-left editor)
+                                    step-interval))
+               (y0 (edraw-grid-ceil (edraw-scroll-visible-area-top editor)
+                                    step-interval))
+               (x1 (edraw-grid-ceil (edraw-scroll-visible-area-right editor)
+                                    step-interval))
+               (y1 (edraw-grid-ceil (edraw-scroll-visible-area-bottom editor)
+                                    step-interval))
                (view-x-min 0)
                (view-y-min 0)
                (view-x-max (edraw-scroll-view-width editor))
-               (view-y-max (edraw-scroll-view-height editor))
-               )
-          (cl-loop for x from x0 to x1 by interval
+               (view-y-max (edraw-scroll-view-height editor)))
+          (cl-loop for x from x0 to x1 by step-interval
                    for xv = (edraw-scroll-transform-x editor x)
                    do (svg-line g xv view-y-min xv view-y-max
                                 :class (if (= x 0)
                                            "edraw-ui-axis-line"
                                          "edraw-ui-grid-line")))
-          (cl-loop for y from y0 to y1 by interval
+          (cl-loop for y from y0 to y1 by step-interval
                    for yv = (edraw-scroll-transform-y editor y)
                    do (svg-line g view-x-min yv view-x-max yv
                                 :class (if (= y 0)
