@@ -1516,8 +1516,8 @@ The undo data generated during undo is saved in redo-list."
   (when xy
     (let ((scale (edraw-scroll-scale editor)))
       (edraw-xy
-       (/ (- (edraw-x xy) (edraw-scroll-pos-x editor)) scale)
-       (/ (- (edraw-y xy) (edraw-scroll-pos-y editor)) scale)))))
+       (/ (float (- (edraw-x xy) (edraw-scroll-pos-x editor))) scale)
+       (/ (float (- (edraw-y xy) (edraw-scroll-pos-y editor))) scale)))))
 
 ;;;;;;; Screen Area
 
@@ -1527,20 +1527,9 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-scroll-view-screen-height ((editor edraw-editor))
   (edraw-height editor))
 
-(cl-defmethod edraw-scroll-view-screen-xy-from-mouse-event
-  ((editor edraw-editor) event)
-  (with-slots (image-scale) editor
-    (let* ((xy-on-overlay (posn-object-x-y (event-start event)))
-           (xy-on-scroll-view-screen
-            ;; Apply image-scale only.
-            (edraw-xy (/ (car xy-on-overlay) image-scale)
-                      (/ (cdr xy-on-overlay) image-scale))))
-      ;;@todo round? or not
-      ;; Must be able to point to integer pixel coordinates on
-      ;; high DPI environment(image-scale > 1.0).
-      ;; But when adding zoom function, float coordinates is required.
-      (cons (round (edraw-x xy-on-scroll-view-screen))
-            (round (edraw-y xy-on-scroll-view-screen))))))
+(cl-defmethod edraw-scroll-view-screen-xy-from-mouse-event ((editor edraw-editor) event)
+  (edraw-xy-round ;;@todo round or not?
+   (edraw-mouse-event-to-xy-on-scroll-view-screen editor event)))
 
 ;;;;;;; Visible Area
 
@@ -1595,10 +1584,10 @@ The undo data generated during undo is saved in redo-list."
   (with-slots (scroll-transform) editor
     (setq scroll-transform
           (list
-           (or (round x) ;;Keep the scroll amount as an integer
-               (nth 0 scroll-transform))
-           (or (round y) ;;Keep the scroll amount as an integer
-               (nth 1 scroll-transform))
+           (if x (round x) ;;Keep the scroll amount as an integer
+             (nth 0 scroll-transform))
+           (if y (round y) ;;Keep the scroll amount as an integer
+             (nth 1 scroll-transform))
            (or scale
                (nth 2 scroll-transform))))
     (edraw-update-all-ui-svg editor)
@@ -2305,32 +2294,39 @@ The undo data generated during undo is saved in redo-list."
 ;;;;; Editor - Mouse Coordinates
 
 (cl-defmethod edraw-mouse-event-to-xy-snapped ((editor edraw-editor) event)
-  (edraw-snap-xy editor (edraw-mouse-event-to-xy editor event)))
+  (edraw-snap-xy editor (edraw-mouse-event-to-xy-raw editor event)))
 
-(cl-defmethod edraw-mouse-event-to-xy ((editor edraw-editor) event)
+;; For object search purposes, you should use non-snap version.
+;; This version may return non-integer coordinates due to zoom
+;; magnification and automatic scaling in high DPI environments.
+(cl-defmethod edraw-mouse-event-to-xy-raw ((editor edraw-editor) event)
+  (edraw-scroll-reverse-transform-xy
+   editor
+   (edraw-mouse-event-to-xy-on-scroll-view-screen editor event)))
+
+(cl-defmethod edraw-mouse-event-to-xy-on-scroll-view-screen ;;@todo rename
+  ((editor edraw-editor) event)
   (with-slots (image-scale) editor
     (let* ((xy-on-overlay (posn-object-x-y (event-start event)))
-           (xy-on-document
-            (edraw-scroll-reverse-transform-xy
-             editor
-             (edraw-xy (/ (car xy-on-overlay) image-scale)
-                       (/ (cdr xy-on-overlay) image-scale)))))
-      ;;@todo round? or not
-      ;; Must be able to point to integer pixel coordinates on
-      ;; high DPI environment(image-scale > 1.0).
-      ;; But when adding zoom function, float coordinates is required.
-      (cons (round (edraw-x xy-on-document))
-            (round (edraw-y xy-on-document))))))
+           (xy-on-scroll-view-screen
+            ;; Apply image-scale only.
+            (edraw-xy (/ (car xy-on-overlay) image-scale)
+                      (/ (cdr xy-on-overlay) image-scale))))
+      xy-on-scroll-view-screen)))
 
 (cl-defmethod edraw-snap-xy ((editor edraw-editor) xy)
+  ;; Snap to pixels
+  ;; Must be able to point to integer pixel coordinates on
+  ;; high DPI environment(image-scale > 1.0).
+  ;;@todo Add settings to snap to coordinates below 1.0
+  (setq xy (edraw-xy-round xy))
+
+  ;; Snap to grid lines
   (if (edraw-get-setting editor 'grid-visible)
-      (let* ((interval (edraw-get-setting editor 'grid-interval))
-             (half-interval (/ interval 2))
-             (x (car xy))
-             (y (cdr xy)))
-        (cons
-         (- x (- (mod (+ x half-interval) interval) half-interval))
-         (- y (- (mod (+ y half-interval) interval) half-interval))))
+      (let* ((interval (edraw-get-setting editor 'grid-interval)))
+        (edraw-xy
+         (edraw-grid-round (edraw-x xy) interval)
+         (edraw-grid-round (edraw-y xy) interval)))
     xy))
 
 ;;;;; Editor - Input Event
@@ -2820,7 +2816,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-mouse-down-handle-point ((editor edraw-editor)
                                              down-event)
   "Drag a handle point or select it."
-  (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+  (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
          (moved-p nil)
          (selected-anchor (edraw-selected-anchor editor))
          (selected-handle (edraw-selected-handle editor))
@@ -2848,7 +2844,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-mouse-down-anchor-point ((editor edraw-editor)
                                              down-event)
   "Drag a anchor point or select it."
-  (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+  (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
          (moved-p nil)
          (anchor (seq-some (lambda (shp)
                              (edraw-pick-anchor-point shp down-xy))
@@ -2866,7 +2862,7 @@ position where the EVENT occurred."
       t)))
 
 (cl-defmethod edraw-mouse-down-shape ((editor edraw-editor) down-event)
-  (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+  (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
          (down-xy-snapped (edraw-snap-xy editor down-xy))
          (selected-shapes (edraw-selected-shapes editor))
          (shapes (edraw-find-shapes-by-xy editor down-xy))
@@ -2945,7 +2941,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-read-rectangle ((editor edraw-editor) down-event snap-p)
   (let ((down-xy (if snap-p
                      (edraw-mouse-event-to-xy-snapped editor down-event)
-                   (edraw-mouse-event-to-xy editor down-event))))
+                   (edraw-mouse-event-to-xy-raw editor down-event))))
     (edraw-ui-foreground-svg editor)
     (let ((ui-parent (edraw-ui-foreground-svg editor))
           (ui-preview (dom-node 'rect `((class . "edraw-ui-read-rectangle")
@@ -2964,7 +2960,7 @@ position where the EVENT occurred."
              (setq move-xy
                    (if snap-p
                        (edraw-mouse-event-to-xy-snapped editor move-event)
-                     (edraw-mouse-event-to-xy editor move-event)))
+                     (edraw-mouse-event-to-xy-raw editor move-event)))
              (edraw-svg-rect-set-range
               ui-preview
               (edraw-scroll-transform-xy editor down-xy)
@@ -3046,7 +3042,7 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-on-mouse-3 ((tool edraw-editor-tool) click-event)
   (with-slots (editor) tool
-    (let ((click-xy (edraw-mouse-event-to-xy editor click-event)))
+    (let ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))) ;;Do not any rounding coordinates
 
       (cond
        ;; Handle, Anchor
@@ -3133,7 +3129,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-double-mouse-1 ((tool edraw-editor-tool-select)
                                        click-event)
   (with-slots (editor) tool
-    (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
+    (let* ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))
            (shape (car (edraw-find-shapes-by-xy editor click-xy))))
       (when shape
         (edraw-edit-properties shape)))))
@@ -3264,7 +3260,7 @@ position where the EVENT occurred."
     (unless (string-empty-p text)
       (with-slots (editor) tool
         (edraw-deselect-all-shapes editor)
-        (let* ((click-xy (edraw-mouse-event-to-xy editor click-event))
+        (let* ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))
                (click-xy-snapped
                 (or (and snap-to-shape-center-p
                          (edraw-snap-text-to-back-shape-center tool click-xy))
@@ -3350,7 +3346,7 @@ position where the EVENT occurred."
       ;;@todo support all selected shapes or all shapes
       (when-let ((selected-path (edraw-cast (edraw-last-selected-shape editor)
                                             'edraw-shape-path)))
-        (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+        (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
                (last-anchor (edraw-get-last-anchor-point selected-path))
                (first-anchor (edraw-get-first-anchor-point selected-path))
                (anchor
@@ -3380,7 +3376,7 @@ position where the EVENT occurred."
   (with-slots (editor editing-path) tool
     (when (and editing-path
                (edraw-closable-path-shape-p editing-path))
-      (let ((down-xy (edraw-mouse-event-to-xy editor down-event))
+      (let ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
             (anchor (edraw-get-first-anchor-point editing-path)))
         (when (and anchor
                    (edraw-hit-input-p anchor down-xy)
@@ -3398,7 +3394,7 @@ position where the EVENT occurred."
 (cl-defmethod edraw-mouse-down-connect-to-another-path ((tool edraw-editor-tool) down-event)
   (with-slots (editor editing-path) tool
     (when editing-path
-      (let* ((down-xy (edraw-mouse-event-to-xy editor down-event))
+      (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
              (anchor (car (delq editing-path (edraw-find-end-points-of-path-shapes editor down-xy)))))
         (when anchor
           (when (edraw-connect-path-to-anchor editing-path anchor) ;;notify modification
@@ -5121,14 +5117,17 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-pick-point ((shape edraw-shape-path) xy)
   (with-slots (cmdlist) shape
-    (when-let ((ppoint (edraw-path-cmdlist-pick-point
-                        cmdlist
-                        xy
-                        edraw-anchor-point-input-radius
-                        edraw-handle-point-input-radius)))
-      (edraw-shape-point-path
-       :shape shape
-       :ppoint ppoint))))
+    (let ((scale (if-let ((editor (oref shape editor)))
+                     (float (edraw-scroll-scale editor))
+                   1.0)))
+      (when-let ((ppoint (edraw-path-cmdlist-pick-point
+                          cmdlist
+                          xy
+                          (/ edraw-anchor-point-input-radius scale)
+                          (/ edraw-handle-point-input-radius scale))))
+        (edraw-shape-point-path
+         :shape shape
+         :ppoint ppoint)))))
 
 ;; (cl-defmethod edraw-owned-shape-point-p ((shape edraw-shape-path) spt)
 ;;   (with-slots (cmdlist) shape
@@ -5352,12 +5351,19 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-hit-input-p ((spt edraw-shape-point) xy)
   "Returns non-nil, if the point SPT hits the pointer input(e.g. click) point XY."
-  (pcase (edraw-get-point-type spt)
-    ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy-transformed spt) xy) ;;square
-                 edraw-anchor-point-input-radius))
-    ('handle (<= (edraw-xy-distance-squared (edraw-get-xy-transformed spt) xy) ;;circle
-                 (* edraw-handle-point-input-radius
-                    edraw-handle-point-input-radius)))))
+
+  (let ((scale (if-let* ((shape (edraw-parent-shape spt))
+                         (editor (oref shape editor)))
+                   (float (edraw-scroll-scale editor))
+                 1.0))) ;;@todo Should I add the argument SCALE?
+
+    (pcase (edraw-get-point-type spt)
+      ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy-transformed spt) xy) ;;square
+                   (/ edraw-anchor-point-input-radius scale)))
+      ('handle (<= (edraw-xy-distance-squared (edraw-get-xy-transformed spt) xy) ;;circle
+                   (let ((r (/ edraw-handle-point-input-radius scale)))
+                     (message "transformed=%s xy=%s r=%s" (edraw-get-xy-transformed spt) xy r)
+                     (* r r)))))))
 
 (cl-defmethod edraw-get-xy-transformed ((spt edraw-shape-point))
   (when-let ((shape (edraw-parent-shape spt)))

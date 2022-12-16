@@ -67,6 +67,12 @@
         n
       (+ (- n m) interval))))
 
+(defun edraw-grid-round (n interval)
+  (let ((m (mod n interval)))
+    (if (>= m (/ interval 2))
+        (+ (- n m) interval)
+      (- n m))))
+
 ;;;; Vector
 
 (defmacro edraw-xy (x y) `(cons ,x ,y))
@@ -86,6 +92,18 @@
 
 (defsubst edraw-xy-clone (cell)
   (cons (car cell) (cdr cell)))
+
+(defsubst edraw-xy-round (cell)
+  (cons (round (car cell))
+        (round (cdr cell))))
+
+(defsubst edraw-xy-floor (cell)
+  (cons (floor (car cell))
+        (floor (cdr cell))))
+
+(defsubst edraw-xy-ceil (cell)
+  (cons (ceiling (car cell))
+        (ceiling (cdr cell))))
 
 (defsubst edraw-xy-add (a b)
   (cons (+ (car a) (car b))
