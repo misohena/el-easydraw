@@ -69,7 +69,7 @@
 
 (defun edraw-grid-round (n interval)
   (let ((m (mod n interval)))
-    (if (>= m (/ interval 2))
+    (if (>= (* m 2) interval)
         (+ (- n m) interval)
       (- n m))))
 

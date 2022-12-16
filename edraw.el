@@ -2409,19 +2409,17 @@ The undo data generated during undo is saved in redo-list."
       xy-on-scroll-view)))
 
 (cl-defmethod edraw-snap-xy ((editor edraw-editor) xy)
-  ;; Snap to pixels
-  ;; Must be able to point to integer pixel coordinates on
-  ;; high DPI environment(image-scale > 1.0).
-  ;;@todo Add settings to snap to coordinates below 1.0
-  (setq xy (edraw-xy-round xy))
-
-  ;; Snap to grid lines
   (if (edraw-get-setting editor 'grid-visible)
+      ;; Snap to grid lines
       (let* ((interval (edraw-get-setting editor 'grid-interval)))
         (edraw-xy
          (edraw-grid-round (edraw-x xy) interval)
          (edraw-grid-round (edraw-y xy) interval)))
-    xy))
+    ;; Snap to pixels
+    ;; Must be able to point to integer pixel coordinates on
+    ;; high DPI environment(image-scale > 1.0).
+    ;;@todo Add settings to snap to coordinates below 1.0
+    (edraw-xy-round xy)))
 
 ;;;;; Editor - Input Event
 
