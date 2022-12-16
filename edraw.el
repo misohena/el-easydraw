@@ -133,6 +133,17 @@
   :group 'edraw-editor
   :type 'number)
 
+(defcustom edraw-editor-auto-view-enlargement-max-size (cons 560 420)
+  "When zoomed, editing view will automatically resize up to this size.
+
+When nil, disable auto view enlargement."
+  :group 'edraw-editor
+  :type '(choice (const nil :tag "Disable auto view enlargement")
+                 (cons
+                  :tag "Maximum Size"
+                  (integer :tag "Width")
+                  (integer :tag "Height"))))
+
 (defconst edraw-anchor-point-radius 3.5)
 (defconst edraw-handle-point-radius 3.0)
 (defconst edraw-anchor-point-input-radius (+ 1.0 edraw-anchor-point-radius))
@@ -183,6 +194,10 @@
     (define-key km "+" 'edraw-editor-zoom-in)
     (define-key km "-" 'edraw-editor-zoom-out)
     (define-key km "0" 'edraw-editor-reset-scroll-and-zoom)
+    (define-key km "v+" 'edraw-editor-zoom-in)
+    (define-key km "v-" 'edraw-editor-zoom-out)
+    (define-key km "v0" 'edraw-editor-reset-view)
+    (define-key km "vr" 'edraw-editor-set-view-size-spec)
     ;; Selected Object
     (define-key km "A" 'edraw-editor-toggle-selection-all)
     (define-key km [remap yank] 'edraw-editor-paste-and-select)
@@ -257,12 +272,13 @@ line-prefix and wrap-prefix are used in org-indent.")
    (document-writer :initarg :document-writer :initform nil)
    (menu-filter :initarg :menu-filter :initform nil)
 
-   (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
    (image-scale
     :initform (image-compute-scaling-factor image-scaling-factor)
     :type number)
    (image)
    (image-update-timer :initform nil)
+   (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
+   (view-size :initform nil) ;; nil means document size
    (settings
     :initform (list (cons 'grid-visible
                           edraw-editor-default-grid-visible)
@@ -270,7 +286,7 @@ line-prefix and wrap-prefix are used in org-indent.")
                           edraw-editor-default-grid-interval)
                     (cons 'transparent-bg-visible
                           edraw-editor-default-transparent-bg-visible)
-                    ))
+                    (cons 'view-size-spec nil))) ;;User specified view size
    (extra-properties :initform nil)
    (default-shape-properties
      :initform (if edraw-editor-share-default-shape-properties
@@ -718,6 +734,8 @@ The undo data generated during undo is saved in redo-list."
   (edraw-notify-document-close-to-all-shapes editor)
   (edraw-clear-undo-list editor)
 
+  (edraw-reset-view editor)
+
   (with-slots (svg) editor
     (setq svg nil))
 
@@ -1137,22 +1155,22 @@ The undo data generated during undo is saved in redo-list."
 
 (cl-defmethod edraw-update-all-ui-svg ((editor edraw-editor))
   ;; Target: svg width= height= viewBox=
-  ;; Deps: view-screen
+  ;; Deps: view-size
   (edraw-update-root-transform editor)
   ;; Target: rect#edraw-background transform=
   ;;          g#edraw-body transform=
   ;; Deps: scroll-transform
   (edraw-update-scroll-transform editor)
   ;; Target: g#edraw-ui-background > g#edraw-ui-transparent-bg
-  ;; Deps: background state, view-screen
+  ;; Deps: background state, view-size
   (edraw-update-transparent-bg editor)
   ;; Target: g#edraw-ui-foreground > g#edraw-ui-style
   ;;(edraw-update-ui-style-svg editor) ;; Immutable
   ;; Target: g#edraw-ui-foreground > g#edraw-ui-grid
-  ;; Deps: scroll-transform, view-screen
+  ;; Deps: scroll-transform, view-size
   (edraw-update-grid editor)
   ;; Target: g#edraw-ui-foreground > #edraw-ui-shape-points
-  ;; Deps: selection state, scroll-transform, view-screen
+  ;; Deps: selection state, scroll-transform, view-size
   (edraw-update-selection-ui editor)
   (edraw-invalidate-image editor))
 
@@ -1220,8 +1238,8 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-update-root-transform ((editor edraw-editor))
   (with-slots (svg image-scale) editor
     (when svg
-      (let ((width (edraw-scroll-view-screen-width editor))
-            (height (edraw-scroll-view-screen-height editor)))
+      (let ((width (edraw-scroll-view-width editor))
+            (height (edraw-scroll-view-height editor)))
         (dom-set-attribute svg 'width
                            (ceiling (* image-scale width)))
         (dom-set-attribute svg 'height
@@ -1274,8 +1292,8 @@ The undo data generated during undo is saved in redo-list."
       (edraw-dom-insert-first
        back-ui
        (edraw-svg-ui-transparent-bg
-        (edraw-scroll-view-screen-width editor)
-        (edraw-scroll-view-screen-height editor))))))
+        (edraw-scroll-view-width editor)
+        (edraw-scroll-view-height editor))))))
 
 (cl-defmethod edraw-get-transparent-bg-visible ((editor edraw-editor))
   (edraw-get-setting editor 'transparent-bg-visible))
@@ -1340,20 +1358,20 @@ The undo data generated during undo is saved in redo-list."
                (y0 (edraw-grid-ceil (edraw-scroll-visible-area-top editor) interval))
                (x1 (edraw-grid-ceil (edraw-scroll-visible-area-right editor) interval))
                (y1 (edraw-grid-ceil (edraw-scroll-visible-area-bottom editor) interval))
-               (view-screen-x-min 0)
-               (view-screen-y-min 0)
-               (view-screen-x-max (edraw-scroll-view-screen-width editor))
-               (view-screen-y-max (edraw-scroll-view-screen-height editor))
+               (view-x-min 0)
+               (view-y-min 0)
+               (view-x-max (edraw-scroll-view-width editor))
+               (view-y-max (edraw-scroll-view-height editor))
                )
           (cl-loop for x from x0 to x1 by interval
                    for xv = (edraw-scroll-transform-x editor x)
-                   do (svg-line g xv view-screen-y-min xv view-screen-y-max
+                   do (svg-line g xv view-y-min xv view-y-max
                                 :class (if (= x 0)
                                            "edraw-ui-axis-line"
                                          "edraw-ui-grid-line")))
           (cl-loop for y from y0 to y1 by interval
                    for yv = (edraw-scroll-transform-y editor y)
-                   do (svg-line g view-screen-x-min yv view-screen-x-max yv
+                   do (svg-line g view-x-min yv view-x-max yv
                                 :class (if (= y 0)
                                            "edraw-ui-axis-line"
                                          "edraw-ui-grid-line"))))
@@ -1521,15 +1539,21 @@ The undo data generated during undo is saved in redo-list."
 
 ;;;;;;; Screen Area
 
-(cl-defmethod edraw-scroll-view-screen-width ((editor edraw-editor))
-  (edraw-width editor))
+(cl-defmethod edraw-scroll-view-width ((editor edraw-editor))
+  (with-slots (view-size) editor
+    (if view-size
+        (car view-size)
+      (edraw-width editor))))
 
-(cl-defmethod edraw-scroll-view-screen-height ((editor edraw-editor))
-  (edraw-height editor))
+(cl-defmethod edraw-scroll-view-height ((editor edraw-editor))
+  (with-slots (view-size) editor
+    (if view-size
+        (cdr view-size)
+      (edraw-height editor))))
 
-(cl-defmethod edraw-scroll-view-screen-xy-from-mouse-event ((editor edraw-editor) event)
+(cl-defmethod edraw-scroll-view-xy-from-mouse-event ((editor edraw-editor) event)
   (edraw-xy-round ;;@todo round or not?
-   (edraw-mouse-event-to-xy-on-scroll-view-screen editor event)))
+   (edraw-mouse-event-to-xy-on-scroll-view editor event)))
 
 ;;;;;;; Visible Area
 
@@ -1540,18 +1564,18 @@ The undo data generated during undo is saved in redo-list."
   (/ (- (edraw-scroll-pos-y editor)) (edraw-scroll-scale editor)))
 
 (cl-defmethod edraw-scroll-visible-area-right ((editor edraw-editor))
-  (/ (- (edraw-scroll-view-screen-width editor) (edraw-scroll-pos-x editor))
+  (/ (- (edraw-scroll-view-width editor) (edraw-scroll-pos-x editor))
      (edraw-scroll-scale editor)))
 
 (cl-defmethod edraw-scroll-visible-area-bottom ((editor edraw-editor))
-  (/ (- (edraw-scroll-view-screen-height editor) (edraw-scroll-pos-y editor))
+  (/ (- (edraw-scroll-view-height editor) (edraw-scroll-pos-y editor))
      (edraw-scroll-scale editor)))
 
 (cl-defmethod edraw-scroll-visible-area-width ((editor edraw-editor))
-  (/ (edraw-scroll-view-screen-width editor) (edraw-scroll-scale editor)))
+  (/ (edraw-scroll-view-width editor) (edraw-scroll-scale editor)))
 
 (cl-defmethod edraw-scroll-visible-area-height ((editor edraw-editor))
-  (/ (edraw-scroll-view-screen-height editor) (edraw-scroll-scale editor)))
+  (/ (edraw-scroll-view-height editor) (edraw-scroll-scale editor)))
 
 ;;;;;;; SVG Manipulation
 
@@ -1593,6 +1617,29 @@ The undo data generated during undo is saved in redo-list."
     (edraw-update-all-ui-svg editor)
     (edraw-invalidate-image editor)))
 
+(cl-defmethod edraw-enlarge-view-automatically ((editor edraw-editor) new-scale)
+  (when (and (> new-scale 1.0)
+             edraw-editor-auto-view-enlargement-max-size
+             (null (edraw-get-setting editor 'view-size-spec)));;when not specified by user
+    (with-slots (view-size) editor
+      (let ((curr-view-w (edraw-scroll-view-width editor))
+            (curr-view-h (edraw-scroll-view-height editor)))
+        (let ((new-view-w
+               (edraw-clamp
+                (* (edraw-width editor) new-scale)
+                curr-view-w
+                (car edraw-editor-auto-view-enlargement-max-size)))
+              (new-view-h
+               (edraw-clamp
+                (* (edraw-height editor) new-scale)
+                curr-view-h
+                (cdr edraw-editor-auto-view-enlargement-max-size))))
+          (when (or (> new-view-w curr-view-w)
+                    (> new-view-h curr-view-h))
+            (setq view-size (cons new-view-w new-view-h))
+            ;; It is the caller's responsibility to update SVG
+            ))))))
+
 ;;;;;;; Commands
 
 (edraw-editor-defcmd edraw-reset-scroll-and-zoom)
@@ -1607,16 +1654,32 @@ The undo data generated during undo is saved in redo-list."
    nil))
 
 (cl-defmethod edraw-zoom ((editor edraw-editor) magnification &optional cx cy)
-  ;; (cx, cy) are the coordinates in view-screen-width/height.
-  (edraw-set-scroll-transform
-   editor
-   (- (* (edraw-scroll-pos-x editor) magnification)
-      (* (or cx (/ (edraw-scroll-view-screen-width editor) 2))
-         (1- magnification)))
-   (- (* (edraw-scroll-pos-y editor) magnification)
-      (* (or cy (/ (edraw-scroll-view-screen-height editor) 2))
-         (1- magnification)))
-   (* (edraw-scroll-scale editor) magnification)))
+  ;; (cx, cy) are the coordinates in view-width/height.
+
+  (let* ((old-scale (edraw-scroll-scale editor))
+         (new-scale (* old-scale magnification))
+         (old-view-w (edraw-scroll-view-width editor))
+         (old-view-h (edraw-scroll-view-height editor))
+         ;; Enlarge editing view automatically
+         (_ (edraw-enlarge-view-automatically editor new-scale))
+         (new-view-w (edraw-scroll-view-width editor))
+         (new-view-h (edraw-scroll-view-height editor)))
+
+    (unless cx (setq cx (/ old-view-w 2)))
+    (unless cy (setq cy (/ old-view-h 2)))
+
+    (edraw-set-scroll-transform
+     editor
+     ;; Distributes the amount that the scaled view size protrudes
+     ;; from the new view size by the ratio of cx and old-view-w.
+     ;;  (old-view-w * magnification - new-view-w) * (cx / old-view-w)
+     (- (* (edraw-scroll-pos-x editor) magnification)
+        (/ (* (- (* old-view-w (float magnification)) new-view-w) cx)
+           old-view-w))
+     (- (* (edraw-scroll-pos-y editor) magnification)
+        (/ (* (- (* old-view-h (float magnification)) new-view-h) cy)
+           old-view-h))
+     (* (edraw-scroll-scale editor) magnification))))
 
 (edraw-editor-defcmd edraw-zoom-in)
 (cl-defmethod edraw-zoom-in ((editor edraw-editor))
@@ -1629,7 +1692,7 @@ The undo data generated during undo is saved in redo-list."
 (defun edraw-editor-zoom-by-mouse (event magnification)
   (when-let* ((editor (edraw-editor-at-input event))
               (center-xy-on-screen
-               (edraw-scroll-view-screen-xy-from-mouse-event editor event)))
+               (edraw-scroll-view-xy-from-mouse-event editor event)))
     (edraw-zoom editor magnification
                 (edraw-x center-xy-on-screen)
                 (edraw-y center-xy-on-screen))))
@@ -1681,12 +1744,12 @@ The undo data generated during undo is saved in redo-list."
 
       (let ((scroll-xy-start (edraw-xy (edraw-scroll-pos-x editor)
                                        (edraw-scroll-pos-y editor)))
-            (down-xy (edraw-scroll-view-screen-xy-from-mouse-event
+            (down-xy (edraw-scroll-view-xy-from-mouse-event
                       editor down-event)))
         (edraw-track-dragging
          down-event
          (lambda (move-event)
-           (let* ((move-xy (edraw-scroll-view-screen-xy-from-mouse-event
+           (let* ((move-xy (edraw-scroll-view-xy-from-mouse-event
                             editor move-event))
                   (new-scroll-xy(edraw-xy-add scroll-xy-start
                                               (edraw-xy-sub move-xy down-xy))))
@@ -1719,6 +1782,35 @@ The undo data generated during undo is saved in redo-list."
          ((memq (event-basic-type event) '(left up right down))
           (edraw-editor-scroll-by-arrow-key editor)
           ))))))
+
+(edraw-editor-defcmd edraw-set-view-size-spec)
+(cl-defmethod edraw-set-view-size-spec ((editor edraw-editor) &optional wh)
+  (unless wh
+    (when-let ((w (edraw-read-integer-or-nil
+                   "View Width: " (edraw-scroll-view-width editor)))
+               (h (edraw-read-integer
+                   "View Height: " (edraw-scroll-view-height editor))))
+      (setq wh (cons w h))))
+
+  (when (and (consp wh)
+             (or (null (car wh)))
+             (or (null (cdr wh))))
+    (setq wh nil))
+
+  (edraw-set-setting editor 'view-size-spec wh)
+  (setf (oref editor view-size) wh)
+  (edraw-update-all-ui-svg editor)
+  (edraw-invalidate-image editor))
+
+(edraw-editor-defcmd edraw-reset-view-size)
+(cl-defmethod edraw-reset-view-size ((editor edraw-editor))
+  (edraw-set-view-size-spec editor '(nil))) ;;equivalent to nil
+
+(edraw-editor-defcmd edraw-reset-view)
+(cl-defmethod edraw-reset-view ((editor edraw-editor))
+  (edraw-reset-view-size editor)
+  (edraw-reset-scroll-and-zoom editor))
+
 
 ;;;;; Editor - Selection
 
@@ -2236,6 +2328,8 @@ The undo data generated during undo is saved in redo-list."
           ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
            :button (:toggle . ,(edraw-get-grid-visible editor)))
           ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)
+          ((edraw-msg "Set View Size...") edraw-editor-set-view-size-spec)
+          ((edraw-msg "Reset View") edraw-editor-reset-view)
           ((edraw-msg "Zoom In") edraw-editor-zoom-in)
           ((edraw-msg "Zoom Out") edraw-editor-zoom-out)
           ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)
@@ -2302,17 +2396,17 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-mouse-event-to-xy-raw ((editor edraw-editor) event)
   (edraw-scroll-reverse-transform-xy
    editor
-   (edraw-mouse-event-to-xy-on-scroll-view-screen editor event)))
+   (edraw-mouse-event-to-xy-on-scroll-view editor event)))
 
-(cl-defmethod edraw-mouse-event-to-xy-on-scroll-view-screen ;;@todo rename
+(cl-defmethod edraw-mouse-event-to-xy-on-scroll-view ;;@todo rename
   ((editor edraw-editor) event)
   (with-slots (image-scale) editor
     (let* ((xy-on-overlay (posn-object-x-y (event-start event)))
-           (xy-on-scroll-view-screen
+           (xy-on-scroll-view
             ;; Apply image-scale only.
             (edraw-xy (/ (car xy-on-overlay) image-scale)
                       (/ (cdr xy-on-overlay) image-scale))))
-      xy-on-scroll-view-screen)))
+      xy-on-scroll-view)))
 
 (cl-defmethod edraw-snap-xy ((editor edraw-editor) xy)
   ;; Snap to pixels

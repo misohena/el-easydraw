@@ -22,22 +22,6 @@
 
 もしスナップを改良するなら edraw-snap-xy を修正すること。
 
-** TODO ズーム時(に限らず?)にエディタを大きくする
-編集時の画像のサイズを元の大きさよりも大きくした方が良い。
-100x100程度の小さなSVGを編集したいとき、どんなにズームイン出来ても編集する領域が小さいので使いづらい。
-
-[[edraw:data=H4sIAMCjmWMAA3VPQQ6CMBD8SrNeka5ICBjKC/AD3tCWtgFbUqrV39sgGi8edrKTyczs1vNdkqC5Vwx2iECU0FL5ldyFm7U1kaU7II/raGYGyvvpQGkIIQ371DpJM0SkMQia2omL/5/3YBDxuWCvx5HBpu97ILN3dhAMjDUCiOYMBHdd2J67yyCdvRkOhDa1/JUsf8a+qfPqa99UVfUJ265H5J+md3b0HzNMcmxzTDJsS0wKbAtMSmyzZV/U09JHZZz4V/MCx2/D5CYBAAA=]]
-
-やるなら[[elisp-function:edraw-scroll-view-screen-width][edraw-scroll-view-screen-width]]や[[elisp-function:edraw-scroll-view-screen-width][edraw-scroll-view-screen-width]]が大きな値を返せば良い。[[elisp-function:edraw-update-root-transform][edraw-update-root-transform]]等各所はすでにこの関数を使うようになっている。
-
-ただ、最大サイズを制限する必要がある。例によってフレームの大きさから自動的に最大サイズを算出すべきか。その場合、元々大きな画像は縮小するべきなのか。
-
-サイズを手動で指定出来るような機能があっても良い。
-
-設定でデフォルトの大きさを指定出来ても良い。
-
-適当にview-screenなんて付けちゃったけど、本当は何と呼べば良いんだろう。このサイズは自動スケーリングを適用する前のサイズ。
-
 ** TODO デフォルトプロパティ値は種類毎に持つべきでは無い？
 カスタムシェイプツールでpath以外(rectやellipse)にも同一の属性を適用したくなる。
 とは言えrectツールではstrokeを入れたくないし、pathではfillを入れたくない。
@@ -972,3 +956,23 @@ CLOSED: [2022-12-16 Fri 13:49]
 imageツールアイコンを描いている時にうまくアンカーポイントが選択出来なくて難儀した。
 おそらく拡大してもドキュメントの座標系で許容ピクセル数が計測されている。
 ↑それだけでは無く、マウスの座標がピクセル単位でスナップ(整数座標に限定)されている所も問題だった。両方に対処した。現状でも物体検索はedraw-mouse-event-to-xy、図形座標に関わるところはedraw-mouse-event-to-xy-snappedが使われている。-to-xyはto-xy-rawと名前を変えて、整数に限定されない生の座標を返すようにした。ピクセル単位のスナップはedraw-snap-xyで行うようにした。ポイントの反応半径(edraw-anchor-point-input-radiusとedraw-handle-point-input-radius)は拡大率で割るようにした。
+** DONE ズーム時(に限らず?)にエディタを大きくする
+CLOSED: [2022-12-16 Fri 17:46]
+編集時の画像のサイズを元の大きさよりも大きくした方が良い。
+100x100程度の小さなSVGを編集したいとき、どんなにズームイン出来ても編集する領域が小さいので使いづらい。
+
+[[edraw:data=H4sIAMCjmWMAA3VPQQ6CMBD8SrNeka5ICBjKC/AD3tCWtgFbUqrV39sgGi8edrKTyczs1vNdkqC5Vwx2iECU0FL5ldyFm7U1kaU7II/raGYGyvvpQGkIIQ371DpJM0SkMQia2omL/5/3YBDxuWCvx5HBpu97ILN3dhAMjDUCiOYMBHdd2J67yyCdvRkOhDa1/JUsf8a+qfPqa99UVfUJ265H5J+md3b0HzNMcmxzTDJsS0wKbAtMSmyzZV/U09JHZZz4V/MCx2/D5CYBAAA=]]
+
+やるなら[[elisp-function:edraw-scroll-view-screen-width][edraw-scroll-view-screen-width]]や[[elisp-function:edraw-scroll-view-screen-width][edraw-scroll-view-screen-width]]が大きな値を返せば良い。[[elisp-function:edraw-update-root-transform][edraw-update-root-transform]]等各所はすでにこの関数を使うようになっている。
+
+ただ、最大サイズを制限する必要がある。 +例によってフレームの大きさから自動的に最大サイズを算出すべきか。その場合、元々大きな画像は縮小するべきなのか。+ 設定で自動で大きくする最大サイズを指定出来るようにした。デフォルトは(560 . 420)
+
+サイズを手動で指定出来るような機能があっても良い。
+
++設定でデフォルトの大きさを指定出来ても良い。+ 設定で自動で大きくする最大サイズを指定出来るようにした。
+
+適当にview-screenなんて付けちゃったけど、本当は何と呼べば良いんだろう。このサイズは自動スケーリングを適用する前のサイズ。編集領域？　単にビューで良いんじゃないかと。強いて言うなら編集用ビュー。
+
+自動ビューサイズ変更設定が欲しい。拡大したときに自動的にビューも大きくする。縮小時には小さく *しない* 。大きくするのはあらかじめ設定されている大きさまで。
+
+ビューサイズを直接指定するコマンドが欲しい。これは自動ビューサイズ変更を無効化する。
