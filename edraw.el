@@ -5578,7 +5578,6 @@ position where the EVENT occurred."
                    (/ edraw-anchor-point-input-radius scale)))
       ('handle (<= (edraw-xy-distance-squared (edraw-get-xy-transformed spt) xy) ;;circle
                    (let ((r (/ edraw-handle-point-input-radius scale)))
-                     (message "transformed=%s xy=%s r=%s" (edraw-get-xy-transformed spt) xy r)
                      (* r r)))))))
 
 (cl-defmethod edraw-get-xy-transformed ((spt edraw-shape-point))
