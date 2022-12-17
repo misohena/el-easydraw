@@ -155,7 +155,7 @@
 
 (defun edraw-org-link-finish-edit (&optional editor)
   (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+  (let ((editor (or editor (edraw-current-editor))))
     (when (or (not (edraw-modified-p editor))
               (condition-case err
                   (edraw-save editor)
@@ -168,7 +168,7 @@
 
 (defun edraw-org-link-cancel-edit (&optional editor)
   (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+  (when-let ((editor (or editor (edraw-current-editor))))
     (when (or (null (edraw-modified-p editor))
               (yes-or-no-p (edraw-msg "Discard changes?")))
       (edraw-org-link-close-editor editor))))

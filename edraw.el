@@ -380,20 +380,101 @@ line-prefix and wrap-prefix are used in org-indent.")
     (when-let ((hook (alist-get hook-type hooks)))
       (apply 'edraw-hook-call hook args))))
 
+;;;;; Editor - Lookup Editor
+
+(defvar edraw-current-editor nil)
+
+(defun edraw-current-editor (&optional noerror)
+  (let ((editor (or edraw-current-editor
+                    (edraw-editor-at-input last-command-event))))
+    (when (and (null editor)
+               (not noerror))
+      (error (edraw-msg "No editor here")))
+    editor))
+
+(defun edraw-editor-at (&optional pos)
+  (let ((pos (or pos (point))))
+    (or
+     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-at pos))
+     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-at (1- pos)))
+     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-in (1- pos) (1+ pos))))))
+
+(defun edraw-editor-at-input (event)
+  (if (or (mouse-event-p event)
+          (memq (event-basic-type event)
+                '(wheel-up wheel-down 'mouse-4 'mouse-5 'drag-n-drop)))
+      (let* ((mouse-pos (event-start event))
+             (window (posn-window mouse-pos))
+             (buffer (window-buffer window))
+             (pos (posn-point mouse-pos)))
+        (when edraw-editor-move-point-on-click
+          (select-window window)
+          (set-window-point window pos))
+        (with-current-buffer buffer
+          (edraw-editor-at pos)))
+    (edraw-editor-at (point))))
+
 ;;;;; Editor - Define Commands
 
-(defun edraw-editor-call-at-point (method &optional editor)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
-    (funcall method editor)))
+(defun edraw-editor-call-at-point (method &optional editor args)
+  (let ((editor (or editor (edraw-current-editor))))
+    (apply method editor args)))
 
-(defmacro edraw-editor-defcmd (method)
-  (let ((method-name (symbol-name method)))
+(defmacro edraw-editor-defcmd (method-symbol arg-list &rest rest)
+  ;; Basically intended to be used instead of cl-defmethod.
+  ;;
+  ;; Example:
+  ;; (edraw-editor-defcmd edraw-some-command ;;<METHOD-SYMBOL>
+  ;;   ((editor edraw-editor) &optional xy) ;;<ARG-LIST>
+  ;;   "DOC" ;;<REST>...
+  ;;   ...)
+  ;;
+  ;; However, interactive can be specified.
+  (declare (indent 2))
+  (unless (equal (car arg-list) '(editor edraw-editor))
+    (error "Defcmd's argument list must start with (editor edraw-editor)"))
+
+  (let ((method-name (symbol-name method-symbol)))
     (unless (string-match "\\`edraw-\\(.+\\)\\'" method-name)
       (error "Method name %s does not start with edraw-" method-name))
-    (let ((suffix (match-string 1 method-name)))
-      `(defun ,(intern (concat "edraw-editor-" suffix)) (&optional editor)
-         (interactive)
-         (edraw-editor-call-at-point (quote ,method) editor)))))
+    (let* ((suffix (match-string 1 method-name))
+           (cmd-symbol (intern (concat "edraw-editor-" suffix)))
+           (doc
+            (when (stringp (car rest))
+              (prog1 (car rest) (setq rest (cdr rest)))))
+           (interactive-spec
+            (when (eq (car-safe (car rest)) 'interactive)
+              (prog1 (cdar rest) (setq rest (cdr rest)))))
+           (doc-arg-list
+            (concat
+             "(fn EDITOR"
+             (mapconcat (lambda (arg-name)
+                          (concat
+                           " "
+                           (let ((str (symbol-name arg-name)))
+                             (if (= (elt str 0) ?&)
+                                 str
+                               (upcase str)))))
+                        (cdr arg-list)
+                        "")
+             ")")))
+
+      (when doc
+        (setq rest (cons doc rest)))
+
+      `(progn
+         ;; Define command (edraw-editor-* (&optional editor) ...)
+         (defun ,cmd-symbol (editor &rest args)
+           ,(concat doc "\n\n" doc-arg-list)
+           (interactive ,@(or interactive-spec
+                              '((list (edraw-current-editor)))))
+           (edraw-editor-call-at-point (quote ,method-symbol) editor args))
+         ;; Define generic
+         (cl-defgeneric ,method-symbol ,(cons 'OBJECT (cdr arg-list)))
+         ;; Define method (edraw-* ((editor edraw-editor) ...) ...)
+         (cl-defmethod ,method-symbol ,arg-list
+           ,@rest
+           )))))
 
 ;;;;; Editor - Undo
 
@@ -451,7 +532,7 @@ TYPE is a identifier of the undo data.
 DATA is a list in the form (FUNCTION ARGUMENTS...).
 
 Undo is performed by applying FUNCTION to ARGUMENTS.
-(apply FUNCTION ARGUMENTS)
+ (apply FUNCTION ARGUMENTS)
 
 To call multiple functions at once, specify #'edraw-call-each-args as FUNCTION.
 
@@ -504,8 +585,7 @@ This function deletes all redo data."
     (apply (car arg) (cdr arg))))
 
 
-(edraw-editor-defcmd edraw-undo)
-(cl-defmethod edraw-undo ((editor edraw-editor))
+(edraw-editor-defcmd edraw-undo ((editor edraw-editor))
   "Pop and execute the undo data at the top of the EDITOR's undo-list.
 
 During execution, the variable edraw-editor-undo-in-progress is set to t.
@@ -524,8 +604,7 @@ The undo data generated during undo is saved in redo-list."
             (setq redo-list undo-list)
             (setq undo-list old-undo-list)))))))
 
-(edraw-editor-defcmd edraw-redo)
-(cl-defmethod edraw-redo ((editor edraw-editor))
+(edraw-editor-defcmd edraw-redo ((editor edraw-editor))
   (if (edraw-empty-redo-p editor)
       (message (edraw-msg "No redo data"))
     (let ((edraw-editor-redo-in-progress t))
@@ -652,8 +731,7 @@ The undo data generated during undo is saved in redo-list."
 
 ;;;;;;; Write
 
-(edraw-editor-defcmd edraw-save)
-(cl-defmethod edraw-save ((editor edraw-editor))
+(edraw-editor-defcmd edraw-save ((editor edraw-editor))
   (with-slots (document-writer svg) editor
     (when (and document-writer
                (edraw-modified-p editor))
@@ -679,8 +757,7 @@ The undo data generated during undo is saved in redo-list."
           (dom-remove-node doc-svg defs)))
       doc-svg)))
 
-(edraw-editor-defcmd edraw-export-to-buffer)
-(cl-defmethod edraw-export-to-buffer ((editor edraw-editor))
+(edraw-editor-defcmd edraw-export-to-buffer ((editor edraw-editor))
   (pop-to-buffer "*Easy Draw SVG*")
   (erase-buffer)
   (edraw-svg-print
@@ -689,8 +766,8 @@ The undo data generated during undo is saved in redo-list."
    'edraw-svg-print-attr-filter 0)
   (xml-mode))
 
-(edraw-editor-defcmd edraw-export-to-file)
-(cl-defmethod edraw-export-to-file ((editor edraw-editor) &optional filename)
+(edraw-editor-defcmd edraw-export-to-file ((editor edraw-editor)
+                                           &optional filename)
   (unless filename
     (setq filename
           (read-file-name (edraw-msg "Write edraw file: ") default-directory)))
@@ -710,8 +787,7 @@ The undo data generated during undo is saved in redo-list."
        nil
        'edraw-svg-print-attr-filter 0))))
 
-(edraw-editor-defcmd edraw-export-debug-svg-to-buffer)
-(cl-defmethod edraw-export-debug-svg-to-buffer ((editor edraw-editor))
+(edraw-editor-defcmd edraw-export-debug-svg-to-buffer ((editor edraw-editor))
   (pop-to-buffer "*Easy Draw SVG*")
   (erase-buffer)
   (edraw-svg-print
@@ -723,14 +799,13 @@ The undo data generated during undo is saved in redo-list."
 
 ;;;;;;; Clear
 
-(defun edraw-editor-clear (&optional editor)
-  (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
-    (when (edraw-y-or-n-p
-           (edraw-msg "Do you want to close the current document?"))
-      (edraw-clear editor))))
+(edraw-editor-defcmd edraw-clear ((editor edraw-editor))
+  (interactive
+   (if (edraw-y-or-n-p
+        (edraw-msg "Do you want to close the current document?"))
+       (list nil)
+     (signal 'quit nil)))
 
-(cl-defmethod edraw-clear ((editor edraw-editor))
   (edraw-deselect-all-shapes editor)
   (edraw-select-tool editor nil)
   (edraw-notify-document-close-to-all-shapes editor)
@@ -755,7 +830,14 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-height ((editor edraw-editor))
   (cdr (oref editor svg-document-size)))
 
-(cl-defmethod edraw-set-size ((editor edraw-editor) width height)
+(edraw-editor-defcmd edraw-set-size ((editor edraw-editor) width height)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (width (read-number
+                  (edraw-msg "Document Width: ") (edraw-width editor)))
+          (height (read-number
+                   (edraw-msg "Document Height: ") (edraw-height editor))))
+     (list editor width height)))
   (with-slots (svg-document-size) editor
     (let ((old-width (car svg-document-size))
           (old-height (cdr svg-document-size)))
@@ -769,18 +851,16 @@ The undo data generated during undo is saved in redo-list."
         (edraw-update-all-ui-svg editor) ;; Update <svg width= height=> etc...
         (edraw-on-document-changed editor 'document-size)))))
 
-(defun edraw-editor-set-size (&optional editor)
-  (interactive)
-  (when-let* ((editor (or editor (edraw-editor-at-input last-input-event)))
-              (width (read-number
-                      (edraw-msg "Document Width: ") (edraw-width editor)))
-              (height (read-number
-                       (edraw-msg "Document Height: ") (edraw-height editor))))
-    (edraw-set-size editor width height)))
-
 ;;;;;; Editor - Document - View Box
 
-(cl-defmethod edraw-set-view-box ((editor edraw-editor) new-value)
+(edraw-editor-defcmd edraw-set-view-box ((editor edraw-editor) new-value)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (view-box (read-string
+                     (edraw-msg "SVG viewBox: ")
+                     (or (oref editor svg-document-view-box) ""))))
+     (list editor (if (string-empty-p view-box) nil view-box))))
+
   (with-slots (svg-document-view-box) editor
     (let ((old-value svg-document-view-box))
       (unless (equal new-value old-value)
@@ -791,17 +871,6 @@ The undo data generated during undo is saved in redo-list."
         ;; `edraw-editor-remove-root-transform' function
         (setq svg-document-view-box new-value)
         (edraw-on-document-changed editor 'document-view-box)))))
-
-(defun edraw-editor-set-view-box (&optional editor)
-  (interactive)
-  (when-let* ((editor (or editor (edraw-editor-at-input last-input-event)))
-              (view-box (read-string
-                         (edraw-msg "SVG viewBox: ")
-                         (or (oref editor svg-document-view-box) ""))))
-    (edraw-set-view-box editor
-                        (if (string-empty-p view-box)
-                            nil
-                          view-box))))
 
 ;;;;;; Editor - Document - Background
 
@@ -847,7 +916,29 @@ The undo data generated during undo is saved in redo-list."
                        '((:color-name-scheme . 'web) (:enable-opacity . t)))))
       (>= (edraw-color-a color) 1))))
 
-(cl-defmethod edraw-set-background ((editor edraw-editor) fill)
+(edraw-editor-defcmd edraw-set-background ((editor edraw-editor) fill)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (current-value (edraw-get-background editor))
+          (new-value
+           (let ((edraw-editor-inhibit-make-undo-data t)
+                 (edraw-editor-keep-modified-flag t))
+             (unwind-protect
+                 (edraw-color-picker-read-color
+                  (edraw-msg "Background Color: ")
+                  (or current-value "")
+                  '("" "none")
+                  `((:color-name-scheme . web)
+                    (:no-color . "none")
+                    (:on-input-change
+                     . ,(lambda (string color)
+                          (when (or (member string '("" "none"))
+                                    color)
+                            ;;@todo suppress notification?
+                            (edraw-set-background editor string))))))
+               (edraw-set-background editor current-value)))))
+     (list editor new-value)))
+
   (edraw-push-undo
    editor
    'document-background
@@ -871,29 +962,6 @@ The undo data generated during undo is saved in redo-list."
     (edraw-update-transparent-bg editor) ;;update opaque state
     (edraw-on-document-changed editor 'document-background)))
 
-(defun edraw-editor-set-background (&optional editor)
-  (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
-    (let* ((current-value (edraw-get-background editor))
-           (new-value
-            (let ((edraw-editor-inhibit-make-undo-data t)
-                  (edraw-editor-keep-modified-flag t))
-              (unwind-protect
-                  (edraw-color-picker-read-color
-                   (edraw-msg "Background Color: ")
-                   (or current-value "")
-                   '("" "none")
-                   `((:color-name-scheme . web)
-                     (:no-color . "none")
-                     (:on-input-change
-                      . ,(lambda (string color)
-                           (when (or (member string '("" "none"))
-                                     color)
-                             ;;@todo suppress notification?
-                             (edraw-set-background editor string))))))
-                (edraw-set-background editor current-value)))))
-      (edraw-set-background editor new-value))))
-
 ;;;;;; Editor - Document - Shapes
 
 (cl-defmethod edraw-all-shapes ((editor edraw-editor))
@@ -902,21 +970,27 @@ The undo data generated during undo is saved in redo-list."
                       (edraw-shape-from-element node editor 'noerror))
                     (dom-children (edraw-svg-body editor)))))
 
-(defmacro edraw-read-translate-params ()
-  `(unless xy
-     (setq xy (edraw-xy
-               (read-number (edraw-msg "Delta X: ") 0)
-               (read-number (edraw-msg "Delta Y: ") 0)))))
+(defun edraw-read-translate-params ()
+  (edraw-xy
+   (read-number (edraw-msg "Delta X: ") 0)
+   (read-number (edraw-msg "Delta Y: ") 0)))
 
-(edraw-editor-defcmd edraw-translate-all-shapes)
-(cl-defmethod edraw-translate-all-shapes ((editor edraw-editor) &optional xy)
-  (let ((shapes (edraw-all-shapes editor)))
-    (if (null shapes)
-        (message (edraw-msg "No shapes"))
-      (edraw-read-translate-params)
-      (edraw-make-undo-group editor 'all-shapes-translate
-        (dolist (shape shapes)
-          (edraw-translate shape xy))))))
+(defmacro edraw-set-translate-params ()
+  `(unless xy
+     (setq xy (edraw-read-translate-params))))
+
+(edraw-editor-defcmd edraw-translate-all-shapes ((editor edraw-editor) xy)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (shapes (edraw-all-shapes editor)))
+     (when (null shapes)
+       (error (edraw-msg "No shapes")))
+     (list editor (edraw-read-translate-params))))
+
+  (when-let ((shapes (edraw-all-shapes editor)))
+    (edraw-make-undo-group editor 'all-shapes-translate
+      (dolist (shape shapes)
+        (edraw-translate shape xy)))))
 
 (defun edraw-read-origin-number (axis candidates)
   (let ((prompt (format "Origin %s(%s): "
@@ -965,52 +1039,68 @@ The undo data generated during undo is saved in redo-list."
           ("bottom" ,(edraw-rect-bottom aabb))))
      (read-number "Origin Y: " 0))))
 
-(defmacro edraw-read-scale-params (aabb-expr)
-  `(progn
-     (unless sx
-       (setq sx (read-number (edraw-msg "Scale X: ") 1.0)))
-     (unless sy
-       (setq sy (read-number (edraw-msg "Scale Y: ") sx)))
-     (when (and (= sx 1) (= sy 1))
-       (error (edraw-msg "No need to scale")))
-     (unless origin-xy
-       (setq origin-xy (edraw-read-origin-xy ,aabb-expr)))))
+(defun edraw-read-scale-params (aabb &optional origin-xy sx sy)
+  (let* ((sx (or sx (read-number (edraw-msg "Scale X: ") 1.0)))
+         (sy (or sy (read-number (edraw-msg "Scale Y: ") sx)))
+         (_ (when (and (= sx 1) (= sy 1))
+              (error (edraw-msg "No need to scale"))))
+         (origin-xy (or origin-xy (edraw-read-origin-xy aabb))))
+    (list origin-xy sx sy)))
 
-(edraw-editor-defcmd edraw-scale-all-shapes)
-(cl-defmethod edraw-scale-all-shapes ((editor edraw-editor) &optional origin-xy sx sy)
-  (let ((shapes (edraw-all-shapes editor)))
-    (if (null shapes)
-        (message (edraw-msg "No shapes"))
-      (edraw-read-scale-params (edraw-rect 0 0
-                                           (edraw-width editor)
-                                           (edraw-height editor)))
-      (edraw-make-undo-group editor 'all-shapes-scale
-        (let ((matrix (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
-          (dolist (shape shapes)
-            (edraw-transform shape matrix)))))))
+(defmacro edraw-set-scale-params (aabb-expr)
+  `(let ((result (edraw-read-scale-params ,aabb-expr origin-xy sx sy)))
+     (setq origin-xy (nth 0 result)
+           sx (nth 1 result)
+           sy (nth 2 result))))
 
-(defmacro edraw-read-rotate-params (aabb-expr)
-  `(progn
-     (unless angle
-       (setq angle (read-number (edraw-msg "Angle: ") 0)))
-     (when (= (mod angle 360) 0)
-       (error (edraw-msg "No need to rotate")))
-     (unless origin-xy
-       (setq origin-xy (edraw-read-origin-xy ,aabb-expr)))))
+(edraw-editor-defcmd edraw-scale-all-shapes ((editor edraw-editor)
+                                             origin-xy sx sy)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (shapes (edraw-all-shapes editor)))
+     (when (null shapes)
+       (error (edraw-msg "No shapes")))
+     (cons
+      editor
+      (edraw-read-scale-params
+       (edraw-rect 0 0 (edraw-width editor) (edraw-height editor))))))
 
-(edraw-editor-defcmd edraw-rotate-all-shapes)
-(cl-defmethod edraw-rotate-all-shapes ((editor edraw-editor) &optional origin-xy angle)
-  (let ((shapes (edraw-all-shapes editor)))
-    (if (null shapes)
-        (message (edraw-msg "No shapes"))
+  (when-let ((shapes (edraw-all-shapes editor)))
+    (edraw-make-undo-group editor 'all-shapes-scale
+      (let ((matrix (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+        (dolist (shape shapes)
+          (edraw-transform shape matrix))))))
+
+(defun edraw-read-rotate-params (aabb &optional origin-xy angle)
+  (let* ((angle (or angle (read-number (edraw-msg "Angle: ") 0)))
+         (_ (when (= (mod angle 360) 0)
+              (error (edraw-msg "No need to rotate"))))
+         (origin-xy (or origin-xy (edraw-read-origin-xy aabb))))
+    (list origin-xy angle)))
+
+(defmacro edraw-set-rotate-params (aabb-expr)
+  `(let ((result (edraw-read-rotate-params ,aabb-expr origin-xy angle)))
+     (setq origin-xy (nth 0 result)
+           angle (nth 1 result))))
+
+(edraw-editor-defcmd edraw-rotate-all-shapes ((editor edraw-editor)
+                                              origin-xy angle)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (shapes (edraw-all-shapes editor)))
+     (when (null shapes)
+       (error (edraw-msg "No shapes")))
+     (cons
+      editor
       (edraw-read-rotate-params (edraw-rect 0 0
                                             (edraw-width editor)
-                                            (edraw-height editor)))
-      (edraw-make-undo-group editor 'all-shapes-rotate
-        (let ((matrix (edraw-matrix-move-origin-xy
-                       (edraw-matrix-rotate angle) origin-xy)))
-          (dolist (shape shapes)
-            (edraw-transform shape matrix)))))))
+                                            (edraw-height editor))))))
+  (when-let ((shapes (edraw-all-shapes editor)))
+    (edraw-make-undo-group editor 'all-shapes-rotate
+      (let ((matrix (edraw-matrix-move-origin-xy
+                     (edraw-matrix-rotate angle) origin-xy)))
+        (dolist (shape shapes)
+          (edraw-transform shape matrix))))))
 
 (cl-defmethod edraw-notify-document-close-to-all-shapes ((editor edraw-editor))
   (dolist (node (dom-children (edraw-svg-body editor)))
@@ -1071,10 +1161,11 @@ The undo data generated during undo is saved in redo-list."
       :enable ,(not (edraw-clipboard-empty-p))))))
 
 (cl-defmethod edraw-popup-context-menu-for-document ((editor edraw-editor))
-  (edraw-popup-menu
-   (edraw-msg "Document")
-   (edraw-get-actions-for-document editor)
-   editor))
+  (let ((edraw-current-editor editor))
+    (edraw-popup-menu
+     (edraw-msg "Document")
+     (edraw-get-actions-for-document editor)
+     editor)))
 
 ;;;;; Editor - View
 ;;;;;; Editor - View - SVG Image Update
@@ -1306,8 +1397,7 @@ The undo data generated during undo is saved in redo-list."
   (edraw-invalidate-image editor)
   visible)
 
-(edraw-editor-defcmd edraw-toggle-transparent-bg-visible)
-(cl-defmethod edraw-toggle-transparent-bg-visible ((editor edraw-editor))
+(edraw-editor-defcmd edraw-toggle-transparent-bg-visible ((editor edraw-editor))
   (edraw-set-transparent-bg-visible
    editor
    (not (edraw-get-transparent-bg-visible editor))))
@@ -1399,20 +1489,21 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-get-grid-visible ((editor edraw-editor))
   (edraw-get-setting editor 'grid-visible))
 
-(edraw-editor-defcmd edraw-toggle-grid-visible)
-(cl-defmethod edraw-toggle-grid-visible ((editor edraw-editor))
+(edraw-editor-defcmd edraw-toggle-grid-visible ((editor edraw-editor))
   (edraw-set-grid-visible editor
                           (not (edraw-get-grid-visible editor))))
 
-(defun edraw-editor-set-grid-interval (&optional editor)
-  (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
-    (edraw-set-setting
-     editor 'grid-interval
-     (read-number (edraw-msg "Grid Interval: ")
-                  (edraw-get-setting editor 'grid-interval)))
-    (edraw-update-grid editor)
-    (edraw-invalidate-image editor)))
+(edraw-editor-defcmd edraw-set-grid-interval ((editor edraw-editor) interval)
+  (interactive
+   (let ((editor (edraw-current-editor)))
+     (list
+      editor
+      (read-number (edraw-msg "Grid Interval: ")
+                   (edraw-get-setting editor 'grid-interval)))))
+
+  (edraw-set-setting editor 'grid-interval interval)
+  (edraw-update-grid editor)
+  (edraw-invalidate-image editor))
 
 ;;;;;; Editor - View - Selection UI
 
@@ -1654,8 +1745,7 @@ The undo data generated during undo is saved in redo-list."
 
 ;;;;;;; Commands
 
-(edraw-editor-defcmd edraw-reset-scroll-and-zoom)
-(cl-defmethod edraw-reset-scroll-and-zoom ((editor edraw-editor))
+(edraw-editor-defcmd edraw-reset-scroll-and-zoom ((editor edraw-editor))
   (edraw-set-scroll-transform editor 0 0 1))
 
 (cl-defmethod edraw-scroll ((editor edraw-editor) dx dy)
@@ -1693,12 +1783,10 @@ The undo data generated during undo is saved in redo-list."
            old-view-h))
      (* (edraw-scroll-scale editor) magnification))))
 
-(edraw-editor-defcmd edraw-zoom-in)
-(cl-defmethod edraw-zoom-in ((editor edraw-editor))
+(edraw-editor-defcmd edraw-zoom-in ((editor edraw-editor))
   (edraw-zoom editor 2))
 
-(edraw-editor-defcmd edraw-zoom-out)
-(cl-defmethod edraw-zoom-out ((editor edraw-editor))
+(edraw-editor-defcmd edraw-zoom-out ((editor edraw-editor))
   (edraw-zoom editor 0.5))
 
 (defun edraw-editor-zoom-by-mouse (event magnification)
@@ -1771,8 +1859,7 @@ The undo data generated during undo is saved in redo-list."
               (edraw-y new-scroll-xy)
               nil))))))))
 
-(edraw-editor-defcmd edraw-interactive-scroll-and-zoom)
-(cl-defmethod edraw-interactive-scroll-and-zoom ((editor edraw-editor))
+(edraw-editor-defcmd edraw-interactive-scroll-and-zoom ((editor edraw-editor))
   (let (quit)
     (while (not quit)
       (let ((event (read-event
@@ -1795,31 +1882,25 @@ The undo data generated during undo is saved in redo-list."
           (edraw-editor-scroll-by-arrow-key editor)
           ))))))
 
-(edraw-editor-defcmd edraw-set-view-size-spec)
-(cl-defmethod edraw-set-view-size-spec ((editor edraw-editor) &optional wh)
-  (unless wh
-    (when-let ((w (edraw-read-integer-or-nil
-                   "View Width: " (edraw-scroll-view-width editor)))
-               (h (edraw-read-integer
-                   "View Height: " (edraw-scroll-view-height editor))))
-      (setq wh (cons w h))))
+(edraw-editor-defcmd edraw-set-view-size-spec ((editor edraw-editor) wh)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (w (edraw-read-integer-or-nil
+              "View Width(or Empty): " (edraw-scroll-view-width editor)))
+          (h (when w
+               (edraw-read-integer
+                "View Height: " (edraw-scroll-view-height editor)))))
+     (list editor (if (and w h) (cons w h)))))
 
-  (when (and (consp wh)
-             (or (null (car wh)))
-             (or (null (cdr wh))))
-    (setq wh nil))
-
-  (edraw-set-setting editor 'view-size-spec wh)
+  (edraw-set-setting editor 'view-size-spec wh) ;;nil or (w . h)
   (setf (oref editor view-size) wh)
   (edraw-update-all-ui-svg editor)
   (edraw-invalidate-image editor))
 
-(edraw-editor-defcmd edraw-reset-view-size)
-(cl-defmethod edraw-reset-view-size ((editor edraw-editor))
-  (edraw-set-view-size-spec editor '(nil))) ;;equivalent to nil
+(edraw-editor-defcmd edraw-reset-view-size ((editor edraw-editor))
+  (edraw-set-view-size-spec editor nil))
 
-(edraw-editor-defcmd edraw-reset-view)
-(cl-defmethod edraw-reset-view ((editor edraw-editor))
+(edraw-editor-defcmd edraw-reset-view ((editor edraw-editor))
   (edraw-reset-view-size editor)
   (edraw-reset-scroll-and-zoom editor))
 
@@ -1908,8 +1989,7 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-select-all-shapes ((editor edraw-editor))
   (edraw-select-shapes editor (edraw-all-shapes editor)))
 
-(edraw-editor-defcmd edraw-toggle-selection-all)
-(cl-defmethod edraw-toggle-selection-all ((editor edraw-editor))
+(edraw-editor-defcmd edraw-toggle-selection-all ((editor edraw-editor))
   (if (edraw-selected-shapes editor)
       (edraw-deselect-all-shapes editor)
     (edraw-select-all-shapes editor)))
@@ -2019,10 +2099,11 @@ The undo data generated during undo is saved in redo-list."
     (format (edraw-msg "%s Selected Shapes") (length selected-shapes))))
 
 (cl-defmethod edraw-popup-context-menu-for-selected-shapes ((editor edraw-editor))
-  (edraw-popup-menu
-   (edraw-get-summary-for-selected-shapes editor)
-   (edraw-get-actions-for-selected-shapes editor)
-   editor))
+  (let ((edraw-current-editor editor))
+    (edraw-popup-menu
+     (edraw-get-summary-for-selected-shapes editor)
+     (edraw-get-actions-for-selected-shapes editor)
+     editor)))
 
 (defun edraw-editor-move-selected-by-arrow-key (&optional editor n)
   (interactive "i\np")
@@ -2042,14 +2123,15 @@ The undo data generated during undo is saved in redo-list."
                   (_ (cons 0 0)))))
         (edraw-translate-selected editor v)))))
 
-(edraw-editor-defcmd edraw-translate-selected)
-(cl-defmethod edraw-translate-selected ((editor edraw-editor) &optional xy)
+(edraw-editor-defcmd edraw-translate-selected ((editor edraw-editor) xy)
+  (interactive
+   (let ((editor (edraw-current-editor)))
+     (when (null (edraw-selected-shapes editor))
+       (error (edraw-msg "No shape selected")))
+     (list
+      editor
+      (edraw-read-translate-params))))
   (with-slots (selected-shapes selected-anchor selected-handle) editor
-    (if (not (or selected-handle
-                 selected-anchor
-                 selected-shapes))
-        (message (edraw-msg "No shape selected"))
-      (edraw-read-translate-params))
     (cond
      (selected-handle
       (edraw-move-on-transformed
@@ -2064,23 +2146,31 @@ The undo data generated during undo is saved in redo-list."
         (dolist (shape selected-shapes)
           (edraw-translate shape xy)))))))
 
-(edraw-editor-defcmd edraw-scale-selected)
-(cl-defmethod edraw-scale-selected ((editor edraw-editor) &optional origin-xy sx sy)
-  (if (null (edraw-selected-shapes editor))
-      (message (edraw-msg "No shape selected"))
-    (edraw-read-scale-params (edraw-selected-shapes-aabb editor))
-    (edraw-transform-selected
-     editor
-     (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy))))
+(edraw-editor-defcmd edraw-scale-selected ((editor edraw-editor)
+                                           origin-xy sx sy)
+  (interactive
+   (let ((editor (edraw-current-editor)))
+     (when (null (edraw-selected-shapes editor))
+       (error (edraw-msg "No shape selected")))
+     (cons
+      editor
+      (edraw-read-scale-params (edraw-selected-shapes-aabb editor)))))
+  (edraw-transform-selected
+   editor
+   (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
 
-(edraw-editor-defcmd edraw-rotate-selected)
-(cl-defmethod edraw-rotate-selected ((editor edraw-editor) &optional origin-xy angle)
-  (if (null (edraw-selected-shapes editor))
-      (message (edraw-msg "No shape selected"))
-    (edraw-read-rotate-params (edraw-selected-shapes-aabb editor))
-    (edraw-transform-selected
-     editor
-     (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy))))
+(edraw-editor-defcmd edraw-rotate-selected ((editor edraw-editor)
+                                            origin-xy angle)
+  (interactive
+   (let ((editor (edraw-current-editor)))
+     (when (null (edraw-selected-shapes editor))
+       (error (edraw-msg "No shape selected")))
+     (cons
+      editor
+      (edraw-read-rotate-params (edraw-selected-shapes-aabb editor)))))
+  (edraw-transform-selected
+   editor
+   (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy)))
 
 (cl-defmethod edraw-transform-selected ((editor edraw-editor) matrix)
   (unless (edraw-matrix-identity-p matrix)
@@ -2101,8 +2191,7 @@ The undo data generated during undo is saved in redo-list."
           (dolist (shape selected-shapes)
             (edraw-transform shape matrix))))))))
 
-(edraw-editor-defcmd edraw-delete-selected)
-(cl-defmethod edraw-delete-selected ((editor edraw-editor))
+(edraw-editor-defcmd edraw-delete-selected ((editor edraw-editor))
   (with-slots (selected-shapes selected-anchor selected-handle) editor
     (cond
      (selected-handle
@@ -2114,83 +2203,74 @@ The undo data generated during undo is saved in redo-list."
         (dolist (shape selected-shapes)
           (edraw-remove shape)))))))
 
-(edraw-editor-defcmd edraw-bring-selected-to-front)
-(cl-defmethod edraw-bring-selected-to-front ((editor edraw-editor))
-  (when (edraw-selected-shapes editor)
+(edraw-editor-defcmd edraw-bring-selected-to-front ((editor edraw-editor))
+  (when (edraw-selected-shapes editor) ;;@todo error?
     (edraw-make-undo-group editor 'selected-shapes-bring-to-front
       (dolist (shape (edraw-selected-shapes-back-to-front editor))
         (edraw-bring-to-front shape)))))
 
-(edraw-editor-defcmd edraw-bring-selected-forward)
-(cl-defmethod edraw-bring-selected-forward ((editor edraw-editor))
-  (when (edraw-selected-shapes editor)
+(edraw-editor-defcmd edraw-bring-selected-forward ((editor edraw-editor))
+  (when (edraw-selected-shapes editor) ;;@todo error?
     (edraw-make-undo-group editor 'selected-shapes-bring-forward
       (dolist (shape (edraw-selected-shapes-front-to-back editor))
         (when-let ((next (edraw-next-sibling shape)))
           (unless (edraw-selected-p next) ;; No overtaking
             (edraw-bring-forward shape)))))))
 
-(edraw-editor-defcmd edraw-send-selected-backward)
-(cl-defmethod edraw-send-selected-backward ((editor edraw-editor))
-  (when (edraw-selected-shapes editor)
+(edraw-editor-defcmd edraw-send-selected-backward ((editor edraw-editor))
+  (when (edraw-selected-shapes editor) ;;@todo error?
     (edraw-make-undo-group editor 'selected-shapes-send-backward
       (dolist (shape (edraw-selected-shapes-back-to-front editor))
         (when-let ((prev (edraw-previous-sibling shape)))
           (unless (edraw-selected-p prev) ;; No overtaking
             (edraw-send-backward shape)))))))
 
-(edraw-editor-defcmd edraw-send-selected-to-back)
-(cl-defmethod edraw-send-selected-to-back ((editor edraw-editor))
-  (when (edraw-selected-shapes editor)
+(edraw-editor-defcmd edraw-send-selected-to-back ((editor edraw-editor))
+  (when (edraw-selected-shapes editor) ;;@todo error?
     (edraw-make-undo-group editor 'selected-shapes-send-to-back
       (dolist (shape (edraw-selected-shapes-front-to-back editor))
         (edraw-send-to-back shape)))))
 
-(edraw-editor-defcmd edraw-select-next-shape)
-(cl-defmethod edraw-select-next-shape ((editor edraw-editor))
-  (when (edraw-selected-shapes editor)
+(edraw-editor-defcmd edraw-select-next-shape ((editor edraw-editor))
+  (when (edraw-selected-shapes editor) ;;@todo error?
     (when-let ((front (car (edraw-selected-shapes-front-to-back editor)))
                (next (edraw-next-sibling front)))
       (edraw-select-shape editor next))))
 
-(edraw-editor-defcmd edraw-select-previous-shape)
-(cl-defmethod edraw-select-previous-shape ((editor edraw-editor))
-  (when (edraw-selected-shapes editor)
+(edraw-editor-defcmd edraw-select-previous-shape ((editor edraw-editor))
+  (when (edraw-selected-shapes editor) ;;@todo error?
     (when-let ((back (car (edraw-selected-shapes-back-to-front editor)))
                (prev (edraw-previous-sibling back)))
       (edraw-select-shape editor prev))))
 
-(edraw-editor-defcmd edraw-group-selected-shapes)
-(cl-defmethod edraw-group-selected-shapes ((editor edraw-editor))
+(edraw-editor-defcmd edraw-group-selected-shapes ((editor edraw-editor))
   (with-slots (selected-shapes) editor
+    (when (null selected-shapes)
+      (error (edraw-msg "No shape selected")))
     (edraw-make-undo-group editor 'create-group
       (let ((group (edraw-create-shape editor (edraw-svg-body editor) 'g)))
         (edraw-shape-group-add-children group selected-shapes)))))
 
 ;;;;; Editor - Copy & Paste
 
-(edraw-editor-defcmd edraw-paste)
-(cl-defmethod edraw-paste ((editor edraw-editor))
+(edraw-editor-defcmd edraw-paste ((editor edraw-editor))
   (when (eq (edraw-clipboard-type) 'shape-descriptor-list)
     (edraw-make-undo-group editor 'paste
       (edraw-shape-from-shape-descriptor-list
        editor (edraw-svg-body editor) (edraw-clipboard-data)))))
 
-(edraw-editor-defcmd edraw-paste-and-select)
-(cl-defmethod edraw-paste-and-select ((editor edraw-editor))
+(edraw-editor-defcmd edraw-paste-and-select ((editor edraw-editor))
   (when-let ((shapes (edraw-paste editor)))
     (edraw-select-shapes editor shapes)
     shapes))
 
-(edraw-editor-defcmd edraw-copy-selected-shapes)
-(cl-defmethod edraw-copy-selected-shapes ((editor edraw-editor))
+(edraw-editor-defcmd edraw-copy-selected-shapes ((editor edraw-editor))
   (when-let ((selected-shapes (edraw-selected-shapes editor)))
     (edraw-clipboard-set
      'shape-descriptor-list
      (mapcar #'edraw-shape-descriptor selected-shapes))))
 
-(edraw-editor-defcmd edraw-cut-selected-shapes)
-(cl-defmethod edraw-cut-selected-shapes ((editor edraw-editor))
+(edraw-editor-defcmd edraw-cut-selected-shapes ((editor edraw-editor))
   (when-let ((selected-shapes (copy-sequence (edraw-selected-shapes editor))))
     ;; Copy
     (edraw-clipboard-set
@@ -2247,7 +2327,7 @@ The undo data generated during undo is saved in redo-list."
                                    :name (format "default %s" tag))))))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor tag)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+  (let ((editor (or editor (edraw-current-editor))))
     (edraw-edit-default-shape-properties editor tag)))
 
 (defun edraw-editor-edit-default-rect-props (&optional editor)
@@ -2314,10 +2394,10 @@ The undo data generated during undo is saved in redo-list."
 
 ;;;;; Editor - Main Menu
 
-(edraw-editor-defcmd edraw-main-menu)
-(cl-defmethod edraw-main-menu ((editor edraw-editor))
+(edraw-editor-defcmd edraw-main-menu ((editor edraw-editor))
   "Show the main menu of EDITOR."
-  (let ((selected-shapes (edraw-selected-shapes editor)))
+  (let ((selected-shapes (edraw-selected-shapes editor))
+        (edraw-current-editor editor))
     (edraw-popup-menu
      (edraw-msg "Main Menu")
      (edraw-filter-menu
@@ -2434,27 +2514,6 @@ The undo data generated during undo is saved in redo-list."
     (edraw-xy-round xy)))
 
 ;;;;; Editor - Input Event
-
-(defun edraw-editor-at (&optional pos)
-  (let ((pos (or pos (point))))
-    (or
-     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-at pos))
-     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-at (1- pos)))
-     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-in (1- pos) (1+ pos))))))
-
-(defun edraw-editor-at-input (event)
-  (if (or (mouse-event-p event)
-          (memq (event-basic-type event) '(wheel-up wheel-down)))
-      (let* ((mouse-pos (event-start event))
-             (window (posn-window mouse-pos))
-             (buffer (window-buffer window))
-             (pos (posn-point mouse-pos)))
-        (when edraw-editor-move-point-on-click
-          (select-window window)
-          (set-window-point window pos))
-        (with-current-buffer buffer
-          (edraw-editor-at pos)))
-    (edraw-editor-at (point))))
 
 (defconst edraw-event-remap-table
   `((,mouse-wheel-up-event . wheel-down)
@@ -2712,7 +2771,7 @@ position where the EVENT occurred."
 (defun edraw-editor-define-tool-select-function (tool-id)
   (defalias (edraw-editor-tool-select-function-name tool-id)
     (lambda () (interactive)
-      (when-let ((editor (edraw-editor-at-input last-input-event)))
+      (let ((editor (edraw-current-editor)))
         (edraw-select-tool editor (edraw-editor-make-tool tool-id))))))
 
 (defun edraw-editor-define-tool-select-functions ()
@@ -2895,7 +2954,7 @@ position where the EVENT occurred."
       (edraw-update-toolbar editor))))
 
 (defun edraw-editor-edit-selected-tool-default-shape-property (prop-name)
-  (when-let ((editor (edraw-editor-at-input last-input-event)))
+  (let ((editor (edraw-current-editor)))
     (edraw-edit-selected-tool-default-shape-property editor prop-name)))
 
 (defun edraw-editor-edit-tool-default-fill ()
@@ -2908,7 +2967,7 @@ position where the EVENT occurred."
 
 (defun edraw-editor-edit-tool-properties ()
   (interactive)
-  (when-let ((editor (edraw-editor-at-input last-input-event)))
+  (let ((editor (edraw-current-editor)))
     (when-let ((selected-tool (edraw-selected-tool editor))
                (shape-type (edraw-shape-type-to-create selected-tool)))
       (edraw-edit-default-shape-properties editor shape-type))))
@@ -4324,14 +4383,14 @@ position where the EVENT occurred."
     (edraw-transform shape matrix)))
 
 (cl-defmethod edraw-scale ((shape edraw-shape) &optional origin-xy sx sy)
-  (edraw-read-scale-params (edraw-shape-aabb shape))
+  (edraw-set-scale-params (edraw-shape-aabb shape))
 
   (edraw-transform
    shape
    (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
 
 (cl-defmethod edraw-rotate ((shape edraw-shape) &optional origin-xy angle)
-  (edraw-read-rotate-params (edraw-shape-aabb shape))
+  (edraw-set-rotate-params (edraw-shape-aabb shape))
 
   (edraw-transform
    shape
@@ -4712,7 +4771,7 @@ position where the EVENT occurred."
     (edraw-aabb (car p0p1) (cdr p0p1))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) &optional xy)
-  (edraw-read-translate-params)
+  (edraw-set-translate-params)
   (if (edraw-transform-prop-exists-p shape)
       (edraw-transform-prop-translate shape xy)
     (edraw-make-anchor-points-from-element shape);;Make sure p0p1 is initialized
@@ -5056,7 +5115,7 @@ position where the EVENT occurred."
                                 '(x y))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-text) &optional xy)
-  (edraw-read-translate-params)
+  (edraw-set-translate-params)
   (if (edraw-transform-prop-exists-p shape)
       (edraw-transform-prop-translate shape xy)
     (when (and xy (not (edraw-xy-zero-p xy)))
@@ -5239,7 +5298,7 @@ position where the EVENT occurred."
                                 '(d))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-path) &optional xy)
-  (edraw-read-translate-params)
+  (edraw-set-translate-params)
   (if (edraw-transform-prop-exists-p shape)
       (edraw-transform-prop-translate shape xy)
     (when (and xy (not (edraw-xy-zero-p xy)))
@@ -5421,7 +5480,7 @@ position where the EVENT occurred."
   (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-group) &optional xy)
-  (edraw-read-translate-params)
+  (edraw-set-translate-params)
   (edraw-transform-prop-translate shape xy))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
@@ -5892,7 +5951,7 @@ This function is for registering with the `kill-buffer-query-functions' hook."
 
 (defun edraw-edit-svg--finish-edit (&optional editor)
   (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+  (let ((editor (or editor (edraw-current-editor))))
     (when (or (not (and (oref editor document-writer)
                         (edraw-modified-p editor)))
               (condition-case err
@@ -5910,7 +5969,7 @@ This function is for registering with the `kill-buffer-query-functions' hook."
 
 (defun edraw-edit-svg--cancel-edit (&optional editor)
   (interactive)
-  (when-let ((editor (or editor (edraw-editor-at-input last-input-event))))
+  (let ((editor (or editor (edraw-current-editor))))
     (when (or (null (edraw-modified-p editor))
               (yes-or-no-p (edraw-msg "Discard changes?")))
       (edraw-edit-svg--close-editor editor)

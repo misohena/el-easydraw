@@ -137,8 +137,11 @@
   (let* ((menu-map (edraw-make-menu-map name items))
          (events (x-popup-menu t menu-map))
          (fn (lookup-key menu-map (apply 'vector events))))
-    (when (functionp fn)
-      (apply fn args))))
+    (cond
+     ((commandp fn)
+      (call-interactively fn))
+     ((functionp fn)
+      (apply fn args)))))
 
 (defun edraw-popup-menu-call-interactively (name items)
   (let* ((menu-map (edraw-make-menu-map name items))
