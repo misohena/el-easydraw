@@ -132,6 +132,8 @@ editor when the selected shape changes."
     (define-key km [drag-mouse-1] 'ignore)
     (define-key km [double-mouse-1] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
+    (define-key km [down-mouse-2] 'ignore)
+    (define-key km [mouse-2] 'edraw-property-editor--close)
     (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-decrease)
     (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
@@ -145,6 +147,8 @@ editor when the selected shape changes."
     (define-key km [double-mouse-1] 'ignore)
     (define-key km [double-down-mouse-1] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
+    (define-key km [down-mouse-2] 'ignore)
+    (define-key km [mouse-2] 'edraw-property-editor--close)
     km))
 
 
@@ -659,8 +663,13 @@ editor when the selected shape changes."
 
 (defun edraw-property-editor--close (&rest _ignore)
   (interactive)
-  (when edraw-property-editor--pedit
-    (edraw-close edraw-property-editor--pedit)))
+  (with-current-buffer
+      ;; For mouse event
+      (if (consp last-command-event)
+          (window-buffer (posn-window (event-start last-command-event)))
+        (current-buffer))
+    (when edraw-property-editor--pedit
+      (edraw-close edraw-property-editor--pedit))))
 
 (cl-defmethod edraw-close ((pedit edraw-property-editor))
   ;; close window
