@@ -4761,6 +4761,36 @@ position where the EVENT occurred."
       (setcdr (cdr p0p1) (cdr xy1))
       (edraw-on-anchor-position-changed shape))))
 
+(cl-defmethod edraw-set-rect-ltwh ((shape edraw-shape-with-rect-boundary) left top width height)
+  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
+  ;;@todo
+  (with-slots (p0p1) shape
+    (when (or (/= (caar p0p1) left)
+              (/= (cdar p0p1) top)
+              (/= (cadr p0p1) (+ left width))
+              (/= (cddr p0p1) (+ top height)))
+      ;;changed
+      (setcar (car p0p1) left)
+      (setcdr (car p0p1) top)
+      (setcar (cdr p0p1) (+ left width))
+      (setcdr (cdr p0p1) (+ top height))
+      (edraw-on-anchor-position-changed-ltwh shape left top width height))))
+
+(cl-defmethod edraw-set-rect-center-radius ((shape edraw-shape-with-rect-boundary) cx cy rx ry)
+  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
+  ;;@todo
+  (with-slots (p0p1) shape
+    (when (or (/= (caar p0p1) (- cx rx))
+              (/= (cdar p0p1) (- cy ry))
+              (/= (cadr p0p1) (+ cx rx))
+              (/= (cddr p0p1) (+ cy ry)))
+      ;;changed
+      (setcar (car p0p1) (- cx rx))
+      (setcdr (car p0p1) (- cy ry))
+      (setcar (cdr p0p1) (+ cx rx))
+      (setcdr (cdr p0p1) (+ cy ry))
+      (edraw-on-anchor-position-changed-center-radius shape cx cy rx ry))))
+
 (cl-defmethod edraw-get-rect ((shape edraw-shape-with-rect-boundary))
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   (with-slots (p0p1) shape
@@ -4794,6 +4824,16 @@ position where the EVENT occurred."
 
 ;;;;;; Implemented in Derived Classes
 ;;(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-*))
+
+(cl-defmethod edraw-on-anchor-position-changed-ltwh
+  ((shape edraw-shape-with-rect-boundary)
+   _left _top _width _height)
+  (edraw-on-anchor-position-changed shape))
+
+(cl-defmethod edraw-on-anchor-position-changed-center-radius
+  ((shape edraw-shape-with-rect-boundary)
+   _cx _cy _rx _ry)
+  (edraw-on-anchor-position-changed shape))
 
 
 
@@ -4834,15 +4874,25 @@ position where the EVENT occurred."
     (edraw-svg-rect-set-range element (car p0p1) (cdr p0p1))
     (edraw-on-shape-changed shape 'anchor-position)))
 
+(cl-defmethod edraw-on-anchor-position-changed-ltwh ((shape edraw-shape-rect)
+                                                     left top width height)
+  (with-slots (element) shape
+    (edraw-push-undo-properties shape 'shape-rect-anchor '(x y width height))
+    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-rect-anchor)
+    (edraw-svg-set-attr-number element 'x left)
+    (edraw-svg-set-attr-number element 'y top)
+    (edraw-svg-set-attr-number element 'width width)
+    (edraw-svg-set-attr-number element 'height height)
+    (edraw-on-shape-changed shape 'anchor-position)))
+
 (cl-defmethod edraw-set-properties ((shape edraw-shape-rect) prop-list)
   (let ((undo-list-end (edraw-undo-list (oref shape editor)))
         (changed nil))
     ;; apply x= y= width= height= properties
-    (let* ((rect (edraw-get-rect shape))
-           (old-x (caar rect))
-           (old-y (cdar rect))
-           (old-w (- (cadr rect) (caar rect)))
-           (old-h (- (cddr rect) (cdar rect)))
+    (let* ((old-x (or (edraw-svg-length-string-to-number (edraw-get-property shape 'x)) 0))
+           (old-y (or (edraw-svg-length-string-to-number (edraw-get-property shape 'y)) 0))
+           (old-w (or (edraw-svg-length-string-to-number (edraw-get-property shape 'width)) 0))
+           (old-h (or (edraw-svg-length-string-to-number (edraw-get-property shape 'height)) 0))
            ;;@todo Use edraw-svg-length-string-to-number
            (new-x (or (edraw-alist-get-as-number 'x prop-list old-x) 0))
            (new-y (or (edraw-alist-get-as-number 'y prop-list old-y) 0))
@@ -4853,9 +4903,7 @@ position where the EVENT occurred."
                 (/= new-w old-w)
                 (/= new-h old-h))
         (setq changed t)
-        (edraw-set-rect shape
-                        (cons new-x new-y)
-                        (cons (+ new-x new-w) (+ new-y new-h)))))
+        (edraw-set-rect-ltwh shape new-x new-y new-w new-h)))
     (setf (alist-get 'x prop-list nil 'remove) nil)
     (setf (alist-get 'y prop-list nil 'remove) nil)
     (setf (alist-get 'width prop-list nil 'remove) nil)
@@ -4908,32 +4956,36 @@ position where the EVENT occurred."
     (edraw-svg-ellipse-set-range element (car p0p1) (cdr p0p1))
     (edraw-on-shape-changed shape 'anchor-position)))
 
+(cl-defmethod edraw-on-anchor-position-changed-center-radius
+  ((shape edraw-shape-ellipse) cx cy rx ry)
+  (with-slots (element) shape
+    (edraw-push-undo-properties shape 'shape-ellipse-anchor '(cx cy rx ry))
+    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-ellipse-anchor)
+    (edraw-svg-set-attr-number element 'cx cx)
+    (edraw-svg-set-attr-number element 'cy cy)
+    (edraw-svg-set-attr-number element 'rx rx)
+    (edraw-svg-set-attr-number element 'ry ry)
+    (edraw-on-shape-changed shape 'anchor-position)))
+
 (cl-defmethod edraw-set-properties ((shape edraw-shape-ellipse) prop-list)
   (let ((undo-list-end (edraw-undo-list (oref shape editor)))
         (changed nil))
     ;; apply cx= cy= rx= ry= properties
-    (let* ((rect (edraw-get-rect shape))
-           (old-x (caar rect))
-           (old-y (cdar rect))
-           (old-w (- (cadr rect) (caar rect)))
-           (old-h (- (cddr rect) (cdar rect)))
+    (let* ((old-cx (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cx)) 0))
+           (old-cy (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cy)) 0))
+           (old-rx (or (edraw-svg-length-string-to-number (edraw-get-property shape 'rx)) 0))
+           (old-ry (or (edraw-svg-length-string-to-number (edraw-get-property shape 'ry)) 0))
            ;;@todo Use edraw-svg-length-string-to-number
-           (cx (or (edraw-alist-get-as-number 'cx prop-list (+ old-x (* 0.5 old-w))) 0))
-           (cy (or (edraw-alist-get-as-number 'cy prop-list (+ old-y (* 0.5 old-h))) 0))
-           (rx (or (edraw-alist-get-as-number 'rx prop-list (* 0.5 old-w)) 0))
-           (ry (or (edraw-alist-get-as-number 'ry prop-list (* 0.5 old-h)) 0))
-           (new-w (* 2.0 rx))
-           (new-h (* 2.0 ry))
-           (new-x (- cx rx))
-           (new-y (- cy ry)))
-      (when (or (/= new-x old-x)
-                (/= new-y old-y)
-                (/= new-w old-w)
-                (/= new-h old-h))
+           (new-cx (or (edraw-alist-get-as-number 'cx prop-list old-cx) 0))
+           (new-cy (or (edraw-alist-get-as-number 'cy prop-list old-cy) 0))
+           (new-rx (or (edraw-alist-get-as-number 'rx prop-list old-rx) 0))
+           (new-ry (or (edraw-alist-get-as-number 'ry prop-list old-ry) 0)))
+      (when (or (/= new-cx old-cx)
+                (/= new-cy old-cy)
+                (/= new-rx old-rx)
+                (/= new-ry old-ry))
         (setq changed t)
-        (edraw-set-rect shape
-                        (cons new-x new-y)
-                        (cons (+ new-x new-w) (+ new-y new-h)))))
+        (edraw-set-rect-center-radius shape new-cx new-cy new-rx new-ry)))
     (setf (alist-get 'cx prop-list nil 'remove) nil)
     (setf (alist-get 'cy prop-list nil 'remove) nil)
     (setf (alist-get 'rx prop-list nil 'remove) nil)
@@ -4990,6 +5042,15 @@ position where the EVENT occurred."
                                                  (* 0.5 (abs (- (cdr p0) (cdr p1)))))))
     (edraw-on-shape-changed shape 'anchor-position)))
 
+(cl-defmethod edraw-on-anchor-position-changed-center-radius ((shape edraw-shape-circle) cx cy rx ry)
+  (with-slots (element) shape
+    (edraw-push-undo-properties shape 'shape-circle-anchor '(cx cy r))
+    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-circle-anchor)
+    (edraw-svg-set-attr-number element 'cx cx)
+    (edraw-svg-set-attr-number element 'cy cy)
+    (edraw-svg-set-attr-number element 'r (max rx ry))
+    (edraw-on-shape-changed shape 'anchor-position)))
+
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-circle)
                                          anchor
                                          xy)
@@ -5038,27 +5099,18 @@ position where the EVENT occurred."
   (let ((undo-list-end (edraw-undo-list (oref shape editor)))
         (changed nil))
     ;; apply cx= cy= r= properties
-    (let* ((rect (edraw-get-rect shape))
-           (old-x (caar rect))
-           (old-y (cdar rect))
-           (old-w (- (cadr rect) (caar rect)))
-           (old-h (- (cddr rect) (cdar rect)))
+    (let* ((old-cx (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cx)) 0))
+           (old-cy (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cy)) 0))
+           (old-r (or (edraw-svg-length-string-to-number (edraw-get-property shape 'r)) 0))
            ;;@todo Use edraw-svg-length-string-to-number
-           (cx (or (edraw-alist-get-as-number 'cx prop-list (+ old-x (* 0.5 old-w))) 0))
-           (cy (or (edraw-alist-get-as-number 'cy prop-list (+ old-y (* 0.5 old-h))) 0))
-           (r (or (edraw-alist-get-as-number 'r prop-list (* 0.5 (max old-w old-h))) 0))
-           (new-w (* 2.0 r))
-           (new-h (* 2.0 r))
-           (new-x (- cx r))
-           (new-y (- cy r)))
-      (when (or (/= new-x old-x)
-                (/= new-y old-y)
-                (/= new-w old-w)
-                (/= new-h old-h))
+           (new-cx (or (edraw-alist-get-as-number 'cx prop-list old-cx) 0))
+           (new-cy (or (edraw-alist-get-as-number 'cy prop-list old-cy) 0))
+           (new-r (or (edraw-alist-get-as-number 'r prop-list old-r) 0)))
+      (when (or (/= new-cx old-cx)
+                (/= new-cy old-cy)
+                (/= new-r old-r))
         (setq changed t)
-        (edraw-set-rect shape
-                        (cons new-x new-y)
-                        (cons (+ new-x new-w) (+ new-y new-h)))))
+        (edraw-set-rect-center-radius shape new-cx new-cy new-r new-r)))
     (setf (alist-get 'cx prop-list nil 'remove) nil)
     (setf (alist-get 'cy prop-list nil 'remove) nil)
     (setf (alist-get 'r prop-list nil 'remove) nil)
@@ -5172,15 +5224,25 @@ position where the EVENT occurred."
     (edraw-svg-image-set-range element (car p0p1) (cdr p0p1))
     (edraw-on-shape-changed shape 'anchor-position)))
 
+(cl-defmethod edraw-on-anchor-position-changed-ltwh ((shape edraw-shape-image)
+                                                     left top width height)
+  (with-slots (element) shape
+    (edraw-push-undo-properties shape 'shape-image-anchor '(x y width height))
+    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-image-anchor)
+    (edraw-svg-set-attr-number element 'x left)
+    (edraw-svg-set-attr-number element 'y top)
+    (edraw-svg-set-attr-number element 'width width)
+    (edraw-svg-set-attr-number element 'height height)
+    (edraw-on-shape-changed shape 'anchor-position)))
+
 (cl-defmethod edraw-set-properties ((shape edraw-shape-image) prop-list)
   (let ((undo-list-end (edraw-undo-list (oref shape editor)))
         (changed nil))
     ;; apply x= y= width= height= properties
-    (let* ((rect (edraw-get-rect shape))
-           (old-x (caar rect))
-           (old-y (cdar rect))
-           (old-w (- (cadr rect) (caar rect)))
-           (old-h (- (cddr rect) (cdar rect)))
+    (let* ((old-x (or (edraw-svg-length-string-to-number (edraw-get-property shape 'x)) 0))
+           (old-y (or (edraw-svg-length-string-to-number (edraw-get-property shape 'y)) 0))
+           (old-w (or (edraw-svg-length-string-to-number (edraw-get-property shape 'width)) 0))
+           (old-h (or (edraw-svg-length-string-to-number (edraw-get-property shape 'height)) 0))
            ;;@todo Use edraw-svg-length-string-to-number
            (new-x (or (edraw-alist-get-as-number 'x prop-list old-x) 0))
            (new-y (or (edraw-alist-get-as-number 'y prop-list old-y) 0))
@@ -5191,9 +5253,7 @@ position where the EVENT occurred."
                 (/= new-w old-w)
                 (/= new-h old-h))
         (setq changed t)
-        (edraw-set-rect shape
-                        (cons new-x new-y)
-                        (cons (+ new-x new-w) (+ new-y new-h)))))
+        (edraw-set-rect-ltwh shape new-x new-y new-w new-h)))
     (setf (alist-get 'x prop-list nil 'remove) nil)
     (setf (alist-get 'y prop-list nil 'remove) nil)
     (setf (alist-get 'width prop-list nil 'remove) nil)
