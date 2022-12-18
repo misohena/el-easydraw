@@ -119,14 +119,15 @@ is expanded. Since the cause is not clear, it is expanded by default."
 (defun edraw-org-link-help-echo (_window object pos)
   (when (bufferp object)
     (with-current-buffer object
-      (goto-char pos)
-      (when-let ((link-element (edraw-org-link-at-point))
-                 (link-props (car (edraw-org-link-element-link-properties
-                                   link-element t))))
-        (if-let ((file (edraw-org-link-prop-file link-props)))
-            (format "edraw:file=%s" file)
-          (if-let ((data (edraw-org-link-prop-data link-props)))
-              (format "edraw:data=(%s chars)" (length data))))))))
+      (save-excursion
+        (goto-char pos)
+        (when-let ((link-element (edraw-org-link-at-point))
+                   (link-props (car (edraw-org-link-element-link-properties
+                                     link-element t))))
+          (if-let ((file (edraw-org-link-prop-file link-props)))
+              (format "edraw:file=%s" file)
+            (if-let ((data (edraw-org-link-prop-data link-props)))
+                (format "edraw:data=(%s chars)" (length data)))))))))
 
 ;;;;; Link Properties
 
