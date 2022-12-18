@@ -136,7 +136,7 @@ editor when the selected shape changes."
     (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
 
-(defvar edraw-property-editor-local-map
+(defvar edraw-property-editor-mode-map
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km widget-keymap)
     (define-key km (kbd "C-c C-c") 'edraw-property-editor--apply)
@@ -147,6 +147,10 @@ editor when the selected shape changes."
     (define-key km [triple-mouse-1] 'ignore)
     km))
 
+
+;;;; Major Mode
+
+(define-derived-mode edraw-property-editor-mode nil "Eprops")
 
 ;;;; Property Editor
 
@@ -181,7 +185,11 @@ editor when the selected shape changes."
       (when edraw-property-editor--pedit
         (edraw-destroy edraw-property-editor--pedit))
 
-      (kill-all-local-variables)
+      ;; Activating major mode does following:
+      ;; - Call (kill-all-local-variables)
+      ;; - Call (use-local-map edraw-property-editor-mode-map)
+      (edraw-property-editor-mode)
+
       (setq-local edraw-property-editor--pedit pedit)
       (edraw-initialize pedit))))
 
@@ -197,7 +205,6 @@ editor when the selected shape changes."
     (let ((inhibit-read-only t))
       (erase-buffer))
     (remove-overlays)
-    (use-local-map edraw-property-editor-local-map)
 
     (setq-local widget-push-button-prefix "")
     (setq-local widget-push-button-suffix "")
