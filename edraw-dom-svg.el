@@ -278,12 +278,16 @@
     value)))
 
 (defun edraw-svg-ensure-string-attr (attr-value)
-  (if (numberp attr-value)
-      (edraw-to-string attr-value)
-    (format "%s" attr-value)))
+  (cond
+   ((null attr-value) "")
+   ((numberp attr-value) (edraw-to-string attr-value))
+   (t (format "%s" attr-value))))
 
-(defun edraw-svg-set-attribute (element attribute value)
+(defun edraw-svg-set-attr-string (element attribute value)
   (dom-set-attribute element attribute (edraw-svg-ensure-string-attr value)))
+
+(defun edraw-svg-set-attr-number (element attribute value)
+  (dom-set-attribute element attribute value))
 
 
 ;;;; SVG Transform Attribute
@@ -434,7 +438,7 @@
 (defun edraw-svg-element-transform-set (element mat)
   (if (edraw-matrix-identity-p mat)
       (edraw-dom-remove-attr element 'transform)
-    (dom-set-attribute element 'transform (edraw-svg-transform-from-matrix mat))))
+    (edraw-svg-set-attr-string element 'transform (edraw-svg-transform-from-matrix mat))))
 
 (defun edraw-svg-element-transform-multiply (element mat)
   (unless (edraw-matrix-identity-p mat)
@@ -466,10 +470,10 @@
 ;;     element)) ;;Return element
 
 (defun edraw-svg-rect-set-range (element xy0 xy1)
-  (dom-set-attribute element 'x (min (car xy0) (car xy1)))
-  (dom-set-attribute element 'y (min (cdr xy0) (cdr xy1)))
-  (dom-set-attribute element 'width (abs (- (car xy0) (car xy1))))
-  (dom-set-attribute element 'height (abs (- (cdr xy0) (cdr xy1)))))
+  (edraw-svg-set-attr-number element 'x (min (car xy0) (car xy1)))
+  (edraw-svg-set-attr-number element 'y (min (cdr xy0) (cdr xy1)))
+  (edraw-svg-set-attr-number element 'width (abs (- (car xy0) (car xy1))))
+  (edraw-svg-set-attr-number element 'height (abs (- (cdr xy0) (cdr xy1)))))
 
 ;; (defun edraw-svg-ellipse (parent xy0 xy1 &rest args)
 ;;   (let ((element (dom-node 'ellipse
@@ -482,16 +486,16 @@
 ;;     element)) ;;Return element
 
 (defun edraw-svg-ellipse-set-range (element xy0 xy1)
-  (dom-set-attribute element 'cx (* 0.5 (+ (car xy0) (car xy1))))
-  (dom-set-attribute element 'cy (* 0.5 (+ (cdr xy0) (cdr xy1))))
-  (dom-set-attribute element 'rx (* 0.5 (abs (- (car xy0) (car xy1)))))
-  (dom-set-attribute element 'ry (* 0.5 (abs (- (cdr xy0) (cdr xy1))))))
+  (edraw-svg-set-attr-number element 'cx (* 0.5 (+ (car xy0) (car xy1))))
+  (edraw-svg-set-attr-number element 'cy (* 0.5 (+ (cdr xy0) (cdr xy1))))
+  (edraw-svg-set-attr-number element 'rx (* 0.5 (abs (- (car xy0) (car xy1)))))
+  (edraw-svg-set-attr-number element 'ry (* 0.5 (abs (- (cdr xy0) (cdr xy1))))))
 
 (defun edraw-svg-image-set-range (element xy0 xy1)
-  (dom-set-attribute element 'x (min (car xy0) (car xy1)))
-  (dom-set-attribute element 'y (min (cdr xy0) (cdr xy1)))
-  (dom-set-attribute element 'width (abs (- (car xy0) (car xy1))))
-  (dom-set-attribute element 'height (abs (- (cdr xy0) (cdr xy1)))))
+  (edraw-svg-set-attr-number element 'x (min (car xy0) (car xy1)))
+  (edraw-svg-set-attr-number element 'y (min (cdr xy0) (cdr xy1)))
+  (edraw-svg-set-attr-number element 'width (abs (- (car xy0) (car xy1))))
+  (edraw-svg-set-attr-number element 'height (abs (- (cdr xy0) (cdr xy1)))))
 
 ;; (defun edraw-svg-path (parent d &rest args)
 ;;   (let ((element (dom-node 'path
@@ -705,7 +709,7 @@
     (if (and (eq (dom-tag element) 'text)
              (eq prop-name 'x))
         (edraw-svg-text-set-x element (edraw-svg-ensure-string-attr value))
-      (edraw-svg-set-attribute element prop-name value))))
+      (edraw-svg-set-attr-string element prop-name value))))
 
 (defun edraw-svg-element-get-inner-text (element _prop-name _defrefs)
   ;;(dom-text element)
@@ -763,14 +767,14 @@
       (mapconcat (lambda (tspan) (dom-text tspan)) tspans "\n"))))
 
 (defun edraw-svg-text-set-x (element x)
-  (dom-set-attribute element 'x x)
+  (edraw-svg-set-attr-number element 'x x)
   (let ((tspans (dom-by-class element "\\`text-line\\'")))
     (dolist (tspan tspans)
-      (dom-set-attribute tspan 'x x))))
+      (edraw-svg-set-attr-number tspan 'x x))))
 
 (defun edraw-svg-text-set-xy (element xy)
   (edraw-svg-text-set-x element (car xy))
-  (dom-set-attribute element 'y (cdr xy)))
+  (edraw-svg-set-attr-number element 'y (cdr xy)))
 
 
 ;;;; SVG Defs
@@ -846,7 +850,7 @@
            (idnum (edraw-svg-defref-idnum defref)))
       ;; add a new definition element
       (edraw-svg-defref-add-element defref element)
-      (dom-set-attribute def 'id (format "edraw-def-%s-%s" idnum prop-value))
+      (edraw-svg-set-attr-string def 'id (format "edraw-def-%s-%s" idnum prop-value))
       (dom-append-child (edraw-svg-defrefs-defs defrefs) def)
       (format "url(#edraw-def-%s-%s)" idnum prop-value))))
 (defun edraw-svg-defrefs-remove-ref-by-idnum (defrefs idnum element)
@@ -974,10 +978,10 @@
   ;; Add reference to value
   (let ((marker (edraw-svg-create-marker value prop-name element)))
     (if marker
-        (dom-set-attribute element
-                           prop-name
-                           (edraw-svg-defrefs-add-ref
-                            defrefs marker element value))
+        (edraw-svg-set-attr-string element
+                                   prop-name
+                                   (edraw-svg-defrefs-add-ref
+                                    defrefs marker element value))
       (edraw-dom-remove-attr element
                              prop-name))))
 
@@ -1091,39 +1095,48 @@ This function does not consider the effect of the transform attribute."
   element)
 
 (defun edraw-svg-rect-translate-contents (element xy)
-  (dom-set-attribute element 'x (+ (or (edraw-svg-attr-coord element 'x) 0)
-                                   (car xy)))
-  (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
-                                   (cdr xy))))
+  (edraw-svg-set-attr-number element 'x
+                             (+ (or (edraw-svg-attr-coord element 'x) 0)
+                                (car xy)))
+  (edraw-svg-set-attr-number element 'y
+                             (+ (or (edraw-svg-attr-coord element 'y) 0)
+                                (cdr xy))))
 
 (defun edraw-svg-ellipse-translate-contents (element xy)
-  (dom-set-attribute element 'cx (+ (or (edraw-svg-attr-coord element 'cx) 0)
-                                   (car xy)))
-  (dom-set-attribute element 'cy (+ (or (edraw-svg-attr-coord element 'cy) 0)
-                                   (cdr xy))))
+  (edraw-svg-set-attr-number element 'cx
+                             (+ (or (edraw-svg-attr-coord element 'cx) 0)
+                                (car xy)))
+  (edraw-svg-set-attr-number element 'cy
+                             (+ (or (edraw-svg-attr-coord element 'cy) 0)
+                                (cdr xy))))
 
 (defun edraw-svg-circle-translate-contents (element xy)
-  (dom-set-attribute element 'cx (+ (or (edraw-svg-attr-coord element 'cx) 0)
-                                   (car xy)))
-  (dom-set-attribute element 'cy (+ (or (edraw-svg-attr-coord element 'cy) 0)
-                                   (cdr xy))))
+  (edraw-svg-set-attr-number element 'cx
+                             (+ (or (edraw-svg-attr-coord element 'cx) 0)
+                                (car xy)))
+  (edraw-svg-set-attr-number element 'cy
+                             (+ (or (edraw-svg-attr-coord element 'cy) 0)
+                                (cdr xy))))
 
 (defun edraw-svg-text-translate-contents (element xy)
   ;;@todo support list-of-coordinates
   (edraw-svg-text-set-x element (+ (or (edraw-svg-attr-coord element 'x) 0)
                                    (car xy)))
-  (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
-                                   (cdr xy))))
+  (edraw-svg-set-attr-number element 'y
+                             (+ (or (edraw-svg-attr-coord element 'y) 0)
+                                (cdr xy))))
 
 (defun edraw-svg-image-translate-contents (element xy)
-  (dom-set-attribute element 'x (+ (or (edraw-svg-attr-coord element 'x) 0)
-                                   (car xy)))
-  (dom-set-attribute element 'y (+ (or (edraw-svg-attr-coord element 'y) 0)
-                                   (cdr xy))))
+  (edraw-svg-set-attr-number element 'x
+                             (+ (or (edraw-svg-attr-coord element 'x) 0)
+                                (car xy)))
+  (edraw-svg-set-attr-number element 'y
+                             (+ (or (edraw-svg-attr-coord element 'y) 0)
+                                (cdr xy))))
 
 (defun edraw-svg-path-translate-contents (element xy)
   (when-let ((d (dom-attr element 'd)))
-    (dom-set-attribute element 'd (edraw-path-d-translate d xy))))
+    (edraw-svg-set-attr-string element 'd (edraw-path-d-translate d xy))))
 
 (defun edraw-svg-group-translate-contents (element xy)
   ;;@todo Should I change the transform attribute instead?

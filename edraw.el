@@ -749,8 +749,8 @@ The undo data generated during undo is saved in redo-list."
                                           svg-document-size
                                           svg-document-view-box)
       ;; Add xmlns
-      (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
-      ;;(dom-set-attribute doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
+      (edraw-svg-set-attr-string doc-svg 'xmlns "http://www.w3.org/2000/svg")
+      ;;(edraw-svg-set-attr-string doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
       ;; Remove empty defs
       (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
         (when (null (dom-children defs))
@@ -897,10 +897,10 @@ The undo data generated during undo is saved in redo-list."
 
 (cl-defmethod edraw-update-background ((editor edraw-editor))
   (when-let ((element (edraw-svg-background editor)))
-    (dom-set-attribute element 'x (edraw-background-left editor))
-    (dom-set-attribute element 'y (edraw-background-top editor))
-    (dom-set-attribute element 'width (edraw-background-width editor))
-    (dom-set-attribute element 'height (edraw-background-height editor))))
+    (edraw-svg-set-attr-number element 'x (edraw-background-left editor))
+    (edraw-svg-set-attr-number element 'y (edraw-background-top editor))
+    (edraw-svg-set-attr-number element 'width (edraw-background-width editor))
+    (edraw-svg-set-attr-number element 'height (edraw-background-height editor))))
 
 (cl-defmethod edraw-get-background ((editor edraw-editor))
   (when-let ((element (edraw-svg-background editor)))
@@ -949,7 +949,7 @@ The undo data generated during undo is saved in redo-list."
         (edraw-dom-remove-by-id svg edraw-editor-svg-background-id)
       (if-let ((element (edraw-svg-background editor)))
           ;; change fill
-          (dom-set-attribute element 'fill fill)
+          (edraw-svg-set-attr-string element 'fill fill)
         ;; add background
         (dom-add-child-before
          svg
@@ -1333,20 +1333,20 @@ The undo data generated during undo is saved in redo-list."
     (when svg
       (let ((width (edraw-scroll-view-width editor))
             (height (edraw-scroll-view-height editor)))
-        (dom-set-attribute svg 'width
-                           (ceiling (* image-scale width)))
-        (dom-set-attribute svg 'height
-                           (ceiling (* image-scale height)))
-        (dom-set-attribute svg 'viewBox
-                           (format "0 0 %s %s" width height))))))
+        (edraw-svg-set-attr-number svg 'width
+                                   (ceiling (* image-scale width)))
+        (edraw-svg-set-attr-number svg 'height
+                                   (ceiling (* image-scale height)))
+        (edraw-svg-set-attr-string svg 'viewBox
+                                   (format "0 0 %s %s" width height))))))
 
 (defun edraw-editor-remove-root-transform (svg svg-document-size
                                                svg-document-view-box)
   (when svg
-    (dom-set-attribute svg 'width (car svg-document-size))
-    (dom-set-attribute svg 'height (cdr svg-document-size))
+    (edraw-svg-set-attr-number svg 'width (car svg-document-size))
+    (edraw-svg-set-attr-number svg 'height (cdr svg-document-size))
     (if svg-document-view-box
-        (dom-set-attribute svg 'viewBox svg-document-view-box)
+        (edraw-svg-set-attr-string svg 'viewBox svg-document-view-box)
       (dom-remove-attribute svg 'viewBox)))
   svg)
 
@@ -1692,9 +1692,9 @@ The undo data generated during undo is saved in redo-list."
                                (edraw-scroll-pos-y editor)
                                (edraw-scroll-scale editor))))
         (when background
-          (dom-set-attribute background 'transform transform)) ;;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
+          (edraw-svg-set-attr-string background 'transform transform)) ;;@todo adjust width height? I think there will be lines at the right and bottom edges of the image
         (when body
-          (dom-set-attribute body 'transform transform))))))
+          (edraw-svg-set-attr-string body 'transform transform))))))
 
 (defun edraw-editor-remove-scroll-transform (svg)
   (when svg
@@ -2711,7 +2711,7 @@ position where the EVENT occurred."
                    (- x1 x0)
                    (- y1 y0)
                    :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
-    (dom-set-attribute icon 'transform (format "translate(%s %s)" x0 y0))
+    (edraw-svg-set-attr-string icon 'transform (format "translate(%s %s)" x0 y0))
     (dom-append-child parent icon)
 
     (list (cons 'rect
@@ -4988,10 +4988,10 @@ position where the EVENT occurred."
     (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-circle-anchor)
     (let ((p0 (car p0p1))
           (p1 (cdr p0p1)))
-      (dom-set-attribute element 'cx (* 0.5 (+ (car p0) (car p1))))
-      (dom-set-attribute element 'cy (* 0.5 (+ (cdr p0) (cdr p1))))
-      (dom-set-attribute element 'r (max (* 0.5 (abs (- (car p0) (car p1))))
-                                         (* 0.5 (abs (- (cdr p0) (cdr p1)))))))
+      (edraw-svg-set-attr-number element 'cx (* 0.5 (+ (car p0) (car p1))))
+      (edraw-svg-set-attr-number element 'cy (* 0.5 (+ (cdr p0) (cdr p1))))
+      (edraw-svg-set-attr-number element 'r (max (* 0.5 (abs (- (car p0) (car p1))))
+                                                 (* 0.5 (abs (- (cdr p0) (cdr p1)))))))
     (edraw-on-shape-changed shape 'anchor-position)))
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-circle)
@@ -5389,8 +5389,8 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-update-path-data ((shape edraw-shape-path))
   (with-slots (cmdlist) shape
-    (dom-set-attribute (edraw-element shape)
-                       'd (edraw-path-cmdlist-to-string cmdlist))
+    (edraw-svg-set-attr-string (edraw-element shape)
+                               'd (edraw-path-cmdlist-to-string cmdlist))
     ;; The caller calls (edraw-on-shape-changed shape)
     ))
 
