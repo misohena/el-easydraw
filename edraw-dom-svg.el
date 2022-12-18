@@ -173,7 +173,10 @@
         (dolist (attr attrs)
           (when (or (null attr-filter) (funcall attr-filter attr))
             ;;@todo escape attribute values (What is the state after libxml parses?)
-            (insert (format " %s=\"%s\"" (car attr) (cdr attr)))))
+            (insert (format " %s=\"%s\""
+                            (car attr)
+                            ;;@todo add true attribute filter and add number format option on export
+                            (edraw-svg-ensure-string-attr (cdr attr))))))
         (if (null children)
             ;;children is empty
             (insert " />")
@@ -274,6 +277,13 @@
    (t
     value)))
 
+(defun edraw-svg-ensure-string-attr (attr-value)
+  (if (numberp attr-value)
+      (edraw-to-string attr-value)
+    (format "%s" attr-value)))
+
+(defun edraw-svg-set-attribute (element attribute value)
+  (dom-set-attribute element attribute (edraw-svg-ensure-string-attr value)))
 
 
 ;;;; SVG Transform Attribute
@@ -406,12 +416,12 @@
 (defun edraw-svg-transform-from-matrix (mat)
   (when mat
     (format "matrix(%s,%s,%s,%s,%s,%s)"
-            (edraw-matrix-at mat 0)
-            (edraw-matrix-at mat 1)
-            (edraw-matrix-at mat 4)
-            (edraw-matrix-at mat 5)
-            (edraw-matrix-at mat 12)
-            (edraw-matrix-at mat 13))))
+            (edraw-to-string (edraw-matrix-at mat 0))
+            (edraw-to-string (edraw-matrix-at mat 1))
+            (edraw-to-string (edraw-matrix-at mat 4))
+            (edraw-to-string (edraw-matrix-at mat 5))
+            (edraw-to-string (edraw-matrix-at mat 12))
+            (edraw-to-string (edraw-matrix-at mat 13)))))
 
 (defun edraw-svg-element-transform-get (element &optional matrix)
   (edraw-matrix-mul-mat-mat
@@ -520,23 +530,23 @@
 
 (defun edraw-svg-rect-summary (element)
   (format "rect (%s,%s,%s,%s)"
-          (edraw-svg-attr-coord element 'x)
-          (edraw-svg-attr-coord element 'y)
-          (edraw-svg-attr-length element 'width)
-          (edraw-svg-attr-length element 'height)))
+          (dom-attr element 'x)
+          (dom-attr element 'y)
+          (dom-attr element 'width)
+          (dom-attr element 'height)))
 
 (defun edraw-svg-ellipse-summary (element)
   (format "ellipse (%s,%s,%s,%s)"
-          (edraw-svg-attr-coord element 'cx)
-          (edraw-svg-attr-coord element 'cy)
-          (edraw-svg-attr-length element 'rx)
-          (edraw-svg-attr-length element 'ry)))
+          (dom-attr element 'cx)
+          (dom-attr element 'cy)
+          (dom-attr element 'rx)
+          (dom-attr element 'ry)))
 
 (defun edraw-svg-circle-summary (element)
   (format "circle (%s,%s,%s)"
-          (edraw-svg-attr-coord element 'cx)
-          (edraw-svg-attr-coord element 'cy)
-          (edraw-svg-attr-length element 'r)))
+          (dom-attr element 'cx)
+          (dom-attr element 'cy)
+          (dom-attr element 'r)))
 
 (defun edraw-svg-text-summary (element)
   (format "text (%s)"
@@ -544,10 +554,10 @@
 
 (defun edraw-svg-image-summary (element)
   (format "image (%s,%s,%s,%s,%s)"
-          (edraw-svg-attr-coord element 'x)
-          (edraw-svg-attr-coord element 'y)
-          (edraw-svg-attr-length element 'width)
-          (edraw-svg-attr-length element 'height)
+          (dom-attr element 'x)
+          (dom-attr element 'y)
+          (dom-attr element 'width)
+          (dom-attr element 'height)
           (truncate-string-to-width
            (or (dom-attr element 'href) "")
            20 nil nil "...")))
@@ -694,8 +704,8 @@
       (edraw-dom-remove-attr element prop-name)
     (if (and (eq (dom-tag element) 'text)
              (eq prop-name 'x))
-        (edraw-svg-text-set-x element (format "%s" value))
-      (dom-set-attribute element prop-name (format "%s" value)))))
+        (edraw-svg-text-set-x element (edraw-svg-ensure-string-attr value))
+      (edraw-svg-set-attribute element prop-name value))))
 
 (defun edraw-svg-element-get-inner-text (element _prop-name _defrefs)
   ;;(dom-text element)
