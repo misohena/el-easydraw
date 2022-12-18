@@ -28,6 +28,16 @@
 
 ;;;; Number
 
+(cl-defmethod edraw-to-string ((n number))
+  (if (floatp n)
+      ;; Float
+      (let ((ni (ffloor n)))
+        (if (= ni n)
+            (format "%d" ni) ;;Remove .0
+          (format "%s" n))) ;;@todo Allow setting the number of digits
+    ;; Integer?
+    (format "%d" n)))
+
 (cl-defmethod edraw-clamp ((n number) min-value max-value)
   (cond
    ((and min-value (< n min-value)) min-value)

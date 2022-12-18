@@ -497,7 +497,7 @@ The CMDLIST will be empty after calling this function. "
      (cdr x-min-max)
      (cdr y-min-max))))
 
-;;TEST: (edraw-path-cmdlist-aabb (edraw-path-cmdlist-from-d "M10,20 L30,40 Z C20,0 80,0 100,20")) => ((10 . 5.0) 100 . 40)
+;;TEST: (edraw-path-cmdlist-aabb (edraw-path-cmdlist-from-d "M10,20 L30,40 Z C20,0 80,0 100,20")) => ((10.0 . 5.0) 100.0 . 40.0)
 
 
 
@@ -512,7 +512,7 @@ The CMDLIST will be empty after calling this function. "
       (setq cmd (edraw-path-cmd-next cmd)))
     (when cmd
       (edraw-path-cmd-arg-pt cmd index))))
-;; TEST: (edraw-path-point-xy (edraw-path-cmdlist-nth-point (edraw-path-cmdlist-from-d "M1,2L3,4ZC5,6 7,8 9,10") 4)) => (9 . 10)
+;; TEST: (edraw-path-point-xy (edraw-path-cmdlist-nth-point (edraw-path-cmdlist-from-d "M1,2L3,4ZC5,6 7,8 9,10") 4)) => (9.0 . 10.0)
 
 ;;;;;; cmdlist - Anchor Point
 
@@ -678,8 +678,8 @@ The CMDLIST will be empty after calling this function. "
             (_ (error "Unsupported path command found: %s in %s" cmd-args d))
             ))))
     cmdlist))
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10,10.1L20.2,200.0L0.3,0.03Z"
-;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M10,10.1L20.2,200.0L0.3000000000000007,0.030000000000001137Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10,10.1L20.2,200L0.3,0.03Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M10,10.1L20.2,200L0.3000000000000007,0.030000000000001137Z"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 h 30 40 -50 v 60 -70")) => "M10,20L40,20L80,20L30,20L30,80L30,10"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 H 30 40 -50 V 60 -70")) => "M10,20L30,20L40,20L-50,20L-50,60L-50,-70"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M10,20C30,40 50,60 70,85C90,110 150,160 170,180"
@@ -835,7 +835,9 @@ created.
             ;;" "
             (mapconcat (lambda (arg)
                          (let ((xy (edraw-path-point-xy arg)))
-                           (format "%s,%s" (car xy) (cdr xy))))
+                           (format "%s,%s"
+                                   (edraw-to-string (car xy))
+                                   (edraw-to-string (cdr xy)))))
                        args " "))))))))
 
 ;;;;;; cmd - Relationship Between Commands
@@ -2022,7 +2024,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
       (when (and needs-closed-p (not (equal current-point initial-point)))
         (close-path))
       (nreverse segments))))
-;; TEST: (edraw-path-cmdlist-to-seglist (edraw-path-cmdlist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10 . 20) (30 . 40)] [(30 . 40) (10 . 20)] [(10 . 20) (20 . 0) (80 . 0) (100 . 20)])
+;; TEST: (edraw-path-cmdlist-to-seglist (edraw-path-cmdlist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)])
 
 ;;;;; Path and Rectangle Intersection Test
 
@@ -2252,7 +2254,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
        (cdr x-min-max)
        (cdr y-min-max)))))
 
-;;TEST: (edraw-path-seglist-aabb (edraw-path-cmdlist-to-seglist (edraw-path-cmdlist-from-d "M10,20 L30,40 Z C20,0 80,0 100,20") nil)) => ((10 . 5.0) 100 . 40)
+;;TEST: (edraw-path-seglist-aabb (edraw-path-cmdlist-to-seglist (edraw-path-cmdlist-from-d "M10,20 L30,40 Z C20,0 80,0 100,20") nil)) => ((10.0 . 5.0) 100.0 . 40.0)
 
 ;;;;; Transform
 
@@ -2358,20 +2360,20 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
       (let* ((type (intern (match-string 1 d)))
              (numbers-str (match-string 2 d))
              (numbers (if numbers-str
-                          (mapcar #'string-to-number
+                          (mapcar (lambda (str) (float (string-to-number str)))
                                   (split-string numbers-str
                                                 edraw-path-d-comma-wsp)))))
         (push (cons type numbers) commands)))
     (nreverse commands)))
-;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => ((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
-;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => ((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))
+;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => ((Z) (M 10.0 20.1) (L 0.1 20.0 200.0 -0.5))
+;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => ((Z) (M 10.0 20.1) (L 0.1 20.0 200.0 -0.5))
 
 (defun edraw-path-d-from-command-list (command-list)
   (mapconcat (lambda (command)
-               (mapconcat (lambda (arg) (format "%s" arg)) command " "))
+               (mapconcat #'edraw-to-string command " ")) ;; Each element of COMMAND is a number or a symbol
              command-list
              " "))
-;; TEST: (edraw-path-d-from-command-list '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5)))
+;; TEST: (edraw-path-d-from-command-list '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))) => "Z M 10 20.1 L 0.1 20 200 -0.5"
 
 (defun edraw-path-d-translate (d xy)
   (let ((x (car xy))
