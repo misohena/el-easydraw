@@ -573,6 +573,8 @@
 
 ;;;; SVG Shape Properties
 
+(defconst edraw-svg-elem-prop-number-types
+  '(number opacity length coordinate))
 
 (defconst edraw-svg-element-properties-common
   ;;name source type required
@@ -660,17 +662,31 @@
 (defun edraw-svg-elem-prop-required (prop-def) (nth 3 prop-def))
 (defun edraw-svg-elem-prop-attrs (prop-def) (nthcdr 4 prop-def))
 
+(defun edraw-svg-elem-prop-number-p (prop-def)
+  (memq (edraw-svg-elem-prop-type prop-def) edraw-svg-elem-prop-number-types))
+
 (defun edraw-svg-element-get-property-info-list (element)
   (edraw-svg-element-get-property-info-list-by-tag (dom-tag element)))
 
 (defun edraw-svg-element-get-property-info-list-by-tag (tag)
   (when-let ((prop-def-list (alist-get tag edraw-svg-element-properties)))
     (cl-loop for prop-def in prop-def-list
+             for prop-type = (edraw-svg-elem-prop-type prop-def)
              collect
              (append
               (list :name (edraw-svg-elem-prop-name prop-def)
-                    :type (edraw-svg-elem-prop-type prop-def)
-                    :required (edraw-svg-elem-prop-required prop-def))
+                    :type prop-type
+                    :required (edraw-svg-elem-prop-required prop-def)
+                    :to-string #'edraw-svg-ensure-string-attr
+                    :from-string #'identity
+                    :number-p (edraw-svg-elem-prop-number-p prop-def)
+                    :to-number (pcase prop-type
+                                 ('coordinate #'edraw-svg-length-string-to-number)
+                                 ('length #'edraw-svg-length-string-to-number)
+                                 ('number #'edraw-svg-number-string-to-number)
+                                 ('opacity #'edraw-svg-number-string-to-number)
+                                 (_ nil))
+                    )
               (edraw-svg-elem-prop-attrs prop-def)))))
 ;; TEST: (edraw-svg-element-get-property-info-list-by-tag 'rect)
 

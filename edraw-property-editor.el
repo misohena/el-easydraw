@@ -177,14 +177,14 @@ editor when the selected shape changes."
 
       (kill-all-local-variables)
       (setq-local edraw-property-editor--pedit pedit)
-      (edraw-open pedit))))
+      (edraw-initialize pedit))))
 
 (defun edraw-property-editor-target-shape-p (target)
   (and target
        ;;(cl-typep target 'edraw-shape) ;;warning
        (edraw-property-editor-shape-p target)))
 
-(cl-defmethod edraw-open ((pedit edraw-property-editor))
+(cl-defmethod edraw-initialize ((pedit edraw-property-editor))
   (with-slots (target widgets) pedit
     (setq widgets nil)
 
@@ -203,7 +203,8 @@ editor when the selected shape changes."
 
     (if target
         (widget-insert (format (edraw-msg "Properties of %s")
-                               (or (edraw-name target) "")) "\n")
+                               (or (edraw-name target) ""))
+                       "\n")
       (widget-insert (edraw-msg "No target object") "\n\n"))
 
     (when target
@@ -266,66 +267,83 @@ editor when the selected shape changes."
                                     (mapcar
                                      (lambda (prop-info)
                                        (string-width
-                                        (symbol-name (plist-get prop-info :name))))
+                                        (symbol-name
+                                         (plist-get prop-info :name))))
                                      prop-info-list)))))
       (dolist (prop-info prop-info-list)
         (unless (plist-get prop-info :internal)
-          (let* ((prop-name (plist-get prop-info :name))
-                 (prop-type (plist-get prop-info :type))
-                 (prop-required (plist-get prop-info :required))
-                 (prop-value (edraw-get-property target prop-name))
-                 (indent (- max-name-width (string-width (symbol-name prop-name))))
-                 (notify (edraw-create-property-updator
-                          pedit prop-name prop-type prop-required))
-                 (widget (edraw-create-widget
-                          pedit notify indent
-                          prop-name prop-value prop-type prop-required)))
-            (push (list prop-name widget prop-info) widgets)
-            )))
+          (let* ((indent (- max-name-width
+                            (string-width
+                             (symbol-name (plist-get prop-info :name))))))
+            (push (edraw-property-editor-prop-widget-create
+                   target prop-info indent)
+                  widgets))))
       (setq widgets (nreverse widgets)))))
 
-(cl-defmethod edraw-create-property-updator ((pedit edraw-property-editor)
-                                             prop-name prop-type prop-required)
+;;;;; Prop Widget
+
+(defclass edraw-property-editor-prop-widget ()
+  ((widget :initarg :widget)
+   (prop-info :initarg :prop-info)))
+
+(defun edraw-property-editor-prop-widget-create (target prop-info indent)
+  (let* ((notify (edraw-property-editor-prop-widget-create-updator
+                  target prop-info))
+         (widget (edraw-property-editor-prop-widget-create-widget
+                  target prop-info indent notify)))
+    (edraw-property-editor-prop-widget
+     :widget widget
+     :prop-info prop-info)))
+
+(defun edraw-property-editor-prop-widget-create-updator (target prop-info)
   (lambda (widget _changed-widget &optional _event)
     (when edraw-property-editor-apply-immediately
-      (with-slots (target) pedit
-        (edraw-set-property target
-                            prop-name
-                            (edraw-widget-value-to-prop-value
-                             pedit (widget-value widget)
-                             prop-type prop-required))))))
+      (edraw-set-property
+       target
+       (plist-get prop-info :name)
+       (edraw-property-editor-widget-value-to-prop-value
+        (widget-value widget)
+        prop-info)))))
 
-(cl-defmethod edraw-create-widget ((pedit edraw-property-editor)
-                                   notify indent
-                                   prop-name prop-value prop-type prop-required)
-  (pcase prop-type
-    (`(or . ,_)
-     (edraw-create-menu-choice-widget
-      pedit notify indent prop-name prop-value prop-type prop-required))
-    ((or 'number 'float 'length 'coordinate 'opacity)
-     (edraw-create-number-widget
-      pedit notify indent prop-name prop-value prop-type))
-    ('paint
-     (edraw-create-paint-widget
-      pedit notify indent prop-name prop-value prop-type))
-    (_
-     (edraw-create-text-field-widget
-      pedit notify indent prop-name prop-value prop-type))))
+(defun edraw-property-editor-prop-widget-create-widget (target
+                                                        prop-info
+                                                        indent
+                                                        notify)
+  (let* ((prop-name (plist-get prop-info :name))
+         (prop-value (edraw-get-property target prop-name))
+         (prop-type (plist-get prop-info :type))
+         (prop-number-p (plist-get prop-info :number-p)))
+    (cond
+     (prop-number-p
+      (edraw-property-editor-create-number-widget
+       indent prop-name prop-value prop-info notify))
+     ((eq (car-safe prop-type) 'or)
+      (edraw-property-editor-create-menu-choice-widget
+       indent prop-name prop-value prop-info notify))
+     ((eq prop-type 'paint)
+      (edraw-property-editor-create-paint-widget
+       indent prop-name prop-value prop-info notify target))
+     (t
+      (edraw-property-editor-create-text-field-widget
+       indent prop-name prop-value prop-info notify)))))
 
-(cl-defmethod edraw-create-menu-choice-widget ((pedit edraw-property-editor)
-                                               notify indent
-                                               prop-name prop-value prop-type
-                                               prop-required)
+;;;;;; Menu Choice Widget
+
+(defun edraw-property-editor-create-menu-choice-widget
+    (indent prop-name prop-value prop-info notify)
   (widget-insert (make-string indent ? ))
-  (let ((types (if prop-required
-                   (cdr prop-type) ;;skip (or)
-                 ;; nullable
-                 (cons nil (cdr prop-type)))))
+  (let* ((prop-required (plist-get prop-info :required))
+         (prop-type (plist-get prop-info :type))
+         (types (if prop-required
+                    (cdr prop-type) ;;skip (or)
+                  ;; nullable
+                  (cons nil (cdr prop-type)))))
     (apply
      #'widget-create
      `(menu-choice
        :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
-       :value ,(edraw-prop-value-to-widget-value pedit prop-value prop-type)
+       :value ,(edraw-property-editor-prop-value-to-widget-value
+                prop-value prop-info)
        :notify ,notify
        ,@(mapcar
           (lambda (item)
@@ -336,16 +354,20 @@ editor when the selected shape changes."
              ))
           types)))))
 
-(cl-defmethod edraw-create-text-field-widget ((pedit edraw-property-editor)
-                                              notify indent
-                                              prop-name prop-value prop-type)
+;;;;;; Text Field Widget
+
+(defun edraw-property-editor-create-text-field-widget
+    (indent prop-name prop-value prop-info notify)
   (widget-insert (make-string indent ? ))
   (widget-create
    'editable-field
    :keymap edraw-property-editor-field-map
    :format (format "%s: %%v" prop-name)
-   :value (edraw-prop-value-to-widget-value pedit prop-value prop-type)
+   :value (edraw-property-editor-prop-value-to-widget-value
+           prop-value prop-info)
    :notify notify))
+
+;;;;;; Number Widget
 
 (defvar edraw-property-editor-number-title-keymap
   (let ((km (make-sparse-keymap)))
@@ -354,9 +376,8 @@ editor when the selected shape changes."
     (define-key km [wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
 
-(cl-defmethod edraw-create-number-widget ((pedit edraw-property-editor)
-                                          notify indent
-                                          prop-name prop-value prop-type)
+(defun edraw-property-editor-create-number-widget
+    (indent prop-name prop-value prop-info notify)
   (let* ((line-begin (line-beginning-position))
          (name-begin (point))
          (name-end
@@ -367,11 +388,11 @@ editor when the selected shape changes."
          (widget (widget-create
                   'editable-field
                   :keymap edraw-property-editor-field-map
-                  :value (edraw-prop-value-to-widget-value pedit
-                                                           prop-value prop-type)
+                  :value (edraw-property-editor-prop-value-to-widget-value
+                          prop-value prop-info)
                   :notify notify))
          (field (edraw-property-editor-number-field-create
-                 (current-buffer) widget prop-type prop-name)))
+                 (current-buffer) widget prop-info)))
     (widget-put widget :edraw-field field)
 
     ;;`1-' means avoid reacting to field clicks when the value is empty
@@ -385,50 +406,46 @@ editor when the selected shape changes."
 (defclass edraw-property-editor-number-field ()
   ((buffer :initarg :buffer)
    (widget :initarg :widget)
-   (prop-type :initarg :prop-type)
-   (prop-name :initarg :prop-name)
+   (prop-info :initarg :prop-info)
    (min-value :initarg :min-value)
    (max-value :initarg :max-value)
    (default-value :initarg :default-value)
    (divisor :initarg :divisor)))
 
-(defun edraw-property-editor-number-field-create (buffer widget
-                                                         prop-type prop-name)
-  (edraw-property-editor-number-field
-   :buffer buffer
-   :widget widget
-   :prop-type prop-type
-   :prop-name prop-name
-   :min-value
-   (pcase prop-type
-     ('length 0)
-     ('opacity 0))
-   :max-value
-   (pcase prop-type
-     ('opacity 1))
-   :default-value
-   (pcase prop-type
-     ('opacity 1)
-     (_ 0))
-   :divisor
-   (pcase prop-type
-     ('opacity 100.0)
-     (_ 1))))
+(defun edraw-property-editor-number-field-create (buffer widget prop-info)
+  (let ((prop-type (plist-get prop-info :type)))
+    (edraw-property-editor-number-field
+     :buffer buffer
+     :widget widget
+     :prop-info prop-info
+     :min-value (pcase prop-type
+                  ('length 0)
+                  ('opacity 0))
+     :max-value (pcase prop-type
+                  ('opacity 1))
+     :default-value (pcase prop-type
+                      ('opacity 1)
+                      (_ 0))
+     :divisor (pcase prop-type
+                ('opacity 100.0)
+                (_ 1)))))
 
 (cl-defmethod edraw-get-value ((field edraw-property-editor-number-field))
-  (with-slots (widget default-value) field
-    (let ((w-value (widget-value widget)))
+  (with-slots (widget default-value prop-info) field
+    (let ((w-value (widget-value widget))
+          (to-number (plist-get prop-info :to-number)))
       (if (and (stringp w-value)
                (not (string-empty-p w-value)))
-          (string-to-number w-value)
+          (funcall to-number w-value)
         default-value))))
 
 (cl-defmethod edraw-set-value ((field edraw-property-editor-number-field) value)
-  (with-slots (widget min-value max-value divisor) field
+  (with-slots (widget min-value max-value divisor prop-info) field
     (setq value (edraw-clamp value min-value max-value))
     (when (/= divisor 1)
       (setq value (/ (round (* value divisor)) divisor)))
-    (widget-value-set widget (number-to-string value))))
+    (widget-value-set widget
+                      (funcall (plist-get prop-info :to-string) value))))
 
 (cl-defmethod edraw-increase ((field edraw-property-editor-number-field) delta)
   (edraw-set-value field (+ (edraw-get-value field)
@@ -492,10 +509,10 @@ editor when the selected shape changes."
                                  thumb-w thumb-h :fill "#fff")
                   (svg-image svg :scale 1.0)))))
 
+;;;;;; Paint Widget
 
-(cl-defmethod edraw-create-paint-widget ((pedit edraw-property-editor)
-                                         notify indent
-                                         prop-name prop-value prop-type)
+(defun edraw-property-editor-create-paint-widget
+    (indent prop-name prop-value prop-info notify target)
   (widget-insert (make-string indent ? ))
   (let (field-widget)
     (widget-insert (symbol-name prop-name) ": ")
@@ -504,7 +521,8 @@ editor when the selected shape changes."
      (lambda (&rest _ignore)
        (widget-value-set
         field-widget
-        (edraw-read-property-paint-color pedit prop-name field-widget)))
+        (edraw-property-editor-read-property-paint-color target prop-name
+                                                         field-widget)))
      (edraw-msg "Color"))
     ;;(widget-insert " ")
     (setq field-widget
@@ -512,34 +530,34 @@ editor when the selected shape changes."
            'editable-field
            :keymap edraw-property-editor-field-map
            :format "%v"
-           :value (edraw-prop-value-to-widget-value
-                   pedit prop-value prop-type)
+           :value (edraw-property-editor-prop-value-to-widget-value
+                   prop-value prop-info)
            :notify notify))
     field-widget))
 
-(cl-defmethod edraw-read-property-paint-color ((pedit edraw-property-editor)
-                                               prop-name
-                                               field-widget)
-  (with-slots (target) pedit
-    (let ((current-value (widget-value field-widget)))
-      (unwind-protect
-          (edraw-color-picker-read-color
-           (format "%s: " prop-name)
-           current-value
-           '("" "none")
-           `((:color-name-scheme . 'web)
-             (:no-color . "none")
-             ,@(when (edraw-property-editor-target-shape-p target)
-                 (list
-                  (cons :on-input-change
-                        (lambda (string color)
-                          (when (or (member string '("" "none"))
-                                    color)
-                            ;;@todo suppress modified flag change and notification
-                            (edraw-set-property target prop-name string))))))))
-        (widget-value-set field-widget current-value)))))
+(defun edraw-property-editor-read-property-paint-color (target
+                                                        prop-name field-widget)
+  (let ((current-value (widget-value field-widget)))
+    (unwind-protect
+        (edraw-color-picker-read-color
+         (format "%s: " prop-name)
+         current-value
+         '("" "none")
+         `((:color-name-scheme . 'web)
+           (:no-color . "none")
+           ,@(when (edraw-property-editor-target-shape-p target)
+               (list
+                (cons :on-input-change
+                      (lambda (string color)
+                        (when (or (member string '("" "none"))
+                                  color)
+                          ;;@todo suppress modified flag change and notification
+                          (edraw-set-property target prop-name string))))))))
+      (widget-value-set field-widget current-value))))
 
+;;;;;; Increase/Decrease Value By Wheel
 
+;;@todo Add feature to change menu-choice-widget by mouse wheel
 
 (defun edraw-property-editor-field-at (event)
   (let* ((start (event-start event))
@@ -561,84 +579,70 @@ editor when the selected shape changes."
   (interactive "p\ne")
   (edraw-property-editor-field-wheel-increase (- n) event))
 
+;;;;; Property Value To Widget Value
 
-(cl-defmethod edraw-prop-value-to-widget-value ((_pedit edraw-property-editor)
-                                                prop-value prop-type)
-  (pcase prop-type
+(defun edraw-property-editor-prop-value-to-widget-value (prop-value prop-info)
+  (pcase (plist-get prop-info :type)
     (`(or . ,_)
      ;; string or nil
      prop-value)
     (_
      ;; string only
-     (format "%s" (or prop-value "")))))
+     (funcall (plist-get prop-info :to-string) prop-value))))
 
-(cl-defmethod edraw-apply-properties ((pedit edraw-property-editor))
-  (with-slots (widgets target) pedit
-    (let ((prop-values
-           (cl-loop
-            for widget-info in widgets
-            collect
-            (let* ((prop-name (nth 0 widget-info))
-                   (widget (nth 1 widget-info))
-                   (prop-info (nth 2 widget-info))
-                   (prop-type (plist-get prop-info :type))
-                   (prop-required (plist-get prop-info :required))
-                   (w-value (widget-value widget))
-                   (value (edraw-widget-value-to-prop-value
-                           pedit w-value prop-type prop-required)))
-              (cons prop-name value)))))
-      (edraw-set-properties target prop-values))))
-
-(cl-defmethod edraw-widget-value-to-prop-value ((_pedit edraw-property-editor)
-                                                w-value prop-type prop-required)
-  (if (and (not prop-required)
-           (or (and (stringp w-value)
-                    (string-empty-p w-value))
-               (null w-value)))
-      nil ;;property is not required and w-value is an empty string or nil
-    (pcase prop-type
-      ;; integer
-      ('integer
-       ;;@todo check
-       w-value)
-
-      ;; number
-      ((or 'number 'float 'coordinate 'length)
-       ;;@todo check
-       w-value)
-
-      ;; choice
-      (`(or . ,_)
-       ;;@todo check
-       w-value)
-
-      ;; string?
-      (_ w-value))))
+(cl-defmethod edraw-update-widget-value
+  ((prop-widget edraw-property-editor-prop-widget) target)
+  (with-slots (widget prop-info) prop-widget
+    (let* ((old-w-value (widget-value widget))
+           (prop-name (plist-get prop-info :name))
+           (prop-value (edraw-get-property target prop-name))
+           (new-w-value (edraw-property-editor-prop-value-to-widget-value
+                         prop-value
+                         prop-info)))
+      (unless (equal old-w-value new-w-value) ;;@todo make tolerance. 100.0 = 100 = 100., 100.01 = 100.009999999999
+        ;;(message "target chagned: %s: %s to %s" prop-name old-w-value new-w-value)
+        ;; Prevent notification
+        (let ((old-notify (widget-get widget :notify)))
+          (widget-put widget :notify #'ignore)
+          (unwind-protect
+              (widget-value-set widget new-w-value)
+            (widget-put widget :notify old-notify)))))))
 
 (cl-defmethod edraw-update-widgets-value ((pedit edraw-property-editor))
   (with-slots (widgets target) pedit
-    (cl-loop
-     for widget-info in widgets
-     do (let* ((prop-name     (nth 0 widget-info))
-               (widget        (nth 1 widget-info))
-               (prop-info     (nth 2 widget-info))
-               (prop-type     (plist-get prop-info :type))
-               ;;(prop-required (plist-get prop-info :required))
-               (prop-value (edraw-get-property target prop-name))
-               (w-value (widget-value widget))
-               (value (edraw-prop-value-to-widget-value pedit
-                                                        prop-value
-                                                        prop-type)))
-          (unless (equal w-value value)
-            ;;(message "target chagned: %s: %s to %s" prop-name w-value value)
-            ;; Prevent notification
-            (let ((old-notify (widget-get widget :notify)))
-              (widget-put widget :notify #'ignore)
-              (unwind-protect
-                  (widget-value-set widget value)
-                (widget-put widget :notify old-notify))))))))
+    (dolist (prop-widget widgets)
+      (edraw-update-widget-value prop-widget target))))
 
+;;;;; Widget Value to Property Value
 
+(cl-defmethod edraw-get-as-property-value
+  ((prop-widget edraw-property-editor-prop-widget))
+  "Returns the current PROP-WIDGET value as (property name . property value)."
+  (with-slots (widget prop-info) prop-widget
+    (cons (plist-get prop-info :name)
+          (edraw-property-editor-widget-value-to-prop-value
+           (widget-value widget) prop-info))))
+
+(cl-defmethod edraw-apply-properties ((pedit edraw-property-editor))
+  "Applies all property values being edited by PEDIT to the target object."
+  (with-slots (widgets target) pedit
+    (edraw-set-properties
+     target
+     (mapcar #'edraw-get-as-property-value widgets))))
+
+(defun edraw-property-editor-widget-value-to-prop-value (w-value prop-info)
+  (if (or (and (stringp w-value) (string-empty-p w-value))
+          (null w-value))
+      ;; w-value is an empty string or nil
+      ;; (if (not (plist-get prop-info :required))
+      ;;     nil ;;property is not required and
+      ;;   ;;@todo default value???
+      ;;   nil)
+      nil
+    ;;@todo error check
+    (funcall (plist-get prop-info :from-string) w-value)))
+
+;;;;; Bottom Buttons
 
 (defun edraw-property-editor--close (&rest _ignore)
   (interactive)
@@ -684,6 +688,7 @@ editor when the selected shape changes."
       (when (edraw-property-editor-target-shape-p target)
         (edraw-set-all-properties-as-default target)))))
 
+;;;;; Synchronizing Property Editor with Target
 
 (cl-defmethod edraw-initialize-hooks ((pedit edraw-property-editor))
   (with-slots (target) pedit
@@ -737,6 +742,7 @@ editor when the selected shape changes."
       (cancel-timer update-timer)
       (setq update-timer nil))))
 
+;;;; Utility
 
 (defun edraw-property-editor-widget-button-click (event)
   "An alternative to widget-button-click for double-click and triple-click."
