@@ -335,6 +335,7 @@ line-prefix and wrap-prefix are used in org-indent.")
 (cl-defmethod edraw-close ((editor edraw-editor))
   (with-slots (overlay) editor
     (when (and overlay (overlay-buffer overlay))
+      (edraw-property-editor-close) ;;Before change selection and delete shapes
       (edraw-deselect-all-shapes editor)
       (edraw-select-tool editor nil) ;;deselect tool (some tools need to disconnect)
       (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?

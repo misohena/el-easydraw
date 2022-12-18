@@ -163,6 +163,12 @@ editor when the selected shape changes."
 (defun edraw-property-editor-buffer ()
   (get-buffer edraw-property-editor-buffer-name))
 
+(defun edraw-property-editor-close ()
+  (when-let ((buffer (edraw-property-editor-buffer)))
+    (with-current-buffer buffer
+      (when edraw-property-editor--pedit
+        (edraw-close edraw-property-editor--pedit)))))
+
 (defun edraw-property-editor-open (target)
   (save-selected-window
     (let* ((buffer (pop-to-buffer edraw-property-editor-buffer-name))
