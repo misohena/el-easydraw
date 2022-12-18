@@ -664,7 +664,7 @@
     (cl-loop for prop-def in prop-def-list
              collect
              (append
-              (list (edraw-svg-elem-prop-name prop-def)
+              (list :name (edraw-svg-elem-prop-name prop-def)
                     :type (edraw-svg-elem-prop-type prop-def)
                     :required (edraw-svg-elem-prop-required prop-def))
               (edraw-svg-elem-prop-attrs prop-def)))))

@@ -2310,9 +2310,9 @@ The undo data generated during undo is saved in redo-list."
   (when-let ((tag (edraw-shape-type shape)))
     (dolist (prop-info (edraw-get-property-info-list shape))
       ;; Skip required property
-      (unless (plist-get (cdr prop-info) :required)
+      (unless (plist-get prop-info :required)
         ;; Get property value
-        (let* ((prop-name (car prop-info))
+        (let* ((prop-name (plist-get prop-info :name))
                (value (edraw-get-property shape prop-name)))
           ;; Set property value as default
           (edraw-set-default-shape-property
@@ -2359,7 +2359,7 @@ The undo data generated during undo is saved in redo-list."
 
 (cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
   (seq-remove
-   (lambda (prop-info) (plist-get (cdr prop-info) :required))
+   (lambda (prop-info) (plist-get prop-info :required))
    (edraw-svg-element-get-property-info-list-by-tag (oref shape tag))))
 
 (cl-defmethod edraw-get-property ((shape edraw-property-proxy-shape) prop-name)
@@ -4064,7 +4064,7 @@ position where the EVENT occurred."
                 ;; Copy all properties
                 (mapcar
                  (lambda (prop-info)
-                   (let* ((prop-name (car prop-info))
+                   (let* ((prop-name (plist-get prop-info :name))
                           (value (edraw-get-property shape prop-name)))
                      (cons prop-name value)))
                  (edraw-get-property-info-list shape)))))
@@ -4438,7 +4438,7 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-get-all-properties ((shape edraw-shape));;@todo generalize
   (cl-loop for prop-info in (edraw-get-property-info-list shape)
-           collect (let ((prop-name (car prop-info)))
+           collect (let ((prop-name (plist-get prop-info :name)))
                      (cons prop-name
                            (edraw-get-property shape prop-name)))))
 

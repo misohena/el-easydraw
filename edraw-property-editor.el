@@ -266,13 +266,13 @@ editor when the selected shape changes."
                                     (mapcar
                                      (lambda (prop-info)
                                        (string-width
-                                        (symbol-name (car prop-info))))
+                                        (symbol-name (plist-get prop-info :name))))
                                      prop-info-list)))))
       (dolist (prop-info prop-info-list)
-        (unless (plist-get (cdr prop-info) :internal)
-          (let* ((prop-name (car prop-info))
-                 (prop-type (plist-get (cdr prop-info) :type))
-                 (prop-required (plist-get (cdr prop-info) :required))
+        (unless (plist-get prop-info :internal)
+          (let* ((prop-name (plist-get prop-info :name))
+                 (prop-type (plist-get prop-info :type))
+                 (prop-required (plist-get prop-info :required))
                  (prop-value (edraw-get-property target prop-name))
                  (indent (- max-name-width (string-width (symbol-name prop-name))))
                  (notify (edraw-create-property-updator
@@ -581,8 +581,8 @@ editor when the selected shape changes."
             (let* ((prop-name (nth 0 widget-info))
                    (widget (nth 1 widget-info))
                    (prop-info (nth 2 widget-info))
-                   (prop-type (plist-get (cdr prop-info) :type))
-                   (prop-required (plist-get (cdr prop-info) :required))
+                   (prop-type (plist-get prop-info :type))
+                   (prop-required (plist-get prop-info :required))
                    (w-value (widget-value widget))
                    (value (edraw-widget-value-to-prop-value
                            pedit w-value prop-type prop-required)))
@@ -622,8 +622,8 @@ editor when the selected shape changes."
      do (let* ((prop-name     (nth 0 widget-info))
                (widget        (nth 1 widget-info))
                (prop-info     (nth 2 widget-info))
-               (prop-type     (plist-get (cdr prop-info) :type))
-               ;;(prop-required (plist-get (cdr prop-info) :required))
+               (prop-type     (plist-get prop-info :type))
+               ;;(prop-required (plist-get prop-info :required))
                (prop-value (edraw-get-property target prop-name))
                (w-value (widget-value widget))
                (value (edraw-prop-value-to-widget-value pedit
