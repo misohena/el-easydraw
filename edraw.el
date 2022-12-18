@@ -2363,10 +2363,7 @@ The undo data generated during undo is saved in redo-list."
    (edraw-svg-element-get-property-info-list-by-tag (oref shape tag))))
 
 (cl-defmethod edraw-get-property ((shape edraw-property-proxy-shape) prop-name)
-  (let ((value (alist-get prop-name (cdr (oref shape alist-head)))))
-    (if (numberp value)
-        (format "%s" value)
-      value)))
+  (alist-get prop-name (cdr (oref shape alist-head))))
 
 (cl-defmethod edraw-set-properties ((shape edraw-property-proxy-shape) prop-list)
   (dolist (prop prop-list)
@@ -4497,10 +4494,8 @@ position where the EVENT occurred."
                    ;; Get from attribute of element
                    ;; (do not use edraw-get-property for path d=)
                    (cons prop-name
-                         (let ((value (dom-attr (edraw-element shape) prop-name)))
-                           (if (null value)
-                               value
-                             (format "%s" value)))))
+                         ;; nil, string, or number
+                         (dom-attr (edraw-element shape) prop-name)))
                  prop-names))))
 
 (defun edraw-merge-set-properties-undo-data (begin end &optional match-type

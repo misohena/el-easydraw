@@ -696,20 +696,26 @@
 ;; Property Source
 
 (defun edraw-svg-element-get-attr (element prop-name _defrefs)
-  (let ((value (dom-attr element prop-name)))
-    ;; Always return as a string or nil
-    (if (null value)
-        nil
-      (format "%s" value))))
+  ;; nil means no property.
+  ;; Return nil, string, or other stored types like a number.
+  (dom-attr element prop-name))
 
 (defun edraw-svg-element-set-attr (element prop-name value _defrefs)
-  ;; Always store as a string or nil
-  (if (null value)
-      (edraw-dom-remove-attr element prop-name)
-    (if (and (eq (dom-tag element) 'text)
-             (eq prop-name 'x))
-        (edraw-svg-text-set-x element (edraw-svg-ensure-string-attr value))
-      (edraw-svg-set-attr-string element prop-name value))))
+  (cond
+   ;; nil means no property.
+   ((null value)
+    (edraw-dom-remove-attr element prop-name))
+   ;; x of text must by changed along with inner tspans.
+   ((and (eq (dom-tag element) 'text)
+         (eq prop-name 'x))
+    (edraw-svg-text-set-x element value))
+   ;; Store as is. Avoid numerical errors.
+   ((numberp value)
+    (edraw-svg-set-attr-number element prop-name value))
+   ((stringp value)
+    (edraw-svg-set-attr-string element prop-name value))
+   (t
+    (dom-set-attribute element prop-name value))))
 
 (defun edraw-svg-element-get-inner-text (element _prop-name _defrefs)
   ;;(dom-text element)
