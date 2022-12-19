@@ -616,7 +616,8 @@ editor when the selected shape changes."
            (new-w-value (edraw-property-editor-prop-value-to-widget-value
                          prop-value
                          prop-info)))
-      (unless (equal old-w-value new-w-value) ;;@todo make tolerance. 100.0 = 100 = 100., 100.01 = 100.009999999999
+      (unless (edraw-property-editor-equal-value old-w-value new-w-value
+                                                 prop-info)
         ;;(message "target chagned: %s: %s to %s" prop-name old-w-value new-w-value)
         ;; Prevent notification
         (let ((old-notify (widget-get widget :notify)))
@@ -624,6 +625,19 @@ editor when the selected shape changes."
           (unwind-protect
               (widget-value-set widget new-w-value)
             (widget-put widget :notify old-notify)))))))
+
+(defun edraw-property-editor-equal-value (wv1 wv2 prop-info)
+  (cond
+   ((plist-get prop-info :number-p)
+    (or
+     (equal wv1 wv2)
+     (let ((to-number (plist-get prop-info :to-number)))
+       ;;@todo empty-string-p (opacity: "" = 1.0)
+       ;;@todo very small difference (100.01 = 100.009999999999)
+       ;; 100.0 = 100 = 100.
+       (= (funcall to-number wv1) (funcall to-number wv2)))))
+   (t
+    (equal wv1 wv2))))
 
 (cl-defmethod edraw-update-widgets-value ((pedit edraw-property-editor))
   (with-slots (widgets target) pedit
