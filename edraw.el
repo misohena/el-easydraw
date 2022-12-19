@@ -4603,8 +4603,12 @@ position where the EVENT occurred."
   `(((edraw-msg "Select") edraw-select)
     ((edraw-msg "Properties...") edraw-edit-properties)
     ((edraw-msg "Set")
-     (((edraw-msg "Fill...") edraw-edit-fill)
-      ((edraw-msg "Stroke...") edraw-edit-stroke)))
+     (((edraw-msg "Fill...") edraw-edit-fill
+       :visible ,(edraw-has-property-p shape 'fill))
+      ((edraw-msg "Stroke...") edraw-edit-stroke
+       :visible ,(edraw-has-property-p shape 'stroke))
+      ((edraw-msg "Href...") edraw-edit-href
+       :visible ,(edraw-has-property-p shape 'href))))
     ((edraw-msg "Transform")
      (((edraw-msg "Translate...") edraw-translate)
       ((edraw-msg "Scale...") edraw-scale)
@@ -5261,6 +5265,12 @@ position where the EVENT occurred."
     ;; other properties
     (edraw-set-properties-internal shape prop-list undo-list-end changed)))
 
+(cl-defmethod edraw-edit-href ((shape edraw-shape-image))
+  (let ((filename (read-file-name (edraw-msg "Image File: ")
+                                  nil
+                                  (edraw-get-property shape 'href)
+                                  t)))
+    (edraw-set-property shape 'href (file-relative-name filename))))
 
 
 ;;;;; Shape - Path
