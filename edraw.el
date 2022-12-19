@@ -4747,8 +4747,8 @@ position where the EVENT occurred."
            (px (pcase ref-x (0 (car p0p1)) (1 (cdr p0p1))))
            (py (pcase ref-y (0 (car p0p1)) (1 (cdr p0p1)))))
       (cons
-       (if px (car px) (/ (+ (caar p0p1) (cadr p0p1)) 2))
-       (if py (cdr py) (/ (+ (cdar p0p1) (cddr p0p1)) 2))))))
+       (if px (car px) (* 0.5 (+ (caar p0p1) (cadr p0p1))))
+       (if py (cdr py) (* 0.5 (+ (cdar p0p1) (cddr p0p1))))))))
 
 (cl-defmethod edraw-set-rect ((shape edraw-shape-with-rect-boundary) xy0 xy1)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
