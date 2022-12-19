@@ -163,8 +163,7 @@
   ;; Derived from svg-print in svg.el
   (when (or (null node-filter) (funcall node-filter dom))
     (if (stringp dom)
-        ;;@todo escape text
-        (insert dom)
+        (insert (edraw-svg-escape-chars dom))
       (let ((tag (car dom))
             (attrs (cadr dom))
             (children (cddr dom)))
@@ -172,11 +171,11 @@
         (insert (format "<%s" tag))
         (dolist (attr attrs)
           (when (or (null attr-filter) (funcall attr-filter attr))
-            ;;@todo escape attribute values (What is the state after libxml parses?)
             (insert (format " %s=\"%s\""
                             (car attr)
                             ;;@todo add true attribute filter and add number format option on export
-                            (edraw-svg-ensure-string-attr (cdr attr))))))
+                            (edraw-svg-escape-chars
+                             (edraw-svg-ensure-string-attr (cdr attr)))))))
         (if (null children)
             ;;children is empty
             (insert " />")
@@ -197,6 +196,17 @@
 
 (defun edraw-svg-symbol-name (symbol-or-str)
   (format "%s" symbol-or-str))
+
+(defun edraw-svg-escape-chars (str)
+  (replace-regexp-in-string
+   "\\([\"&<]\\)"
+   (lambda (str)
+     (pcase (elt str 0)
+       (?\" "&quot;")
+       (?& "&amp;")
+       (?< "&lt;")))
+   str
+   t t))
 
 
 ;;;; SVG Encode / Decode
