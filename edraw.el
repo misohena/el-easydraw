@@ -4434,6 +4434,11 @@ position where the EVENT occurred."
   (edraw-svg-element-get-property (edraw-element shape) prop-name
                                   (edraw-get-defrefs shape)))
 
+(cl-defmethod edraw-get-property-as-length ((shape edraw-shape) prop-name
+                                            &optional default-value)
+  (or (edraw-svg-length-string-to-number (edraw-get-property shape prop-name))
+      (or default-value 0)))
+
 (cl-defmethod edraw-get-all-properties ((shape edraw-shape));;@todo generalize
   (cl-loop for prop-info in (edraw-get-property-info-list shape)
            collect (let ((prop-name (plist-get prop-info :name)))
@@ -4465,6 +4470,7 @@ position where the EVENT occurred."
        (oref shape editor)
        'shape-properties
        (list #'edraw-set-properties shape old-prop-list))
+      (edraw-on-shape-properties-changed shape old-prop-list)
       (edraw-on-shape-changed shape 'shape-properties)))
 
   ;; Merge undo data
@@ -4480,6 +4486,10 @@ position where the EVENT occurred."
        (edraw-undo-list editor)
        (cdr undo-list-end) 'shape-properties nil t)))
   changed)
+
+(cl-defmethod edraw-on-shape-properties-changed ((_shape edraw-shape)
+                                                 _old-prop-list)
+  )
 
 (cl-defmethod edraw-set-property ((shape edraw-shape) prop-name value);;@todo generalize
   (edraw-set-properties
@@ -4694,14 +4704,13 @@ position where the EVENT occurred."
    (p0p1)) ;;Note that p0(car p0p1) is not always in the upper left
   :abstract t)
 
-(cl-defgeneric edraw-get-rect-from-element
-    ((shape edraw-shape-with-rect-boundary)))
+(cl-defgeneric edraw-get-rect ((shape edraw-shape-with-rect-boundary)))
 
 (cl-defmethod edraw-make-anchor-points-from-element
   ((shape edraw-shape-with-rect-boundary))
   (with-slots (element anchor-points p0p1) shape
     (when (null anchor-points)
-      (setq p0p1 (edraw-get-rect-from-element shape))
+      (setq p0p1 (edraw-get-rect shape))
       (setq anchor-points
             (list
              ;; Corners
@@ -4765,40 +4774,24 @@ position where the EVENT occurred."
       (setcdr (cdr p0p1) (cdr xy1))
       (edraw-on-anchor-position-changed shape))))
 
-(cl-defmethod edraw-set-rect-ltwh ((shape edraw-shape-with-rect-boundary) left top width height)
-  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
-  ;;@todo
+(cl-defmethod edraw-set-p0p1-without-notify
+  ((shape edraw-shape-with-rect-boundary) left top right bottom)
+  ;; Change the coordinates of p0p1 without changing the left/right and
+  ;; top/bottom positional relationships
   (with-slots (p0p1) shape
-    (when (or (/= (caar p0p1) left)
-              (/= (cdar p0p1) top)
-              (/= (cadr p0p1) (+ left width))
-              (/= (cddr p0p1) (+ top height)))
-      ;;changed
-      (setcar (car p0p1) left)
-      (setcdr (car p0p1) top)
-      (setcar (cdr p0p1) (+ left width))
-      (setcdr (cdr p0p1) (+ top height))
-      (edraw-on-anchor-position-changed-ltwh shape left top width height))))
+    (let ((p0 (car p0p1))
+          (p1 (cdr p0p1)))
+      (if (<= (edraw-x p0) (edraw-x p1))
+          (setf (edraw-x p0) left
+                (edraw-x p1) right)
+        (setf (edraw-x p0) right
+              (edraw-x p1) left))
 
-(cl-defmethod edraw-set-rect-center-radius ((shape edraw-shape-with-rect-boundary) cx cy rx ry)
-  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
-  ;;@todo
-  (with-slots (p0p1) shape
-    (when (or (/= (caar p0p1) (- cx rx))
-              (/= (cdar p0p1) (- cy ry))
-              (/= (cadr p0p1) (+ cx rx))
-              (/= (cddr p0p1) (+ cy ry)))
-      ;;changed
-      (setcar (car p0p1) (- cx rx))
-      (setcdr (car p0p1) (- cy ry))
-      (setcar (cdr p0p1) (+ cx rx))
-      (setcdr (cdr p0p1) (+ cy ry))
-      (edraw-on-anchor-position-changed-center-radius shape cx cy rx ry))))
-
-(cl-defmethod edraw-get-rect ((shape edraw-shape-with-rect-boundary))
-  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
-  (with-slots (p0p1) shape
-    (edraw-aabb (car p0p1) (cdr p0p1))))
+      (if (<= (edraw-y p0) (edraw-y p1))
+          (setf (edraw-y p0) top
+                (edraw-y p1) bottom)
+        (setf (edraw-y p0) bottom
+              (edraw-y p1) top)))))
 
 (cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) &optional xy)
   (edraw-set-translate-params)
@@ -4827,18 +4820,8 @@ position where the EVENT occurred."
       )))
 
 ;;;;;; Implemented in Derived Classes
+
 ;;(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-*))
-
-(cl-defmethod edraw-on-anchor-position-changed-ltwh
-  ((shape edraw-shape-with-rect-boundary)
-   _left _top _width _height)
-  (edraw-on-anchor-position-changed shape))
-
-(cl-defmethod edraw-on-anchor-position-changed-center-radius
-  ((shape edraw-shape-with-rect-boundary)
-   _cx _cy _rx _ry)
-  (edraw-on-anchor-position-changed shape))
-
 
 
 ;;;;; Shape - Rect
@@ -4855,14 +4838,13 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-rect))
   'rect)
 
-(cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-rect))
-  (with-slots (element) shape
-    (let ((x (or (edraw-svg-attr-coord element 'x) 0))
-          (y (or (edraw-svg-attr-coord element 'y) 0))
-          (width (or (edraw-svg-attr-length element 'width) 0))
-          (height (or (edraw-svg-attr-length element 'height) 0)))
-      (cons (cons x y)
-            (cons (+ x width) (+ y height))))))
+(cl-defmethod edraw-get-rect ((shape edraw-shape-rect))
+  (let ((x (edraw-get-property-as-length shape 'x 0))
+        (y (edraw-get-property-as-length shape 'y 0))
+        (width (edraw-get-property-as-length shape 'width 0))
+        (height (edraw-get-property-as-length shape 'height 0)))
+    (cons (cons x y)
+          (cons (+ x width) (+ y height)))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-rect))
   (edraw-push-undo-properties shape
@@ -4873,48 +4855,30 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect))
   (with-slots (p0p1) shape
-    (edraw-on-anchor-position-changed-ltwh
+    ;; Update x,y,width,height from p0p1
+    ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
+    (edraw-set-properties
      shape
-     (min (caar p0p1) (cadr p0p1))
-     (min (cdar p0p1) (cddr p0p1))
-     (abs (- (caar p0p1) (cadr p0p1)))
-     (abs (- (cdar p0p1) (cddr p0p1))))))
+     (list
+      (cons 'x      (min (caar p0p1) (cadr p0p1)))
+      (cons 'y      (min (cdar p0p1) (cddr p0p1)))
+      (cons 'width  (abs (- (caar p0p1) (cadr p0p1))))
+      (cons 'height (abs (- (cdar p0p1) (cddr p0p1))))))))
 
-(cl-defmethod edraw-on-anchor-position-changed-ltwh ((shape edraw-shape-rect)
-                                                     left top width height)
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-rect-anchor '(x y width height))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-rect-anchor)
-    (edraw-svg-set-attr-number element 'x left)
-    (edraw-svg-set-attr-number element 'y top)
-    (edraw-svg-set-attr-number element 'width width)
-    (edraw-svg-set-attr-number element 'height height)
-    (edraw-on-shape-changed shape 'anchor-position)))
+(cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-rect)
+                                                 old-prop-list)
+  (when (seq-find (lambda (name-value)
+                    (memq (car name-value) '(x y width height)))
+                  old-prop-list)
+    ;; Update p0p1 from x,y,width,height
+    (let* ((left   (edraw-get-property-as-length shape 'x 0))
+           (top    (edraw-get-property-as-length shape 'y 0))
+           (width  (edraw-get-property-as-length shape 'width 0))
+           (height (edraw-get-property-as-length shape 'height 0))
+           (right  (+ left width))
+           (bottom (+ top height)))
 
-(cl-defmethod edraw-set-properties ((shape edraw-shape-rect) prop-list)
-  (let ((undo-list-end (edraw-undo-list (oref shape editor)))
-        (changed nil))
-    ;; apply x= y= width= height= properties
-    (let* ((old-x (or (edraw-svg-length-string-to-number (edraw-get-property shape 'x)) 0))
-           (old-y (or (edraw-svg-length-string-to-number (edraw-get-property shape 'y)) 0))
-           (old-w (or (edraw-svg-length-string-to-number (edraw-get-property shape 'width)) 0))
-           (old-h (or (edraw-svg-length-string-to-number (edraw-get-property shape 'height)) 0))
-           (new-x (or (edraw-svg-length-string-to-number (alist-get 'x prop-list old-x)) 0))
-           (new-y (or (edraw-svg-length-string-to-number (alist-get 'y prop-list old-y)) 0))
-           (new-w (or (edraw-svg-length-string-to-number (alist-get 'width prop-list old-w)) 0))
-           (new-h (or (edraw-svg-length-string-to-number (alist-get 'height prop-list old-h)) 0)))
-      (when (or (/= new-x old-x)
-                (/= new-y old-y)
-                (/= new-w old-w)
-                (/= new-h old-h))
-        (setq changed t)
-        (edraw-set-rect-ltwh shape new-x new-y new-w new-h)))
-    (setf (alist-get 'x prop-list nil 'remove) nil)
-    (setf (alist-get 'y prop-list nil 'remove) nil)
-    (setf (alist-get 'width prop-list nil 'remove) nil)
-    (setf (alist-get 'height prop-list nil 'remove) nil)
-    ;; other properties
-    (edraw-set-properties-internal shape prop-list undo-list-end changed)))
+      (edraw-set-p0p1-without-notify shape left top right bottom))))
 
 (cl-defmethod edraw-get-actions ((_shape edraw-shape-rect))
   (let* ((items (copy-tree (cl-call-next-method))))
@@ -4938,14 +4902,13 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-ellipse))
   'ellipse)
 
-(cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-ellipse))
-  (with-slots (element) shape
-    (let ((cx (or (edraw-svg-attr-coord element 'cx) 0))
-          (cy (or (edraw-svg-attr-coord element 'cy) 0))
-          (rx (or (edraw-svg-attr-length element 'rx) 0))
-          (ry (or (edraw-svg-attr-length element 'ry) 0)))
-      (cons (cons (- cx rx) (- cy ry))
-            (cons (+ cx rx) (+ cy ry))))))
+(cl-defmethod edraw-get-rect ((shape edraw-shape-ellipse))
+  (let ((cx (edraw-get-property-as-length shape 'cx 0))
+        (cy (edraw-get-property-as-length shape 'cy 0))
+        (rx (edraw-get-property-as-length shape 'rx 0))
+        (ry (edraw-get-property-as-length shape 'ry 0)))
+    (cons (cons (- cx rx) (- cy ry))
+          (cons (+ cx rx) (+ cy ry)))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-ellipse))
   (edraw-push-undo-properties shape
@@ -4956,48 +4919,32 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse))
   (with-slots (p0p1) shape
-    (edraw-on-anchor-position-changed-center-radius
+    ;; Update x,y,width,height from p0p1
+    ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
+    (edraw-set-properties
      shape
-     (* 0.5 (+ (caar p0p1) (cadr p0p1)))
-     (* 0.5 (+ (cdar p0p1) (cddr p0p1)))
-     (* 0.5 (abs (- (caar p0p1) (cadr p0p1))))
-     (* 0.5 (abs (- (cdar p0p1) (cddr p0p1)))))))
+     (list
+      (cons 'cx (* 0.5 (+ (caar p0p1) (cadr p0p1))))
+      (cons 'cy (* 0.5 (+ (cdar p0p1) (cddr p0p1))))
+      (cons 'rx (* 0.5 (abs (- (caar p0p1) (cadr p0p1)))))
+      (cons 'ry (* 0.5 (abs (- (cdar p0p1) (cddr p0p1)))))))))
 
-(cl-defmethod edraw-on-anchor-position-changed-center-radius
-  ((shape edraw-shape-ellipse) cx cy rx ry)
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-ellipse-anchor '(cx cy rx ry))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-ellipse-anchor)
-    (edraw-svg-set-attr-number element 'cx cx)
-    (edraw-svg-set-attr-number element 'cy cy)
-    (edraw-svg-set-attr-number element 'rx rx)
-    (edraw-svg-set-attr-number element 'ry ry)
-    (edraw-on-shape-changed shape 'anchor-position)))
+(cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-ellipse)
+                                                 old-prop-list)
+  (when (seq-find (lambda (name-value)
+                    (memq (car name-value) '(cx cy rx ry)))
+                  old-prop-list)
+    ;; Update p0p1 from cx,cy,rx,ry
+    (let* ((cx (edraw-get-property-as-length shape 'cx 0))
+           (cy (edraw-get-property-as-length shape 'cy 0))
+           (rx (edraw-get-property-as-length shape 'rx 0))
+           (ry (edraw-get-property-as-length shape 'ry 0))
+           (left   (- cx rx))
+           (top    (- cy ry))
+           (right  (+ cx rx))
+           (bottom (+ cy ry)))
 
-(cl-defmethod edraw-set-properties ((shape edraw-shape-ellipse) prop-list)
-  (let ((undo-list-end (edraw-undo-list (oref shape editor)))
-        (changed nil))
-    ;; apply cx= cy= rx= ry= properties
-    (let* ((old-cx (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cx)) 0))
-           (old-cy (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cy)) 0))
-           (old-rx (or (edraw-svg-length-string-to-number (edraw-get-property shape 'rx)) 0))
-           (old-ry (or (edraw-svg-length-string-to-number (edraw-get-property shape 'ry)) 0))
-           (new-cx (or (edraw-svg-length-string-to-number (alist-get 'cx prop-list old-cx)) 0))
-           (new-cy (or (edraw-svg-length-string-to-number (alist-get 'cy prop-list old-cy)) 0))
-           (new-rx (or (edraw-svg-length-string-to-number (alist-get 'rx prop-list old-rx)) 0))
-           (new-ry (or (edraw-svg-length-string-to-number (alist-get 'ry prop-list old-ry)) 0)))
-      (when (or (/= new-cx old-cx)
-                (/= new-cy old-cy)
-                (/= new-rx old-rx)
-                (/= new-ry old-ry))
-        (setq changed t)
-        (edraw-set-rect-center-radius shape new-cx new-cy new-rx new-ry)))
-    (setf (alist-get 'cx prop-list nil 'remove) nil)
-    (setf (alist-get 'cy prop-list nil 'remove) nil)
-    (setf (alist-get 'rx prop-list nil 'remove) nil)
-    (setf (alist-get 'ry prop-list nil 'remove) nil)
-    ;; other properties
-    (edraw-set-properties-internal shape prop-list undo-list-end changed)))
+      (edraw-set-p0p1-without-notify shape left top right bottom))))
 
 (cl-defmethod edraw-get-actions ((_shape edraw-shape-ellipse))
   (let* ((items (copy-tree (cl-call-next-method))))
@@ -5021,13 +4968,12 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-circle))
   'circle)
 
-(cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-circle))
-  (with-slots (element) shape
-    (let ((cx (or (edraw-svg-attr-coord element 'cx) 0))
-          (cy (or (edraw-svg-attr-coord element 'cy) 0))
-          (r (or (edraw-svg-attr-length element 'r) 0)))
-      (cons (cons (- cx r) (- cy r))
-            (cons (+ cx r) (+ cy r))))))
+(cl-defmethod edraw-get-rect ((shape edraw-shape-circle))
+  (let ((cx (edraw-get-property-as-length shape 'cx 0))
+        (cy (edraw-get-property-as-length shape 'cy 0))
+        (r (edraw-get-property-as-length shape 'r 0)))
+    (cons (cons (- cx r) (- cy r))
+          (cons (+ cx r) (+ cy r)))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-circle))
   (edraw-push-undo-properties shape
@@ -5035,25 +4981,6 @@ position where the EVENT occurred."
                               (if (edraw-transform-prop-exists-p shape)
                                   '(transform)
                                 '(cx cy r))))
-
-(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle))
-  (with-slots (p0p1) shape
-    (let* ((p0 (car p0p1))
-           (p1 (cdr p0p1))
-           (cx (* 0.5 (+ (car p0) (car p1))))
-           (cy (* 0.5 (+ (cdr p0) (cdr p1))))
-           (r (max (* 0.5 (abs (- (car p0) (car p1))))
-                   (* 0.5 (abs (- (cdr p0) (cdr p1)))))))
-      (edraw-on-anchor-position-changed-center-radius shape cx cy r r))))
-
-(cl-defmethod edraw-on-anchor-position-changed-center-radius ((shape edraw-shape-circle) cx cy rx ry)
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-circle-anchor '(cx cy r))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-circle-anchor)
-    (edraw-svg-set-attr-number element 'cx cx)
-    (edraw-svg-set-attr-number element 'cy cy)
-    (edraw-svg-set-attr-number element 'r (max rx ry))
-    (edraw-on-shape-changed shape 'anchor-position)))
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-circle)
                                          anchor
@@ -5099,26 +5026,35 @@ position where the EVENT occurred."
       (when changed
         (edraw-on-anchor-position-changed shape)))))
 
-(cl-defmethod edraw-set-properties ((shape edraw-shape-circle) prop-list)
-  (let ((undo-list-end (edraw-undo-list (oref shape editor)))
-        (changed nil))
-    ;; apply cx= cy= r= properties
-    (let* ((old-cx (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cx)) 0))
-           (old-cy (or (edraw-svg-length-string-to-number (edraw-get-property shape 'cy)) 0))
-           (old-r (or (edraw-svg-length-string-to-number (edraw-get-property shape 'r)) 0))
-           (new-cx (or (edraw-svg-length-string-to-number (alist-get 'cx prop-list old-cx)) 0))
-           (new-cy (or (edraw-svg-length-string-to-number (alist-get 'cy prop-list old-cy)) 0))
-           (new-r (or (edraw-svg-length-string-to-number (alist-get 'r prop-list old-r)) 0)))
-      (when (or (/= new-cx old-cx)
-                (/= new-cy old-cy)
-                (/= new-r old-r))
-        (setq changed t)
-        (edraw-set-rect-center-radius shape new-cx new-cy new-r new-r)))
-    (setf (alist-get 'cx prop-list nil 'remove) nil)
-    (setf (alist-get 'cy prop-list nil 'remove) nil)
-    (setf (alist-get 'r prop-list nil 'remove) nil)
-    ;; other properties
-    (edraw-set-properties-internal shape prop-list undo-list-end changed)))
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle))
+  (with-slots (p0p1) shape
+    ;; Update x,y,width,height from p0p1
+    ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
+    (edraw-set-properties
+     shape
+     (let* ((p0 (car p0p1))
+            (p1 (cdr p0p1)))
+       (list
+        (cons 'cx (* 0.5 (+ (car p0) (car p1))))
+        (cons 'cy (* 0.5 (+ (cdr p0) (cdr p1))))
+        (cons 'r (max (* 0.5 (abs (- (car p0) (car p1))))
+                      (* 0.5 (abs (- (cdr p0) (cdr p1)))))))))))
+
+(cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-circle)
+                                                 old-prop-list)
+  (when (seq-find (lambda (name-value)
+                    (memq (car name-value) '(cx cy r)))
+                  old-prop-list)
+    ;; Update p0p1 from cx,cy,r
+    (let* ((cx (edraw-get-property-as-length shape 'cx 0))
+           (cy (edraw-get-property-as-length shape 'cy 0))
+           (r (edraw-get-property-as-length shape 'r 0))
+           (left   (- cx r))
+           (top    (- cy r))
+           (right  (+ cx r))
+           (bottom (+ cy r)))
+
+      (edraw-set-p0p1-without-notify shape left top right bottom))))
 
 (cl-defmethod edraw-get-actions ((_shape edraw-shape-circle))
   (let* ((items (copy-tree (cl-call-next-method))))
@@ -5204,14 +5140,13 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-image))
   'image)
 
-(cl-defmethod edraw-get-rect-from-element ((shape edraw-shape-image))
-  (with-slots (element) shape
-    (let ((x (or (edraw-svg-attr-coord element 'x) 0))
-          (y (or (edraw-svg-attr-coord element 'y) 0))
-          (width (or (edraw-svg-attr-length element 'width) 0))
-          (height (or (edraw-svg-attr-length element 'height) 0)))
-      (cons (cons x y)
-            (cons (+ x width) (+ y height))))))
+(cl-defmethod edraw-get-rect ((shape edraw-shape-image))
+  (let ((x (edraw-get-property-as-length shape 'x 0))
+        (y (edraw-get-property-as-length shape 'y 0))
+        (width (edraw-get-property-as-length shape 'width 0))
+        (height (edraw-get-property-as-length shape 'height 0)))
+    (cons (cons x y)
+          (cons (+ x width) (+ y height)))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-image))
   (edraw-push-undo-properties shape
@@ -5222,48 +5157,30 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image))
   (with-slots (p0p1) shape
-    (edraw-on-anchor-position-changed-ltwh
+    ;; Update x,y,width,height from p0p1
+    ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
+    (edraw-set-properties
      shape
-     (min (caar p0p1) (cadr p0p1))
-     (min (cdar p0p1) (cddr p0p1))
-     (abs (- (caar p0p1) (cadr p0p1)))
-     (abs (- (cdar p0p1) (cddr p0p1))))))
+     (list
+      (cons 'x      (min (caar p0p1) (cadr p0p1)))
+      (cons 'y      (min (cdar p0p1) (cddr p0p1)))
+      (cons 'width  (abs (- (caar p0p1) (cadr p0p1))))
+      (cons 'height (abs (- (cdar p0p1) (cddr p0p1))))))))
 
-(cl-defmethod edraw-on-anchor-position-changed-ltwh ((shape edraw-shape-image)
-                                                     left top width height)
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-image-anchor '(x y width height))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-image-anchor)
-    (edraw-svg-set-attr-number element 'x left)
-    (edraw-svg-set-attr-number element 'y top)
-    (edraw-svg-set-attr-number element 'width width)
-    (edraw-svg-set-attr-number element 'height height)
-    (edraw-on-shape-changed shape 'anchor-position)))
+(cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-image)
+                                                 old-prop-list)
+  (when (seq-find (lambda (name-value)
+                    (memq (car name-value) '(x y width height)))
+                  old-prop-list)
+    ;; Update p0p1 from x,y,width,height
+    (let* ((left   (edraw-get-property-as-length shape 'x 0))
+           (top    (edraw-get-property-as-length shape 'y 0))
+           (width  (edraw-get-property-as-length shape 'width 0))
+           (height (edraw-get-property-as-length shape 'height 0))
+           (right  (+ left width))
+           (bottom (+ top height)))
 
-(cl-defmethod edraw-set-properties ((shape edraw-shape-image) prop-list)
-  (let ((undo-list-end (edraw-undo-list (oref shape editor)))
-        (changed nil))
-    ;; apply x= y= width= height= properties
-    (let* ((old-x (or (edraw-svg-length-string-to-number (edraw-get-property shape 'x)) 0))
-           (old-y (or (edraw-svg-length-string-to-number (edraw-get-property shape 'y)) 0))
-           (old-w (or (edraw-svg-length-string-to-number (edraw-get-property shape 'width)) 0))
-           (old-h (or (edraw-svg-length-string-to-number (edraw-get-property shape 'height)) 0))
-           (new-x (or (edraw-svg-length-string-to-number (alist-get 'x prop-list old-x)) 0))
-           (new-y (or (edraw-svg-length-string-to-number (alist-get 'y prop-list old-y)) 0))
-           (new-w (or (edraw-svg-length-string-to-number (alist-get 'width prop-list old-w)) 0))
-           (new-h (or (edraw-svg-length-string-to-number (alist-get 'height prop-list old-h)) 0)))
-      (when (or (/= new-x old-x)
-                (/= new-y old-y)
-                (/= new-w old-w)
-                (/= new-h old-h))
-        (setq changed t)
-        (edraw-set-rect-ltwh shape new-x new-y new-w new-h)))
-    (setf (alist-get 'x prop-list nil 'remove) nil)
-    (setf (alist-get 'y prop-list nil 'remove) nil)
-    (setf (alist-get 'width prop-list nil 'remove) nil)
-    (setf (alist-get 'height prop-list nil 'remove) nil)
-    ;; other properties
-    (edraw-set-properties-internal shape prop-list undo-list-end changed)))
+      (edraw-set-p0p1-without-notify shape left top right bottom))))
 
 (cl-defmethod edraw-edit-href ((shape edraw-shape-image))
   (let ((filename (read-file-name (edraw-msg "Image File: ")
