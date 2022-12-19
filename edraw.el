@@ -4868,11 +4868,13 @@ position where the EVENT occurred."
                                 '(x y width height))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect))
-  (with-slots (element p0p1) shape
-    (edraw-push-undo-properties shape 'shape-rect-anchor '(x y width height))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-rect-anchor)
-    (edraw-svg-rect-set-range element (car p0p1) (cdr p0p1))
-    (edraw-on-shape-changed shape 'anchor-position)))
+  (with-slots (p0p1) shape
+    (edraw-on-anchor-position-changed-ltwh
+     shape
+     (min (caar p0p1) (cadr p0p1))
+     (min (cdar p0p1) (cddr p0p1))
+     (abs (- (caar p0p1) (cadr p0p1)))
+     (abs (- (cdar p0p1) (cddr p0p1))))))
 
 (cl-defmethod edraw-on-anchor-position-changed-ltwh ((shape edraw-shape-rect)
                                                      left top width height)
@@ -4949,11 +4951,13 @@ position where the EVENT occurred."
                                 '(cx cy rx ry))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse))
-  (with-slots (element p0p1) shape
-    (edraw-push-undo-properties shape 'shape-ellipse-anchor '(cx cy rx ry))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-ellipse-anchor)
-    (edraw-svg-ellipse-set-range element (car p0p1) (cdr p0p1))
-    (edraw-on-shape-changed shape 'anchor-position)))
+  (with-slots (p0p1) shape
+    (edraw-on-anchor-position-changed-center-radius
+     shape
+     (* 0.5 (+ (caar p0p1) (cadr p0p1)))
+     (* 0.5 (+ (cdar p0p1) (cddr p0p1)))
+     (* 0.5 (abs (- (caar p0p1) (cadr p0p1))))
+     (* 0.5 (abs (- (cdar p0p1) (cddr p0p1)))))))
 
 (cl-defmethod edraw-on-anchor-position-changed-center-radius
   ((shape edraw-shape-ellipse) cx cy rx ry)
@@ -5029,16 +5033,14 @@ position where the EVENT occurred."
                                 '(cx cy r))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle))
-  (with-slots (element p0p1) shape
-    (edraw-push-undo-properties shape 'shape-circle-anchor '(cx cy r))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-circle-anchor)
-    (let ((p0 (car p0p1))
-          (p1 (cdr p0p1)))
-      (edraw-svg-set-attr-number element 'cx (* 0.5 (+ (car p0) (car p1))))
-      (edraw-svg-set-attr-number element 'cy (* 0.5 (+ (cdr p0) (cdr p1))))
-      (edraw-svg-set-attr-number element 'r (max (* 0.5 (abs (- (car p0) (car p1))))
-                                                 (* 0.5 (abs (- (cdr p0) (cdr p1)))))))
-    (edraw-on-shape-changed shape 'anchor-position)))
+  (with-slots (p0p1) shape
+    (let* ((p0 (car p0p1))
+           (p1 (cdr p0p1))
+           (cx (* 0.5 (+ (car p0) (car p1))))
+           (cy (* 0.5 (+ (cdr p0) (cdr p1))))
+           (r (max (* 0.5 (abs (- (car p0) (car p1))))
+                   (* 0.5 (abs (- (cdr p0) (cdr p1)))))))
+      (edraw-on-anchor-position-changed-center-radius shape cx cy r r))))
 
 (cl-defmethod edraw-on-anchor-position-changed-center-radius ((shape edraw-shape-circle) cx cy rx ry)
   (with-slots (element) shape
@@ -5215,11 +5217,13 @@ position where the EVENT occurred."
                                 '(x y width height))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image))
-  (with-slots (element p0p1) shape
-    (edraw-push-undo-properties shape 'shape-image-anchor '(x y width height))
-    (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-image-anchor)
-    (edraw-svg-image-set-range element (car p0p1) (cdr p0p1))
-    (edraw-on-shape-changed shape 'anchor-position)))
+  (with-slots (p0p1) shape
+    (edraw-on-anchor-position-changed-ltwh
+     shape
+     (min (caar p0p1) (cadr p0p1))
+     (min (cdar p0p1) (cddr p0p1))
+     (abs (- (caar p0p1) (cadr p0p1)))
+     (abs (- (cdar p0p1) (cddr p0p1))))))
 
 (cl-defmethod edraw-on-anchor-position-changed-ltwh ((shape edraw-shape-image)
                                                      left top width height)
