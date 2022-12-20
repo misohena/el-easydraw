@@ -34,7 +34,8 @@
 
 ;;;; Autoload
 
-(autoload 'edraw-org-edit-link "edraw-org-edit" "" nil)
+(autoload 'edraw-org-edit-link "edraw-org-edit" "" t)
+(autoload 'edraw-org-link-copy-contents-at-point "edraw-org-edit" "" t)
 (autoload 'edraw-org-export-html-setup "edraw-org-export-html" "" nil)
 (autoload 'edraw-org-export-html-link "edraw-org-export-html" "" nil)
 (autoload 'edraw-org-export-latex-setup "edraw-org-export-latex" "" nil)
@@ -233,33 +234,55 @@ so check the org element before using this function."
                      ('description 2)))
     t))
 
-(defun edraw-org-link-element-path-in-description (link-element)
-  "Return the string after \"edraw:\" in the description of LINK-ELEMENT."
+(defun edraw-org-link-element-path-in-description (link-element
+                                                   &optional link-type)
+  "Return the string after \"<LINK-TYPE>:\" in the description of LINK-ELEMENT.
+
+When LINK-TYPE is nil, use `edraw-org-link-type'."
   (when-let ((c-begin (org-element-property :contents-begin link-element))
              (c-end (org-element-property :contents-end link-element)))
     (let ((desc (buffer-substring-no-properties c-begin c-end)))
-      (when (string-match (format "\\`%s:\\(.*\\)\\'" edraw-org-link-type) desc)
+      (when (string-match (format "\\`%s:\\(.*\\)\\'"
+                                  (or link-type edraw-org-link-type))
+                          desc)
         (match-string 1 desc)))))
 
-(defun edraw-org-link-element-link-properties (link-element noerror)
+(defun edraw-org-link-element-link-properties (link-element noerror &optional use-normal-file-link-p)
   "Return the property alist of LINK-ELEMENT.
 
-Return a cons cell (LINK-PROPS . IN-DESCRIPTION-P).
+Return a list (LINK-PROPS IN-DESCRIPTION-P LINK-TYPE).
 
 If NOERROR is t, ignore invalid property components. For example,
 when [[edraw: A=B;C;D=E]], return ((\"A\" . \"B\") (\"D\" . \"E\").
 If NOERROR is nil, signals an error."
-  (if-let ((desc (edraw-org-link-element-path-in-description link-element)))
-      ;; from description part
-      (cons (edraw-org-link-props-parse desc t noerror)
-            t)
-    ;; from path part
-    (if (equal (org-element-property :type link-element)
-               edraw-org-link-type)
-        (let ((path (org-element-property :path link-element)))
-          (cons (edraw-org-link-props-parse path nil noerror)
-                nil)))))
-
+  ;; edraw: link type
+  (cond
+   ;; from description part
+   ((when-let ((desc (edraw-org-link-element-path-in-description link-element)))
+      (list (edraw-org-link-props-parse desc t noerror)
+            t
+            edraw-org-link-type)))
+   ;; from path part
+   ((equal (org-element-property :type link-element) edraw-org-link-type)
+    (let ((path (org-element-property :path link-element)))
+      (list (edraw-org-link-props-parse path nil noerror)
+            nil
+            edraw-org-link-type)))
+   ;; file: link type
+   (use-normal-file-link-p
+    (cond
+     ;; from description part
+     ((when-let ((desc (edraw-org-link-element-path-in-description
+                        link-element "file")))
+        (list (list (cons "file" desc))
+              t
+              "file")))
+     ;; from path part
+     ((equal (org-element-property :type link-element) "file")
+      (let ((path (org-element-property :path link-element)))
+        (list (list (cons "file" path))
+              nil
+              edraw-org-link-type)))))))
 
 
 ;;;; Inline Link Image
@@ -273,6 +296,8 @@ If NOERROR is nil, signals an error."
     (define-key km (kbd "C-c C-o") 'edraw-org-link-image-open-at-point)
     km))
 
+;; Menu
+
 (defun edraw-org-link-image-menu-at-mouse (ev)
   (interactive "e")
 
@@ -281,12 +306,21 @@ If NOERROR is nil, signals an error."
    "Edraw Link Menu"
    `(((edraw-msg "Edit") edraw-org-edit-link)
      ((edraw-msg "Find File") edraw-org-link-image-find-file-at-mouse
-      :visible (edraw-org-link-at-description-link-p)))))
+      :visible (edraw-org-link-at-description-link-p))
+     ((edraw-msg "Copy Contents") edraw-org-link-copy-contents-at-point)
+     ((edraw-msg "Show SVG") edraw-org-link-show-svg-at-point)
+     ((edraw-msg "Export SVG") edraw-org-link-export-svg-at-point)
+     ((edraw-msg "Convert To [[edraw:file=]]") edraw-org-link-convert-to-edraw-file-link-at-point)
+     ((edraw-msg "Convert To [[edraw:data=]]") edraw-org-link-convert-to-edraw-data-link-at-point)
+     ((edraw-msg "Convert To [[file:]]") edraw-org-link-convert-to-normal-file-link-at-point)
+     )))
 
 (defun edraw-org-link-at-description-link-p ()
   (let ((link-element (edraw-org-link-at-point)))
     (and link-element
          (not (null (edraw-org-link-element-path-in-description link-element))))))
+
+;; Tools
 
 (defun edraw-org-link-image-open-at-point (&optional arg)
   (interactive)
@@ -297,6 +331,144 @@ If NOERROR is nil, signals an error."
 
 (defun edraw-org-link-image-find-file-at-mouse ()
   (org-open-at-point 'in-emacs))
+
+(defun edraw-org-link-load-svg-text-at-point (src-buffer dst-buffer)
+  (with-current-buffer src-buffer
+    (let* ((link-element (or (edraw-org-link-at-point)
+                             (error (edraw-msg "No link at point"))))
+           (props (car (edraw-org-link-element-link-properties link-element nil t)))
+           (data (edraw-org-link-prop-data props))
+           (file (edraw-org-link-prop-file props)))
+      (unless (or data file)
+        (error (edraw-msg "Link at point does not contain valid data")))
+      (when (and file (not (file-exists-p file)))
+        (error (edraw-msg "File does not exist")))
+
+      (set-buffer dst-buffer)
+      (set-buffer-file-coding-system 'utf-8)
+      (erase-buffer)
+      (cond
+       (data
+        (insert data)
+        (edraw-decode-buffer t))
+       (file
+        (insert-file-contents file))))))
+
+(defun edraw-org-link-show-svg-at-point ()
+  "Display the SVG data of the link at point."
+  (interactive)
+  (let ((src-buffer (current-buffer)))
+    (with-temp-buffer
+      (edraw-org-link-load-svg-text-at-point src-buffer (current-buffer))
+      (let ((buffer (current-buffer)))
+        (pop-to-buffer "*Easy Draw SVG*")
+        (set-buffer-file-coding-system 'utf-8)
+        (erase-buffer)
+        (insert-buffer-substring buffer)
+        (xml-mode)))))
+
+(defun edraw-org-link-export-svg-at-point ()
+  "Writes the SVG data of the link at point to a file."
+  (interactive)
+  (let ((src-buffer (current-buffer)))
+    (with-temp-buffer
+      (edraw-org-link-load-svg-text-at-point src-buffer (current-buffer))
+      (let ((buffer (current-buffer))
+            (output-file (read-file-name "Export File(.edraw.svg): ")))
+        (when (and (file-exists-p output-file)
+                   (not (y-or-n-p (edraw-msg "Overwrite?"))))
+          (signal 'quit nil))
+
+        (with-temp-file output-file
+          (set-buffer-file-coding-system 'utf-8)
+          (insert-buffer-substring buffer))))))
+
+(defun edraw-org-link-convert-to-edraw-data-link-at-point ()
+  "Converts the link at point to an edraw:data= format link."
+  (interactive)
+  (edraw-org-link-convert-at-point 'edraw-data))
+
+(defun edraw-org-link-convert-to-edraw-file-link-at-point ()
+  "Converts the link at point to an edraw:file= format link."
+  (interactive)
+  (edraw-org-link-convert-at-point 'edraw-file))
+
+(defun edraw-org-link-convert-to-normal-file-link-at-point ()
+  "Converts the link at point to an file: format link."
+  (interactive)
+  (edraw-org-link-convert-at-point 'file))
+
+(defun edraw-org-link-convert-at-point (target-type)
+  "Converts the link at point to TARGET-TYPE.
+
+Allowed values for TARGET-TYPE are:
+
+  edraw-data: [[edraw:data=]]
+  edraw-file: [[edraw:file=]]
+        file: [[file:]]"
+  (let* ((link-element (or (edraw-org-link-at-point)
+                           (error (edraw-msg "No link at point"))))
+         (props-place-type
+          (or (edraw-org-link-element-link-properties link-element t t)
+              (error "Invalid link type")))
+         (props (nth 0 props-place-type))
+         (in-description-p (nth 1 props-place-type))
+         (link-type (nth 2 props-place-type))
+         (data (edraw-org-link-prop-data props))
+         (file (edraw-org-link-prop-file props)))
+    (unless (or data file)
+      (error (edraw-msg "Link at point does not contain valid data")))
+    (when (and file (not (file-exists-p file)))
+      (error (edraw-msg "File does not exist")))
+
+    ;; Prepare data, file, properties
+    (pcase target-type
+      ;; To Data
+      ('edraw-data
+       (when data
+         (error (edraw-msg "No need to convert")))
+       (let ((new-data
+              (with-temp-buffer
+                (insert-file-contents file)
+                (edraw-encode-buffer t edraw-org-link-compress-data-p)
+                (buffer-string))))
+         (setf (alist-get "file" props nil t #'string=) nil)
+         (setf (alist-get "data" props nil nil #'string=) new-data)))
+      ;; To file
+      ((or 'edraw-file 'file)
+       (when (or (and (eq target-type 'edraw-file)
+                      (equal link-type edraw-org-link-type)
+                      file)
+                 (and (eq target-type 'file)
+                      (equal link-type "file")))
+         (error (edraw-msg "No need to convert")))
+       (when data
+         (let ((output-file (read-file-name "Export File(.edraw.svg): ")))
+           (when (and (file-exists-p output-file)
+                      (not (y-or-n-p (edraw-msg "Overwrite?"))))
+             (signal 'quit nil))
+           (with-temp-file output-file
+             (set-buffer-file-coding-system 'utf-8)
+             (insert data)
+             (edraw-decode-buffer t)
+             (when edraw-org-link-compress-file-p
+               (edraw-encode-buffer nil t)))
+           (setq file (file-relative-name output-file))
+           (setf (alist-get "data" props nil t #'string=) nil)
+           (setf (alist-get "file" props nil nil #'string=) file))))
+      (_
+       (error "Unknown target type %s" target-type)))
+
+    ;; Replace Link
+    (unless (edraw-org-link-replace-at-point
+             (if (eq target-type 'file)
+                 (concat "file:" file)
+               (concat edraw-org-link-type ":"
+                       (edraw-org-link-props-to-string props)))
+             (if in-description-p 'description 'path))
+      (error "Failed to replace edraw link"))))
+
+
 
 ;;
 ;; Display edraw link image inline

@@ -50,19 +50,6 @@ edraw-create-shape-without-default関数にindex引数を追加していると�
 とは言えやはりtextは同一視できないんじゃない？
 カスタムシェイプにtextなんて入れることがある？
 
-** TODO カスタムシェイプ/shape pickerでドラッグ&ドロップできるようにする
-範囲選択したentryをドラッグして別の場所へ移動できるようにする。
-
-** TODO カスタムシェイプ/貼り付け前に縮尺を指定できるようにする
-あらかじめ大きさを指定したい。
-問題はUI。ツールオプションを指定するGUIは可能か？
-ドラッグで大きさが変えられるようになったので必要性が薄くなってはいる。
-
-** TODO カスタムシェイプ/shape-pickerでmarkerを使った図形の表示を改善する
-矢印などのmarkerが表示されない。defsをSVG文字列に含めていないから。
-
-edraw-shape-descriptor-to-svg-element にダミーのdefrefsを使っているので、そこに何か定義が入ったらそれもコピーしてはどうか？
-
 ** TODO 変形の意味を整理する
 現在(edraw-transform shape matrix)は別々の方式が混在している。
 - グループはtransform属性を変更する。
@@ -110,7 +97,6 @@ edraw-read-rectangleのようにread-eventループに入ってしまうのも�
 ** TODO デフォルト値を何度も設定しなくて良くなる機能
 ** TODO 既存パスからの継続は選択中のパスに限定しない方が良い？
 ** TODO パスの始点を移動しようとして閉じてしまうミスを防げないか
-** TODO 通常の画像リンク(.edraw.svgへの)でも編集できるようにする
 ** TODO edraw-color-picker-replace-color-at-pointのキー入力を改善する
 C-c C-c や C-c C-kが効かない。
 ** TODO edraw-path-cmdに-backward-handle-pointタイプ(bhp)を追加する
@@ -127,26 +113,36 @@ path-cmdはともかく、path-pointは前後のアンカーやハンドルの�
 rectやellipse、textにもそういった問題はある。
 検出してshapeを消すべき。
 
-** TODO edrawリンクから中身の図形をコピーする機能を追加する   :ORG:
-リンクの上でコマンドを実行したらクリップボードにコピーされて他のedraw-editorでペーストできると部品の切り貼りが捗る。カスタムシェイプ機能でも良いが、org文書自体がシェイプカタログになるというのも面白い。
-
-edraw-org-shape-picker-modeなんてものがあると面白い。org文書がshape-pickerとして機能する。
-
-** TODO edrawリンクのfile-data形式を相互に変換できるようにする        :ORG:
-editorに変換するメニュー項目があっても良いし、edrawリンクの右クリックメニューにあっても良い。
-
-** TODO edrawリンクのメニューにSVGエクスポートを追加する              :ORG:
-リンクを右クリックして出るEdraw Link Menuに、中身のSVGを表示する機能を追加する。
-エディタの d e b 相当。ファイルリンク時も一応表示する。
-専用のバッファに表示してファイルへ保存したければ自分でしてもらう。
+** TODO 日本語に翻訳する
+地味によく分からないのが言語、国をどのように割り出すか。
+- 環境変数
+- current-language-environment
+- 手動設定
 
 ** TODO org-modeでODTへのエクスポートに対応する                       :ORG:
 ** TODO 個別のedrawリンクにHTML属性値を指定出来るようにする           :ORG:
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
 それともhtml-attr=で一つにまとめる？
+** TODO .edraw.svgファイルに対するfileリンクを編集できるようにする :ORG:
+通常のfileリンクを直接編集できるようにする。
+: [[file:somefile.edraw.svg] ]
+
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
+** TODO カスタムシェイプ/shape pickerでドラッグ&ドロップできるようにする
+範囲選択したentryをドラッグして別の場所へ移動できるようにする。
+
+** TODO カスタムシェイプ/貼り付け前に縮尺を指定できるようにする
+あらかじめ大きさを指定したい。
+問題はUI。ツールオプションを指定するGUIは可能か？
+ドラッグで大きさが変えられるようになったので必要性が薄くなってはいる。
+
+** TODO カスタムシェイプ/shape-pickerでmarkerを使った図形の表示を改善する
+矢印などのmarkerが表示されない。defsをSVG文字列に含めていないから。
+
+edraw-shape-descriptor-to-svg-element にダミーのdefrefsを使っているので、そこに何か定義が入ったらそれもコピーしてはどうか？
+
 ** TODO プロパティエディタ/複数選択してプロパティを設定
 - 必須プロパティは除外
 - 全てnilで始めるか、全てが完全に一致しているものだけ埋めるか
@@ -1104,3 +1100,16 @@ text要素でも同じ問題がある。
 ** DONE rectやellipseの辺の中心にあるアンカーポイントの位置ずれを直す
 CLOSED: [2022-12-20 Tue 01:09]
 整数に丸められているので、ズームすると中心がずれているのが気になる。
+** DONE edrawリンクから中身の図形をコピーする機能を追加する           :ORG:
+CLOSED: [2022-12-20 Tue 09:48]
+リンクの上でコマンドを実行したらクリップボードにコピーされて他のedraw-editorでペーストできると部品の切り貼りが捗る。カスタムシェイプ機能でも良いが、org文書自体がシェイプカタログになるというのも面白い。
+
+edraw-org-shape-picker-modeなんてものがあると面白い。org文書がshape-pickerとして機能する。
+** DONE edrawリンクのfile-data形式を相互に変換できるようにする        :ORG:
+CLOSED: [2022-12-20 Tue 09:48]
++editorに変換するメニュー項目があっても良いし+ 、edrawリンクの右クリックメニューにあっても良い。
+** DONE edrawリンクのメニューにSVGエクスポートを追加する              :ORG:
+CLOSED: [2022-12-20 Tue 09:49]
+リンクを右クリックして出るEdraw Link Menuに、中身のSVGを表示する機能を追加する。
+エディタの d e b 相当。ファイルリンク時も一応表示する。
+専用のバッファに表示してファイルへ保存したければ自分でしてもらう。

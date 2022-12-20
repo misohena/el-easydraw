@@ -47,12 +47,12 @@
 
   ;; Get link element & link properties
   (when-let ((link-element (edraw-org-link-at-point))
-             (link-props-and-place (edraw-org-link-element-link-properties
-                                    link-element nil)))
+             (link-props-place-type (edraw-org-link-element-link-properties
+                                     link-element nil)))
 
     (let* ((link-begin (org-element-property :begin link-element))
            (link-end (org-element-property :end link-element))
-           (link-props (car link-props-and-place)))
+           (link-props (nth 0 link-props-place-type)))
       ;; Make sure the editor overlay doesn't exist yet
       (when (edraw-org-link-editor-overlays-in link-begin link-end)
         (error "Editor already exists"))
@@ -113,11 +113,11 @@
                     (error "The edraw link currently being edited has been lost")))
                (link-begin (org-element-property :begin link-element))
                (link-end (org-element-property :end link-element))
-               (link-props-and-place
+               (link-props-place-type
                 (or (edraw-org-link-element-link-properties link-element t)
                     (error "The type of the editing link is not `edraw:'")))
-               (link-props (car link-props-and-place))
-               (in-description-p (cdr link-props-and-place)))
+               (link-props (nth 0 link-props-place-type))
+               (in-description-p (nth 1 link-props-place-type)))
           (if-let ((file-path (edraw-org-link-prop-file link-props)))
               ;; file
               (progn
@@ -186,6 +186,28 @@
   (edraw-close editor))
 
 
+;;;; Link Tools
+
+(defun edraw-org-link-copy-contents-at-point ()
+  "Copies the contents of the link at point.
+
+Copies all shapes inside the data to the clipboard. Copied shapes
+can be pasted in the editor or in the shape picker (custom shape list)."
+  (interactive)
+  (let* ((link-element (edraw-org-link-at-point))
+         (props (car (edraw-org-link-element-link-properties link-element nil t)))
+         (svg (edraw-org-link-load-svg props)))
+    (unless link-element
+      (error (edraw-msg "No link at point")))
+    (unless svg
+      (error (edraw-msg "Link at point does not contain valid data")))
+
+    (edraw-clipboard-set
+     'shape-descriptor-list
+     (cl-loop for node in (dom-children (edraw-get-document-body svg))
+              for desc = (edraw-shape-descriptor-from-svg-element-without-editor
+                          node)
+              when desc collect desc))))
 
 (provide 'edraw-org-edit)
 ;;; edraw-org-edit.el ends here

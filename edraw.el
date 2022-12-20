@@ -4116,6 +4116,27 @@ position where the EVENT occurred."
      (list
       (cons :children (mapcar #'edraw-shape-descriptor children))))))
 
+(defun edraw-shape-descriptor-from-svg-element-without-editor (element)
+  (when (edraw-dom-element-p element)
+    (nconc
+     (list
+      (cons :type (dom-tag element))
+      (cons :properties
+            (mapcar
+             (lambda (prop-info)
+               (let* ((prop-name (plist-get prop-info :name))
+                      (prop-value (edraw-svg-element-get-property
+                                   element prop-name nil))) ;;defrefs=nil
+                 (cons prop-name prop-value)))
+             (edraw-svg-element-get-property-info-list element))))
+     (when (eq (dom-tag element) 'g)
+       (when-let ((children (dom-children element)))
+         (list
+          (cons :children
+                (mapcar
+                 #'edraw-shape-descriptor-from-svg-element-without-editor
+                 children))))))))
+
 (defun edraw-shape-descriptor-set-type (shape-descriptor type)
   (setf (alist-get :type shape-descriptor) type))
 
