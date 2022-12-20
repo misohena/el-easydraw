@@ -48,7 +48,7 @@ To edit the image, do one of the following on the link:
 
 - =M-x edraw-org-edit-link=
 - =C-c C-o=
-- Right click on image
+- Right click on image (The right-click menu also provides some other useful functions for links)
 
 ** Export as HTML
 
@@ -85,16 +85,16 @@ Most of the key bindings are displayed in menus and help echoes.
 
 The key bindings that are not displayed are as follows.
 
-| left, up, right, down                              | Move selected object                                                |
-| S-left, S-up, S-right, S-down                      | Move selected object (10px)                                         |
-| M-left, M-up, M-right, M-down                      | Move selected object (numerical input)                              |
-| Right-click on shape or anchor point or background | Show context menu                                                   |
-| (Select Tool) C-down-mouse-1                       | Add/Remove clicked shape to selection list                          |
-| (Path Tool) C-u down-mouse-1                       | Ignore existing points (Avoid connecting or moving existing points) |
-| Middle-drag                                        | Scroll                                                              |
-| C-wheel-up, C-wheel-down                           | Zoom                                                                |
-| (In Property Editor) Middle-click                  | Close window                                                        |
-| (In Shape Picker) Middle-click                     | Close window                                                        |
+| left, up, right, down                                                          | Move selected object                                                |
+| S-left, S-up, S-right, S-down                                                  | Move selected object (10px)                                         |
+| M-left, M-up, M-right, M-down                                                  | Move selected object (numerical input)                              |
+| Right-click on shapes, anchor points, background, shape picker, or edraw links | Show context menu                                                   |
+| (Select Tool) C-down-mouse-1                                                   | Add/Remove clicked shape to selection list                          |
+| (Path Tool) C-u down-mouse-1                                                   | Ignore existing points (Avoid connecting or moving existing points) |
+| Middle-drag                                                                    | Scroll                                                              |
+| C-wheel-up, C-wheel-down                                                       | Zoom                                                                |
+| (In Property Editor) Middle-click                                              | Close window                                                        |
+| (In Shape Picker) Middle-click                                                 | Close window                                                        |
 
 * Emacs Lisp
 

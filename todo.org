@@ -123,10 +123,6 @@ rectやellipse、textにもそういった問題はある。
 ** TODO 個別のedrawリンクにHTML属性値を指定出来るようにする           :ORG:
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
 それともhtml-attr=で一つにまとめる？
-** TODO .edraw.svgファイルに対するfileリンクを編集できるようにする :ORG:
-通常のfileリンクを直接編集できるようにする。
-: [[file:somefile.edraw.svg] ]
-
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
@@ -1113,3 +1109,8 @@ CLOSED: [2022-12-20 Tue 09:49]
 リンクを右クリックして出るEdraw Link Menuに、中身のSVGを表示する機能を追加する。
 エディタの d e b 相当。ファイルリンク時も一応表示する。
 専用のバッファに表示してファイルへ保存したければ自分でしてもらう。
+** DONE .edraw.svgファイルに対するfileリンクを編集できるようにする    :ORG:
+CLOSED: [2022-12-20 Tue 20:33]
+通常のfileリンクを直接編集できるようにする。
+: [[file:somefile.edraw.svg] ]
+edraw-org-edit-regular-file-linkを追加した。

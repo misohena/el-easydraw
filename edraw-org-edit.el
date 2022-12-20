@@ -27,20 +27,20 @@
 (require 'edraw)
 (require 'edraw-org)
 
-;;;; Inline Link Edit
-
-;;
-;; Edit edraw link image inline
-;;
+;;;; Edit edraw link inline
 
 (defvar edraw-org-enable-modification nil)
 
-(defun edraw-org-link-editor-overlays-in (beg end)
-  (seq-filter
-   (lambda (ov) (overlay-get ov 'edraw-editor))
-   (overlays-in beg end)))
+;;@todo Use edraw-edit-svg?
 
+;;;###autoload
 (defun edraw-org-edit-link (&optional _path _arg)
+  "Edit the `edraw:' link at point.
+
+_PATH and _ARG are not used. These are passed in when called from
+org-link, but since these pieces of information aren't quite
+enough, this function parses the link at the current position on
+its own."
   (interactive)
 
   (require 'edraw)
@@ -54,7 +54,7 @@
            (link-end (org-element-property :end link-element))
            (link-props (nth 0 link-props-place-type)))
       ;; Make sure the editor overlay doesn't exist yet
-      (when (edraw-org-link-editor-overlays-in link-begin link-end)
+      (when (edraw-editor-overlays-in link-begin link-end)
         (error "Editor already exists"))
 
       ;; Hide inline link image if it exists
@@ -186,8 +186,59 @@
   (edraw-close editor))
 
 
+;;;; Edit regular file link inline
+
+;;;###autoload
+(defun edraw-org-edit-regular-file-link ()
+  "Edit the `file:' link to the .edraw.svg file at point.
+
+There is a `[[edraw:file=somefile.edraw.svg]]' format for embedding
+an external SVG file in an Org document, but if you don't want to
+use `edraw:' link type and want to use the regular `file:' link type
+([[file:somefile.edraw.svg]] format), this function might help."
+  (interactive)
+  (let* ((link (or (org-element-context)
+                   (error (edraw-msg "No link at point"))))
+         (type (org-element-property :type link))
+         (path (org-element-property :path link))
+         (beg (org-element-property :begin link))
+         (end (org-element-property :end link)))
+    (unless (equal type "file")
+      (error (edraw-msg "The link at point is not of type `file:'")))
+    (unless (string-suffix-p ".edraw.svg" path t)
+      (error (edraw-msg "The extension is not .edraw.svg")))
+    (when (edraw-editor-overlays-in beg end)
+      (error "Editor already exists"))
+
+    ;;Remove org-mode inline image
+    (edraw-org--remove-org-inline-images beg end)
+
+    (edraw-edit-svg (when (file-exists-p path)
+                      (edraw-svg-read-from-file path))
+                    'edraw-svg
+                    beg end
+                    (lambda (_ok _svg)
+                      ;; Restore org-mode inline image
+                      ;;@todo Add settings?
+                      (org-display-inline-images nil t beg end))
+                    (lambda (svg)
+                      (edraw-svg-write-to-file svg path nil)
+                      t))))
+
+(defun edraw-org--remove-org-inline-images (beg end)
+  (if (version<= "9.6" (org-version))
+      (with-no-warnings
+        (org-remove-inline-images beg end)) ;; Can pass BEG and END
+    ;; Can't pass BEG and END in 9.5 or earlier
+    (dolist (ov (overlays-in beg end))
+      (when (memq ov org-inline-image-overlays)
+        (setq org-inline-image-overlays (delq ov org-inline-image-overlays))
+        (delete-overlay ov)))))
+
+
 ;;;; Link Tools
 
+;;;###autoload
 (defun edraw-org-link-copy-contents-at-point ()
   "Copies the contents of the link at point.
 

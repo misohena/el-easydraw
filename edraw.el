@@ -393,6 +393,10 @@ line-prefix and wrap-prefix are used in org-indent.")
       (error (edraw-msg "No editor here")))
     editor))
 
+(defun edraw-editor-overlays-in (beg end)
+  (seq-filter (lambda (ov) (overlay-get ov 'edraw-editor))
+              (overlays-in beg end)))
+
 (defun edraw-editor-at (&optional pos)
   (let ((pos (or pos (point))))
     (or

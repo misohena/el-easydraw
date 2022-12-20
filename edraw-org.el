@@ -536,8 +536,8 @@ Allowed values for TARGET-TYPE are:
                  (car ovs)))
            (visible (if ov
                         (overlay-get ov 'edraw-org-link-image-visible)
-                      (null (and (fboundp 'edraw-org-link-editor-overlays-in)
-                                 (edraw-org-link-editor-overlays-in
+                      (null (and (fboundp 'edraw-editor-overlays-in)
+                                 (edraw-editor-overlays-in
                                   link-begin link-end)))))
            (image (edraw-org-link-image-create link-props)))
 
