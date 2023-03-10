@@ -4801,6 +4801,7 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-set-p0p1-without-notify
   ((shape edraw-shape-with-rect-boundary) left top right bottom)
+  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   ;; Change the coordinates of p0p1 without changing the left/right and
   ;; top/bottom positional relationships
   (with-slots (p0p1) shape
