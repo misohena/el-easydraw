@@ -1114,3 +1114,6 @@ CLOSED: [2022-12-20 Tue 20:33]
 通常のfileリンクを直接編集できるようにする。
 : [[file:somefile.edraw.svg] ]
 edraw-org-edit-regular-file-linkを追加した。
+** DONE transform属性があるrect要素等をpathへ変換すると起きる問題を修正する
+CLOSED: [2023-03-10 Fri 18:08]
+transform属性は残ったままtransformが適用されたpathへ変換されるので、二重に変形された結果になってしまう。

@@ -1186,10 +1186,11 @@ This function does not consider the effect of the transform attribute."
 
 ;; (Depends on edraw-path.el)
 
-(defun edraw-svg-element-to-path-cmdlist (element &optional matrix)
+(defun edraw-svg-element-to-path-cmdlist (element &optional matrix transformed)
   (edraw-svg-element-contents-to-path-cmdlist
    element
-   (edraw-svg-element-transform-get element matrix)))
+   (when transformed
+     (edraw-svg-element-transform-get element matrix))))
 
 (defun edraw-svg-element-contents-to-path-cmdlist (element &optional matrix)
   (when (edraw-dom-element-p element)
