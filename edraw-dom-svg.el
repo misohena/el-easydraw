@@ -700,6 +700,15 @@
               (edraw-svg-elem-prop-attrs prop-def)))))
 ;; TEST: (edraw-svg-element-get-property-info-list-by-tag 'rect)
 
+(defun edraw-svg-element-can-have-property-p (element prop-name)
+  (edraw-svg-tag-can-have-property-p (dom-tag element) prop-name))
+
+(defun edraw-svg-tag-can-have-property-p (tag prop-name)
+  (when-let ((prop-def-list (alist-get tag edraw-svg-element-properties)))
+    (seq-some (lambda (prop-def) (eq (edraw-svg-elem-prop-name prop-def)
+                                     prop-name))
+              prop-def-list)))
+
 (defun edraw-svg-element-get-property (element prop-name defrefs)
   (when-let ((prop-def-list (alist-get (dom-tag element) edraw-svg-element-properties))
              (prop-def (assq prop-name prop-def-list)))

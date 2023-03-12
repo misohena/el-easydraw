@@ -4448,9 +4448,19 @@ position where the EVENT occurred."
   (edraw-svg-element-summary (edraw-element shape)))
 
 (cl-defmethod edraw-has-property-p ((shape edraw-shape) prop-name)
+  "Return t if SHAPE holds the value of the property named PROP-NAME.
+
+Return nil if no value is specified."
   (edraw-svg-element-has-property-p (edraw-element shape)
                                     prop-name
                                     (edraw-get-defrefs shape)))
+
+(cl-defmethod edraw-can-have-property-p ((shape edraw-shape) prop-name)
+  "Return t if SHAPE can have a property named PROP-NAME.
+
+Return nil if the property named PROP-NAME is not valid for SHAPE."
+  (edraw-svg-element-can-have-property-p (edraw-element shape)
+                                         prop-name))
 
 (cl-defmethod edraw-get-property-info-list ((shape edraw-shape))
   (edraw-svg-element-get-property-info-list (edraw-element shape)))
@@ -4639,11 +4649,11 @@ position where the EVENT occurred."
     ((edraw-msg "Properties...") edraw-edit-properties)
     ((edraw-msg "Set")
      (((edraw-msg "Fill...") edraw-edit-fill
-       :visible ,(edraw-has-property-p shape 'fill))
+       :visible ,(edraw-can-have-property-p shape 'fill))
       ((edraw-msg "Stroke...") edraw-edit-stroke
-       :visible ,(edraw-has-property-p shape 'stroke))
+       :visible ,(edraw-can-have-property-p shape 'stroke))
       ((edraw-msg "Href...") edraw-edit-href
-       :visible ,(edraw-has-property-p shape 'href))))
+       :visible ,(edraw-can-have-property-p shape 'href))))
     ((edraw-msg "Transform")
      (((edraw-msg "Translate...") edraw-translate)
       ((edraw-msg "Scale...") edraw-scale)
