@@ -68,10 +68,6 @@ edraw-transformメソッドは回転成分(textの場合はスケーリング成
 
 scaleが0のときを考慮に入れるべきだろうか。
 
-** TODO transform属性をアンカーポイント座標に適用出来るようにする
-transform属性をアンカーポイント座標に適用してtransform属性を削除する。
-もちろん線の太さなどはtransform属性の拡大の影響を受けなくなる。
-
 ** TODO 左右上下反転コマンドを追加する
 ドキュメント全体と選択図形と図形単体で。
 -1倍しても良いけど、簡単に反転できると良い。
@@ -1149,3 +1145,12 @@ CLOSED: [2023-03-12 Sun 15:50]
   - それ以外の場合(path、平行移動のみ等)はアンカーポイント座標を使う。
 - edraw-transform-anchor-pointsは座標に行列をかけて変形する。
 - edraw-transform-prop-multiplyはtransformプロパティを変更する。
+** DONE transform属性をアンカーポイント座標に適用出来るようにする
+CLOSED: [2023-03-12 Sun 21:02]
+transform属性をアンカーポイント座標に適用してtransform属性を削除する。
+もちろん線の太さなどはtransform属性の拡大の影響を受けなくなる。
+
+- edraw.el
+  - edraw-apply-transform-prop-to-anchor-points
+  - edraw-transform-anchor-points
+  - edraw-transform-anchor-points-local

@@ -4433,6 +4433,32 @@ If you want to transform the anchor point coordinates, use
    shape
    (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy)))
 
+(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape) matrix)
+  (let ((transform-mat (edraw-transform-prop-get-matrix shape)))
+    (if (edraw-matrix-identity-p transform-mat)
+        ;; No transform property (Same as local transform).
+        (edraw-transform-anchor-points-local shape matrix)
+      ;; Use transform^-1 * matrix * transform
+      (let ((transform-mat-inv (edraw-matrix-inverse transform-mat)))
+        (when transform-mat-inv ;;@todo if nil?
+          (edraw-transform-anchor-points-local
+           shape
+           (edraw-matrix-mul-mat-mat
+            (edraw-matrix-mul-mat-mat
+             transform-mat-inv
+             matrix)
+            transform-mat)))))))
+
+(cl-defmethod edraw-apply-transform-prop-to-anchor-points ((shape edraw-shape))
+  (edraw-make-undo-group
+      (oref shape editor) 'apply-transform-prop-to-anchor-points
+    ;; Apply transform property to anchor point coordinates.
+    (edraw-transform-anchor-points-local
+     shape
+     (edraw-transform-prop-get-matrix shape))
+    ;; Remove transform property.
+    (edraw-set-property shape 'transform nil)))
+
 ;;;;;; Search
 
 (cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy)
@@ -4671,7 +4697,11 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     ((edraw-msg "Transform")
      (((edraw-msg "Translate...") edraw-translate)
       ((edraw-msg "Scale...") edraw-scale)
-      ((edraw-msg "Rotate...") edraw-rotate)))
+      ((edraw-msg "Rotate...") edraw-rotate)
+      ((edraw-msg "Apply transform property to anchors") edraw-apply-transform-prop-to-anchor-points
+       :enable ,(and (edraw-transform-prop-exists-p shape)
+                     (not (edraw-matrix-identity-p
+                           (edraw-transform-prop-get-matrix shape)))))))
     ((edraw-msg "Z-Order")
      (((edraw-msg "Bring to Front") edraw-bring-to-front
        :enable ,(not (edraw-front-p shape)))
@@ -4871,9 +4901,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (edraw-transform-prop-multiply shape matrix))
    ;; Move anchor points.
    (t
-    (edraw-transform-anchor-points shape matrix))))
+    (edraw-transform-anchor-points-local shape matrix))))
 
-(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-with-rect-boundary) matrix)
+(cl-defmethod edraw-transform-anchor-points-local ((shape edraw-shape-with-rect-boundary) matrix)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   (with-slots (p0p1) shape
     (let ((new-p0 (edraw-matrix-mul-mat-xy matrix (car p0p1)))
@@ -5189,9 +5219,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (edraw-transform-prop-multiply shape matrix))
    ;; Move anchor points.
    (t
-    (edraw-transform-anchor-points shape matrix))))
+    (edraw-transform-anchor-points-local shape matrix))))
 
-(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-text) matrix)
+(cl-defmethod edraw-transform-anchor-points-local ((shape edraw-shape-text) matrix)
   (with-slots (element) shape
     (let* ((xy (cons (or (edraw-svg-attr-coord element 'x) 0)
                      (or (edraw-svg-attr-coord element 'y) 0)))
@@ -5383,9 +5413,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (edraw-transform-prop-multiply shape matrix))
    ;; Move anchor points.
    (t
-    (edraw-transform-anchor-points shape matrix))))
+    (edraw-transform-anchor-points-local shape matrix))))
 
-(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-path) matrix)
+(cl-defmethod edraw-transform-anchor-points-local ((shape edraw-shape-path) matrix)
   (with-slots (cmdlist) shape
     (edraw-path-cmdlist-transform cmdlist matrix))
   (edraw-push-undo-properties shape 'shape-path-transform '(d))
@@ -5563,10 +5593,12 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (edraw-svg-element-transform-multiply element matrix)
     (edraw-on-shape-changed shape 'shape-transform)))
 
-;;@todo impl
-;; (cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-group) matrix)
-;; Transform anchor points of child shapes
-;;   )
+(cl-defmethod edraw-transform-anchor-points-local ((group edraw-shape-group) matrix)
+  ;; Transform anchor points of child shapes.
+  (with-slots (editor) group
+    (edraw-make-undo-group editor 'group-transform-anchor-points
+      (dolist (child (edraw-children group))
+        (edraw-transform-anchor-points child matrix)))))
 
 (cl-defmethod edraw-shape-group-add-children ((group edraw-shape-group) children)
   ;; sort children by z-order
