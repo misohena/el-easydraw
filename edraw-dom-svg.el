@@ -1110,7 +1110,7 @@ This function does not consider the effect of the transform attribute."
   (let ((transform (edraw-svg-element-transform-get element)))
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text 'image)
-       (if transform ;;(not (edraw-matrix-translate-only-p transform)) ?
+       (if transform ;;(not (edraw-matrix-translation-only-p transform)) ?
            (progn
              (edraw-matrix-translate-add transform (car xy) (cdr xy))
              (edraw-svg-element-transform-set element transform))

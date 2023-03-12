@@ -4397,7 +4397,21 @@ position where the EVENT occurred."
     (edraw-translate shape xy)))
 
 (cl-defgeneric edraw-transform (object matrix)
-  "Transform OBJECT by MATRIX.")
+  "Transform OBJECT by MATRIX.
+
+Transforms an OBJECT according to the default method defined by
+the OBJECT itself.
+
+For example, if the OBJECT is some shape, it may be transformed
+by moving the anchor points, or the entire shape including line
+width etc. may be transformed by the transform property.
+
+If you want to reliably change the transform property, use
+`edraw-transform-prop-multiply'.
+
+If you want to transform the anchor point coordinates, use
+`edraw-transform-anchor-points'.
+")
 
 ;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
 
@@ -4847,6 +4861,19 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         ))))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-with-rect-boundary) matrix)
+  (cond
+   ;; `transform' property already used.
+   ((edraw-transform-prop-exists-p shape)
+    (edraw-transform-prop-multiply shape matrix))
+   ;; Rotation (including Skew) cannot be expressed only by moving
+   ;; anchor points, so use the transform property.
+   ((edraw-matrix-contains-rotation-p matrix)
+    (edraw-transform-prop-multiply shape matrix))
+   ;; Move anchor points.
+   (t
+    (edraw-transform-anchor-points shape matrix))))
+
+(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-with-rect-boundary) matrix)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   (with-slots (p0p1) shape
     (let ((new-p0 (edraw-matrix-mul-mat-xy matrix (car p0p1)))
@@ -5152,6 +5179,19 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         (edraw-on-shape-changed shape 'translate)))))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-text) matrix)
+  (cond
+   ;; `transform' property already used.
+   ((edraw-transform-prop-exists-p shape)
+    (edraw-transform-prop-multiply shape matrix))
+   ;; Scaling and rotation (including skew) cannot be expressed only
+   ;; by moving anchor points, so use the transform property.
+   ((not (edraw-matrix-translation-only-p matrix))
+    (edraw-transform-prop-multiply shape matrix))
+   ;; Move anchor points.
+   (t
+    (edraw-transform-anchor-points shape matrix))))
+
+(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-text) matrix)
   (with-slots (element) shape
     (let* ((xy (cons (or (edraw-svg-attr-coord element 'x) 0)
                      (or (edraw-svg-attr-coord element 'y) 0)))
@@ -5337,6 +5377,15 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (edraw-on-shape-changed shape 'shape-translate))))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-path) matrix)
+  (cond
+   ;; `transform' property already used.
+   ((edraw-transform-prop-exists-p shape)
+    (edraw-transform-prop-multiply shape matrix))
+   ;; Move anchor points.
+   (t
+    (edraw-transform-anchor-points shape matrix))))
+
+(cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-path) matrix)
   (with-slots (cmdlist) shape
     (edraw-path-cmdlist-transform cmdlist matrix))
   (edraw-push-undo-properties shape 'shape-path-transform '(d))
@@ -5507,10 +5556,17 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (edraw-transform-prop-translate shape xy))
 
 (cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
+  ;; @todo Use edraw-transform-prop-multiply?
+  ;;       If you want to unify, make sure that the behavior is the same.
   (with-slots (element) shape
     (edraw-push-undo-properties shape 'shape-group-transform '(transform))
     (edraw-svg-element-transform-multiply element matrix)
     (edraw-on-shape-changed shape 'shape-transform)))
+
+;;@todo impl
+;; (cl-defmethod edraw-transform-anchor-points ((shape edraw-shape-group) matrix)
+;; Transform anchor points of child shapes
+;;   )
 
 (cl-defmethod edraw-shape-group-add-children ((group edraw-shape-group) children)
   ;; sort children by z-order

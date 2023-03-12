@@ -418,7 +418,10 @@
       (= 1 m11 m22 m33 m44)
       (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34 m41 m42 m43)))))
 
-(defun edraw-matrix-translate-only-p (mat)
+(defun edraw-matrix-translation-only-p (mat)
+  "Return t if the matrix MAT only represents translations.
+
+Return t for identity matrix or nil."
   (or
    (null mat)
    (edraw-matrix-let-elements mat m
@@ -426,6 +429,21 @@
      (and
       (= 1 m11 m22 m33 m44)
       (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34)))))
+
+(defun edraw-matrix-scaling-and-translation-only-p (mat)
+  "Return t if the matrix MAT only represents scaling and translation.
+
+Return t for identity matrix or nil.
+Return nil if rotation components of the matrix is non-zero."
+  (or
+   (null mat)
+   (edraw-matrix-let-elements mat m
+     (ignore m11 m22 m33 m44 m41 m42 m43);;suppress warnings
+     (= 0 m12 m13 m14 m21 m23 m24 m31 m32 m34))))
+
+(defun edraw-matrix-contains-rotation-p (mat)
+  "Return t if the matrix MAT contains rotations (including skew)."
+  (not (edraw-matrix-scaling-and-translation-only-p mat)))
 
 (defun edraw-matrix-mul-dispatch (a b)
   (let (lb)

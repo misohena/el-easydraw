@@ -1,5 +1,13 @@
 
 * Inbox
+** TODO 選択ツール 図形をM+ドラッグで複製しつつ平行移動する
+Ctrl+の方がいい？
+
+** TODO パスの始点・終点を他の図形に接続する機能を追加する
+data属性でどの点をどの点へ接続するかを記述させてはどうか。
+
+data-connect-beginning-point-to="nearest point on edge of obj123456"
+
 ** TODO 別ファイルの内容をインポートする機能を追加する
 別ファイルの#edraw-bodyの中身を現在のドキュメントに追加する。
 #edraw-defsも何とかして更新すべき。
@@ -50,12 +58,19 @@ edraw-create-shape-without-default関数にindex引数を追加していると�
 とは言えやはりtextは同一視できないんじゃない？
 カスタムシェイプにtextなんて入れることがある？
 
-** TODO 変形の意味を整理する
-現在(edraw-transform shape matrix)は別々の方式が混在している。
-- グループはtransform属性を変更する。
-- それ以外は座標、長さ値を変更する。
-どちらにも有用性があるのがやっかい。
-基本的には後者は全ての図形が正しく変形できない。rectやellipseは軸に沿った形状しか表現できず、それ以外はtransform属性を使用する必要がある。線の太さといったものをどうするかも問題。
+** TODO 変形時のtransformプロパティ使用を最小化すべきか考える。
+rect, ellipse, circle, imageは回転以外であればtransformを使う必要は無い。
+textは回転とスケーリング以外(平行移動のみ)であればtransformを使う必要は無い。
+
+edraw-transformメソッドは回転成分(textの場合はスケーリング成分も)にのみtransformプロパティを使用し、平行移動はxやyの移動によって表現すべきだろうか。
+
+すでにtransformプロパティが使用されていても、平行移動はxやyを移動することで実現すべきだろうか。
+
+scaleが0のときを考慮に入れるべきだろうか。
+
+** TODO transform属性をアンカーポイント座標に適用出来るようにする
+transform属性をアンカーポイント座標に適用してtransform属性を削除する。
+もちろん線の太さなどはtransform属性の拡大の影響を受けなくなる。
 
 ** TODO 左右上下反転コマンドを追加する
 ドキュメント全体と選択図形と図形単体で。
@@ -1117,3 +1132,20 @@ edraw-org-edit-regular-file-linkを追加した。
 ** DONE transform属性があるrect要素等をpathへ変換すると起きる問題を修正する
 CLOSED: [2023-03-10 Fri 18:08]
 transform属性は残ったままtransformが適用されたpathへ変換されるので、二重に変形された結果になってしまう。
+** DONE 変形の意味を整理する
+CLOSED: [2023-03-12 Sun 15:50]
+現在(edraw-transform shape matrix)は別々の方式が混在している。
+- グループはtransform属性を変更する。
+- それ以外は座標、長さ値を変更する。
+どちらにも有用性があるのがやっかい。
+基本的には後者は全ての図形が正しく変形できない。rectやellipseは軸に沿った形状しか表現できず、それ以外はtransform属性を使用する必要がある。線の太さといったものをどうするかも問題。
+
+→次のようにする:
+
+- edraw-transformはオブジェクト自身が決める方式で変形する。
+  - rect, ellipse, circle, imageは回転成分を含むときtransformプロパティを使う。
+  - textはスケーリングまたは回転成分を含むときtransformプロパティを使う。
+  - いずれの場合もすでにtransformプロパティがある場合はtransformプロパティを使う。
+  - それ以外の場合(path、平行移動のみ等)はアンカーポイント座標を使う。
+- edraw-transform-anchor-pointsは座標に行列をかけて変形する。
+- edraw-transform-prop-multiplyはtransformプロパティを変更する。
