@@ -137,18 +137,21 @@ rectやellipse、textにもそういった問題はある。
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
-** TODO カスタムシェイプ/shape pickerでドラッグ&ドロップできるようにする
-範囲選択したentryをドラッグして別の場所へ移動できるようにする。
-
 ** TODO カスタムシェイプ/貼り付け前に縮尺を指定できるようにする
 あらかじめ大きさを指定したい。
 問題はUI。ツールオプションを指定するGUIは可能か？
 ドラッグで大きさが変えられるようになったので必要性が薄くなってはいる。
 
-** TODO カスタムシェイプ/shape-pickerでmarkerを使った図形の表示を改善する
+** TODO シェイプピッカー/ドラッグ&ドロップできるようにする
+範囲選択したentryをドラッグして別の場所へ移動できるようにする。
+
+** TODO シェイプピッカー/markerを使った図形の表示を改善する
 矢印などのmarkerが表示されない。defsをSVG文字列に含めていないから。
 
 edraw-shape-descriptor-to-svg-element にダミーのdefrefsを使っているので、そこに何か定義が入ったらそれもコピーしてはどうか？
+
+** TODO シェイプピッカー/org-modeファイルをピッカーに出来るようにする
+edraw-org-shape-picker-minor-modeが必要？
 
 ** TODO プロパティエディタ/複数選択してプロパティを設定
 - 必須プロパティは除外
@@ -1154,3 +1157,11 @@ transform属性をアンカーポイント座標に適用してtransform属性�
   - edraw-apply-transform-prop-to-anchor-points
   - edraw-transform-anchor-points
   - edraw-transform-anchor-points-local
+** DONE シェイプピッカー/折りたたんでいるところが見えてしまうのを修正する
+CLOSED: [2023-03-13 Mon 14:17]
+上にスクロールすると折りたたんでいるところが見えてしまう。
+outline-modeやorg-modeのように不可視領域の始点は行末じゃないとダメ？
+
+隠す範囲にdisplayプロパティ(文字列だろうと画像だろうと)があると、そこがinvisible(overlayだろうとtext propertyだろうと)にも関わらず表示されてしまう事がある模様。
+おそらくEmacsのバグではないか。
+隠すためのオーバーレイにdisplay ""を指定することで回避できた。

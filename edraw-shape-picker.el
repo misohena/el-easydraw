@@ -1913,6 +1913,7 @@ ROOT is the top level entry of the tree containing ENTRY."
         (unless ov
           (let ((ov (make-overlay begin end nil t nil)))
             (overlay-put ov 'evaporate t)
+            (overlay-put ov 'display "")
             (overlay-put ov 'invisible 'edraw-shape-picker-fold)
             (overlay-put ov 'edraw-shape-picker-entry entry)))))))
 
