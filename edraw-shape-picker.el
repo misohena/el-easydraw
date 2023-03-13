@@ -395,6 +395,10 @@
 (defvar edraw-shape-picker-section-map
   (let ((km (make-sparse-keymap)))
     (define-key km [mouse-1] #'edraw-shape-picker-toggle-entry-visibility-at)
+    (define-key km [double-mouse-1] #'edraw-shape-picker-toggle-entry-visibility-at)
+    (define-key km [triple-mouse-1] #'edraw-shape-picker-toggle-entry-visibility-at)
+    (define-key km [double-down-mouse-1] #'ignore)
+    (define-key km [triple-down-mouse-1] #'ignore)
     km))
 
 ;;;;; Variables
