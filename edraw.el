@@ -483,24 +483,28 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 ;;;;; Editor - Undo
 
+(defconst edraw-editor-undo-limit 30) ;;@todo To defcustom
+
+;;@todo Should the following variables be held by individual editor objects?
+
 (defvar edraw-editor-inhibit-make-undo-data nil)
+(defvar edraw-editor-inhibit-discarding-undo-data nil)
 (defvar edraw-editor-undo-in-progress nil)
 (defvar edraw-editor-redo-in-progress nil)
 (defvar edraw-editor-undo-group-level 0)
 
 (defun edraw-editor-clear-undo-vars ()
   (setq edraw-editor-inhibit-make-undo-data nil
+        edraw-editor-inhibit-discarding-undo-data nil
         edraw-editor-undo-in-progress nil
         edraw-editor-redo-in-progress nil
         edraw-editor-undo-group-level 0))
 
-(defconst edraw-editor-undo-limit 30)
 
 (cl-defmethod edraw-clear-undo-list ((editor edraw-editor))
   "Discard all undo/redo data."
-  (with-slots (undo-list redo-list) editor
-    (setq undo-list nil)
-    (setq redo-list nil)))
+  (oset editor undo-list nil)
+  (oset editor redo-list nil))
 
 (cl-defmethod edraw-undo-list ((editor edraw-editor))
   "Return a undo data list of the EDITOR.
@@ -512,18 +516,17 @@ The format of each data is (TYPE FUNCTION ARGUMENTS...)."
 
 (cl-defmethod edraw-last-undo-data ((editor edraw-editor))
   "Return a recently pushed undo data."
-  (with-slots (undo-list) editor
-    (car undo-list)))
+  (car (oref editor undo-list)))
 
 (cl-defmethod edraw-empty-undo-p ((editor edraw-editor))
   "Return t if there is no undo data in the EDITOR."
-  (with-slots (undo-list) editor
-    (null undo-list)))
+  (null (oref editor undo-list)))
 
 (cl-defmethod edraw-empty-redo-p ((editor edraw-editor))
   "Return t if there is no redo data in the EDITOR."
-  (with-slots (redo-list) editor
-    (null redo-list)))
+  (null (oref editor redo-list)))
+
+;; Push Undo Data
 
 (defmacro edraw-push-undo (editor type data)
   `(unless edraw-editor-inhibit-make-undo-data
@@ -546,9 +549,20 @@ This function deletes all redo data."
     (unless edraw-editor-redo-in-progress
       (setq redo-list nil))
     (push (cons type data) undo-list)
-    (when (= edraw-editor-undo-group-level 0)
+    ;; Discard undo data exceeding the limit.
+    (unless (or (> edraw-editor-undo-group-level 0)
+                edraw-editor-inhibit-discarding-undo-data)
       (when-let ((cell (nthcdr edraw-editor-undo-limit undo-list)))
         (setcdr cell nil)))))
+
+;; No Undo Data
+
+(defmacro edraw-editor-with-no-undo-data (&rest body)
+  (declare (indent 0))
+  `(let ((edraw-editor-inhibit-make-undo-data t))
+     ,@body))
+
+;; Undo Group
 
 (defmacro edraw-make-undo-group (editor type &rest body)
   "Combine undo data pushed in BODY into one."
@@ -589,6 +603,7 @@ This function deletes all redo data."
   (dolist (arg args)
     (apply (car arg) (cdr arg))))
 
+;; Undo Command
 
 (edraw-editor-defcmd edraw-undo ((editor edraw-editor))
   "Pop and execute the undo data at the top of the EDITOR's undo-list.
@@ -621,17 +636,17 @@ The undo data generated during undo is saved in redo-list."
   (apply (car (cdr type-data))
          (cdr (cdr type-data))))
 
-(defmacro edraw-with-push-undo (editor type data &rest body)
-  (declare (indent 3))
-  (let ((type-var (gensym))
-        (data-var (gensym)))
-    `(let ((,type-var ,type)
-           (,data-var (unless edraw-editor-inhibit-make-undo-data ,data)))
-       ,@body
-       (when ,data-var
-         (edraw-push-undo-internal ,editor ,type-var ,data-var)))))
+(cl-defmethod edraw-undo-all ((editor edraw-editor))
+  "Executes all UNDO data recorded in EDITOR.
 
-(defmacro edraw-editor-independent-undo-list (editor &rest body)
+For use with `edraw-editor-with-temp-undo-list',
+`edraw-editor-with-temp-modifications', etc."
+  (while (not (edraw-empty-undo-p editor))
+    (edraw-undo editor)))
+
+;; Independent Undo List
+
+(defmacro edraw-editor-with-temp-undo-list (editor &rest body)
   "Evaluate the BODY under a new independent undo list."
   (declare (indent 1))
   ;;@todo Increase undo limit?
@@ -648,6 +663,21 @@ The undo data generated during undo is saved in redo-list."
              ,@body)
          (setf (oref ,sym-editor undo-list) ,sym-old-undo-list
                (oref ,sym-editor redo-list) ,sym-old-redo-list)))))
+
+(defmacro edraw-editor-with-temp-modifications (editor &rest body)
+  "Evaluate BODY and then execute all UNDO data recorded in EDITOR."
+  (declare (indent 1))
+  (let ((sym-editor (gensym 'editor-)))
+    `(let ((,sym-editor ,editor)
+           (edraw-editor-inhibit-make-undo-data nil) ;; Record undo data
+           (edraw-editor-inhibit-discarding-undo-data t)) ;; Keep all undo data
+       (edraw-editor-with-temp-undo-list ,sym-editor
+         (unwind-protect
+             (progn
+               ,@body)
+           ;; Undo all changes
+           (edraw-undo-all ,sym-editor))))))
+
 
 ;;;;; Editor - Document
 ;;;;;; Editor - Document - Whole Document
@@ -733,6 +763,12 @@ The undo data generated during undo is saved in redo-list."
 (cl-defmethod edraw-modified-p ((editor edraw-editor))
   (with-slots (modified-p) editor
     modified-p))
+
+(defmacro edraw-editor-with-silent-modifications (&rest body)
+  (declare (indent 0))
+  `(let ((edraw-editor-inhibit-make-undo-data t)
+         (edraw-editor-keep-modified-flag t))
+     ,@body))
 
 ;;;;;;; Write
 
@@ -926,8 +962,7 @@ The undo data generated during undo is saved in redo-list."
    (let* ((editor (edraw-current-editor))
           (current-value (edraw-get-background editor))
           (new-value
-           (let ((edraw-editor-inhibit-make-undo-data t)
-                 (edraw-editor-keep-modified-flag t))
+           (edraw-editor-with-silent-modifications
              (unwind-protect
                  (edraw-color-picker-read-color
                   (edraw-msg "Background Color: ")
@@ -3074,13 +3109,12 @@ position where the EVENT occurred."
                  (dolist (shp moving-shapes)
                    (edraw-push-undo-translate shp))))
              ;; Move
-             (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
-                    (delta-xy (edraw-xy-sub move-xy last-xy))
-                    ;;Disable undo data record
-                    (edraw-editor-inhibit-make-undo-data t))
-               (dolist (shape moving-shapes)
-                 (edraw-translate shape delta-xy)) ;;notify modification
-               (setq last-xy move-xy))))
+             (edraw-editor-with-no-undo-data
+               (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+                      (delta-xy (edraw-xy-sub move-xy last-xy)))
+                 (dolist (shape moving-shapes)
+                   (edraw-translate shape delta-xy)) ;;notify modification
+                 (setq last-xy move-xy)))))
           ;; On click
           (unless moved-p
             (pcase event-type
@@ -3316,27 +3350,26 @@ position where the EVENT occurred."
     (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
           (move-xy nil))
       ;; Preview
-      (let* ((edraw-editor-inhibit-make-undo-data t)
-             (edraw-editor-keep-modified-flag t)
-             (shape (edraw-create-shape ;;notify modification
-                     editor
-                     (edraw-svg-body editor)
-                     'rect
-                     'x (car down-xy)
-                     'y (cdr down-xy)
-                     'width 0
-                     'height 0)))
-        (unwind-protect
-            (progn
-              (edraw-select-shape editor shape)
+      (edraw-editor-with-silent-modifications
+        (let* ((shape (edraw-create-shape ;;notify modification
+                       editor
+                       (edraw-svg-body editor)
+                       'rect
+                       'x (car down-xy)
+                       'y (cdr down-xy)
+                       'width 0
+                       'height 0)))
+          (unwind-protect
+              (progn
+                (edraw-select-shape editor shape)
 
-              (edraw-track-dragging
-               down-event
-               (lambda (move-event)
-                 (setq move-xy
-                       (edraw-mouse-event-to-xy-snapped editor move-event))
-                 (edraw-set-rect shape down-xy move-xy)))) ;;notify modification
-          (edraw-remove shape)))
+                (edraw-track-dragging
+                 down-event
+                 (lambda (move-event)
+                   (setq move-xy
+                         (edraw-mouse-event-to-xy-snapped editor move-event))
+                   (edraw-set-rect shape down-xy move-xy)))) ;;notify modification
+            (edraw-remove shape))))
 
       ;; Create
       (when (and move-xy
@@ -3369,25 +3402,24 @@ position where the EVENT occurred."
     (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
           (move-xy nil))
       ;; Preview
-      (let* ((edraw-editor-inhibit-make-undo-data t)
-             (edraw-editor-keep-modified-flag t)
-             (shape (edraw-create-shape ;;notify modification
-                     editor
-                     (edraw-svg-body editor)
-                     'ellipse
-                     'cx (car down-xy)
-                     'cy (cdr down-xy))))
-        (unwind-protect
-            (progn
-              (edraw-select-shape editor shape)
+      (edraw-editor-with-silent-modifications
+        (let* ((shape (edraw-create-shape ;;notify modification
+                       editor
+                       (edraw-svg-body editor)
+                       'ellipse
+                       'cx (car down-xy)
+                       'cy (cdr down-xy))))
+          (unwind-protect
+              (progn
+                (edraw-select-shape editor shape)
 
-              (edraw-track-dragging
-               down-event
-               (lambda (move-event)
-                 (setq move-xy
-                       (edraw-mouse-event-to-xy-snapped editor move-event))
-                 (edraw-set-rect shape down-xy move-xy)))) ;;notify modification
-          (edraw-remove shape)))
+                (edraw-track-dragging
+                 down-event
+                 (lambda (move-event)
+                   (setq move-xy
+                         (edraw-mouse-event-to-xy-snapped editor move-event))
+                   (edraw-set-rect shape down-xy move-xy)))) ;;notify modification
+            (edraw-remove shape))))
 
       ;; Create
       (when (and move-xy
@@ -3832,9 +3864,9 @@ position where the EVENT occurred."
       (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
             (move-xy nil))
         ;; Preview
-        (edraw-editor-independent-undo-list editor
+        (edraw-editor-with-temp-undo-list editor
           (let* ((edraw-editor-keep-modified-flag t)
-                 (shapes (let ((edraw-editor-inhibit-make-undo-data t))
+                 (shapes (edraw-editor-with-no-undo-data
                            (edraw-create-selected-custom-shapes tool)))
                  (ref-box (edraw-selected-custom-shapes-ref-box tool shapes)))
             (unwind-protect
@@ -3848,7 +3880,7 @@ position where the EVENT occurred."
                      (setq move-xy
                            (edraw-mouse-event-to-xy-snapped editor move-event))
                      ;; Cancel previous transform
-                     (when (oref editor undo-list)
+                     (unless (edraw-empty-undo-p editor)
                        (edraw-undo editor))
                      ;; Apply new transform
                      (let ((matrix
@@ -4657,8 +4689,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-edit-property-paint ((shape edraw-shape) prop-name)
   (let* ((curr-value (edraw-get-property shape prop-name))
          (new-value
-          (let ((edraw-editor-inhibit-make-undo-data t)
-                (edraw-editor-keep-modified-flag t))
+          (edraw-editor-with-silent-modifications
             (unwind-protect
                 (edraw-color-picker-read-color
                  (format "%s: " prop-name)
