@@ -4755,8 +4755,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 ;;;;;; Boundary
 
-(cl-defgeneric edraw-shape-aabb (shape)
-  "Return the axis aligned bounding box of the SHAPE.")
+(cl-defgeneric edraw-shape-aabb (object)
+  "Return the axis aligned bounding box of the OBJECT.")
+
 (cl-defmethod edraw-shape-aabb ((shape edraw-shape))
   (edraw-svg-shape-aabb (edraw-element shape))) ;;@todo cache?
 
@@ -4765,6 +4766,12 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (dolist (shape shapes)
       (setq aabb (edraw-rect-union aabb (edraw-shape-aabb shape))))
     aabb))
+
+(cl-defgeneric edraw-shape-aabb-local (object)
+  "Return the local axis aligned bounding box of the OBJECT.")
+
+(cl-defmethod edraw-shape-aabb-local ((shape edraw-shape))
+  (edraw-svg-shape-aabb (edraw-element shape) nil t)) ;;@todo cache?
 
 ;;;;;; Transform Property
 

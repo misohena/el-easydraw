@@ -1052,9 +1052,9 @@
 
 ;; (Depends on edraw-math.el)
 
-(defun edraw-svg-shape-aabb (element &optional matrix)
+(defun edraw-svg-shape-aabb (element &optional matrix local-p)
   (edraw-path-seglist-aabb
-   (edraw-svg-element-to-seglist element matrix)))
+   (edraw-svg-element-to-seglist element matrix local-p)))
 
 (defun edraw-svg-text-contents-aabb (element)
   "Return the axis-aligned bounding box of the text ELEMENT.
@@ -1437,10 +1437,13 @@ This function does not consider the effect of the transform attribute."
 
 ;; (Depends on edraw-path.el)
 
-(defun edraw-svg-element-to-seglist (element &optional matrix)
+(defun edraw-svg-element-to-seglist (element &optional matrix local-p)
   (edraw-svg-element-contents-to-seglist
    element
-   (edraw-svg-element-transform-get element matrix)))
+   (if local-p
+       matrix
+     ;; Apply the transform= attribute if not local-p
+     (edraw-svg-element-transform-get element matrix))))
 
 (defun edraw-svg-element-contents-to-seglist (element &optional matrix)
   (when (edraw-dom-element-p element)
