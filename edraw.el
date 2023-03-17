@@ -3158,27 +3158,27 @@ position where the EVENT occurred."
       ;; Move selected shapes
       (when moving-shapes
         (let* ((start-xy down-xy-snapped)
-               (last-xy start-xy)
-               (moved-p nil))
-          (edraw-track-dragging
-           down-event
-           (lambda (move-event)
-             ;; First move
-             (unless moved-p
-               (setq moved-p t)
-               ;; Push undo data
-               (edraw-make-undo-group editor 'shapes-move-by-drag
-                 (dolist (shp moving-shapes)
-                   (edraw-push-undo-translate shp))))
-             ;; Move
-             (edraw-editor-with-no-undo-data
-               (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
-                      (delta-xy (edraw-xy-sub move-xy last-xy)))
+               (move-xy nil))
+          ;; Preview while dragging
+          (edraw-editor-with-temp-modifications editor
+            (edraw-track-dragging
+             down-event
+             (lambda (move-event)
+               ;; Cancel previous move
+               (edraw-undo-all editor)
+               ;; Move
+               (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+               (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
                  (dolist (shape moving-shapes)
-                   (edraw-translate shape delta-xy)) ;;notify modification
-                 (setq last-xy move-xy)))))
-          ;; On click
-          (unless moved-p
+                   (edraw-translate shape delta-xy)))))) ;;notify modification
+          ;; Commit
+          (if move-xy
+              ;; On Drag
+              (edraw-make-undo-group editor 'shapes-move-by-drag
+                (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
+                  (dolist (shape moving-shapes)
+                    (edraw-translate shape delta-xy)))) ;;notify modification
+            ;; On Click
             (pcase event-type
               ('down
                (if down-selected-p
@@ -4499,11 +4499,15 @@ position where the EVENT occurred."
 (cl-defgeneric edraw-translate (object xy)
   "Translate OBJECT by vector XY.")
 
-;;(cl-defmethod edraw-translate ((shape edraw-shape) xy) )
+(cl-defmethod edraw-translate ((objects list) xy)
+  (dolist (object objects)
+    (edraw-translate object xy)))
 
-(cl-defmethod edraw-translate ((shapes list) xy)
-  (dolist (shape shapes)
-    (edraw-translate shape xy)))
+(cl-defmethod edraw-translate ((shape edraw-shape) &optional xy)
+  (edraw-set-translate-params)
+  (edraw-transform
+   shape
+   (edraw-matrix-translate (edraw-x xy) (edraw-y xy) 0)))
 
 (cl-defgeneric edraw-transform (object matrix)
   "Transform OBJECT by MATRIX.
@@ -5000,23 +5004,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         (setf (edraw-y p0) bottom
               (edraw-y p1) top)))))
 
-(cl-defmethod edraw-translate ((shape edraw-shape-with-rect-boundary) &optional xy)
-  (edraw-set-translate-params)
-  (if (edraw-transform-prop-exists-p shape)
-      (edraw-transform-prop-translate shape xy)
-    (edraw-make-anchor-points-from-element shape);;Make sure p0p1 is initialized
-    (with-slots (p0p1) shape
-      (when (and xy (not (edraw-xy-zero-p xy)))
-        (edraw-set-rect shape
-                        (cons
-                         (+ (caar p0p1) (car xy))
-                         (+ (cdar p0p1) (cdr xy)))
-                        (cons
-                         (+ (cadr p0p1) (car xy))
-                         (+ (cddr p0p1) (cdr xy))))
-        ;;(edraw-on-shape-changed shape 'shape-translate) ?
-        ))))
-
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-with-rect-boundary) matrix)
   (cond
    ;; `transform' property already used.
@@ -5065,13 +5052,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         (height (edraw-get-property-as-length shape 'height 0)))
     (cons (cons x y)
           (cons (+ x width) (+ y height)))))
-
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-rect))
-  (edraw-push-undo-properties shape
-                              'shape-rect-anchors
-                              (if (edraw-transform-prop-exists-p shape)
-                                  '(transform)
-                                '(x y width height))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect) _old-p0p1)
   (with-slots (p0p1) shape
@@ -5130,13 +5110,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (cons (cons (- cx rx) (- cy ry))
           (cons (+ cx rx) (+ cy ry)))))
 
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-ellipse))
-  (edraw-push-undo-properties shape
-                              'shape-ellipse-anchors
-                              (if (edraw-transform-prop-exists-p shape)
-                                  '(transform)
-                                '(cx cy rx ry))))
-
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse) _old-p0p1)
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
@@ -5194,13 +5167,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         (r (edraw-get-property-as-length shape 'r 0)))
     (cons (cons (- cx r) (- cy r))
           (cons (+ cx r) (+ cy r)))))
-
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-circle))
-  (edraw-push-undo-properties shape
-                              'shape-circle-anchors
-                              (if (edraw-transform-prop-exists-p shape)
-                                  '(transform)
-                                '(cx cy r))))
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-circle)
                                          anchor
@@ -5319,24 +5285,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (edraw-svg-text-set-xy element xy)
       (edraw-on-shape-changed shape 'anchor-position))))
 
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-text))
-  (edraw-push-undo-properties shape
-                              'shape-text-anchors
-                              (if (edraw-transform-prop-exists-p shape)
-                                  '(transform)
-                                '(x y))))
-
-(cl-defmethod edraw-translate ((shape edraw-shape-text) &optional xy)
-  (edraw-set-translate-params)
-  (if (edraw-transform-prop-exists-p shape)
-      (edraw-transform-prop-translate shape xy)
-    (when (and xy (not (edraw-xy-zero-p xy)))
-      (with-slots (element) shape
-        (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
-        (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-text-anchor nil t)
-        (edraw-svg-element-translate element xy)
-        (edraw-on-shape-changed shape 'translate)))))
-
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-text) matrix)
   (cond
    ;; `transform' property already used.
@@ -5352,12 +5300,15 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-transform-anchor-points-local ((shape edraw-shape-text) matrix)
   (with-slots (element) shape
-    (let* ((xy (cons (or (edraw-svg-attr-coord element 'x) 0)
-                     (or (edraw-svg-attr-coord element 'y) 0)))
+    (let* ((xy (cons (edraw-get-property-as-length shape 'x 0)
+                     (edraw-get-property-as-length shape 'y 0)))
            (new-xy (edraw-matrix-mul-mat-xy matrix xy)))
-      (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
-      (edraw-svg-text-set-xy element new-xy)
-      (edraw-on-shape-changed shape 'shape-transform)))) ;;or anchor-position?
+
+      (edraw-set-properties
+       shape
+       (list
+        (cons 'x (edraw-x new-xy))
+        (cons 'y (edraw-y new-xy)))))))
 
 
 
@@ -5382,13 +5333,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         (height (edraw-get-property-as-length shape 'height 0)))
     (cons (cons x y)
           (cons (+ x width) (+ y height)))))
-
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-image))
-  (edraw-push-undo-properties shape
-                              'shape-image-anchors
-                              (if (edraw-transform-prop-exists-p shape)
-                                  '(transform)
-                                '(x y width height))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image) _old-p0p1)
   (with-slots (p0p1) shape
@@ -5512,29 +5456,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-set-marker ((shape edraw-shape-path) prop-name type)
   (edraw-set-properties shape (list (cons prop-name type))))
 
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-path))
-  (edraw-push-undo-properties shape
-                              'shape-path-anchors
-                              (if (edraw-transform-prop-exists-p shape)
-                                  '(transform)
-                                '(d))))
-
-(cl-defmethod edraw-translate ((shape edraw-shape-path) &optional xy)
-  (edraw-set-translate-params)
-  (if (edraw-transform-prop-exists-p shape)
-      (edraw-transform-prop-translate shape xy)
-    (when (and xy (not (edraw-xy-zero-p xy)))
-      (with-slots (cmdlist) shape
-        (edraw-path-cmdlist-translate cmdlist xy))
-      (edraw-push-undo-properties shape 'shape-path-translate '(d))
-      (edraw-merge-set-properties-undo-data
-       (edraw-undo-list (oref shape editor))
-       (cddr (edraw-undo-list (oref shape editor)))
-       'shape-path-translate
-       nil t)
-      (edraw-update-path-data shape)
-      (edraw-on-shape-changed shape 'shape-translate))))
-
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
   (cond
    ;; `transform' property already used.
@@ -5548,6 +5469,11 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (with-slots (cmdlist) shape
     (edraw-path-cmdlist-transform cmdlist matrix))
   (edraw-push-undo-properties shape 'shape-path-transform '(d))
+  (edraw-merge-set-properties-undo-data
+   (edraw-undo-list (oref shape editor))
+   (cddr (edraw-undo-list (oref shape editor)))
+   'shape-transform
+   nil t)
   (edraw-update-path-data shape)
   (edraw-on-shape-changed shape 'shape-transform))
 
@@ -5744,13 +5670,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (edraw-transform-local
        shape
        (edraw-matrix-fit-rect-to-rect src-rect dst-rect)))))
-
-(cl-defmethod edraw-push-undo-translate ((shape edraw-shape-group))
-  (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
-
-(cl-defmethod edraw-translate ((shape edraw-shape-group) &optional xy)
-  (edraw-set-translate-params)
-  (edraw-transform-prop-translate shape xy))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-group) matrix)
   (cond
