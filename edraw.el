@@ -4861,13 +4861,13 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
    (p0p1)) ;;Note that p0(car p0p1) is not always in the upper left
   :abstract t)
 
-(cl-defgeneric edraw-get-rect ((shape edraw-shape-with-rect-boundary)))
+(cl-defgeneric edraw-get-rect-local ((shape edraw-shape-with-rect-boundary)))
 
 (cl-defmethod edraw-make-anchor-points-from-element
   ((shape edraw-shape-with-rect-boundary))
   (with-slots (element anchor-points p0p1) shape
     (when (null anchor-points)
-      (setq p0p1 (edraw-get-rect shape))
+      (setq p0p1 (edraw-get-rect-local shape))
       (setq anchor-points
             (list
              ;; Corners
@@ -5013,7 +5013,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-rect))
   'rect)
 
-(cl-defmethod edraw-get-rect ((shape edraw-shape-rect))
+(cl-defmethod edraw-get-rect-local ((shape edraw-shape-rect))
   (let ((x (edraw-get-property-as-length shape 'x 0))
         (y (edraw-get-property-as-length shape 'y 0))
         (width (edraw-get-property-as-length shape 'width 0))
@@ -5077,7 +5077,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-ellipse))
   'ellipse)
 
-(cl-defmethod edraw-get-rect ((shape edraw-shape-ellipse))
+(cl-defmethod edraw-get-rect-local ((shape edraw-shape-ellipse))
   (let ((cx (edraw-get-property-as-length shape 'cx 0))
         (cy (edraw-get-property-as-length shape 'cy 0))
         (rx (edraw-get-property-as-length shape 'rx 0))
@@ -5143,7 +5143,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-circle))
   'circle)
 
-(cl-defmethod edraw-get-rect ((shape edraw-shape-circle))
+(cl-defmethod edraw-get-rect-local ((shape edraw-shape-circle))
   (let ((cx (edraw-get-property-as-length shape 'cx 0))
         (cy (edraw-get-property-as-length shape 'cy 0))
         (r (edraw-get-property-as-length shape 'r 0)))
@@ -5330,7 +5330,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-image))
   'image)
 
-(cl-defmethod edraw-get-rect ((shape edraw-shape-image))
+(cl-defmethod edraw-get-rect-local ((shape edraw-shape-image))
   (let ((x (edraw-get-property-as-length shape 'x 0))
         (y (edraw-get-property-as-length shape 'y 0))
         (width (edraw-get-property-as-length shape 'width 0))
@@ -5664,7 +5664,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   ;;@todo Should it be a different kind of notification?
   (edraw-on-shape-changed shape 'group-contents))
 
-(cl-defmethod edraw-get-rect ((shape edraw-shape-group))
+(cl-defmethod edraw-get-rect-local ((shape edraw-shape-group))
   (edraw-shape-aabb-local shape))
 
 (cl-defmethod edraw-set-p0p1-without-notify
