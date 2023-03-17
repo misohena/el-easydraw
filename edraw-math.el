@@ -402,8 +402,12 @@
      (edraw-rect-top dst-rect)
      0)
     (edraw-matrix-scale
-     (/ (float (edraw-rect-width dst-rect)) (edraw-rect-width src-rect))
-     (/ (float (edraw-rect-height dst-rect)) (edraw-rect-height src-rect))
+     (if (= (edraw-rect-width src-rect) 0)
+         1 ;;Keep
+       (/ (float (edraw-rect-width dst-rect)) (edraw-rect-width src-rect)))
+     (if (= (edraw-rect-height src-rect) 0)
+         1 ;;Keep
+       (/ (float (edraw-rect-height dst-rect)) (edraw-rect-height src-rect)))
      1))
    (edraw-matrix-translate
     (- (edraw-rect-left src-rect))
