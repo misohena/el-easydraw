@@ -288,7 +288,8 @@ line-prefix and wrap-prefix are used in org-indent.")
                           edraw-editor-default-grid-interval)
                     (cons 'transparent-bg-visible
                           edraw-editor-default-transparent-bg-visible)
-                    (cons 'view-size-spec nil))) ;;User specified view size
+                    (cons 'view-size-spec nil) ;;User specified view size
+                    (cons 'transform-method 'auto)))
    (extra-properties :initform nil)
    (default-shape-properties
      :initform (if edraw-editor-share-default-shape-properties
@@ -1183,7 +1184,8 @@ For use with `edraw-editor-with-temp-undo-list',
        ((edraw-msg "Transform")
         (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
          ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
-         ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)))
+         ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)
+         ,(edraw-transform-method-menu editor)))
        ((edraw-msg "Clear...") edraw-editor-clear)
        ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
        ((edraw-msg "Export to File") edraw-editor-export-to-file)))
@@ -2147,7 +2149,8 @@ For use with `edraw-editor-with-temp-undo-list',
       ((edraw-msg "Transform")
        (((edraw-msg "Translate...") edraw-editor-translate-selected)
         ((edraw-msg "Scale...") edraw-editor-scale-selected)
-        ((edraw-msg "Rotate...") edraw-editor-rotate-selected)))
+        ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
+        ,(edraw-transform-method-menu editor)))
       ((edraw-msg "Z-Order")
        ;;@todo check :enable when multiple shapes are selected
        (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
@@ -2454,6 +2457,35 @@ For use with `edraw-editor-with-temp-undo-list',
 (cl-defmethod edraw-remove-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
   )
 
+;;;;; Editor - Transform Method
+
+(cl-defmethod edraw-set-transform-method ((editor edraw-editor) method)
+  (edraw-set-setting editor 'transform-method method))
+
+(cl-defmethod edraw-get-transform-method ((editor edraw-editor))
+  (edraw-get-setting editor 'transform-method))
+
+(edraw-editor-defcmd edraw-set-transform-method-auto
+    ((editor edraw-editor))
+  (edraw-set-transform-method editor 'auto))
+
+(edraw-editor-defcmd edraw-set-transform-method-transform-property
+    ((editor edraw-editor))
+  (edraw-set-transform-method editor 'transform-property))
+
+(edraw-editor-defcmd edraw-set-transform-method-anchor-points
+    ((editor edraw-editor))
+  (edraw-set-transform-method editor 'anchor-points))
+
+(defun edraw-transform-method-menu (obj)
+  `((edraw-msg "Transform Method")
+    (((edraw-msg "Auto") edraw-editor-set-transform-method-auto
+      :button (:radio . ,(eq (edraw-get-transform-method obj) 'auto)))
+     ((edraw-msg "\"transform\" Property") edraw-editor-set-transform-method-transform-property
+      :button (:radio . ,(eq (edraw-get-transform-method obj) 'transform-property)))
+     ((edraw-msg "Anchor Points") edraw-editor-set-transform-method-anchor-points
+      :button (:radio . ,(eq (edraw-get-transform-method obj) 'anchor-points))))))
+
 ;;;;; Editor - Main Menu
 
 (edraw-editor-defcmd edraw-main-menu ((editor edraw-editor))
@@ -2472,7 +2504,8 @@ For use with `edraw-editor-with-temp-undo-list',
           ((edraw-msg "Transform")
            (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
             ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
-            ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)))
+            ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)
+            ,(edraw-transform-method-menu editor)))
           ((edraw-msg "Clear...") edraw-editor-clear)
           ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
           ((edraw-msg "Export to File") edraw-editor-export-to-file)))
@@ -2501,7 +2534,8 @@ For use with `edraw-editor-with-temp-undo-list',
           ((edraw-msg "Transform")
            (((edraw-msg "Translate...") edraw-editor-translate-selected)
             ((edraw-msg "Scale...") edraw-editor-scale-selected)
-            ((edraw-msg "Rotate...") edraw-editor-rotate-selected)))
+            ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
+            ,(edraw-transform-method-menu editor)))
           ((edraw-msg "Z-Order")
            ;;@todo check :enable when multiple shapes are selected
            (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
@@ -4459,6 +4493,9 @@ position where the EVENT occurred."
 
 ;;;;;; Transform
 
+(cl-defmethod edraw-get-transform-method ((shape edraw-shape))
+  (edraw-get-transform-method (oref shape editor)))
+
 (cl-defgeneric edraw-translate (object xy)
   "Translate OBJECT by vector XY.")
 
@@ -4485,7 +4522,14 @@ If you want to transform the anchor point coordinates, use
 `edraw-transform-anchor-points'.
 ")
 
-;;(cl-defmethod edraw-transform ((shape edraw-shape) matrix) )
+(cl-defmethod edraw-transform ((shape edraw-shape) matrix)
+  (pcase (edraw-get-transform-method shape)
+    ('auto
+     (edraw-transform-auto shape matrix))
+    ('transform-property
+     (edraw-transform-prop-multiply shape matrix))
+    ('anchor-points
+     (edraw-transform-anchor-points shape matrix))))
 
 (cl-defmethod edraw-transform ((shapes list) matrix)
   (dolist (shape shapes)
@@ -4772,7 +4816,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       ((edraw-msg "Apply transform property to anchors") edraw-apply-transform-prop-to-anchor-points
        :enable ,(and (edraw-transform-prop-exists-p shape)
                      (not (edraw-matrix-identity-p
-                           (edraw-transform-prop-get-matrix shape)))))))
+                           (edraw-transform-prop-get-matrix shape)))))
+      ,(edraw-transform-method-menu shape)))
     ((edraw-msg "Z-Order")
      (((edraw-msg "Bring to Front") edraw-bring-to-front
        :enable ,(not (edraw-front-p shape)))
@@ -4972,7 +5017,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         ;;(edraw-on-shape-changed shape 'shape-translate) ?
         ))))
 
-(cl-defmethod edraw-transform ((shape edraw-shape-with-rect-boundary) matrix)
+(cl-defmethod edraw-transform-auto ((shape edraw-shape-with-rect-boundary) matrix)
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
@@ -5292,7 +5337,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
         (edraw-svg-element-translate element xy)
         (edraw-on-shape-changed shape 'translate)))))
 
-(cl-defmethod edraw-transform ((shape edraw-shape-text) matrix)
+(cl-defmethod edraw-transform-auto ((shape edraw-shape-text) matrix)
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
@@ -5490,7 +5535,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (edraw-update-path-data shape)
       (edraw-on-shape-changed shape 'shape-translate))))
 
-(cl-defmethod edraw-transform ((shape edraw-shape-path) matrix)
+(cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
@@ -5707,13 +5752,14 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (edraw-set-translate-params)
   (edraw-transform-prop-translate shape xy))
 
-(cl-defmethod edraw-transform ((shape edraw-shape-group) matrix)
-  ;; @todo Use edraw-transform-prop-multiply?
-  ;;       If you want to unify, make sure that the behavior is the same.
-  (with-slots (element) shape
-    (edraw-push-undo-properties shape 'shape-group-transform '(transform))
-    (edraw-svg-element-transform-multiply element matrix)
-    (edraw-on-shape-changed shape 'shape-transform)))
+(cl-defmethod edraw-transform-auto ((shape edraw-shape-group) matrix)
+  (cond
+   ;; `transform' property already used.
+   ((edraw-transform-prop-exists-p shape)
+    (edraw-transform-prop-multiply shape matrix))
+   ;; Transform child shapes. (No transform property)
+   (t
+    (edraw-transform-local shape matrix))))
 
 (cl-defmethod edraw-transform-local ((group edraw-shape-group) matrix)
   ;; Transform child shapes.

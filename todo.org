@@ -1,15 +1,11 @@
 
 * Inbox
-** TODO 変形方式設定を追加する
+** TODO edraw-translateも変形方式設定に従うようにする
+図形のドラッグ時にedraw-push-undo-translateを使う方法は止めて、アンカーのドラッグでやったように移動のたびにUNDOする方式にする。
 
-transform-method
-- auto : Auto
-- transform-property : "transform" Property
-- anchor-points : Anchor Points
-
-local or not?
-
-** TODO groupに対するedraw-transformは子孫に対する個別のtransformにする
+** TODO ローカル座標系変形機能を追加する
+図形のtransformプロパティ適用前の座標系で、平行移動、伸縮、回転できるようにする。
+transform-methodのような設定を追加すべきか、あるいは、コマンドを追加したり、コマンド内でのオプションにするか。
 
 ** TODO textに対するコンテキストメニューにSet Font Sizeを追加する
 ** TODO UI要素の更新を遅延する
@@ -1245,3 +1241,20 @@ CLOSED: [2023-03-17 Fri 09:56]
 CLOSED: [2023-03-17 Fri 10:32]
 edraw-shape-with-rect-boundaryが持つedraw-get-rect関数はローカル座標系での矩形を返すので。
 edraw-shape-aabb-localと意味が被っているような気もしなくはないが、あくまでedraw-shape-with-rect-boundaryが必要とするアンカーポイントを決めるための矩形を返すという位置づけ。そういう意味で言えばもっと名前を変えるべきかもしれないが、それはとりあえず置いておく。最低限ローカルであることは示す。
+** DONE 変形方式設定を追加する
+CLOSED: [2023-03-17 Fri 17:40]
+transform-method
+- auto : Auto
+- transform-property : "transform" Property
+- anchor-points : Anchor Points
+
+edraw-transformはそれに従う。
+groupに対するedraw-transformは子孫に対する個別のtransformにする。
+
+次の問題は他のTODOにする。
+- local or not?
+- edraw-translateはどうすべきだろう。
+
+正直この方法が適切なのかはよく分からない。コマンド毎のオプションにすべきのような気もする。
+
+切り替えメニューの位置もあちこちに分散させて良い物かよく分からない。
