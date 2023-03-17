@@ -3070,19 +3070,22 @@ position where the EVENT occurred."
                                              down-event)
   "Drag a anchor point or select it."
   (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
-         (moved-p nil)
+         (move-xy nil)
          (anchor (seq-some (lambda (shp)
                              (edraw-pick-anchor-point shp down-xy))
                            (edraw-selected-shapes editor))))
     (when anchor
-      (edraw-track-dragging
-       down-event
-       (lambda (move-event)
-         (setq moved-p t)
-         (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
+      (edraw-editor-with-temp-modifications editor
+        (edraw-track-dragging
+         down-event
+         (lambda (move-event)
+           (edraw-undo-all editor) ;; Cancel previous move
+           (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
            (edraw-move-on-transformed anchor move-xy)))) ;;notify modification
-      (unless moved-p
-        ;; Click anchor point
+      (if move-xy
+          ;; Fix position
+          (edraw-move-on-transformed anchor move-xy) ;;notify modification
+        ;; Click the anchor point if the mouse does not move
         (edraw-select-anchor editor anchor))
       t)))
 
@@ -4290,7 +4293,8 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
   (with-slots (editor) shape
     (edraw-on-document-changed editor 'shape)
-    (edraw-notify-change-hook shape type)))
+    (edraw-notify-change-hook shape type)
+    (edraw-notify-ancestors-of-change shape type)))
 
 (cl-defmethod edraw-notify-change-hook ((shape edraw-shape) type)
   (with-slots (editor change-hook) shape
@@ -4303,6 +4307,16 @@ position where the EVENT occurred."
 (cl-defmethod edraw-remove-change-hook ((shape edraw-shape) function &rest args)
   (with-slots (change-hook) shape
     (apply 'edraw-hook-remove change-hook function args)))
+
+(cl-defmethod edraw-notify-ancestors-of-change ((shape edraw-shape) type)
+  "Notify ancestor nodes of change in descendant nodes."
+  (let ((ancestor shape))
+    (while (setq ancestor (edraw-parent ancestor))
+      (edraw-on-descendant-changed ancestor shape type))))
+
+(cl-defmethod edraw-on-descendant-changed ((_shape edraw-shape)
+                                           _changed-shape _type)
+  )
 
 ;;;;;; Parent
 
@@ -4886,9 +4900,11 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            (changed (or (and px (/= (car px) x))
                         (and py (/= (cdr py) y)))))
       (when changed
-        (when px (setcar px x))
-        (when py (setcdr py y))
-        (edraw-on-anchor-position-changed shape)))))
+        (let ((old-p0p1 (cons (cons (caar p0p1) (cdar p0p1))
+                              (cons (cadr p0p1) (cddr p0p1)))))
+          (when px (setcar px x))
+          (when py (setcdr py y))
+          (edraw-on-anchor-position-changed shape old-p0p1))))))
 
 (cl-defmethod edraw-get-anchor-position ((shape edraw-shape-with-rect-boundary)
                                          anchor)
@@ -4910,11 +4926,13 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
               (/= (cadr p0p1) (car xy1))
               (/= (cddr p0p1) (cdr xy1)))
       ;;changed
-      (setcar (car p0p1) (car xy0))
-      (setcdr (car p0p1) (cdr xy0))
-      (setcar (cdr p0p1) (car xy1))
-      (setcdr (cdr p0p1) (cdr xy1))
-      (edraw-on-anchor-position-changed shape))))
+      (let ((old-p0p1 (cons (cons (caar p0p1) (cdar p0p1))
+                            (cons (cadr p0p1) (cddr p0p1)))))
+        (setcar (car p0p1) (car xy0))
+        (setcdr (car p0p1) (cdr xy0))
+        (setcar (cdr p0p1) (car xy1))
+        (setcdr (cdr p0p1) (cdr xy1))
+        (edraw-on-anchor-position-changed shape old-p0p1)))))
 
 (cl-defmethod edraw-set-p0p1-without-notify
   ((shape edraw-shape-with-rect-boundary) left top right bottom)
@@ -4977,7 +4995,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 ;;;;;; Implemented in Derived Classes
 
-;;(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-*))
+;;(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-*) old-p0p1)
 
 
 ;;;;; Shape - Rect
@@ -5009,7 +5027,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                   '(transform)
                                 '(x y width height))))
 
-(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect))
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect) _old-p0p1)
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5073,7 +5091,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                   '(transform)
                                 '(cx cy rx ry))))
 
-(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse))
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse) _old-p0p1)
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5154,7 +5172,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            (new-ry (if oy (* 0.5 (abs (- (cdr oy) y)))))
            (cx (* 0.5 (+ (caar p0p1) (cadr p0p1))))
            (cy (* 0.5 (+ (cdar p0p1) (cddr p0p1))))
-           (changed nil))
+           (changed nil)
+           (old-p0p1 (cons (cons (caar p0p1) (cdar p0p1))
+                           (cons (cadr p0p1) (cddr p0p1)))))
       (cond
        ((and px (null py))
         (when (/= x (car px))
@@ -5180,9 +5200,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
             (setq changed t)))))
 
       (when changed
-        (edraw-on-anchor-position-changed shape)))))
+        (edraw-on-anchor-position-changed shape old-p0p1)))))
 
-(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle))
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle) _old-p0p1)
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5324,7 +5344,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                   '(transform)
                                 '(x y width height))))
 
-(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image))
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image) _old-p0p1)
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5626,20 +5646,58 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (oset shape editor editor)
     shape))
 
-(defclass edraw-shape-group (edraw-shape)
+(defclass edraw-shape-group (edraw-shape-with-rect-boundary)
   ())
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-group))
   'g)
 
-(cl-defmethod edraw-get-anchor-points ((_shape edraw-shape-group))
-  nil)
+(cl-defmethod edraw-on-descendant-changed ((shape edraw-shape-group)
+                                           _changed-shape _type)
+  (let ((aabb (edraw-shape-aabb-local shape)))
+    (edraw-set-p0p1-without-notify shape
+                                   (edraw-rect-left aabb)
+                                   (edraw-rect-top aabb)
+                                   (edraw-rect-right aabb)
+                                   (edraw-rect-bottom aabb)))
+  ;;@todo Should it be a different kind of notification?
+  (edraw-on-shape-changed shape 'group-contents))
 
-(cl-defmethod edraw-get-anchor-position ((_shape edraw-shape-group))
-  nil)
+(cl-defmethod edraw-get-rect ((shape edraw-shape-group))
+  (edraw-shape-aabb-local shape))
 
-(cl-defmethod edraw-set-anchor-position ((_shape edraw-shape-group) _xy)
-  nil)
+(cl-defmethod edraw-set-p0p1-without-notify
+  ((shape edraw-shape-with-rect-boundary) left top right bottom)
+  (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
+  ;; Change the coordinates of p0p1
+  (with-slots (p0p1) shape
+    (let ((p0 (car p0p1))
+          (p1 (cdr p0p1)))
+      (setf (edraw-x p0) left
+            (edraw-x p1) right
+            (edraw-y p0) top
+            (edraw-y p1) bottom))))
+
+
+(cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-group) old-p0p1)
+  (with-slots (p0p1) shape
+    ;; Transform descendants from current local aabb to fit p0p1.
+    (let ((src-rect old-p0p1)
+          (dst-rect p0p1))
+      ;; If the width of the src-rect is 0, x of anchor points cannot be moved.
+      (when (= (edraw-rect-width src-rect) 0)
+        (setcar (car p0p1) (caar old-p0p1))
+        (setcar (cdr p0p1) (cadr old-p0p1)))
+      ;; If the height of the src-rect is 0, y of anchor points cannot be moved.
+      (when (= (edraw-rect-height src-rect) 0)
+        (setcdr (car p0p1) (cdar old-p0p1))
+        (setcdr (cdr p0p1) (cddr old-p0p1)))
+
+      ;;@todo Support more transform methods.
+      ;;(edraw-transform-anchor-points-local
+      (edraw-transform-local
+       shape
+       (edraw-matrix-fit-rect-to-rect src-rect dst-rect)))))
 
 (cl-defmethod edraw-push-undo-translate ((shape edraw-shape-group))
   (edraw-push-undo-properties shape 'shape-rect-anchors '(transform)))
@@ -5655,6 +5713,13 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (edraw-push-undo-properties shape 'shape-group-transform '(transform))
     (edraw-svg-element-transform-multiply element matrix)
     (edraw-on-shape-changed shape 'shape-transform)))
+
+(cl-defmethod edraw-transform-local ((group edraw-shape-group) matrix)
+  ;; Transform child shapes.
+  (with-slots (editor) group
+    (edraw-make-undo-group editor 'group-transform
+      (dolist (child (edraw-children group))
+        (edraw-transform child matrix)))))
 
 (cl-defmethod edraw-transform-anchor-points-local ((group edraw-shape-group) matrix)
   ;; Transform anchor points of child shapes.

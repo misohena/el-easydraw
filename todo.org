@@ -1,5 +1,58 @@
 
 * Inbox
+** TODO edraw-get-rectをedraw-get-rect-localへ改名する
+edraw-shape-with-rect-boundaryが持つedraw-get-rect関数はローカル座標系での矩形を返すので。
+
+** TODO 変形方式設定を追加する
+
+transform-method
+- auto : Auto
+- transform-property : "transform" Property
+- anchor-points : Anchor Points
+
+local or not?
+
+** TODO groupに対するedraw-transformは子孫に対する個別のtransformにする
+
+** TODO textに対するコンテキストメニューにSet Font Sizeを追加する
+** TODO UI要素の更新を遅延する
+UI要素の更新はedraw-update-imageの直前に一回やれば済むはず。
+UNDO等で一度に大量の変更が発生したときに連続して edraw-on-selected-shape-changed → edraw-update-selection-ui が呼ばれてしまう場合がある。
+
+edraw-update-all-ui-svg では次の関数を呼んでいる。
+- edraw-update-root-transform
+- edraw-update-scroll-transform
+- edraw-update-transparent-bg
+- edraw-update-grid
+- edraw-update-selection-ui
+それぞれを個別にInvalidateできるようにしてはどうか。
+
+** TODO modifiedフラグの制御を厳密にする
+現在次のような問題がある。
+- UNDOを考慮していない。
+- Previewによる変化でフラグが立ってしまう。
+
+** TODO クラスを拡張可能にする
+
+- edraw-shapeをedraw-objectに改名する
+- SVG要素からオブジェクトを作成する部分を拡張可能にする
+
+** TODO マニピュレータ機構を追加する
+
+- 選択済みオブジェクトのように機能する。
+- 任意のタイミングで一つだけ追加できる。主にツールやコマンドによって追加される。
+  例:
+  - 複数オブジェクトが選択されたとき追加され、解除されたときに削除される。
+  - 変形コマンドが実行されたとき。
+- マウスイベントはマニピュレータが優先的に処理する。
+- マニピュレータがあるときは選択済みオブジェクト、アンカー、ハンドルは操作できない(?)
+
+ある種のモードなのだろうか。モーダルであるべきか否か。
+
+** TODO カラーピッカーに固定のカラーパレットが欲しいかも？
+特定の色集合を保持し続けられるようなやつ。
+ファイルとの読み書きも出来ると良い。
+
 ** TODO 選択ツール 図形をM+ドラッグで複製しつつ平行移動する
 Ctrl+の方がいい？
 
@@ -58,7 +111,7 @@ edraw-create-shape-without-default関数にindex引数を追加していると�
 とは言えやはりtextは同一視できないんじゃない？
 カスタムシェイプにtextなんて入れることがある？
 
-** TODO 変形時のtransformプロパティ使用を最小化すべきか考える。
+** TODO 変形時のtransformプロパティ使用を最小化すべきか考える
 rect, ellipse, circle, imageは回転以外であればtransformを使う必要は無い。
 textは回転とスケーリング以外(平行移動のみ)であればtransformを使う必要は無い。
 
@@ -1165,3 +1218,29 @@ outline-modeやorg-modeのように不可視領域の始点は行末じゃない
 隠す範囲にdisplayプロパティ(文字列だろうと画像だろうと)があると、そこがinvisible(overlayだろうとtext propertyだろうと)にも関わらず表示されてしまう事がある模様。
 おそらくEmacsのバグではないか。
 隠すためのオーバーレイにdisplay ""を指定することで回避できた。
+** DONE グループをアンカーポイントのドラッグで変形できるようにする
+CLOSED: [2023-03-17 Fri 09:56]
+選択時、角や辺にアンカーポイントを表示する。
+内部の範囲を境界矩形にして操作できるようにする。
+回転した場合でもローカルな軸に沿って変形する(rect等と同じような挙動で良い)。
+
+懸念:
+- ローカルなAABBで変形すべきか否か => カスタムシェイプにグループ化した図形(ラベルなど)を入れて、それを変形することを目的にしている。なのでローカルなAABBで変形した方が直感的。回転してからも、元の図形の軸に沿ったスケーリングがしたい。
+- どの方式で変形すべきか => ラベルで使うことを考えると線が太くならないようにしたい。極力アンカーポイントの変形で済ませたい。ただ、図形によっては線の太さも含めて変形したい場合もあるかもしれない。オプションで変更できても良い。
+- 幅や高さが0になったらどうするか => 元々幅高さが0の場合はその軸方向に拡大するのは不可能。ドラッグ中に0になるとそれ以降変形できなくなるので、マウス移動時は直前の変形を元に戻してから(UNDOしてから)再変形すべき。
+- ドラッグ中に誤差が累積しないか => UNDOしてから再変形することで回避。
+- 左右上下反転時に何が起こるか => edraw-shape-with-rect-boundaryは反転を考慮していないので特別な手当て(オーバーライド)が必要。AABBは左右上下反転を表現できないので、元のp0p1からの変化を見る必要がある。
+- 特別な仕組みが必要か => とりあえずedraw-shape-with-rect-boundaryで対処可能。
+
+工程:
+
+1. edraw-shape-with-rect-boundaryを継承する。(必然的にローカル座標系での変形になる。edraw-shape-with-rect-boundaryはrect等transformプロパティの影響を除いた矩形を制御するための物なので)
+2. (edraw-get-rect group)を実装する。アンカーポイントを配置する基準となる矩形を求める。edraw-shape-aabb-localを作成してそれを呼び出す。
+3. (edraw-on-anchor-position-changed group old-p0p1)を実装する。アンカーポイントが変化したときの処理を書く。p0p1の変化を変形行列にしてedraw-transform-localを呼び出す。edraw-transform-localは子孫のedraw-transformを呼び出す。元の幅や高さが0のときはその軸方向には移動できないようにし、スケールも1にする(ゼロ除算も回避)。
+4. 図形の変化を祖先要素に伝搬する仕組みが必要。edraw-on-shape-changedで祖先要素のedraw-on-descendant-changedを呼び出す。
+5. グループの子孫の内容が変化したときの処理を書く。UNDO等で子孫の内容がグループオブジェクトの介在無しに変化することがある。グループの子孫が変化したら、edraw-set-p0p1-without-notifyでアンカーポイントの位置を更新する。グループ自体も変化イベントを発生させる(選択UIを更新するため)。
+6. (edraw-set-p0p1-without-notify group l t r b)を上書きする。デフォルトの実装だと左右上下反転したときに正しく動作しないので。
+7. アンカーポイントの移動処理において、UNDOを使用する。edraw-mouse-down-anchor-pointを修正する。移動の繰り返しでは幅高さが0になったときにそれ以上変形できなくなってしまう。誤差も累積する。マウスを動かすたびにUNDOしてから再度移動すべき。
+8. 選択中、ローカルな軸に沿った境界線を表示する。
+
+本質的にグループが角や辺のアンカーポイントを持っているわけでは無いので、edraw-groupがアンカーポイントを持つ実装はあまり良くないのかもしれない。複数図形を選択してその全体を変形するような操作を実装する場合は、アンカーポイントとは別の仕組みが必要になる(マニピュレータ)。本来はその仕組みを使うべきかもしれない。とは言え、比較的簡単に(大がかりな仕組みを追加せずに)実装できたのでとりあえずこれで。
