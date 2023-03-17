@@ -3505,9 +3505,10 @@ position where the EVENT occurred."
                            (edraw-get-default-shape-property
                             editor 'text 'font-size)))
                (shape (car (edraw-find-shapes-by-xy editor xy))))
-      (when-let ((rect (ignore-errors (edraw-get-rect shape)))
+      (when-let ((rect (ignore-errors (edraw-shape-aabb shape)))
                  (center (edraw-rect-center rect)))
         (when (< (edraw-xy-distance center xy) font-size)
+          ;;(message "Snapped to the center of background shape")
           (cons
            (car center)
            (+ (cdr center) (* 0.4 font-size)))))))) ;;@todo ascent font-size ratio
