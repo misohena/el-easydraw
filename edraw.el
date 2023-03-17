@@ -1558,17 +1558,34 @@ For use with `edraw-editor-with-temp-undo-list',
                                        shape selected-anchor selected-handle))
           ;; Boundary
           (dolist (shape selected-shapes)
-            (when (memq (edraw-shape-type shape) '(text g))
-              (let ((aabb (edraw-scroll-transform-rect
-                           editor (edraw-shape-aabb shape))))
+            ;; Local AABB
+            (when (memq (edraw-shape-type shape) '(text image g))
+              (let ((aabb (edraw-shape-aabb-local shape)))
                 (unless (edraw-rect-empty-p aabb)
-                  (svg-rectangle g
-                                 (edraw-rect-left aabb)
-                                 (edraw-rect-top aabb)
-                                 (edraw-rect-width aabb)
-                                 (edraw-rect-height aabb)
+                  (let* ((matrix
+                          (edraw-matrix-mul-mat-mat
+                           (edraw-scroll-transform-matrix editor)
+                           (edraw-transform-prop-get-matrix shape)))
+                         (points (mapcar
+                                  (lambda (xy)
+                                    (edraw-matrix-mul-mat-xy matrix xy))
+                                  (edraw-rect-corner-points aabb))))
+                    (svg-polygon g points
                                  :class
-                                 "edraw-ui-shape-boundary"))))))
+                                 "edraw-ui-shape-boundary")))))
+            ;; ;; Global AABB
+            ;; (when (memq (edraw-shape-type shape) '(text image g))
+            ;;   (let ((aabb (edraw-scroll-transform-rect
+            ;;                editor (edraw-shape-aabb shape))))
+            ;;     (unless (edraw-rect-empty-p aabb)
+            ;;       (svg-rectangle g
+            ;;                      (edraw-rect-left aabb)
+            ;;                      (edraw-rect-top aabb)
+            ;;                      (edraw-rect-width aabb)
+            ;;                      (edraw-rect-height aabb)
+            ;;                      :class
+            ;;                      "edraw-ui-shape-boundary"))))
+            ))
       ;; Hide points
       (edraw-svg-ui-shape-points-remove-group
        (edraw-ui-foreground-svg editor))))
@@ -1672,6 +1689,14 @@ For use with `edraw-editor-with-temp-undo-list',
   (edraw-rect-pp
    (edraw-scroll-transform-xy editor (edraw-rect-xy0 rect))
    (edraw-scroll-transform-xy editor (edraw-rect-xy1 rect))))
+
+(cl-defmethod edraw-scroll-transform-matrix ((editor edraw-editor))
+  (let ((scale (edraw-scroll-scale editor))
+        (dx (edraw-scroll-pos-x editor))
+        (dy (edraw-scroll-pos-y editor)))
+    (edraw-matrix-mul-mat-mat
+     (edraw-matrix-translate dx dy 0)
+     (edraw-matrix-scale scale scale 1))))
 
 (cl-defmethod edraw-scroll-reverse-transform-xy ((editor edraw-editor) xy)
   (when xy
