@@ -4853,7 +4853,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       ((edraw-msg "Stroke...") edraw-edit-stroke
        :visible ,(edraw-can-have-property-p shape 'stroke))
       ((edraw-msg "Href...") edraw-edit-href
-       :visible ,(edraw-can-have-property-p shape 'href))))
+       :visible ,(edraw-can-have-property-p shape 'href))
+      ((edraw-msg "Font Size...") edraw-edit-font-size
+       :visible ,(edraw-can-have-property-p shape 'font-size))))
     ((edraw-msg "Transform")
      (((edraw-msg "Translate...") edraw-translate)
       ((edraw-msg "Scale...") edraw-scale)
@@ -5350,6 +5352,12 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
        (list
         (cons 'x (edraw-x new-xy))
         (cons 'y (edraw-y new-xy)))))))
+
+(cl-defmethod edraw-edit-font-size ((shape edraw-shape-text))
+  (let ((font-size (edraw-read-number-or-nil
+                    (edraw-msg "Font Size: ")
+                    (edraw-get-property shape 'font-size))))
+    (edraw-set-property shape 'font-size font-size)))
 
 
 
