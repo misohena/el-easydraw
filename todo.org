@@ -1,6 +1,11 @@
 
 
 * Inbox
+** TODO グループのアンカーポイントをドラッグして0サイズにするとエラー
+ドラッグして幅高さを共に0にすると何かエラーが出る。
+: Error running timer ‘edraw-update-image-on-timer’: (wrong-type-argument number-or-marker-p nil) [18 times]
+edraw-update-image-on-timerということはUI要素から出てる？　でもimage要素の場合は出ないみたい。
+
 ** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
 「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
 d全体をUNDOデータにすると実際にアンドゥしたときに全てのポイントが無効になり、選択状態を全て解除しなければならなくなるなどの弊害がある。
@@ -1354,3 +1359,10 @@ dプロパティ全体を戻すのでは無く、「先頭から何番目のア�
 ついでにハンドルも直す。ハンドルの場合は反対側のハンドルも一緒に動くことがあるので注意が必要。
 ** DONE textに対するコンテキストメニューにSet→Font Sizeを追加する
 CLOSED: [2023-03-18 Sat 20:58]
+** DONE ラベルのカスタムシェイプを追加する
+CLOSED: [2023-03-18 Sat 21:50]
+右下が折り曲げられているようなラベルの形状を追加する。
+グループ化された物を登録する。
+色や線幅はグループのプロパティで変更できるようにする。
+
+二重線のラベルも追加する。
