@@ -528,6 +528,22 @@ The format of each data is (TYPE FUNCTION ARGUMENTS...)."
   "Return t if there is no redo data in the EDITOR."
   (null (oref editor redo-list)))
 
+;; Undo Data Structure
+
+(defun edraw-undo-data-type (data) (car data))
+(defun edraw-undo-data-func (data) (cadr data))
+(defun edraw-undo-data-args (data) (cddr data))
+(defun edraw-undo-data-starts-with-args-p (data type func &rest args)
+  "Return t if undo DATA has the same TYPE, FUNC, and the argument
+list starts with ARGS."
+  (and (eq (edraw-undo-data-type data) type)
+       (eq (edraw-undo-data-func data) func)
+       (cl-loop for x = (edraw-undo-data-args data) then (cdr x)
+                for y in args
+                unless x return nil
+                unless (eq (car x) y) return nil
+                finally return t)))
+
 ;; Push Undo Data
 
 (defmacro edraw-push-undo (editor type data)
@@ -3684,7 +3700,7 @@ position where the EVENT occurred."
             (edraw-clear tool)
             (edraw-select-shape editor (edraw-parent-shape anchor))
             (edraw-select-anchor editor anchor)
-            (message "Connected")
+            (message (edraw-msg "Connected"))
 
             (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
             t))))))
@@ -5563,6 +5579,17 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
        :shape shape
        :ppoint anchor-point))))
 
+(cl-defmethod edraw-move-nth-point ((shape edraw-shape-path) index xy)
+  (let ((spt (edraw-get-nth-point shape index)))
+    (if spt
+        (edraw-move spt xy)
+      ;;(message "Warning: Point %s not found" index)
+      )))
+
+(cl-defmethod edraw-move-nth-points ((shape edraw-shape-path) list-index-xy)
+  (dolist (index-xy list-index-xy)
+    (edraw-move-nth-point shape (car index-xy) (cdr index-xy))))
+
 (cl-defmethod edraw-update-path-data ((shape edraw-shape-path))
   (with-slots (cmdlist) shape
     (edraw-svg-set-attr-string (edraw-element shape)
@@ -5899,32 +5926,82 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (with-slots (ppoint) spt
     (edraw-xy-clone (edraw-path-point-xy ppoint))))
 
-(cl-defmethod edraw-push-undo-path-point-change ((spt edraw-shape-point-path) type merge)
+(cl-defmethod edraw-push-undo-path-d-change ((spt edraw-shape-point-path) type)
+  "Register undo data that restores the entire d property.
+
+It is best to avoid using this function as much as
+possible. Because undoing invalidates all point objects."
   (unless edraw-editor-inhibit-make-undo-data
     (with-slots (shape) spt
-      (let ((type (intern (format "%s-p%s" type (edraw-index-in-path spt))))
-            (prev-undo-data (car (edraw-undo-list (oref shape editor)))))
+      (let* ((index (edraw-index-in-path spt))
+             (type (intern (format "%s-p%s" type index))))
+        ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
+        (edraw-push-undo-properties shape type '(d))))))
+
+(cl-defmethod edraw-push-undo-path-point-move ((spt edraw-shape-point-path)
+                                               type merge
+                                               old-xy
+                                               &optional
+                                               opposite-index-old-xy)
+  "Register undo data for when SPT moves.
+
+This function does not register the entire d property as undo
+data.  Registering the d property as undo data would cause all
+point objects to become invalid when undoing, preventing them
+from being dragged. Undoing while dragging is necessary for group
+transformations."
+  (unless edraw-editor-inhibit-make-undo-data
+    (with-slots (shape) spt
+      (let* ((index (edraw-index-in-path spt))
+             (type (intern (format "%s-p%s" type index)))
+             (editor (oref shape editor))
+             (prev-undo-data (car (edraw-undo-list editor))))
         ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
         (unless (and merge
-                     (eq (nth 0 prev-undo-data) type)
-                     (eq (nth 1 prev-undo-data) #'edraw-set-properties)
-                     (eq (nth 2 prev-undo-data) shape))
-          (edraw-push-undo-properties shape type '(d)))))))
+                     (edraw-undo-data-starts-with-args-p
+                      prev-undo-data
+                      type
+                      (if opposite-index-old-xy
+                          #'edraw-move-nth-points
+                        #'edraw-move-nth-point)
+                      shape))
+          (edraw-push-undo
+           editor type
+           (if opposite-index-old-xy
+               ;; Always push opposite xy even if the coordinates
+               ;; haven't changed for easy implementation of merging.
+               (list #'edraw-move-nth-points shape
+                     (list (cons index old-xy)
+                           opposite-index-old-xy))
+             (list #'edraw-move-nth-point shape index old-xy))))))))
 
 (cl-defmethod edraw-move ((spt edraw-shape-point-path) xy)
   (with-slots (ppoint shape) spt
-    (unless (edraw-xy-equal-p xy (edraw-path-point-xy ppoint))
-      (edraw-path-point-move-with-related-points ppoint xy)
-      (edraw-push-undo-path-point-change spt 'path-point-move t)
-      (edraw-on-shape-point-changed shape 'point-move))))
+    (let ((old-xy (edraw-xy-clone (edraw-path-point-xy ppoint))))
+      (unless (edraw-xy-equal-p xy old-xy)
+        (edraw-path-point-move-with-related-points ppoint xy)
+        (edraw-push-undo-path-point-move spt 'path-point-move t old-xy)
+        (edraw-on-shape-point-changed shape 'point-move)))))
+
+(cl-defmethod edraw-get-opposite-handle-index-xy ((spt edraw-shape-point-path))
+  (with-slots (ppoint) spt
+    (when-let ((opposite-ppoint (edraw-path-handle-another-handle ppoint)))
+      (cons
+       (edraw-path-point-index-in-cmdlist opposite-ppoint)
+       (edraw-xy-clone (edraw-path-point-xy opposite-ppoint))))))
 
 (cl-defmethod edraw-move-with-opposite-handle ((spt edraw-shape-point-path)
                                                xy)
   (with-slots (ppoint shape) spt
-    (unless (edraw-xy-equal-p xy (edraw-path-point-xy ppoint))
-      (edraw-path-handle-move-with-opposite-handle ppoint xy)
-      (edraw-push-undo-path-point-change spt 'path-point-move-with-opposite-handle t)
-      (edraw-on-shape-point-changed shape 'point-move))))
+    (let ((old-xy (edraw-xy-clone (edraw-path-point-xy ppoint))))
+      (unless (edraw-xy-equal-p xy old-xy)
+        (let ((opposite-index-old-xy (edraw-get-opposite-handle-index-xy spt)))
+          (edraw-path-handle-move-with-opposite-handle ppoint xy)
+          (edraw-push-undo-path-point-move
+           spt
+           'path-point-move-with-opposite-handle t old-xy
+           opposite-index-old-xy)
+          (edraw-on-shape-point-changed shape 'point-move))))))
 
 (cl-defmethod edraw-move-with-opposite-handle-on-transformed ((spt edraw-shape-point-path) xy)
   (when-let ((shape (edraw-parent-shape spt))
@@ -5934,10 +6011,15 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-move-with-opposite-handle-symmetry ((spt edraw-shape-point-path) xy include-same-position-p)
   (with-slots (ppoint shape) spt
-    (unless (edraw-xy-equal-p xy (edraw-path-point-xy ppoint))
-      (edraw-path-handle-move-with-opposite-handle-symmetry ppoint xy include-same-position-p)
-      (edraw-push-undo-path-point-change spt 'path-point-move-with-opposite-handle t)
-      (edraw-on-shape-point-changed shape 'point-move))))
+    (let ((old-xy (edraw-xy-clone (edraw-path-point-xy ppoint))))
+      (unless (edraw-xy-equal-p xy old-xy)
+        (let ((opposite-index-old-xy (edraw-get-opposite-handle-index-xy spt)))
+          (edraw-path-handle-move-with-opposite-handle-symmetry ppoint xy include-same-position-p)
+          (edraw-push-undo-path-point-move
+           spt
+           'path-point-move-with-opposite-handle t old-xy
+           opposite-index-old-xy)
+          (edraw-on-shape-point-changed shape 'point-move))))))
 
 (cl-defmethod edraw-move-with-opposite-handle-symmetry-on-transformed ((spt edraw-shape-point-path) xy include-same-position-p)
   (when-let ((shape (edraw-parent-shape spt))
@@ -5970,7 +6052,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (with-slots (ppoint shape) spt
     (when (edraw-path-point-anchor-p ppoint)
       (when-let ((handle-ppoint (edraw-path-anchor-create-forward-handle ppoint)))
-        (edraw-push-undo-path-point-change spt 'path-point-create-forward-handle nil)
+        ;;@todo Avoid using edraw-push-undo-path-d-change?
+        (edraw-push-undo-path-d-change spt 'path-point-create-forward-handle)
         (edraw-on-shape-point-changed shape 'handle-create) ;;@todo check get or create?
         (edraw-shape-point-path
          :shape shape
@@ -5980,7 +6063,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (with-slots (ppoint shape) spt
     (when (edraw-path-point-anchor-p ppoint)
       (when-let ((handle-ppoint (edraw-path-anchor-create-backward-handle ppoint)))
-        (edraw-push-undo-path-point-change spt 'path-point-create-backward-handle nil)
+        ;;@todo Avoid using edraw-push-undo-path-d-change?
+        (edraw-push-undo-path-d-change spt 'path-point-create-backward-handle)
         (edraw-on-shape-point-changed shape 'handle-create) ;;@todo check get or create?
         (edraw-shape-point-path
          :shape shape
@@ -6004,14 +6088,16 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (with-slots (ppoint shape) spt
     (when (edraw-path-point-remove ppoint)
       ;; @todo if cmdline is empty or contains Z, M only
-      (edraw-push-undo-path-point-change spt 'path-point-delete nil)
+        ;;@todo Avoid using edraw-push-undo-path-d-change?
+      (edraw-push-undo-path-d-change spt 'path-point-delete)
       (edraw-on-shape-point-changed shape 'point-remove)
       t)))
 
 (cl-defmethod edraw-insert-point-before ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
     (when (edraw-path-anchor-insert-midpoint-before ppoint)
-      (edraw-push-undo-path-point-change spt 'path-point-insert-before nil)
+        ;;@todo Avoid using edraw-push-undo-path-d-change?
+      (edraw-push-undo-path-d-change spt 'path-point-insert-before)
       (edraw-on-shape-point-changed shape 'anchor-insert)
       t)))
 
@@ -6019,7 +6105,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   "Add handles to SPT anchor point."
   (with-slots (ppoint shape) spt
     (edraw-path-anchor-make-smooth ppoint)
-    (edraw-push-undo-path-point-change spt 'path-point-smooth nil)
+    ;;@todo Avoid using edraw-push-undo-path-d-change?
+    (edraw-push-undo-path-d-change spt 'path-point-smooth)
     (edraw-on-shape-point-changed shape 'anchor-make-smooth)
     t))
 
@@ -6031,7 +6118,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            (f (if fh (edraw-path-point-remove fh))) ;;may destroy next cmd(C => L, -forward-handle-point => nil)
            (b (if bh (edraw-path-point-remove bh)))) ;;may destroy curr cmd(C => L)
       (when (or f b)
-        (edraw-push-undo-path-point-change spt 'path-point-corner nil)
+        ;;@todo Avoid using edraw-push-undo-path-d-change?
+        (edraw-push-undo-path-d-change spt 'path-point-corner)
         (edraw-on-shape-point-changed shape 'anchor-make-corner)
         t))))
 

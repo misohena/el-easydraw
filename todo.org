@@ -1,5 +1,47 @@
 
 * Inbox
+** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
+「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
+d全体をUNDOデータにすると実際にアンドゥしたときに全てのポイントが無効になり、選択状態を全て解除しなければならなくなるなどの弊害がある。
+例えばポイントを追加したら、ポイントを削除するUNDOデータを登録すれば済むはず。ポイントの識別はインデックス番号で十分。
+注意点:
+- 選択状態の追跡部分は注意が必要。現在のedraw-on-selected-shape-changedは shape-path-data タイプの変更で deselectしているので。点を削除したら点をdeselectしなければならないはず。
+- パスデータはLからCへ暗黙的に変換される場合がある。これが行われるとインデックス番号がずれてしまう場合がある。そもそもCからLにはどうやっても戻らないのでデータも戻らない。結局dを戻した方が簡単かもしれない。
+
+** TODO パス編集/UNDOしたときに-forward-handle-pointが失われるのを何とかする
+edraw-move-nth-pointで指定indexのポイントが見つかれない問題として表面化する。
+
+ドラッグでアンカーを追加したときに((edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)...)...)で)、次が呼ばれる。
+- edraw-add-anchor-point
+- edraw-create-forward-handle
+- edraw-create-backward-handle
+- edraw-move-with-opposite-handle-symmetry-on-transformed
+
+もう一度同じようにアンカーを追加したとして
+
+- edraw-add-anchor-point
+- edraw-create-forward-handle
+- edraw-create-backward-handle
+- edraw-move-with-opposite-handle-symmetry-on-transformed
+
+これをUNDOして、もう一回UNDOしたときに、1回目のedraw-move-with-opposite-handle-symmetry-on-transformedに対するUNDOは正しく動作しない。2回目のedraw-add-anchor-pointに対するUNDOはdを復元するが-forward-handle-pointまでは復元しないから、-forward-handle-pointに対する移動をUNDOできない。
+
+現在はedraw-move-nth-pointで見つからなかったときに単に無視している。
+dプロパティを復元する方式だとどうしても-forward-handle-pointは戻らない。
+
+現状次の三つは全てUNDOでdを復元する。
+- edraw-add-anchor-point
+- edraw-create-forward-handle
+- edraw-create-backward-handle
+
+なので、これらをdプロパティUNDOをしないように改変すれば良い。
+
+しかし話はそれほど簡単では無く、LをCに暗黙的に変換してしまう問題にも対処しなければならない。ちゃんとLに戻さないと番号がずれるしパスデータも変わってしまう。ちゃんとできるならポイントオブジェクトが無効にならないので良い。
+
+それが出来ないならd復元時に-forward-handle-pointも復元するのが良いかもしれない。
+edraw-push-undo-propertiesでdを保存するときに追加の処理を入れる感じ。
+edraw-set-propertiesで復元するのでは無く、専用のシリアライズデータ形式で保存・復元したらどうか。そうすれば数値の文字列化による誤差も回避できる。
+
 ** TODO edraw-set-view-size-specの誤操作を防止する
 ビューのサイズを変更するときに、非常に大きな値を入力してしまいやすい。
 Widthを入力するときに既に現在の幅が入力されているので、その後に続けて数字を入力してしまう。例えば現在の高さが300のときに400へ変更したい場合、300400と入力してしまう。400Enterと入力したら高さ300400にしようとしてしばらくフリーズする。
@@ -9,12 +51,6 @@ Widthを入力するときに既に現在の幅が入力されているので、
 - 最大サイズを決める
 
 指定をクリアする良い方法は何だろう。
-
-** TODO パスのアンカーポイントを移動できなくなったのを直す
-ドラッグによるアンカーポイントの移動時にUNDOするようにしたのが原因。
-UNDOするとパスのアンカーポイントオブジェクトは無効になってしまう。
-UNDOするとdプロパティ全体を復元するので。
-dプロパティ全体を戻すのでは無く、「先頭から何番目のアンカーポイントの位置を何へ移動する」というようなUNDO情報を作れば回避できると思う。
 
 ** TODO UNDOデータのマージに一貫性がない問題について考える
 edraw-merge-set-properties-undo-data等、同じ操作を連続して行ったときにUNDO情報のマージを行っているが、それらは機能したりしなかったりしている。
@@ -1305,3 +1341,10 @@ edraw-update-all-ui-svg では次の関数を呼んでいる。
 - edraw-update-grid
 - edraw-update-selection-ui
 それぞれを個別にInvalidateできるようにしてはどうか。
+** DONE パスのアンカーポイントを移動できなくなったのを直す
+CLOSED: [2023-03-18 Sat 15:17]
+ドラッグによるアンカーポイントの移動時にUNDOするようにしたのが原因。
+UNDOするとパスのアンカーポイントオブジェクトは無効になってしまう。
+UNDOするとdプロパティ全体を復元するので。
+dプロパティ全体を戻すのでは無く、「先頭から何番目のアンカーポイントの位置を何へ移動する」というようなUNDO情報を作れば回避できると思う。
+ついでにハンドルも直す。ハンドルの場合は反対側のハンドルも一緒に動くことがあるので注意が必要。
