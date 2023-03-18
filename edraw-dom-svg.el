@@ -1053,8 +1053,9 @@
 ;; (Depends on edraw-math.el)
 
 (defun edraw-svg-shape-aabb (element &optional matrix local-p)
-  (edraw-path-seglist-aabb
-   (edraw-svg-element-to-seglist element matrix local-p)))
+  (let ((edraw-path-cmdlist-to-seglist--include-empty-p t)) ;;Enumerate zero-length segments
+    (edraw-path-seglist-aabb
+     (edraw-svg-element-to-seglist element matrix local-p))))
 
 (defun edraw-svg-text-contents-aabb (element)
   "Return the axis-aligned bounding box of the text ELEMENT.

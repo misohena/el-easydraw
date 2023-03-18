@@ -1979,6 +1979,8 @@ the anchor point."
 
 ;;;; Path Segment
 
+(defvar edraw-path-cmdlist-to-seglist--include-empty-p nil)
+
 (defun edraw-path-cmdlist-to-seglist (cmdlist needs-closed-p)
   "Convert CMDLIST to segment list.
 
@@ -1993,7 +1995,8 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
         segments)
     (cl-flet* ((push-segment (&rest points)
                              ;; Exclude length=0
-                             (unless (edraw-xy-list-equal-all-p points)
+                             (when (or edraw-path-cmdlist-to-seglist--include-empty-p
+                                       (not (edraw-xy-list-equal-all-p points)))
                                (push (apply #'vector
                                             (mapcar #'edraw-xy-clone points))
                                      segments)))

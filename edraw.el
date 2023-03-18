@@ -5687,16 +5687,19 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-on-descendant-changed ((shape edraw-shape-group)
                                            _changed-shape _type)
   (let ((aabb (edraw-shape-aabb-local shape)))
-    (edraw-set-p0p1-without-notify shape
-                                   (edraw-rect-left aabb)
-                                   (edraw-rect-top aabb)
-                                   (edraw-rect-right aabb)
-                                   (edraw-rect-bottom aabb)))
+    (if aabb
+        (edraw-set-p0p1-without-notify shape
+                                       (edraw-rect-left aabb)
+                                       (edraw-rect-top aabb)
+                                       (edraw-rect-right aabb)
+                                       (edraw-rect-bottom aabb))
+      (edraw-set-p0p1-without-notify shape 0 0 0 0)))
   ;;@todo Should it be a different kind of notification?
   (edraw-on-shape-changed shape 'group-contents))
 
 (cl-defmethod edraw-get-rect-local ((shape edraw-shape-group))
-  (edraw-shape-aabb-local shape))
+  (or (edraw-shape-aabb-local shape)
+      (edraw-rect 0 0 0 0)))
 
 (cl-defmethod edraw-set-p0p1-without-notify
   ((shape edraw-shape-with-rect-boundary) left top right bottom)
