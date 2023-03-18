@@ -530,9 +530,11 @@ The format of each data is (TYPE FUNCTION ARGUMENTS...)."
 
 ;; Undo Data Structure
 
-(defun edraw-undo-data-type (data) (car data))
-(defun edraw-undo-data-func (data) (cadr data))
-(defun edraw-undo-data-args (data) (cddr data))
+(defmacro edraw-undo-data-type (data) `(car ,data))
+(defmacro edraw-undo-data-func (data) `(cadr ,data))
+(defmacro edraw-undo-data-args (data) `(cddr ,data))
+(defmacro edraw-undo-data-arg0 (data) `(caddr ,data))
+(defmacro edraw-undo-data-arg1 (data) `(cadddr ,data))
 (defun edraw-undo-data-starts-with-args-p (data type func &rest args)
   "Return t if undo DATA has the same TYPE, FUNC, and the argument
 list starts with ARGS."
@@ -4747,10 +4749,10 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                                    new-type same-property-set)
   (when (and begin
              (not (eq begin end)))
-    (let ((type (nth 0 (car begin)))
-          (func (nth 1 (car begin)))
-          (shape (nth 2 (car begin)))
-          (props (nth 3 (car begin))))
+    (let ((type (edraw-undo-data-type (car begin)))
+          (func (edraw-undo-data-func (car begin)))
+          (shape (edraw-undo-data-arg0 (car begin)))
+          (props (edraw-undo-data-arg1 (car begin))))
       (when (and (eq func #'edraw-set-properties)
                  (or (null match-type)
                      (eq type match-type)))
@@ -4758,21 +4760,21 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
           (while (and it
                       (not (eq it end))
                       (or (null match-type)
-                          (eq (nth 0 (car it)) match-type)) ;;type
-                      (eq (nth 1 (car it)) #'edraw-set-properties) ;;func
-                      (eq (nth 2 (car it)) shape) ;;shape
+                          (eq (edraw-undo-data-type (car it)) match-type)) ;;type
+                      (eq (edraw-undo-data-func (car it)) #'edraw-set-properties) ;;func
+                      (eq (edraw-undo-data-arg0 (car it)) shape) ;;shape
                       (or (null same-property-set)
                           (seq-set-equal-p
                            props
-                           (nth 3 (car it)) ;props
+                           (edraw-undo-data-arg1 (car it)) ;props
                            (lambda (a b) (eq (car a) (car b))))))
-            (let ((old-props (nth 3 (car it))))
+            (let ((old-props (edraw-undo-data-arg1 (car it)))) ;;props
               (dolist (prop old-props)
                 (setf (alist-get (car prop) props nil nil #'eq) (cdr prop))))
             (setq it (cdr it)))
-          (setf (nth 3 (car begin)) props)
+          (setf (edraw-undo-data-arg1 (car begin)) props) ;;props
           (when new-type
-            (setf (nth 0 (car begin)) new-type))
+            (setf (edraw-undo-data-type (car begin)) new-type))
           (setcdr begin it)))))
   begin)
 ;; (edraw-merge-set-properties-undo-data
@@ -5955,7 +5957,7 @@ transformations."
       (let* ((index (edraw-index-in-path spt))
              (type (intern (format "%s-p%s" type index)))
              (editor (oref shape editor))
-             (prev-undo-data (car (edraw-undo-list editor))))
+             (prev-undo-data (edraw-last-undo-data editor)))
         ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
         (unless (and merge
                      (edraw-undo-data-starts-with-args-p
