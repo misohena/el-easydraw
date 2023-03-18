@@ -279,6 +279,7 @@ line-prefix and wrap-prefix are used in org-indent.")
     :type number)
    (image)
    (image-update-timer :initform nil)
+   (invalid-ui-parts :initform nil)
    (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
    (view-size :initform nil) ;; nil means document size
    (settings
@@ -890,7 +891,7 @@ For use with `edraw-editor-with-temp-undo-list',
          (list 'edraw-set-size editor old-width old-height))
         (setq svg-document-size (cons width height))
         (edraw-update-background editor) ;; Update Document Background
-        (edraw-update-all-ui-svg editor) ;; Update <svg width= height=> etc...
+        (edraw-invalidate-ui-parts editor 'all) ;; Update <svg width= height=> etc...
         (edraw-on-document-changed editor 'document-size)))))
 
 ;;;;;; Editor - Document - View Box
@@ -998,9 +999,9 @@ For use with `edraw-editor-with-temp-undo-list',
                                (cons 'id edraw-editor-svg-background-id)))
          (edraw-svg-body editor))
         (edraw-update-background editor)
-        (edraw-update-scroll-transform editor) ;;update <rect transform=>
+        (edraw-invalidate-ui-parts editor 'scroll-transform) ;;update <rect transform=>
         ))
-    (edraw-update-transparent-bg editor) ;;update opaque state
+    (edraw-invalidate-ui-parts editor 'transparent-bg) ;;update opaque state
     (edraw-on-document-changed editor 'document-background)))
 
 ;;;;;; Editor - Document - Shapes
@@ -1235,6 +1236,7 @@ For use with `edraw-editor-with-temp-undo-list',
   "Update the image and apply the image to the overlay."
   (with-slots (overlay svg image) editor
     (edraw-update-image-timer-cancel editor)
+    (edraw-update-ui-parts editor)
     (setq image (edraw-svg-to-image svg
                                     :scale 1.0)) ;;Cancel image-scale effect
     (overlay-put overlay 'display image)))
@@ -1283,31 +1285,57 @@ For use with `edraw-editor-with-temp-undo-list',
       (edraw-dom-get-or-create fore-g 'g "edraw-ui-grid"))
     (edraw-update-ui-style-svg editor)
     (edraw-update-grid editor)
+    ;;(edraw-update-selection-ui editor)
 
     (edraw-update-root-transform editor) ;;<svg width= height= viewBox=>
     (edraw-update-scroll-transform editor) ;;background, body transform=
     ))
 
-(cl-defmethod edraw-update-all-ui-svg ((editor edraw-editor))
+(cl-defmethod edraw-invalidate-ui-parts ((editor edraw-editor) part)
+  (with-slots (invalid-ui-parts) editor
+    (cond
+     ((eq invalid-ui-parts 'all)
+      nil)
+     ((eq part 'all)
+      (setq invalid-ui-parts 'all)
+      (edraw-invalidate-image editor))
+     ((listp invalid-ui-parts)
+      (unless (memq part invalid-ui-parts)
+        (push part invalid-ui-parts)
+        (edraw-invalidate-image editor))))))
+
+(cl-defmethod edraw-update-ui-parts ((editor edraw-editor))
+  (with-slots (invalid-ui-parts) editor
+    (edraw-update-ui-parts-immediate editor invalid-ui-parts)
+    (setq invalid-ui-parts nil)))
+
+(cl-defmethod edraw-update-ui-parts-immediate ((editor edraw-editor)
+                                               invalid-ui-parts)
   ;; Target: svg width= height= viewBox=
   ;; Deps: view-size
-  (edraw-update-root-transform editor)
+  (when (or (eq invalid-ui-parts 'all) (memq 'root-transform invalid-ui-parts))
+    (edraw-update-root-transform editor))
   ;; Target: rect#edraw-background transform=
   ;;          g#edraw-body transform=
   ;; Deps: scroll-transform
-  (edraw-update-scroll-transform editor)
+  (when (or (eq invalid-ui-parts 'all) (memq 'scroll-transform invalid-ui-parts))
+    (edraw-update-scroll-transform editor))
   ;; Target: g#edraw-ui-background > g#edraw-ui-transparent-bg
   ;; Deps: background state, view-size
-  (edraw-update-transparent-bg editor)
+  (when (or (eq invalid-ui-parts 'all) (memq 'transparent-bg invalid-ui-parts))
+    (edraw-update-transparent-bg editor))
   ;; Target: g#edraw-ui-foreground > g#edraw-ui-style
   ;;(edraw-update-ui-style-svg editor) ;; Immutable
   ;; Target: g#edraw-ui-foreground > g#edraw-ui-grid
   ;; Deps: scroll-transform, view-size
-  (edraw-update-grid editor)
+  (when (or (eq invalid-ui-parts 'all) (memq 'grid invalid-ui-parts))
+    (edraw-update-grid editor))
   ;; Target: g#edraw-ui-foreground > #edraw-ui-shape-points
   ;; Deps: selection state, scroll-transform, view-size
-  (edraw-update-selection-ui editor)
-  (edraw-invalidate-image editor))
+  (when (or (eq invalid-ui-parts 'all) (memq 'selection-ui invalid-ui-parts))
+    (edraw-update-selection-ui editor)))
+
+
 
 (cl-defmethod edraw-ui-defs-svg ((editor edraw-editor))
   (with-slots (svg) editor
@@ -1435,8 +1463,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-set-transparent-bg-visible ((editor edraw-editor) visible)
   (edraw-set-setting editor 'transparent-bg-visible visible)
-  (edraw-update-transparent-bg editor)
-  (edraw-invalidate-image editor)
+  (edraw-invalidate-ui-parts editor 'transparent-bg)
   visible)
 
 (edraw-editor-defcmd edraw-toggle-transparent-bg-visible ((editor edraw-editor))
@@ -1525,8 +1552,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-set-grid-visible ((editor edraw-editor) visible)
   (edraw-set-setting editor 'grid-visible visible)
-  (edraw-update-grid editor)
-  (edraw-invalidate-image editor))
+  (edraw-invalidate-ui-parts editor 'grid))
 
 (cl-defmethod edraw-get-grid-visible ((editor edraw-editor))
   (edraw-get-setting editor 'grid-visible))
@@ -1544,8 +1570,7 @@ For use with `edraw-editor-with-temp-undo-list',
                    (edraw-get-setting editor 'grid-interval)))))
 
   (edraw-set-setting editor 'grid-interval interval)
-  (edraw-update-grid editor)
-  (edraw-invalidate-image editor))
+  (edraw-invalidate-ui-parts editor 'grid))
 
 ;;;;;; Editor - View - Selection UI
 
@@ -1784,8 +1809,7 @@ For use with `edraw-editor-with-temp-undo-list',
              (nth 1 scroll-transform))
            (or scale
                (nth 2 scroll-transform))))
-    (edraw-update-all-ui-svg editor)
-    (edraw-invalidate-image editor)))
+    (edraw-invalidate-ui-parts editor 'all)))
 
 (cl-defmethod edraw-enlarge-view-automatically ((editor edraw-editor) new-scale)
   (when (and (> new-scale 1.0)
@@ -1961,8 +1985,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
   (edraw-set-setting editor 'view-size-spec wh) ;;nil or (w . h)
   (setf (oref editor view-size) wh)
-  (edraw-update-all-ui-svg editor)
-  (edraw-invalidate-image editor))
+  (edraw-invalidate-ui-parts editor 'all))
 
 (edraw-editor-defcmd edraw-reset-view-size ((editor edraw-editor))
   (edraw-set-view-size-spec editor nil))
@@ -2010,7 +2033,7 @@ For use with `edraw-editor-with-temp-undo-list',
       (edraw-add-change-hook shape
                              'edraw-on-selected-shape-changed editor)
       (setq selected-shapes (append selected-shapes (list shape)))
-      (edraw-update-selection-ui editor)
+      (edraw-invalidate-ui-parts editor 'selection-ui)
 
       (when (and (edraw-property-editor-tracking-selected-shape-p)
                  shape ;;last selected shape
@@ -2032,7 +2055,7 @@ For use with `edraw-editor-with-temp-undo-list',
       (setq selected-shapes (delq shape selected-shapes))
       (edraw-remove-change-hook shape
                                 'edraw-on-selected-shape-changed editor)
-      (edraw-update-selection-ui editor)
+      (edraw-invalidate-ui-parts editor 'selection-ui)
       (edraw-call-hook editor 'selection-change))))
 
 (cl-defmethod edraw-select-shape ((editor edraw-editor) shape)
@@ -2073,7 +2096,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
      ((eq type 'shape-path-data)
       (edraw-deselect-anchor editor) ;; All anchors have been destroyed
-      (edraw-update-selection-ui editor))
+      (edraw-invalidate-ui-parts editor 'selection-ui))
 
      ((and selected-anchor
            (memq type '(point-remove))
@@ -2088,7 +2111,7 @@ For use with `edraw-editor-with-temp-undo-list',
       (edraw-deselect-handle editor))
 
      (t
-      (edraw-update-selection-ui editor)))))
+      (edraw-invalidate-ui-parts editor 'selection-ui)))))
 
 (cl-defmethod edraw-point-in-selected-shapes-p ((editor edraw-editor) point)
   (with-slots (selected-shapes) editor
@@ -2102,14 +2125,14 @@ For use with `edraw-editor-with-temp-undo-list',
                (edraw-point-in-selected-shapes-p editor anchor))
       (setq selected-anchor anchor)
       (setq selected-handle nil)
-      (edraw-update-selection-ui editor))))
+      (edraw-invalidate-ui-parts editor 'selection-ui))))
 
 (cl-defmethod edraw-deselect-anchor ((editor edraw-editor))
   (with-slots (selected-anchor selected-handle) editor
     (when selected-anchor
       (setq selected-handle nil)
       (setq selected-anchor nil)
-      (edraw-update-selection-ui editor))))
+      (edraw-invalidate-ui-parts editor 'selection-ui))))
 
 (cl-defmethod edraw-select-handle ((editor edraw-editor) handle)
   (with-slots (selected-anchor selected-handle) editor
@@ -2118,13 +2141,13 @@ For use with `edraw-editor-with-temp-undo-list',
 
       (setq selected-anchor (edraw-parent-anchor handle))
       (setq selected-handle handle)
-      (edraw-update-selection-ui editor))))
+      (edraw-invalidate-ui-parts editor 'selection-ui))))
 
 (cl-defmethod edraw-deselect-handle ((editor edraw-editor))
   (with-slots (selected-anchor selected-handle) editor
     (when selected-handle
       (setq selected-handle nil)
-      (edraw-update-selection-ui editor))))
+      (edraw-invalidate-ui-parts editor 'selection-ui))))
 
 (cl-defmethod edraw-selectable-handles ((editor edraw-editor))
   (with-slots (selected-anchor) editor

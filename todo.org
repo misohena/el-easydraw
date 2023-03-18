@@ -1,5 +1,21 @@
 
 * Inbox
+** TODO edraw-set-view-size-specの誤操作を防止する
+ビューのサイズを変更するときに、非常に大きな値を入力してしまいやすい。
+Widthを入力するときに既に現在の幅が入力されているので、その後に続けて数字を入力してしまう。例えば現在の高さが300のときに400へ変更したい場合、300400と入力してしまう。400Enterと入力したら高さ300400にしようとしてしばらくフリーズする。
+
+対策:
+- 空文字列をこれまでと同じ値にし、指定クリアを別な方法にする
+- 最大サイズを決める
+
+指定をクリアする良い方法は何だろう。
+
+** TODO パスのアンカーポイントを移動できなくなったのを直す
+ドラッグによるアンカーポイントの移動時にUNDOするようにしたのが原因。
+UNDOするとパスのアンカーポイントオブジェクトは無効になってしまう。
+UNDOするとdプロパティ全体を復元するので。
+dプロパティ全体を戻すのでは無く、「先頭から何番目のアンカーポイントの位置を何へ移動する」というようなUNDO情報を作れば回避できると思う。
+
 ** TODO UNDOデータのマージに一貫性がない問題について考える
 edraw-merge-set-properties-undo-data等、同じ操作を連続して行ったときにUNDO情報のマージを行っているが、それらは機能したりしなかったりしている。
 
@@ -18,18 +34,6 @@ edraw-push-undo-path-point-changeによるパスのアンカーやハンドル�
 これらの挙動には一部一貫性が欠ける動作があるように思えるがどうしたら良いか。
 
 ** TODO textに対するコンテキストメニューにSet Font Sizeを追加する
-** TODO UI要素の更新を遅延する
-UI要素の更新はedraw-update-imageの直前に一回やれば済むはず。
-UNDO等で一度に大量の変更が発生したときに連続して edraw-on-selected-shape-changed → edraw-update-selection-ui が呼ばれてしまう場合がある。
-
-edraw-update-all-ui-svg では次の関数を呼んでいる。
-- edraw-update-root-transform
-- edraw-update-scroll-transform
-- edraw-update-transparent-bg
-- edraw-update-grid
-- edraw-update-selection-ui
-それぞれを個別にInvalidateできるようにしてはどうか。
-
 ** TODO modifiedフラグの制御を厳密にする
 現在次のような問題がある。
 - UNDOを考慮していない。
@@ -1289,3 +1293,15 @@ CLOSED: [2023-03-17 Fri 21:41]
 図形のドラッグ時にedraw-push-undo-translateを使う方法は止めて、アンカーのドラッグでやったように移動のたびにUNDOする方式にする。
 
 edraw-translateはedraw-transformで処理するように変更する。
+** DONE UI要素の更新を遅延する
+CLOSED: [2023-03-17 Fri 23:49]
+UI要素の更新はedraw-update-imageの直前に一回やれば済むはず。
+UNDO等で一度に大量の変更が発生したときに連続して edraw-on-selected-shape-changed → edraw-update-selection-ui が呼ばれてしまう場合がある。
+
+edraw-update-all-ui-svg では次の関数を呼んでいる。
+- edraw-update-root-transform
+- edraw-update-scroll-transform
+- edraw-update-transparent-bg
+- edraw-update-grid
+- edraw-update-selection-ui
+それぞれを個別にInvalidateできるようにしてはどうか。
