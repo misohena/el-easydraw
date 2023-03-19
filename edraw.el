@@ -2366,7 +2366,14 @@ For use with `edraw-editor-with-temp-undo-list',
   (when (eq (edraw-clipboard-type) 'shape-descriptor-list)
     (edraw-make-undo-group editor 'paste
       (edraw-shape-from-shape-descriptor-list
-       editor (edraw-svg-body editor) (edraw-clipboard-data)))))
+       editor (edraw-svg-body editor)
+       (if-let ((selected-shapes (edraw-selected-shapes editor)))
+           ;; after selected shapes
+           (1+ (cl-loop for s in selected-shapes
+                        maximize (edraw-node-position s)))
+         ;; top most
+         nil)
+       (edraw-clipboard-data)))))
 
 (edraw-editor-defcmd edraw-paste-and-select ((editor edraw-editor))
   (when-let ((shapes (edraw-paste editor)))
@@ -2377,7 +2384,9 @@ For use with `edraw-editor-with-temp-undo-list',
   (when-let ((selected-shapes (edraw-selected-shapes editor)))
     (edraw-clipboard-set
      'shape-descriptor-list
-     (mapcar #'edraw-shape-descriptor selected-shapes))))
+     (mapcar #'edraw-shape-descriptor
+             ;; Sort by Z order
+             (seq-sort-by #'edraw-node-position #'< selected-shapes)))))
 
 (edraw-editor-defcmd edraw-cut-selected-shapes ((editor edraw-editor))
   (when-let ((selected-shapes (copy-sequence (edraw-selected-shapes editor))))
@@ -4027,6 +4036,7 @@ position where the EVENT occurred."
       (when-let ((shapes (edraw-shape-from-shape-descriptor-list
                           editor
                           (edraw-svg-body editor)
+                          nil ;;top most
                           selected-shape-descriptor-list)))
 
         ;; Apply default properties
@@ -4197,7 +4207,7 @@ position where the EVENT occurred."
                (edraw-create-shape-without-default
                 editor
                 (edraw-parent-element shape)
-                nil
+                (1+ (edraw-node-position shape)) ;; After original shape
                 shape-type
                 ;; Copy all properties
                 (mapcar
@@ -4296,11 +4306,14 @@ position where the EVENT occurred."
          editor (edraw-element shape) nil child-descriptor)))
     shape))
 
-(defun edraw-shape-from-shape-descriptor-list (editor parent
-                                                      shape-descriptor-list)
+(defun edraw-shape-from-shape-descriptor-list (editor
+                                               parent index
+                                               shape-descriptor-list)
   (mapcar (lambda (shape-descriptor)
             (edraw-shape-from-shape-descriptor
-             editor parent nil shape-descriptor))
+             editor parent
+             (when (integerp index) (prog1 index (cl-incf index)))
+             shape-descriptor))
           shape-descriptor-list))
 
 (defun edraw-shape-descriptor-from-svg-element (svg-element editor)

@@ -115,12 +115,6 @@ data-connect-beginning-point-to="nearest point on edge of obj123456"
 ** TODO 手書きツールを改善する
 もっと点の数を減らしたい。
 
-** TODO ペーストや複製時のZ順序はどうなっているべきか
-edraw-create-shape-without-default関数にindex引数を追加しているときに気がついた。
-ペーストなら一番上？　新しい図形は一番上に追加することになっているし。
-複数ある場合に順番が滅茶苦茶だけど良いの？　選択順なのかな？
-単体の複製時は元の順序の次になっていた方が良くない？
-
 ** TODO ズーム時にズーム倍率の逆数ピクセル数でスナップする
 
 ピクセル以下のスナップをどうするか。
@@ -1379,4 +1373,28 @@ CLOSED: [2023-03-19 Sun 13:50]
 textのtextプロパティは属性ではなくinner-text。
 (edraw-svg-text-set-text element text)はtextがstringpの時以外は何もしない。
 stringpの時はいったん全ての子孫を削除してからtextを子ノードとして追加する。
-stringpでなくてもとにかくいったんすべての資産を削除するようにすることで解決。
+stringpでなくてもとにかくいったんすべての子孫を削除するようにすることで解決。
+** DONE ペーストや複製時のZ順序はどうなっているべきか
+CLOSED: [2023-03-19 Sun 15:37]
+edraw-create-shape-without-default関数にindex引数を追加しているときに気がついた。新しく生成した図形はどのZ順序にあるべきか。
++ペーストなら一番上？　新しい図形は一番上に追加することになっているし。+
+
+複数ある場合に順番が滅茶苦茶だけど良いの？　選択順なのかな？
+単体の複製時は元の順序の次になっていた方が良くない？
+
+基本的には、最前面かまたは選択している図形の中で最前面より手前に挿入すべき。
+複数ある場合は元の順序を維持するべき。
+最低限元の順序を維持していれば、選択オブジェクトを最前面や最背面へ移動することは簡単。となるとデフォルトでは「現在選択している図形」の前にペーストするのが良さそう。選択が無ければ最前面。
+
+とにかくコピー時にshape-descriptorのリスト内が順番通りになっていなければ話にならない。
+
+関係する操作:
+- edraw-copy-selected-shapes : ソートする
+- edraw-shape-from-shape-descriptor-list : index引数を追加する
+  呼び出す物:
+  - edraw-paste : 選択している図形の一つ前にペーストする。選択が無ければ最前面。
+  - edraw-create-selected-custom-shapes (今回とは無関係)
+- edraw-clone : 複製元の一つ手前に生成する
+  呼び出す物:
+  - edraw-duplicate-and-select
+  - edraw-split-path-at (pathを分割して出来るpathの順序に影響)
