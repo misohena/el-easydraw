@@ -1,7 +1,6 @@
 
 
 * Inbox
-** TODO テキストの文字列を空に出来ない問題を修正する
 ** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
 「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
 d全体をUNDOデータにすると実際にアンドゥしたときに全てのポイントが無効になり、選択状態を全て解除しなければならなくなるなどの弊害がある。
@@ -1374,3 +1373,10 @@ pathをsegment listへ変換する部分で、長さ0のセグメントを破棄
 CLOSED: [2023-03-19 Sun 11:09]
 適用するかy/nで聞いてyなら適用してからグループ化を解除する。
 (fill系やstroke系の属性は適用しなくて良いのか)←うーん切りがないので止めておく。
+** DONE テキストの文字列を空に出来ない問題を修正する
+CLOSED: [2023-03-19 Sun 13:50]
+空にするとプロパティエディタはtextプロパティをnilに設定しようとする。
+textのtextプロパティは属性ではなくinner-text。
+(edraw-svg-text-set-text element text)はtextがstringpの時以外は何もしない。
+stringpの時はいったん全ての子孫を削除してからtextを子ノードとして追加する。
+stringpでなくてもとにかくいったんすべての資産を削除するようにすることで解決。

@@ -780,9 +780,9 @@
 
 
 (defun edraw-svg-text-set-text (element text)
-  (when (stringp text)
-    (edraw-dom-remove-all-children element)
+  (edraw-dom-remove-all-children element)
 
+  (when (stringp text)
     (let ((lines (split-string text "\n")))
       (if (null (cdr lines))
           ;; single line
