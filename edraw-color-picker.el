@@ -65,6 +65,10 @@
 ;;      'web : Use web color keyword
 ;; :scale
 ;;    float : scaling factor for color picker image
+;;            (rate from default image size)
+;; :scale-direct
+;;    float : scaling factor for color picker image
+;;            (rate from pixel size)
 
 (require 'eieio)
 (require 'svg)
@@ -972,8 +976,10 @@
          (areas-height (+ bottom padding-bottom))
 
          ;; SVG Root Element
-         (image-scale (* (image-compute-scaling-factor image-scaling-factor)
-                         (alist-get :scale options 1.0)))
+         (image-scale
+          (alist-get :scale-direct options
+                     (* (image-compute-scaling-factor image-scaling-factor)
+                        (alist-get :scale options 1.0))))
          (image-width (ceiling (* areas-width image-scale)))
          (image-height (ceiling (* areas-height image-scale)))
          (svg (svg-create image-width image-height))

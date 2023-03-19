@@ -1398,3 +1398,7 @@ edraw-create-shape-without-default関数にindex引数を追加していると�
   呼び出す物:
   - edraw-duplicate-and-select
   - edraw-split-path-at (pathを分割して出来るpathの順序に影響)
+** DONE エディタ全体の拡大率を設定できるようにする
+CLOSED: [2023-03-19 Sun 22:39]
+環境によってはimage-scaling-factorをいじらず、エディタだけ若干大きくしたいことがある。
+変数edraw-editor-image-scaling-factorを追加して、nilの時はimage-scaling-factorを使用し、数値の時はそれを使う。

@@ -662,15 +662,25 @@
 
 (defun edraw-shape-picker-read-prop-value-cover (curr-val)
   ;; see: `edraw-svg-shape-thumbnail-cover'
-  (let* ((fill (edraw-color-picker-read-color
+  (defvar edraw-editor-image-scaling-factor) ;;edraw.el
+  (let* ((options-for-read-color
+          `((:color-name-scheme . 'web)
+            (:no-color . "none")
+            ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
+                         edraw-editor-image-scaling-factor)
+                (list
+                 (cons :scale-direct edraw-editor-image-scaling-factor)))))
+         (fill (edraw-color-picker-read-color
                 "Fill Color: "
                 (alist-get 'fill (cdr curr-val) "")
-                '("none" "")))
+                '("none" "")
+                options-for-read-color))
          (fill (if (string-empty-p fill) nil fill))
          (stroke (edraw-color-picker-read-color
                   "Stroke Color: "
                   (alist-get 'stroke (cdr curr-val) "")
-                  '("none" "")))
+                  '("none" "")
+                  options-for-read-color))
          (stroke (if (string-empty-p stroke) nil stroke))
          (stroke-width (when stroke
                          (edraw-read-integer-or-nil

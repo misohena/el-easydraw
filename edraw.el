@@ -106,6 +106,14 @@
   :group 'edraw-editor
   :type 'boolean)
 
+;;NOTE: Referenced by edraw-property-editor.el, edraw-shape-picker.el for read color
+(defcustom edraw-editor-image-scaling-factor nil
+  "The scaling factor for editor images. By default the editors
+uses the value of `image-scaling-factor' variable."
+  :group 'edraw-editor
+  :type '(choice number
+                 (const :tag "Use `image-scaling-factor'" nil)))
+
 (defcustom edraw-editor-default-grid-interval 20
   "The interval of grid lines."
   :group 'edraw-editor
@@ -275,7 +283,8 @@ line-prefix and wrap-prefix are used in org-indent.")
    (menu-filter :initarg :menu-filter :initform nil)
 
    (image-scale
-    :initform (image-compute-scaling-factor image-scaling-factor)
+    :initform (image-compute-scaling-factor
+               (or edraw-editor-image-scaling-factor image-scaling-factor))
     :type number)
    (image)
    (image-update-timer :initform nil)
@@ -995,7 +1004,8 @@ For use with `edraw-editor-with-temp-undo-list',
                           (when (or (member string '("" "none"))
                                     color)
                             ;;@todo suppress notification?
-                            (edraw-set-background editor string))))))
+                            (edraw-set-background editor string))))
+                    (:scale-direct . ,(oref editor image-scale))))
                (edraw-set-background editor current-value)))))
      (list editor new-value)))
 
@@ -3093,8 +3103,9 @@ position where the EVENT occurred."
                       (format "%s %s: " (car tag-value) prop-name)
                       (cdr tag-value)
                       '("" "none")
-                      '((:color-name-scheme . 'web)
-                        (:no-color . "none")))))
+                      `((:color-name-scheme . 'web)
+                        (:no-color . "none")
+                        (:scale-direct . ,(oref editor image-scale))))))
       (edraw-set-selected-tool-default-shape-property
        editor prop-name new-value)
       (edraw-update-toolbar editor))))
@@ -4844,7 +4855,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                          (when (or (member string '("" "none"))
                                    color)
                            ;;@todo suppress modified flag change and notification
-                           (edraw-set-property shape prop-name string))))))
+                           (edraw-set-property shape prop-name string))))
+                   (:scale-direct . ,(oref (oref shape editor) image-scale))))
               (edraw-set-property shape prop-name curr-value)))))
     (when (string-empty-p new-value)
       (setq new-value nil))

@@ -554,6 +554,7 @@ editor when the selected shape changes."
 
 (defun edraw-property-editor-read-property-paint-color (target
                                                         prop-name field-widget)
+  (defvar edraw-editor-image-scaling-factor) ;;edraw.el
   (let ((current-value (widget-value field-widget)))
     (unwind-protect
         (edraw-color-picker-read-color
@@ -569,7 +570,11 @@ editor when the selected shape changes."
                         (when (or (member string '("" "none"))
                                   color)
                           ;;@todo suppress modified flag change and notification
-                          (edraw-set-property target prop-name string))))))))
+                          (edraw-set-property target prop-name string))))))
+           ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
+                        edraw-editor-image-scaling-factor)
+               (list
+                (cons :scale-direct edraw-editor-image-scaling-factor)))))
       (widget-value-set field-widget current-value))))
 
 ;;;;;; Increase/Decrease Value By Wheel
