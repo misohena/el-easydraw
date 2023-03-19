@@ -664,7 +664,7 @@
   ;; see: `edraw-svg-shape-thumbnail-cover'
   (defvar edraw-editor-image-scaling-factor) ;;edraw.el
   (let* ((options-for-read-color
-          `((:color-name-scheme . 'web)
+          `((:color-name-scheme . web)
             (:no-color . "none")
             ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                          edraw-editor-image-scaling-factor)

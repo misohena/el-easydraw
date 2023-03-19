@@ -1468,17 +1468,16 @@ Valid OPTIONS are:
   "Convert STRING to edraw-color object.
 
 Valid options are:
-(:color-name-scheme . 'emacs or 'web)
+(:color-name-scheme . emacs or web)
 (:enable-opacity . nil or t)
 "
-  (let ((edraw-color-name-scheme
-         (alist-get :color-name-scheme options 'emacs)) ;; or 'web
-        (color (edraw-color-from-string string)))
-    (if (alist-get :enable-opacity options t)
-        color
-      (if (and color (= (oref color a) 1.0))
+  (let ((edraw-color-name-scheme (alist-get :color-name-scheme options 'emacs)))
+    (let ((color (edraw-color-from-string string)))
+      (if (alist-get :enable-opacity options t)
           color
-        nil))))
+        (if (and color (= (oref color a) 1.0))
+            color
+          nil)))))
 
 (defun edraw-color-picker-ensure-color (obj options)
   (if (cl-typep obj 'edraw-color)

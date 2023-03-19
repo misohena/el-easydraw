@@ -983,7 +983,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (when (stringp fill)
     (when-let ((color (edraw-color-picker-color-from-string
                        fill
-                       '((:color-name-scheme . 'web) (:enable-opacity . t)))))
+                       '((:color-name-scheme . web) (:enable-opacity . t)))))
       (>= (edraw-color-a color) 1))))
 
 (edraw-editor-defcmd edraw-set-background ((editor edraw-editor) fill)
@@ -3103,7 +3103,7 @@ position where the EVENT occurred."
                       (format "%s %s: " (car tag-value) prop-name)
                       (cdr tag-value)
                       '("" "none")
-                      `((:color-name-scheme . 'web)
+                      `((:color-name-scheme . web)
                         (:no-color . "none")
                         (:scale-direct . ,(oref editor image-scale))))))
       (edraw-set-selected-tool-default-shape-property
@@ -4848,7 +4848,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                  (format "%s: " prop-name)
                  (or curr-value "")
                  '("" "none")
-                 `((:color-name-scheme . 'web)
+                 `((:color-name-scheme . web)
                    (:no-color . "none")
                    (:on-input-change
                     . ,(lambda (string color)

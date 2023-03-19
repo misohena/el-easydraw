@@ -1402,3 +1402,6 @@ edraw-create-shape-without-default関数にindex引数を追加していると�
 CLOSED: [2023-03-19 Sun 22:39]
 環境によってはimage-scaling-factorをいじらず、エディタだけ若干大きくしたいことがある。
 変数edraw-editor-image-scaling-factorを追加して、nilの時はimage-scaling-factorを使用し、数値の時はそれを使う。
+** DONE カラーピッカーで:color-name-schemeオプションが効かないのを直す
+CLOSED: [2023-03-19 Sun 23:13]
+letでedraw-color-name-schemeに束縛して、同じ場所でedraw-color-from-stringを呼び出している。let*にするかletを分けるかすべき。
