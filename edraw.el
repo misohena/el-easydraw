@@ -5774,25 +5774,37 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (dolist (child children)
         (edraw-insert group child nil)))))
 
-(cl-defmethod edraw-ungroup ((group edraw-shape-group))
-  ;;@todo apply transform attribute every children?
+(cl-defmethod edraw-ungroup ((group edraw-shape-group)
+                             &optional apply-transform-p)
   (with-slots (editor) group
     (edraw-make-undo-group editor 'ungroup-group
-      (let ((children (edraw-children group)))
+      (let ((children (edraw-children group))
+            (matrix (edraw-transform-prop-get-matrix group)))
         ;; remove children from the group
         (dolist (child children)
           (edraw-remove child))
+        ;; transform
+        (when (and (not (edraw-matrix-identity-p matrix))
+                   apply-transform-p)
+          (dolist (child children)
+            (edraw-transform child matrix)))
         ;; add children to under the parent of the group
         (dolist (child children)
           (edraw-insert (edraw-parent group) child nil))
         ;; remove the group
         (edraw-remove group)))))
 
+(cl-defmethod edraw-ungroup-interactive ((group edraw-shape-group))
+  (edraw-ungroup
+   group
+   (unless (edraw-matrix-identity-p (edraw-transform-prop-get-matrix group))
+     (y-or-n-p (edraw-msg "Apply group's transform property to children?")))))
+
 (cl-defmethod edraw-get-actions ((_shape edraw-shape-group))
   (let* ((items (copy-tree (cl-call-next-method))))
     (append
      items
-     `(((edraw-msg "Ungroup") edraw-ungroup)))))
+     `(((edraw-msg "Ungroup") edraw-ungroup-interactive)))))
 
 ;;;; Shape Point
 
