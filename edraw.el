@@ -4086,6 +4086,74 @@ position where the EVENT occurred."
 
 ;;;; Shape
 
+;;;;; Shape Object Types & Creation
+
+(defvar edraw-shape-types
+  '((rect
+     (:from-element . edraw-shape-rect-create)
+     (:create-element . dom-node))
+    (ellipse
+     (:from-element . edraw-shape-ellipse-create)
+     (:create-element . dom-node))
+    (circle
+     (:from-element . edraw-shape-circle-create)
+     (:create-element . dom-node))
+    (text
+     (:from-element . edraw-shape-text-create)
+     (:create-element . dom-node))
+    (image
+     (:from-element . edraw-shape-image-create)
+     (:create-element . dom-node))
+    (path
+     (:from-element . edraw-shape-path-create)
+     (:create-element . dom-node))
+    (g
+     (:from-element . edraw-shape-group-create)
+     (:create-element . dom-node)))
+  "Alist of shape object types.")
+
+(defun edraw-shape-element-from-type (type)
+  "Create a new SVG element of shape TYPE."
+  (let ((create-element
+         (alist-get :create-element (alist-get type edraw-shape-types))))
+    (unless create-element
+      (error "Unsupported shape type %s" type))
+    (funcall create-element type)))
+
+(defun edraw-shape-type-from-element (element)
+  "Return a symbol that represents the shape type of the SVG ELEMENT."
+  (or (dom-attr element :data-edraw-type) ;;<?? data-edraw-type="type" ...>
+      (dom-tag element))) ;;<type ...>
+
+(defun edraw-shape-from-element-create (element editor)
+  (when-let* ((type (edraw-shape-type-from-element element))
+              (constructor (alist-get :from-element
+                                      (alist-get type edraw-shape-types)))
+              (shape (funcall constructor element editor)))
+    ;; Attach the created SHAPE object to the ELEMENT.
+    (dom-set-attribute element :-edraw-shape shape)
+    shape))
+
+(defun edraw-shape-from-element-no-create (element)
+  (when (edraw-dom-element-p element)
+    (dom-attr element :-edraw-shape)))
+
+(defun edraw-shape-from-element (element editor &optional noerror-node-type)
+  "Return the shape object for ELEMENT, creating a new one if needed."
+  (if (not (edraw-dom-element-p element))
+      (unless noerror-node-type
+        (error "Unsupported node type %s" element))
+    (or
+     ;; Already created
+     (edraw-shape-from-element-no-create element)
+     ;; Create new
+     (edraw-shape-from-element-create element editor)
+     ;; Error
+     (if noerror-node-type
+         nil
+       (error "Unsupported SVG element %s" (prin1-to-string element))))))
+
+
 ;;
 ;;
 
@@ -4095,28 +4163,28 @@ position where the EVENT occurred."
                    (lambda (a b) (eq (car a) (car b))))
    props-alist))
 
-(defun edraw-create-shape (editor parent tag &rest props)
+(defun edraw-create-shape (editor parent type &rest props)
   (edraw-create-shape-without-default
    editor parent nil
-   tag
+   type
    ;; Complete property values with default values
    (edraw-merge-properties
-    (alist-get tag (oref editor default-shape-properties))
+    (alist-get type (oref editor default-shape-properties))
     ;; Convert plist to alist
     (cl-loop for (prop-name value) on props by #'cddr
              collect (cons prop-name value)))))
 
-(defun edraw-create-shape-without-default (editor parent index tag props-alist)
+(defun edraw-create-shape-without-default (editor parent index type props-alist)
   (let* ((shape (edraw-shape-from-element
                  (edraw-create-shape-svg-element (oref editor defrefs)
-                                                 parent index tag props-alist)
+                                                 parent index type props-alist)
                  editor)))
     (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
     (edraw-on-shape-changed shape 'shape-create)
     shape))
 
-(defun edraw-create-shape-svg-element (defrefs parent index tag props-alist)
-  (let ((element (dom-node tag)))
+(defun edraw-create-shape-svg-element (defrefs parent index type props-alist)
+  (let ((element (edraw-shape-element-from-type type)))
     ;; Set properties
     (dolist (prop props-alist)
       (let ((prop-name (car prop))
@@ -4129,30 +4197,7 @@ position where the EVENT occurred."
         (dom-append-child parent element)))
     element))
 
-(defun edraw-shape-from-element (element editor &optional noerror-node-type)
-  "Return the shape object for ELEMENT, creating a new one if needed."
-  (if (not (edraw-dom-element-p element))
-      (unless noerror-node-type
-        (error "Unsupported node type %s" element))
-    (or
-     (dom-attr element :-edraw-shape)
-     (when-let ((shape (pcase (dom-tag element)
-                         ('rect (edraw-shape-rect-create element editor))
-                         ('ellipse (edraw-shape-ellipse-create element editor))
-                         ('circle (edraw-shape-circle-create element editor))
-                         ('text (edraw-shape-text-create element editor))
-                         ('image (edraw-shape-image-create element editor))
-                         ('path (edraw-shape-path-create element editor))
-                         ('g (edraw-shape-group-create element editor))
-                         (_ (unless noerror-node-type
-                              (error "Unsupported tag %s as shape"
-                                     (dom-tag element)))))))
-       (dom-set-attribute element :-edraw-shape shape)
-       shape))))
-
-(defun edraw-shape-from-element-no-create (element)
-  (when (edraw-dom-element-p element)
-    (dom-attr element :-edraw-shape)))
+;;;;; Selection Menu
 
 (defun edraw-popup-shape-selection-menu (shapes)
   "Show a menu to select one from multiple shape objects."
@@ -4281,7 +4326,7 @@ position where the EVENT occurred."
   (when (edraw-dom-element-p element)
     (nconc
      (list
-      (cons :type (dom-tag element))
+      (cons :type (edraw-shape-type-from-element element))
       (cons :properties
             (mapcar
              (lambda (prop-info)
@@ -4290,7 +4335,7 @@ position where the EVENT occurred."
                                    element prop-name nil))) ;;defrefs=nil
                  (cons prop-name prop-value)))
              (edraw-svg-element-get-property-info-list element))))
-     (when (eq (dom-tag element) 'g)
+     (when (eq (edraw-shape-type-from-element element) 'g) ;;@todo type check??
        (when-let ((children (dom-children element)))
          (list
           (cons :children
@@ -4363,7 +4408,7 @@ position where the EVENT occurred."
            defrefs
            nil ;;parent
            nil ;;index
-           type ;;tag
+           type ;;type
            props)))
     (when children-descriptor
       (dolist (child-descriptor children-descriptor)

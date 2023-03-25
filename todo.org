@@ -1,6 +1,23 @@
 
 
 * Inbox
+** TODO gタグのshape descriptor変換についての問題
+edraw-shape-descriptor-from-svg-element-without-editor関数にgタグに特化した処理がある。子孫の要素を再帰的にshape descriptorへ変換するためのもの。ここはこれでいいのだろうか。
+
+将来的に <g data-edraw-type="edraw-complex-shape">...</g> のようなものを作るかもしれない。その際に子孫をshape descriptorとして保存する必要があるのだろうか。 edraw-shape-types の :create-element やその後にプロパティ設定で子孫の内容を生成すべきなんじゃないだろうか。
+
+このshape descriptorにするところは問題ないのかもしれない。しかし、shape descriptorからshapeオブジェクトを作るところ(edraw-shape-from-shape-descriptor)では問題が生じる。子孫に対してもshapeオブジェクトを生成してしまう。
+
+gタイプのみ子孫をshape descriptorに入れるべきで、それ以外では入れるべきでは無いのだろうか。しかし、Shape Pickerに登録したときに絵が出てこなくなってしまう。
+
+子孫に対してオブジェクトを生成してしまうことが問題であれば、そうしないように生成することも出来なくはない。edraw-shape-typesに子孫展開の抑止フラグを追加するとか。
+
+また、Shape Pickerが問題なのであれば、基本的にSVG文字列で処理すれば良いだけのような気もする。しかしコピーしたときはshape descriptorなのでその時点で情報が落ちてしまったらどうしようもない。
+
+そもそもshape-descriptorという仕組みがあまり良くなかったのかもしれない。全図形はSVG文字列との相互変換が出来ることが前提なのだから、それで十分だったのかもしれない。
+
+とりあえず ~(eq (dom-tag element) 'g)~ から (~(eq (edraw-shape-type-from-element element) 'g)~ へ変更しておいた。新しい図形タイプでg要素を使い、再帰的に処理したい場合は、何か対策をする。
+
 ** TODO プロパティエディタ/ボタン類の表示を改善する
 バッファの上の方に表示できないか。バーのようにすると良い？
 
@@ -91,11 +108,6 @@ edraw-push-undo-path-point-moveによるパスのアンカーやハンドルの�
 現在次のような問題がある。
 - UNDOを考慮していない。
 - Previewによる変化でフラグが立ってしまう。
-
-** TODO クラスを拡張可能にする
-
-- edraw-shapeをedraw-objectに改名する
-- SVG要素からオブジェクトを作成する部分を拡張可能にする
 
 ** TODO マニピュレータ機構を追加する
 
@@ -1443,3 +1455,14 @@ child frameはおそらく適切ではない。フレームによってキャン
 4. 状態をファイルにセーブする。
 
 プロパティエディタは右クリックでメニューを表示する。そこにフレーム操作を加える。
+** DONE 図形クラスを拡張可能にする
+CLOSED: [2023-03-25 Sat 19:14]
+SVGに無い新しい図形を定義できるようにする。
+
+data-edraw-type=属性によって、生成するオブジェクトを切り替えられるようにする。もちろん指定が無ければタグ名をtypeにして生成する。
+
+例えば <path data-edraw-type="edraw-star" d="..." /> で edraw-shape-star クラスのオブジェクトを生成する。頂点数(?)プロパティと半径プロパティがあって、それを変更すると自動的にd=が再計算されるというような。
+
+図形タイプリスト(edraw-shape-types)を作成する。タイプ毎にSVGノードの作成(:create-element)とSVG→オブジェクト変換(:from-element)を定義する。
+
+tagという表記を使っている部分を確認して可能な限りtypeに置き換える。
