@@ -93,12 +93,15 @@
       (with-current-buffer buffer
         (kill-local-variable 'mode-line-format))
 
-      (if (window-live-p window)
-          ;; Use existing window
-          (select-window window)
-        ;; Create new window
+      (cond
+       ;; Use existing window
+       ((and (window-live-p window)
+             (eq (window-buffer window) buffer))
+        (select-window window))
+       ;; Create new window
+       (t
         (pop-to-buffer buffer)
-        (setq window (selected-window)))
+        (setq window (selected-window))))
       (edraw-buffer-display-fit-window-size-to-content))))
 
 (defun edraw-buffer-display-fit-window-size-to-content ()
