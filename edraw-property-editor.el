@@ -30,6 +30,7 @@
 (require 'edraw-util)
 (require 'edraw-math)
 (require 'edraw-color-picker)
+(require 'edraw-editor-util)
 
 
 ;;;; Property Editor Target
@@ -134,6 +135,7 @@ editor when the selected shape changes."
     (define-key km [triple-mouse-1] 'ignore)
     (define-key km [down-mouse-2] 'ignore)
     (define-key km [mouse-2] 'edraw-property-editor--close)
+    (define-key km [mouse-3] 'edraw-property-editor--menu)
     (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-decrease)
     (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
@@ -149,6 +151,7 @@ editor when the selected shape changes."
     (define-key km [triple-mouse-1] 'ignore)
     (define-key km [down-mouse-2] 'ignore)
     (define-key km [mouse-2] 'edraw-property-editor--close)
+    (define-key km [mouse-3] 'edraw-property-editor--menu)
     km))
 
 
@@ -161,8 +164,8 @@ editor when the selected shape changes."
 
 (defclass edraw-property-editor ()
   ((buffer :initarg :buffer)
-   (window :initarg :window)
-   (target :initarg :target)
+   (display :initarg :display)
+   (target :initform nil)
    (widgets)
    (update-timer :initform nil)))
 
@@ -178,31 +181,62 @@ editor when the selected shape changes."
         (edraw-close edraw-property-editor--pedit)))))
 
 (defun edraw-property-editor-open (target)
-  (save-selected-window
-    (let* ((buffer (pop-to-buffer edraw-property-editor-buffer-name))
-           (window (selected-window))
-           (pedit (edraw-property-editor
-                   :buffer buffer
-                   :window window
-                   :target target)))
-
-      (when edraw-property-editor--pedit
-        (edraw-destroy edraw-property-editor--pedit))
+  (let* ((buffer (get-buffer-create edraw-property-editor-buffer-name))
+         ;; Get property editor object
+         (pedit (or (with-current-buffer buffer edraw-property-editor--pedit)
+                    (edraw-property-editor-create-object buffer))))
+    (with-current-buffer buffer
+      ;; Release current target
+      (edraw-unobserve-target pedit)
 
       ;; Activating major mode does following:
       ;; - Call (kill-all-local-variables)
       ;; - Call (use-local-map edraw-property-editor-mode-map)
+      ;;@todo need every time?
       (edraw-property-editor-mode)
 
       (setq-local edraw-property-editor--pedit pedit)
-      (edraw-initialize pedit))))
+      (edraw-observe-target pedit target))
+
+    ;; Open window or frame
+    (edraw-display-buffer pedit)))
+
+(defun edraw-property-editor-create-object (buffer)
+  (edraw-property-editor
+   :buffer buffer
+   :display (edraw-buffer-display
+             :buffer buffer
+             :frame-parameters-default
+             (append
+              '((title . "Edraw Property Editor"))
+              edraw-buffer-display-frame-parameters-default)
+             :frame-parameters-last
+             (edraw-ui-state-get 'property-editor 'frame-parameters-last)
+             :frame-mode
+             (edraw-ui-state-get 'property-editor 'frame-mode)
+             :frame-mode-line-p
+             (edraw-ui-state-get 'property-editor 'frame-mode-line-p)
+             :frame-child-p
+             (edraw-ui-state-get 'property-editor 'frame-child-p)
+             :save-function
+             (lambda (_obj key value)
+               (edraw-ui-state-set 'property-editor key value)
+               (edraw-ui-state-save)))))
 
 (defun edraw-property-editor-target-shape-p (target)
   (and target
        ;;(cl-typep target 'edraw-shape) ;;warning
        (edraw-property-editor-shape-p target)))
 
-(cl-defmethod edraw-initialize ((pedit edraw-property-editor))
+(cl-defmethod edraw-observe-target ((pedit edraw-property-editor) new-target)
+  (with-slots (target) pedit
+    (edraw-unobserve-target pedit)
+
+    (setq target new-target)
+    (edraw-update-buffer pedit)
+    (edraw-initialize-hooks pedit)))
+
+(cl-defmethod edraw-update-buffer ((pedit edraw-property-editor))
   (with-slots (target widgets) pedit
     (setq widgets nil)
 
@@ -254,6 +288,9 @@ editor when the selected shape changes."
 
     (widget-create 'push-button :notify 'edraw-property-editor--close
                    (edraw-msg "Close"))
+    (widget-insert " ")
+    (widget-create 'push-button :notify 'edraw-property-editor--menu
+                   (edraw-msg "Menu"))
     (widget-insert "\n")
     (widget-insert "\n")
 
@@ -261,20 +298,12 @@ editor when the selected shape changes."
 
     (widget-forward 1) ;;to first field
 
-    ;; Adjust window height
-    (when-let ((parent-window (window-parent)))
-      (let* ((parent-window-height (window-height parent-window))
-             (max-height (/ parent-window-height 2)))
-        (fit-window-to-buffer nil max-height)
-        (enlarge-window 1)))
-
-    (edraw-initialize-hooks pedit)
-
-    (message
-     (format (substitute-command-keys
-              "\\[edraw-property-editor--apply]: %s  \\[edraw-property-editor--close]: %s")
-             (edraw-msg "Apply")
-             (edraw-msg "Close")))))
+    ;; (message
+    ;;  (format (substitute-command-keys
+    ;;           "\\[edraw-property-editor--apply]: %s  \\[edraw-property-editor--close]: %s")
+    ;;          (edraw-msg "Apply")
+    ;;          (edraw-msg "Close")))
+    ))
 
 (cl-defmethod edraw-insert-property-widgets ((pedit edraw-property-editor))
   (with-slots (target widgets) pedit
@@ -296,6 +325,13 @@ editor when the selected shape changes."
                    target prop-info indent)
                   widgets))))
       (setq widgets (nreverse widgets)))))
+
+;;;;; Window/Frame
+
+(cl-defmethod edraw-display-buffer ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-display-buffer display)))
+
 
 ;;;;; Prop Widget
 
@@ -680,32 +716,30 @@ editor when the selected shape changes."
 
 ;;;;; Bottom Buttons
 
+(defun edraw-property-editor--buffer-on-last-event ()
+  ;; For mouse event
+  (if (consp last-command-event)
+      (window-buffer (posn-window (event-start last-command-event)))
+    (current-buffer)))
+
+(defmacro edraw-property-editor--with-event-buffer (&rest body)
+  `(with-current-buffer (edraw-property-editor--buffer-on-last-event)
+     (when edraw-property-editor--pedit
+       ,@body)))
+
 (defun edraw-property-editor--close (&rest _ignore)
   (interactive)
-  (with-current-buffer
-      ;; For mouse event
-      (if (consp last-command-event)
-          (window-buffer (posn-window (event-start last-command-event)))
-        (current-buffer))
-    (when edraw-property-editor--pedit
-      (edraw-close edraw-property-editor--pedit))))
+  (edraw-property-editor--with-event-buffer
+   (edraw-close edraw-property-editor--pedit)))
 
 (cl-defmethod edraw-close ((pedit edraw-property-editor))
-  ;; close window
-  (with-slots (window buffer) pedit
-    (when (and window
-               buffer
-               (eq (window-buffer window) buffer)
-               (window-parent window))
-      (delete-window window)))
-
-  ;; delete buffer
-  (kill-buffer edraw-property-editor-buffer-name))
+  (with-slots (display) pedit
+    (edraw-close display)))
 
 (defun edraw-property-editor--apply (&rest _ignore)
   (interactive)
-  (when edraw-property-editor--pedit
-    (edraw-apply-properties edraw-property-editor--pedit)))
+  (edraw-property-editor--with-event-buffer
+   (edraw-apply-properties edraw-property-editor--pedit)))
 
 (defun edraw-property-editor--prevnext (prev-or-next-func)
   (when-let ((pedit edraw-property-editor--pedit))
@@ -718,34 +752,121 @@ editor when the selected shape changes."
             (edraw-property-editor-open new-target)))))))
 
 (defun edraw-property-editor--prev (&rest _ignore)
-  (edraw-property-editor--prevnext 'edraw-previous-sibling))
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (edraw-property-editor--prevnext 'edraw-previous-sibling)))
 
 (defun edraw-property-editor--next (&rest _ignore)
-  (edraw-property-editor--prevnext 'edraw-next-sibling))
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (edraw-property-editor--prevnext 'edraw-next-sibling)))
 
 (defun edraw-property-editor--set-as-default (&rest _ignore)
-  (when-let ((pedit edraw-property-editor--pedit))
-    (with-slots (target) pedit
-      (when (edraw-property-editor-target-shape-p target)
-        (edraw-set-all-properties-as-default target)))))
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when (edraw-property-editor-target-shape-p target)
+       (edraw-set-all-properties-as-default target)))))
+
+(defun edraw-property-editor--menu (&rest _ignore)
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (let ((pedit edraw-property-editor--pedit))
+     (edraw-popup-menu
+      (edraw-msg "Property Editor")
+      `((
+         ,(if (edraw-get-frame-mode (oref pedit display))
+              (edraw-msg "To Window")
+            (edraw-msg "To Frame"))
+         edraw-property-editor--toggle-frame-mode)
+        ((edraw-msg "Frame")
+         (((edraw-msg "Mode Line") edraw-property-editor--toggle-frame-mode-line-p
+           :button (:toggle . ,(edraw-get-frame-mode-line-p pedit)))
+          ((edraw-msg "Child Frame") edraw-property-editor--toggle-frame-child-p
+           :button (:toggle . ,(edraw-get-frame-child-p pedit)))
+          ((edraw-msg "Top Most") edraw-property-editor--toggle-frame-top-most-p
+           :button (:toggle . ,(edraw-get-frame-top-most-p pedit)))))
+        ((edraw-msg "Apply") edraw-property-editor--apply)
+        ((edraw-msg "Close") edraw-property-editor--close))))))
+
+(defun edraw-property-editor--toggle-frame-mode ()
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (edraw-toggle-frame-mode edraw-property-editor--pedit)))
+
+(cl-defmethod edraw-toggle-frame-mode ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-toggle-frame-mode display)))
+
+(cl-defmethod edraw-get-frame-mode ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-get-frame-mode display)))
+
+(defun edraw-property-editor--toggle-frame-mode-line-p ()
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (edraw-toggle-frame-mode-line-p edraw-property-editor--pedit)))
+
+(cl-defmethod edraw-toggle-frame-mode-line-p ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-toggle-frame-mode-line-p display)))
+
+(cl-defmethod edraw-get-frame-mode-line-p ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-get-frame-mode-line-p display)))
+
+(defun edraw-property-editor--toggle-frame-child-p ()
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (edraw-toggle-frame-child-p edraw-property-editor--pedit)))
+
+(cl-defmethod edraw-toggle-frame-child-p ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-toggle-frame-child-p display)))
+
+(cl-defmethod edraw-get-frame-child-p ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-get-frame-child-p display)))
+
+(defun edraw-property-editor--toggle-frame-top-most-p ()
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (edraw-toggle-frame-top-most-p edraw-property-editor--pedit)))
+
+(cl-defmethod edraw-toggle-frame-top-most-p ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (edraw-set-frame-parameter
+     display 'z-group
+     (if (eq (edraw-get-frame-parameter display 'z-group) 'above)
+         nil
+       'above))))
+
+(cl-defmethod edraw-get-frame-top-most-p ((pedit edraw-property-editor))
+  (with-slots (display) pedit
+    (eq (edraw-get-frame-parameter display 'z-group) 'above)))
+
 
 ;;;;; Synchronizing Property Editor with Target
 
 (cl-defmethod edraw-initialize-hooks ((pedit edraw-property-editor))
-  (with-slots (target) pedit
+  (with-slots (target buffer) pedit
     (when target
       (edraw-add-change-hook target 'edraw-on-target-changed pedit))
-    (add-hook 'kill-buffer-hook
-              'edraw-property-editor--on-kill-buffer
-              nil t)))
+    (when buffer
+      (with-current-buffer buffer
+        (add-hook 'kill-buffer-hook
+                  'edraw-property-editor--on-kill-buffer
+                  nil t)))))
 
 (cl-defmethod edraw-uninitialize-hooks ((pedit edraw-property-editor))
-  (with-slots (target) pedit
+  (with-slots (target buffer) pedit
     (when target
       (edraw-remove-change-hook target 'edraw-on-target-changed pedit))
-    (remove-hook 'kill-buffer-hook
-                 'edraw-property-editor--on-kill-buffer
-                 t)))
+    (when buffer
+      (with-current-buffer buffer
+        (remove-hook 'kill-buffer-hook
+                     'edraw-property-editor--on-kill-buffer
+                     t)))))
 
 (defun edraw-property-editor--on-kill-buffer ()
   (when edraw-property-editor--pedit
@@ -769,19 +890,31 @@ editor when the selected shape changes."
               (run-at-time 0.1 nil 'edraw-on-update-timer pedit)))))))
 
 (cl-defmethod edraw-on-update-timer ((pedit edraw-property-editor))
-  (with-slots (update-timer) pedit
+  (with-slots (update-timer buffer) pedit
     (setq update-timer nil)
-    (edraw-update-widgets-value pedit)))
+    (when buffer
+      (with-current-buffer buffer
+        (edraw-update-widgets-value pedit)))))
 
-(cl-defmethod edraw-destroy ((pedit edraw-property-editor))
-  ;;(message "in edraw-destroy pedit")
-  (edraw-uninitialize-hooks pedit)
-  (with-slots (buffer target update-timer) pedit
-    (setq target nil)
-    (setq buffer nil)
+(cl-defmethod edraw-cancel-update-timer ((pedit edraw-property-editor))
+  (with-slots (update-timer) pedit
     (when update-timer
       (cancel-timer update-timer)
       (setq update-timer nil))))
+
+(cl-defmethod edraw-destroy ((pedit edraw-property-editor))
+  ;;(message "in edraw-destroy pedit")
+  (edraw-unobserve-target pedit)
+  (with-slots (display buffer) pedit
+    (edraw-destroy display)
+    (setq buffer nil)))
+
+(cl-defmethod edraw-unobserve-target ((pedit edraw-property-editor))
+  (with-slots (target) pedit
+    (edraw-uninitialize-hooks pedit)
+    (edraw-cancel-update-timer pedit)
+    (setq target nil)))
+
 
 ;;;; Utility
 

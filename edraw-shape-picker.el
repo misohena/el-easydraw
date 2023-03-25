@@ -29,6 +29,7 @@
 (require 'eieio)
 (require 'edraw-dom-svg)
 (require 'edraw-util)
+(require 'edraw-editor-util)
 
 (autoload 'edraw-edit-svg "edraw")
 (declare-function edraw-get-document-body "edraw")
@@ -236,7 +237,7 @@
 (defconst edraw-shape-picker-buffer-name "*Easy Draw Shape Picker*")
 
 (defvar-local edraw-shape-picker-opened-by-user nil)
-(defvar-local edraw-shape-picker-initial-window nil)
+(defvar-local edraw-shape-picker-display nil)
 
 (defun edraw-shape-picker ()
   (interactive)
@@ -284,8 +285,28 @@
     buffer))
 
 (defun edraw-shape-picker-pop-to-buffer (buffer)
-  (pop-to-buffer buffer)
-  (setq-local edraw-shape-picker-initial-window (selected-window))
+  (with-current-buffer buffer
+    (if edraw-shape-picker-display
+        (progn
+          (edraw-delete-display edraw-shape-picker-display)
+          (edraw-display-buffer edraw-shape-picker-display))
+      (let ((display (edraw-buffer-display
+                      :buffer buffer
+                      :frame-parameters-last
+                      (edraw-ui-state-get 'shape-picker 'frame-parameters-last)
+                      :frame-mode
+                      (edraw-ui-state-get 'shape-picker 'frame-mode)
+                      :frame-mode-line-p
+                      (edraw-ui-state-get 'shape-picker 'frame-mode-line-p)
+                      :frame-child-p
+                      (edraw-ui-state-get 'shape-picker 'frame-child-p)
+                      :save-function
+                      (lambda (_obj key value)
+                        (edraw-ui-state-set 'shape-picker key value)
+                        (edraw-ui-state-save))
+                      )))
+        (edraw-display-buffer display)
+        (setq-local edraw-shape-picker-display display))))
   buffer)
 
 ;; For read-only buffers never associated with a file.
@@ -344,15 +365,19 @@
   (unless buffer
     (setq buffer (current-buffer)))
   (when (buffer-live-p buffer)
-    ;; Kill Window
     (with-current-buffer buffer
-      (if (and edraw-shape-picker-initial-window
-               (window-live-p edraw-shape-picker-initial-window))
-          (quit-restore-window edraw-shape-picker-initial-window 'bury)
-        (when-let ((window (get-buffer-window buffer)))
-          (when (window-parent window)
-            (delete-window window))))
-      (setq-local edraw-shape-picker-initial-window nil))))
+      (when edraw-shape-picker-display
+        ;; @todo Should edraw-delete-display reproduce the old window deletion method?
+        ;; (if (and window
+        ;;          (window-live-p window))
+        ;;     (quit-restore-window window 'bury)
+        ;;   (when-let ((window (get-buffer-window buffer)))
+        ;;     (when (window-parent window)
+        ;;       (delete-window window))))
+
+        ;;(edraw-close edraw-shape-picker-display) ;;Kill Buffer
+        (edraw-delete-display edraw-shape-picker-display)
+        (setq-local edraw-shape-picker-display nil)))))
 
 ;;;; Picker Mode (Picker Buffer Control)
 ;;;;; Key Map
@@ -528,6 +553,17 @@
 
 (defun edraw-shape-picker-buffer-actions ()
   `((,(edraw-msg "Close") edraw-shape-picker-quit)
+    (,(edraw-msg "Frame")
+     ((,(if (edraw-shape-picker-get-frame-mode)
+            (edraw-msg "To Window")
+          (edraw-msg "To Frame"))
+       edraw-shape-picker-toggle-frame-mode)
+      (,(edraw-msg "Mode Line") edraw-shape-picker-toggle-frame-mode-line-p
+       :button (:toggle . ,(edraw-shape-picker-get-frame-mode-line-p)))
+      (,(edraw-msg "Child Frame") edraw-shape-picker-toggle-frame-child-p
+       :button (:toggle . ,(edraw-shape-picker-get-frame-child-p)))
+      (,(edraw-msg "Top Most") edraw-shape-picker-toggle-frame-top-most-p
+       :button (:toggle . ,(edraw-shape-picker-get-frame-top-most-p)))))
     (,(edraw-msg "Fold All Sections") edraw-shape-picker-hide-all-sections)
     (,(edraw-msg "Save") save-buffer
      :enable ,(buffer-modified-p))
@@ -579,6 +615,51 @@
 (defun edraw-shape-picker-quit (&optional _pos buffer)
   (interactive (edraw-shape-picker-interactive-point-buffer))
   (edraw-shape-picker-close buffer))
+
+;;;;; Frame
+
+(defun edraw-shape-picker-toggle-frame-mode ()
+  (interactive)
+  (when edraw-shape-picker-display
+    (edraw-toggle-frame-mode edraw-shape-picker-display)))
+
+(defun edraw-shape-picker-get-frame-mode ()
+  (when edraw-shape-picker-display
+    (edraw-get-frame-mode edraw-shape-picker-display)))
+
+(defun edraw-shape-picker-toggle-frame-mode-line-p ()
+  (interactive)
+  (when edraw-shape-picker-display
+    (edraw-toggle-frame-mode-line-p edraw-shape-picker-display)))
+
+(defun edraw-shape-picker-get-frame-mode-line-p ()
+  (when edraw-shape-picker-display
+    (edraw-get-frame-mode-line-p edraw-shape-picker-display)))
+
+(defun edraw-shape-picker-toggle-frame-child-p ()
+  (interactive)
+  (when edraw-shape-picker-display
+    (edraw-toggle-frame-child-p edraw-shape-picker-display)))
+
+(defun edraw-shape-picker-get-frame-child-p ()
+  (when edraw-shape-picker-display
+    (edraw-get-frame-child-p edraw-shape-picker-display)))
+
+(defun edraw-shape-picker-toggle-frame-top-most-p ()
+  (interactive)
+  (when edraw-shape-picker-display
+    (edraw-set-frame-parameter
+     edraw-shape-picker-display
+     'z-group
+     (if (eq (edraw-get-frame-parameter edraw-shape-picker-display 'z-group)
+             'above)
+         nil
+       'above))))
+
+(defun edraw-shape-picker-get-frame-top-most-p ()
+  (when edraw-shape-picker-display
+    (eq (edraw-get-frame-parameter edraw-shape-picker-display 'z-group)
+        'above)))
 
 ;;;;; Edit Entry Properties
 
