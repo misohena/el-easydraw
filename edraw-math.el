@@ -24,7 +24,12 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'cl-generic)
+
+(defmacro edraw-math-debug-log (_format-string &rest _args)
+  ;;`(princ (concat (format ,format-string ,@args) "\n"))
+  nil)
 
 ;;;; Number
 
@@ -93,6 +98,10 @@
   (and (= (car a) 0)
        (= (cdr a) 0)))
 
+(defsubst edraw-xy-small-p (a epsilon)
+  (and (< (abs (car a)) epsilon)
+       (< (abs (cdr a)) epsilon)))
+
 (defsubst edraw-xy-equal-p (a b)
   (equal a b))
 
@@ -135,6 +144,9 @@
         (- ,@(cl-loop for var in vars collect `(car ,var)))
         (- ,@(cl-loop for var in vars collect `(cdr ,var)))))))
 
+(defsubst edraw-xy-neg (xy)
+  (cons (- (car xy)) (- (cdr xy))))
+
 (defsubst edraw-xy-nmul (n xy)
   (cons (* n (car xy))
         (* n (cdr xy))))
@@ -176,12 +188,34 @@
 (defun edraw-xy-rot270 (xy)
   (cons (cdr xy) (- (car xy))))
 
+(defun edraw-xy-interpolate (a b alpha)
+  (let ((ra (- 1.0 alpha)))
+    (cons (+ (* ra (car a)) (* alpha (car b)))
+          (+ (* ra (cdr a)) (* alpha (cdr b))))))
+
+(defun edraw-xy-interpolate-bezier2 (p0 p1 p2 T)
+  (edraw-xy
+   (edraw-quadratic-bezier (edraw-x p0) (edraw-x p1) (edraw-x p2) T)
+   (edraw-quadratic-bezier (edraw-y p0) (edraw-y p1) (edraw-y p2) T)))
+
+(defun edraw-xy-interpolate-bezier3 (p0 p1 p2 p3 T)
+  (edraw-xy
+   (edraw-cubic-bezier (edraw-x p0) (edraw-x p1) (edraw-x p2) (edraw-x p3) T)
+   (edraw-cubic-bezier (edraw-y p0) (edraw-y p1) (edraw-y p2) (edraw-y p3) T)))
+
 (defun edraw-xy-list-equal-all-p (xy-list)
   (let ((first (car xy-list))
         (rest (cdr xy-list)))
     (while (and rest (edraw-xy-equal-p first (car rest)))
       (setq rest (cdr rest)))
     (null rest)))
+
+(defun edraw-xy-remove-consecutive-same-points (points)
+  (cl-loop with prev-xy = nil
+           for curr-xy in points
+           unless (and prev-xy (edraw-xy-equal-p curr-xy prev-xy))
+           collect curr-xy
+           do (setq prev-xy curr-xy)))
 
 ;;;; Point
 
@@ -653,6 +687,14 @@ Return nil if rotation components of the matrix is non-zero."
 
 ;;;; Bezier Curve
 
+(defun edraw-quadratic-bezier (x0 x1 x2 T)
+  "Return (1-T)^2*x0 + 2*(1-T)*T*x1 + T^2*x2."
+  (let* ((u (- 1 T)))
+    (+
+     (* u u x0)
+     (* u T x1 2)
+     (* T T x2))))
+
 (defun edraw-quadratic-bezier-curve-to-cubic (p0 p1 p2)
   (cons
    ;; p0 + 2/3*(p1-p0)
@@ -667,7 +709,7 @@ Return nil if rotation components of the matrix is non-zero."
      (edraw-xy-nmul 2.0 (edraw-xy-sub p1 p2)) 3))))
 
 (defun edraw-cubic-bezier (x0 x1 x2 x3 T)
-  "Return (1-T)^3*x0 + 3*(1-T)^2*T + 3(1-T)*T^2*x2 + T^3*x3."
+  "Return (1-T)^3*x0 + 3*(1-T)^2*T*x1 + 3(1-T)*T^2*x2 + T^3*x3."
   (let* ((u (- 1 T))
          (uu (* u u))
          (TT (* T T)))
@@ -728,6 +770,292 @@ t ranges from0 to 1."
              (min (car mm) x-min)
              (max (cdr mm) x-max)))))
     (edraw-cubic-bezier-min-max x0 x1 x2 x3)))
+
+;;;; Bezier Curve Fitting
+
+;; Emacs Lisp implementation of
+;; Algorithm for Automatically Fitting Digitized Curves
+;; by Philip J. Schneider
+;; "Graphics Gems", Academic Press, 1990
+
+(defconst edraw-bcf-max-iterations 4)
+
+(defconst edraw-bcf-default-error 2.0)
+
+(defun edraw-fit-bezier-curve (points &optional error)
+  (unless error (setq error edraw-bcf-default-error))
+
+  (cond
+   ((listp points)
+    (setq points
+          (apply #'vector (edraw-xy-remove-consecutive-same-points points))))
+   ((vectorp points)
+    ;;@todo Remove consecutive same points.
+    )
+   (t
+    (error "points must be a list or vector")))
+
+  (edraw-math-debug-log "Enter fit-bezier-curve points=%s" points)
+  (let ((begin 0)
+        (end (length points)))
+    (when (>= (- end begin) 2)
+      (edraw-bcf-fit-cubic points begin end
+                           (edraw-bcf-left-tangent points begin)
+                           (edraw-bcf-right-tangent points (1- end))
+                           error))))
+
+(defun edraw-bcf-fit-cubic (points begin end tan-first tan-last error)
+  (edraw-math-debug-log "Enter fit-cubic begin=%s end=%s" begin end)
+  (let ((size (- end begin)))
+    (cond
+     ((< size 2)
+      (edraw-math-debug-log "Emit nil (size<2)")
+      nil)
+     ((= size 2)
+      (let* ((p0 (aref points begin))
+             (p3 (aref points (1- end)))
+             (dist (/ (edraw-xy-distance p0 p3) 3.0))
+             (bseg (vector p0
+                           (edraw-xy-add p0 (edraw-xy-nmul dist tan-first))
+                           (edraw-xy-add p3 (edraw-xy-nmul dist tan-last))
+                           p3)))
+        (edraw-math-debug-log "Emit %s (size=2)" bseg)
+        (list bseg)))
+     ;; If there are 3 points, it may generate an incorrect bezier segment.
+     ;; So always split.
+     ;; ((= size 3)
+     ;;  (let* ((split-point (+ begin 1))
+     ;;         (tan-sp (edraw-bcf-middle-tangent points split-point)))
+     ;;    (nconc
+     ;;     (edraw-bcf-fit-cubic points begin (1+ split-point)
+     ;;                          tan-first tan-sp
+     ;;                          error)
+     ;;     (edraw-bcf-fit-cubic points split-point end
+     ;;                          (edraw-xy-neg tan-sp) tan-last
+     ;;                          error))))
+     (t
+      (let* ((u-params (edraw-bcf-chord-length-parameterize points begin end))
+             (bseg (edraw-bcf-generate-bezier points begin end u-params
+                                              tan-first tan-last))
+             (mesp (edraw-bcf-compute-max-error points begin end bseg u-params))
+             (max-error (car mesp))
+             (split-point (cdr mesp))
+             (iteration-error (max (* 4.0 error) (* error error))))
+        (edraw-math-debug-log "max-error=%s split-point=%s" max-error split-point)
+
+        (cond
+         ((< max-error error)
+          (edraw-math-debug-log "Emit %s (A)" bseg)
+          (list bseg))
+
+         ;; Improve u-params
+         ((and
+           (< max-error iteration-error)
+           (cl-loop for i from 0 to (1- edraw-bcf-max-iterations)
+                    do (edraw-bcf-reparameterize points begin end
+                                                 ;;Overwrite u-params
+                                                 u-params bseg)
+                    do (setq bseg (edraw-bcf-generate-bezier
+                                   points begin end u-params
+                                   tan-first tan-last)
+                             mesp (edraw-bcf-compute-max-error
+                                   points begin end bseg u-params)
+                             max-error (car mesp)
+                             split-point (cdr mesp))
+                    when (< max-error error) return t))
+          (edraw-math-debug-log "Emit %s (B)" bseg)
+          (list bseg))
+
+         ;; Failed to fit one bezier segment. Split into two segments.
+         (t
+          (let ((tan-sp (edraw-bcf-middle-tangent points split-point)))
+            (nconc
+             (edraw-bcf-fit-cubic points begin (1+ split-point)
+                                  tan-first tan-sp
+                                  error)
+             (edraw-bcf-fit-cubic points split-point end
+                                  (edraw-xy-neg tan-sp) tan-last
+                                  error))))))))))
+
+(defconst edraw-bcf-generate-bezier-length-limit 2.0)
+
+(defun edraw-bcf-generate-bezier (points begin end u-params tan-first tan-last)
+  (edraw-math-debug-log
+   "Enter generate-bezier begin=%s end=%s tan-first=%s tan-last=%s"
+   begin end tan-first tan-last)
+  (edraw-math-debug-log "u-params=%s" u-params)
+
+  (let* ((size (- end begin))
+         (c00 0.0)
+         (c01 0.0)
+         (c10 0.0)
+         (c11 0.0)
+         (x0 0.0)
+         (x1 0.0)
+         (p0 (aref points begin))
+         (p3 (aref points (1- end))))
+
+    (dotimes (i size)
+      (let* ((u (aref u-params i))
+             (r (- 1.0 u))
+             (3ur (* 3.0 u r))
+             (b0 (* r r r))
+             (b1 (* 3ur r))
+             (b2 (* 3ur u))
+             (b3 (* u u u))
+             (a0 (edraw-xy-nmul b1 tan-first))
+             (a1 (edraw-xy-nmul b2 tan-last))
+             (tmp (edraw-xy-sub
+                   (aref points (+ begin i))
+                   (edraw-xy-add
+                    (edraw-xy-nmul (+ b0 b1) p0)
+                    (edraw-xy-nmul (+ b2 b3) p3)))))
+        (cl-incf c00 (edraw-xy-dot a0 a0))
+        (cl-incf c01 (edraw-xy-dot a0 a1))
+        ;;(cl-incf c10 (edraw-xy-dot a1 a0))
+        (cl-incf c11 (edraw-xy-dot a1 a1))
+        (cl-incf x0 (edraw-xy-dot a0 tmp))
+        (cl-incf x1 (edraw-xy-dot a1 tmp))))
+    (setq c10 c01)
+
+    (let* ((det-c0-c1 (- (* c00 c11) (* c10 c01)))
+           (det-c0-x (- (* c00 x1) (* c10 x0)))
+           (det-x-c1 (- (* x0 c11) (* x1 c01)))
+           (alpha-l (if (< (abs det-c0-c1) 1e-6)
+                        0.0 (/ (float det-x-c1) det-c0-c1)))
+           (alpha-r (if (< (abs det-c0-c1) 1e-6)
+                        0.0 (/ (float det-c0-x) det-c0-c1)))
+           (seg-length (edraw-xy-distance p0 p3))
+           (epsilon (* 1e-6 seg-length)))
+
+      (edraw-math-debug-log
+       "detc0c1=%s detc0x=%s detxc1=%s alpha-l=%s alpha-r=%s seg-length=%s"
+       det-c0-c1 det-c0-x det-x-c1 alpha-l alpha-r seg-length)
+
+      ;; (if (< (abs det-c0-c1) 1e-6)
+      ;;     (let ((c0 (+ c00 c01))
+      ;;           (c1 (+ c10 c11)))
+      ;;       (if (>= (abs c0) 1e-6)
+      ;;           (setq alpha-l (/ x0 c0)
+      ;;                 alpha-r alpha-l)
+      ;;         (if (>= (abs c1) 1e-6)
+      ;;             (setq alpha-l (/ x1 c1)
+      ;;                   alpha-r alpha-l)))))
+
+      (if (or (< alpha-l epsilon)
+              (< alpha-r epsilon)
+              ;; Sometimes the computed control points are very far
+              ;; away, so reject it.
+              ;; Occurs when the direction of the tangent line is
+              ;; difficult to pass through the target point.
+              (> (+ alpha-l alpha-r)
+                 (* edraw-bcf-generate-bezier-length-limit seg-length)))
+          (let ((dist (/ seg-length 3.0)))
+            (edraw-math-debug-log "dist=%s" dist)
+            (vector
+             p0
+             (edraw-xy-add p0 (edraw-xy-nmul dist tan-first))
+             (edraw-xy-add p3 (edraw-xy-nmul dist tan-last))
+             p3))
+        (vector
+         p0
+         (edraw-xy-add p0 (edraw-xy-nmul alpha-l tan-first))
+         (edraw-xy-add p3 (edraw-xy-nmul alpha-r tan-last))
+         p3)))))
+
+(defun edraw-bcf-reparameterize (points begin end u-params bseg)
+  (edraw-math-debug-log "Enter reparameterize")
+  (dotimes (i (- end begin))
+    (aset u-params i ;;Overwrite
+          (edraw-bcf-find-root bseg
+                               (aref points (+ begin i))
+                               (aref u-params i))))
+  u-params)
+
+(defun edraw-bcf-find-root (q p u)
+  (edraw-math-debug-log "Enter find-root")
+  (let* ((q1-0 (edraw-xy-nmul 3.0 (edraw-xy-sub (aref q 1) (aref q 0))))
+         (q1-1 (edraw-xy-nmul 3.0 (edraw-xy-sub (aref q 2) (aref q 1))))
+         (q1-2 (edraw-xy-nmul 3.0 (edraw-xy-sub (aref q 3) (aref q 2))))
+         (q2-0 (edraw-xy-nmul 2.0 (edraw-xy-sub q1-1 q1-0)))
+         (q2-1 (edraw-xy-nmul 2.0 (edraw-xy-sub q1-2 q1-1)))
+         (qu (edraw-xy-interpolate-bezier3
+              (aref q 0) (aref q 1) (aref q 2) (aref q 3) u))
+         (q1u (edraw-xy-interpolate-bezier2 q1-0 q1-1 q1-2 u))
+         (q2u (edraw-xy-interpolate q2-0 q2-1 u))
+         (numer (edraw-xy-dot (edraw-xy-sub qu p) q1u))
+         (denom (+ (edraw-xy-dot q1u q1u)
+                   (edraw-xy-dot (edraw-xy-sub qu p) q2u))))
+    (if (= denom 0)
+        u
+      (- u (/ (float numer) denom)))))
+
+(defun edraw-bcf-chord-length-parameterize (points begin end)
+  "Return an array of cumulative distances from the beginning point."
+  (let* ((size (- end begin))
+         ;; assert size >= 2
+         (u (make-vector size nil))
+         (len 0.0))
+    (aset u 0 0.0)
+    ;; Accumulate length.
+    (cl-loop with last-xy = (aref points begin)
+             for i from 1 to (1- size)
+             for curr-xy = (aref points (+ begin i))
+             do (progn
+                  (cl-incf len (edraw-xy-distance last-xy curr-xy))
+                  (aset u i len)
+                  (setq last-xy curr-xy)))
+    ;; Correct values to be in range 0 to 1.
+    (cl-loop for i from 1 to (1- size)
+             ;; assert length > 0, because the same points were previously removed.
+             do (aset u i (/ (aref u i) len)))
+    u))
+
+(defun edraw-bcf-compute-max-error (points begin end bseg u-params)
+  (let* ((size (- end begin))
+         (split-i (/ size 2))
+         (max-dist 0.0))
+    (cl-loop for i from 1 to (1- size)
+             for dist = (edraw-xy-distance-squared
+                         (edraw-xy-interpolate-bezier3
+                          (aref bseg 0) (aref bseg 1)
+                          (aref bseg 2) (aref bseg 3)
+                          (aref u-params i))
+                         (aref points (+ begin i)))
+             when (>= dist max-dist)
+             do (setq max-dist dist
+                      split-i i))
+    (cons max-dist (+ begin split-i))))
+
+
+(defun edraw-bcf-left-tangent (points index)
+  (edraw-xy-normalize
+   ;; assert length > 0, because the same points were previously removed.
+   (edraw-xy-sub (aref points (1+ index)) (aref points index))))
+
+(defun edraw-bcf-right-tangent (points index)
+  (edraw-xy-normalize
+   ;; assert length > 0, because the same points were previously removed.
+   (edraw-xy-sub (aref points (1- index)) (aref points index))))
+
+(defconst edraw-bcf-use-rot90-on-middle-tangent nil)
+
+(defun edraw-bcf-middle-tangent (points index)
+  (let* ((v1 (edraw-xy-sub (aref points (1- index))
+                           (aref points index)))
+         (v2 (edraw-xy-sub (aref points index)
+                           (aref points (1+ index))))
+         (v (edraw-xy-midpoint-float v1 v2)))
+    (if (edraw-xy-small-p v 1e-6)
+        ;;(warn "Normalize zero vector")
+        ;; length=0, 180-deg turn and same length!!!
+        (if (and edraw-bcf-use-rot90-on-middle-tangent
+                 (not (edraw-xy-small-p v1 1e-6)))
+            ;; Rotate 90-deg
+            (edraw-xy-normalize (edraw-xy-rot90 v1))
+          (edraw-xy 0.0 0.0))
+      (edraw-xy-normalize v))))
+
 
 (provide 'edraw-math)
 ;;; edraw-math.el ends here

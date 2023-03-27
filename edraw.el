@@ -3852,39 +3852,58 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-freehand)
                                      down-event)
   (with-slots (editor) tool
-    (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event)))
-      (edraw-make-undo-group editor 'freehand-tool-add-path
-        ;; Deselect
-        (edraw-deselect-all-shapes editor)
-
+    (let* ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+           (last-xy down-xy)
+           points)
+      ;; Deselect
+      (edraw-deselect-all-shapes editor)
+      ;; Preview
+      (edraw-editor-with-silent-modifications
         ;; Add a new path shape
-        (let ((editing-path (edraw-create-shape ;;modify
+        (let ((preview-path (edraw-create-shape
                              editor (edraw-svg-body editor) 'path)))
+          (unwind-protect
+              (progn
+                ;; Add the first point of the path
+                (push down-xy points)
+                (edraw-add-anchor-point preview-path down-xy)
 
-          ;; Add the first point of the path
-          (edraw-add-anchor-point editing-path down-xy) ;;modify
+                ;; Add new points on dragging
+                (edraw-track-dragging
+                 down-event
+                 (lambda (move-event)
+                   (let ((move-xy
+                          (edraw-mouse-event-to-xy-snapped editor move-event)))
+                     ;;@todo realtime simplification & smoothing the path
 
-          ;; Add new points on dragging
-          (edraw-track-dragging
-           down-event
-           (lambda (move-event)
-             (let ((move-xy
-                    (edraw-mouse-event-to-xy-snapped editor move-event)))
+                     (unless (edraw-xy-equal-p move-xy last-xy)
+                       (push move-xy points)
+                       (edraw-add-anchor-point preview-path move-xy)
+                       (setq last-xy move-xy))))))
+            (edraw-remove preview-path))))
 
-               ;;@todo realtime simplification & smoothing the path
-
-               (edraw-add-anchor-point editing-path move-xy);;modify
-               )))
-
-          ;; Post process
-          ;; @todo cancel if not moved
-          ;; @todo simplification
-          ;; @todo more better smoothing
-          (let ((shape-points (edraw-get-anchor-points editing-path)))
-            (dolist (spt shape-points)
-              (edraw-make-smooth spt)))
-
-          )))))
+      ;; Create
+      (when (>= (length points) 2)
+        (setq points (nreverse points))
+        (let ((path-data
+               (if (edraw-get-setting editor 'grid-visible) ;;@todo Checking while snapping should be a dedicated predicate.
+                   ;; If snapped to grid, don't smooth.
+                   (concat
+                    "M"
+                    (mapconcat (lambda (xy)
+                                 (concat
+                                  (edraw-to-string (edraw-x xy))
+                                  " "
+                                  (edraw-to-string (edraw-y xy))))
+                               points
+                               "L"))
+                 ;; Fit bezier curve
+                 (edraw-xy-points-to-smooth-path-data points))))
+          (when path-data
+            ;; Add a new path shape
+            (edraw-create-shape ;;modify
+             editor (edraw-svg-body editor) 'path
+             'd path-data)))))))
 
 
 ;;;;; Tool - Custom Shape Tool
@@ -5558,6 +5577,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
        ((edraw-msg "Open Path") edraw-open-path-shape
         :enable ,(edraw-closed-path-shape-p shape))
        ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
+       ((edraw-msg "Make Smooth") edraw-make-smooth)
+
        ))))
 
 (cl-defmethod edraw-set-marker-start-none ((shape edraw-shape-path))
@@ -5737,6 +5758,39 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            ;; Remove src
            (edraw-remove src-shape)
            t))))))
+
+(defun edraw-xy-points-to-smooth-path-data (xy-points)
+  (let* ((points
+          (edraw-xy-remove-consecutive-same-points xy-points))
+         (points-vector (apply #'vector points))
+         (size (length points-vector)))
+    (when (>= size 2)
+      (let* ((bezier-segments
+              (edraw-fit-bezier-curve points-vector))
+             (d
+              (concat
+               (format
+                "M%s %s"
+                (edraw-to-string (edraw-x (aref (car bezier-segments) 0)))
+                (edraw-to-string (edraw-y (aref (car bezier-segments) 0))))
+               (mapconcat
+                (lambda (segment)
+                  (format "C%s %s %s %s %s %s"
+                          (edraw-to-string (edraw-x (aref segment 1)))
+                          (edraw-to-string (edraw-y (aref segment 1)))
+                          (edraw-to-string (edraw-x (aref segment 2)))
+                          (edraw-to-string (edraw-y (aref segment 2)))
+                          (edraw-to-string (edraw-x (aref segment 3)))
+                          (edraw-to-string (edraw-y (aref segment 3)))))
+                bezier-segments ""))))
+        d))))
+
+(cl-defmethod edraw-make-smooth ((path edraw-shape-path))
+  (when-let ((d (edraw-xy-points-to-smooth-path-data
+                 (mapcar #'edraw-get-xy (edraw-get-anchor-points path)))))
+    (edraw-set-property path 'd d)
+    ;; Succeeded
+    t))
 
 
 

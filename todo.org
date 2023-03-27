@@ -1,31 +1,6 @@
 
 
 * Inbox
-** TODO gタグのshape descriptor変換についての問題
-edraw-shape-descriptor-from-svg-element-without-editor関数にgタグに特化した処理がある。子孫の要素を再帰的にshape descriptorへ変換するためのもの。ここはこれでいいのだろうか。
-
-将来的に <g data-edraw-type="edraw-complex-shape">...</g> のようなものを作るかもしれない。その際に子孫をshape descriptorとして保存する必要があるのだろうか。 edraw-shape-types の :create-element やその後にプロパティ設定で子孫の内容を生成すべきなんじゃないだろうか。
-
-このshape descriptorにするところは問題ないのかもしれない。しかし、shape descriptorからshapeオブジェクトを作るところ(edraw-shape-from-shape-descriptor)では問題が生じる。子孫に対してもshapeオブジェクトを生成してしまう。
-
-gタイプのみ子孫をshape descriptorに入れるべきで、それ以外では入れるべきでは無いのだろうか。しかし、Shape Pickerに登録したときに絵が出てこなくなってしまう。
-
-子孫に対してオブジェクトを生成してしまうことが問題であれば、そうしないように生成することも出来なくはない。edraw-shape-typesに子孫展開の抑止フラグを追加するとか。
-
-また、Shape Pickerが問題なのであれば、基本的にSVG文字列で処理すれば良いだけのような気もする。しかしコピーしたときはshape descriptorなのでその時点で情報が落ちてしまったらどうしようもない。
-
-そもそもshape-descriptorという仕組みがあまり良くなかったのかもしれない。全図形はSVG文字列との相互変換が出来ることが前提なのだから、それで十分だったのかもしれない。
-
-とりあえず ~(eq (dom-tag element) 'g)~ から (~(eq (edraw-shape-type-from-element element) 'g)~ へ変更しておいた。新しい図形タイプでg要素を使い、再帰的に処理したい場合は、何か対策をする。
-
-** TODO プロパティエディタ/ボタン類の表示を改善する
-バッファの上の方に表示できないか。バーのようにすると良い？
-
-** TODO デフォルトプロパティ設定をdefcustomにしたい
--userという変数を作って、変更時に本番変数に反映させるのはどうか。
-もちろんプロパティ値がnilの場合はプロパティを削除する。
-無指定の物は-initialという定数のものを採用する。
-
 ** TODO edraw-editor-auto-view-enlargement-max-sizeのデフォルト値
 (cons 560 420)ではなくedraw-default-document-propertiesの値を使うべき？　意図的に小さくしているときに困る。
 
@@ -34,48 +9,6 @@ gタイプのみ子孫をshape descriptorに入れるべきで、それ以外で
 それともimage-compute-scaling-factorを参考に
 ~(* (/ (float (window-width nil t)) (window-width)) 70)~ みたいにしてみる？
 ただ、これはビューサイズなのでこれにimage-scaleを考慮しなければならないけど。
-
-** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
-「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
-d全体をUNDOデータにすると実際にアンドゥしたときに全てのポイントが無効になり、選択状態を全て解除しなければならなくなるなどの弊害がある。
-例えばポイントを追加したら、ポイントを削除するUNDOデータを登録すれば済むはず。ポイントの識別はインデックス番号で十分。
-注意点:
-- 選択状態の追跡部分は注意が必要。現在のedraw-on-selected-shape-changedは shape-path-data タイプの変更で deselectしているので。点を削除したら点をdeselectしなければならないはず。
-- パスデータはLからCへ暗黙的に変換される場合がある。これが行われるとインデックス番号がずれてしまう場合がある。そもそもCからLにはどうやっても戻らないのでデータも戻らない。結局dを戻した方が簡単かもしれない。
-
-** TODO パス編集/UNDOしたときに-forward-handle-pointが失われるのを何とかする
-edraw-move-nth-pointで指定indexのポイントが見つかれない問題として表面化する。
-
-ドラッグでアンカーを追加したときに((edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)...)...)で)、次が呼ばれる。
-- edraw-add-anchor-point
-- edraw-create-forward-handle
-- edraw-create-backward-handle
-- edraw-move-with-opposite-handle-symmetry-on-transformed
-
-もう一度同じようにアンカーを追加したとして
-
-- edraw-add-anchor-point
-- edraw-create-forward-handle
-- edraw-create-backward-handle
-- edraw-move-with-opposite-handle-symmetry-on-transformed
-
-これをUNDOして、もう一回UNDOしたときに、1回目のedraw-move-with-opposite-handle-symmetry-on-transformedに対するUNDOは正しく動作しない。2回目のedraw-add-anchor-pointに対するUNDOはdを復元するが-forward-handle-pointまでは復元しないから、-forward-handle-pointに対する移動をUNDOできない。
-
-現在はedraw-move-nth-pointで見つからなかったときに単に無視している。
-dプロパティを復元する方式だとどうしても-forward-handle-pointは戻らない。
-
-現状次の三つは全てUNDOでdを復元する。
-- edraw-add-anchor-point
-- edraw-create-forward-handle
-- edraw-create-backward-handle
-
-なので、これらをdプロパティUNDOをしないように改変すれば良い。
-
-しかし話はそれほど簡単では無く、LをCに暗黙的に変換してしまう問題にも対処しなければならない。ちゃんとLに戻さないと番号がずれるしパスデータも変わってしまう。ちゃんとできるならポイントオブジェクトが無効にならないので良い。
-
-それが出来ないならd復元時に-forward-handle-pointも復元するのが良いかもしれない。
-edraw-push-undo-propertiesでdを保存するときに追加の処理を入れる感じ。
-edraw-set-propertiesで復元するのでは無く、専用のシリアライズデータ形式で保存・復元したらどうか。そうすれば数値の文字列化による誤差も回避できる。
 
 ** TODO edraw-set-view-size-specの誤操作を防止する
 ビューのサイズを変更するときに、非常に大きな値を入力してしまいやすい。
@@ -121,14 +54,10 @@ edraw-push-undo-path-point-moveによるパスのアンカーやハンドルの�
 
 ある種のモードなのだろうか。モーダルであるべきか否か。
 
-** TODO カラーピッカーに固定のカラーパレットが欲しいかも？
-特定の色集合を保持し続けられるようなやつ。
-ファイルとの読み書きも出来ると良い。
-
 ** TODO 選択ツール 図形をM+ドラッグで複製しつつ平行移動する
 Ctrl+の方がいい？
 
-** TODO パスの始点・終点を他の図形に接続する機能を追加する
+** TODO 点を他の図形に接続する機能を追加する
 data属性でどの点をどの点へ接続するかを記述させてはどうか。
 
 data-connect-beginning-point-to="nearest point on edge of obj123456"
@@ -140,9 +69,6 @@ data-connect-beginning-point-to="nearest point on edge of obj123456"
 ** TODO 別ファイルの内容をインポートする機能を追加する
 別ファイルの#edraw-bodyの中身を現在のドキュメントに追加する。
 #edraw-defsも何とかして更新すべき。
-
-** TODO 手書きツールを改善する
-もっと点の数を減らしたい。
 
 ** TODO ズーム時にズーム倍率の逆数ピクセル数でスナップする
 
@@ -174,7 +100,12 @@ data-connect-beginning-point-to="nearest point on edge of obj123456"
 
 もしスナップを改良するなら edraw-snap-xy を修正すること。
 
-** TODO デフォルトプロパティ値は種類毎に持つべきでは無い？
+** TODO 設定/デフォルトプロパティ設定をdefcustomにしたい
+-userという変数を作って、変更時に本番変数に反映させるのはどうか。
+もちろんプロパティ値がnilの場合はプロパティを削除する。
+無指定の物は-initialという定数のものを採用する。
+
+** TODO 設定/デフォルトプロパティ値は種類毎に持つべきでは無い？
 カスタムシェイプツールでpath以外(rectやellipse)にも同一の属性を適用したくなる。
 とは言えrectツールではstrokeを入れたくないし、pathではfillを入れたくない。
 ひょっとして図形種類毎では無くツール毎にデフォルト値を持つべきなのでは？
@@ -212,6 +143,9 @@ scaleが0のときを考慮に入れるべきだろうか。
 -1倍しても良いけど、簡単に反転できると良い。
 dtfh dtfvとか?
 要らないかも。
+** TODO 変形/GUIで変形できるようにする
+transform属性を変更できるようにする(図形オブジェクト全体の変形)
+edraw-read-rectangleのようにread-eventループに入ってしまうのも手かもしれない。
 ** TODO 座標を表示する機能を追加する
 何らかの方法で座標が知りたい場合がある。
 問題はEmacsではモーションイベントを積極的に使いづらい所。
@@ -222,7 +156,80 @@ dtfh dtfvとか?
 ** TODO アンカーポイントの複数選択・移動機能を追加する
 図形を調整するときに無いと不便。
 
-** TODO パスなどの辺をドラッグできるようにする？
+** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
+「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
+d全体をUNDOデータにすると実際にアンドゥしたときに全てのポイントが無効になり、選択状態を全て解除しなければならなくなるなどの弊害がある。
+例えばポイントを追加したら、ポイントを削除するUNDOデータを登録すれば済むはず。ポイントの識別はインデックス番号で十分。
+注意点:
+- 選択状態の追跡部分は注意が必要。現在のedraw-on-selected-shape-changedは shape-path-data タイプの変更で deselectしているので。点を削除したら点をdeselectしなければならないはず。
+- パスデータはLからCへ暗黙的に変換される場合がある。これが行われるとインデックス番号がずれてしまう場合がある。そもそもCからLにはどうやっても戻らないのでデータも戻らない。結局dを戻した方が簡単かもしれない。
+
+** TODO パス編集/UNDOしたときに-forward-handle-pointが失われるのを何とかする
+edraw-move-nth-pointで指定indexのポイントが見つかれない問題として表面化する。
+
+ドラッグでアンカーを追加したときに((edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)...)...)で)、次が呼ばれる。
+- edraw-add-anchor-point
+- edraw-create-forward-handle
+- edraw-create-backward-handle
+- edraw-move-with-opposite-handle-symmetry-on-transformed
+
+もう一度同じようにアンカーを追加したとして
+
+- edraw-add-anchor-point
+- edraw-create-forward-handle
+- edraw-create-backward-handle
+- edraw-move-with-opposite-handle-symmetry-on-transformed
+
+これをUNDOして、もう一回UNDOしたときに、1回目のedraw-move-with-opposite-handle-symmetry-on-transformedに対するUNDOは正しく動作しない。2回目のedraw-add-anchor-pointに対するUNDOはdを復元するが-forward-handle-pointまでは復元しないから、-forward-handle-pointに対する移動をUNDOできない。
+
+現在はedraw-move-nth-pointで見つからなかったときに単に無視している。
+dプロパティを復元する方式だとどうしても-forward-handle-pointは戻らない。
+
+現状次の三つは全てUNDOでdを復元する。
+- edraw-add-anchor-point
+- edraw-create-forward-handle
+- edraw-create-backward-handle
+
+なので、これらをdプロパティUNDOをしないように改変すれば良い。
+
+しかし話はそれほど簡単では無く、LをCに暗黙的に変換してしまう問題にも対処しなければならない。ちゃんとLに戻さないと番号がずれるしパスデータも変わってしまう。ちゃんとできるならポイントオブジェクトが無効にならないので良い。
+
+それが出来ないならd復元時に-forward-handle-pointも復元するのが良いかもしれない。
+edraw-push-undo-propertiesでdを保存するときに追加の処理を入れる感じ。
+edraw-set-propertiesで復元するのでは無く、専用のシリアライズデータ形式で保存・復元したらどうか。そうすれば数値の文字列化による誤差も回避できる。
+
+** TODO パス編集/パスなどの辺をドラッグできるようにする？
+** TODO パス編集/既存パスからの継続は選択中のパスに限定しない方が良い？
+** TODO パス編集/パスの始点を移動しようとして閉じてしまうミスを防げないか
+** TODO パス編集/edraw-path-cmdに-backward-handle-pointタイプ(bhp)を追加する
+reverseはfhpをbhpに変換する。
+** TODO パス編集/cmdlistを複数のMやZに対応させる
+- M .. L ..... Z M .. L ..... Z のように単純に閉パスが二つあるだけのケース。
+- M .. L ..... Z L ..... Z L ..... Z のような書き方も出来る。一つのMを三つの閉パスが共有している形。
+
+path-cmdはともかく、path-pointは前後のアンカーやハンドルの取得、削除、追加等様々な処理が正しく動かなければならない。Mを指しているときは、そのMの次がどこになるのかpath-point自身が持たなければならない。
+
+** TODO パス編集/pathが1点以下になって見えなくなったらどうするか考える
+rectやellipse、textにもそういった問題はある。
+検出してshapeを消すべき。
+
+** TODO gタグのshape descriptor変換についての問題
+edraw-shape-descriptor-from-svg-element-without-editor関数にgタグに特化した処理がある。子孫の要素を再帰的にshape descriptorへ変換するためのもの。ここはこれでいいのだろうか。
+
+将来的に <g data-edraw-type="edraw-complex-shape">...</g> のようなものを作るかもしれない。その際に子孫をshape descriptorとして保存する必要があるのだろうか。 edraw-shape-types の :create-element やその後にプロパティ設定で子孫の内容を生成すべきなんじゃないだろうか。
+
+このshape descriptorにするところは問題ないのかもしれない。しかし、shape descriptorからshapeオブジェクトを作るところ(edraw-shape-from-shape-descriptor)では問題が生じる。子孫に対してもshapeオブジェクトを生成してしまう。
+
+gタイプのみ子孫をshape descriptorに入れるべきで、それ以外では入れるべきでは無いのだろうか。しかし、Shape Pickerに登録したときに絵が出てこなくなってしまう。
+
+子孫に対してオブジェクトを生成してしまうことが問題であれば、そうしないように生成することも出来なくはない。edraw-shape-typesに子孫展開の抑止フラグを追加するとか。
+
+また、Shape Pickerが問題なのであれば、基本的にSVG文字列で処理すれば良いだけのような気もする。しかしコピーしたときはshape descriptorなのでその時点で情報が落ちてしまったらどうしようもない。
+
+そもそもshape-descriptorという仕組みがあまり良くなかったのかもしれない。全図形はSVG文字列との相互変換が出来ることが前提なのだから、それで十分だったのかもしれない。
+
+とりあえず ~(eq (dom-tag element) 'g)~ から (~(eq (edraw-shape-type-from-element element) 'g)~ へ変更しておいた。新しい図形タイプでg要素を使い、再帰的に処理したい場合は、何か対策をする。
+
 ** TODO shape-descriptorの不要な属性を削除する
 あまりに冗長なので。デフォルトで埋めないので大丈夫だとは思うけど要確認。
 
@@ -238,40 +245,33 @@ edrawリンクのdata-file相互変換機能があれば十分かも？　data�
 同様に中身の無いpathも消したい。
 その他の形状は迷うところ。一応座標があるので選択は出来る。
 
-** TODO GUIでtransform属性を変更できるようにする(図形オブジェクト全体の変形)
-edraw-read-rectangleのようにread-eventループに入ってしまうのも手かもしれない。
 ** TODO グラデーションエディタを作る
 ** TODO デフォルト値を何度も設定しなくて良くなる機能
-** TODO 既存パスからの継続は選択中のパスに限定しない方が良い？
-** TODO パスの始点を移動しようとして閉じてしまうミスを防げないか
-** TODO edraw-color-picker-replace-color-at-pointのキー入力を改善する
+** TODO 色/edraw-color-picker-replace-color-at-pointのキー入力を改善する
 C-c C-c や C-c C-kが効かない。
-** TODO edraw-path-cmdに-backward-handle-pointタイプ(bhp)を追加する
-reverseはfhpをbhpに変換する。
-** TODO cmdlistを複数のMやZに対応させる
-- M .. L ..... Z M .. L ..... Z のように単純に閉パスが二つあるだけのケース。
-- M .. L ..... Z L ..... Z L ..... Z のような書き方も出来る。一つのMを三つの閉パスが共有している形。
-
-path-cmdはともかく、path-pointは前後のアンカーやハンドルの取得、削除、追加等様々な処理が正しく動かなければならない。Mを指しているときは、そのMの次がどこになるのかpath-point自身が持たなければならない。
+** TODO 色/カラーピッカーに固定のカラーパレットが欲しいかも？
+特定の色集合を保持し続けられるようなやつ。
+ファイルとの読み書きも出来ると良い。
+** TODO 色/カラーピッカーを必要に応じてフレーム化する
+エディタやプロパティエディタ、シェイプピッカーから使う時はミニバッファに表示するのでフレーム化は難しい。モーダルでなければならない。
+カラーピッカー単体で使うコマンドはフレームにしてもよいのではないか。
 
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
-** TODO pathが1点以下になって見えなくなったらどうするか考える
-rectやellipse、textにもそういった問題はある。
-検出してshapeを消すべき。
-
 ** TODO 日本語に翻訳する
 地味によく分からないのが言語、国をどのように割り出すか。
 - 環境変数
 - current-language-environment
 - 手動設定
 
-** TODO org-modeでODTへのエクスポートに対応する                       :ORG:
-** TODO 個別のedrawリンクにHTML属性値を指定出来るようにする           :ORG:
+** TODO ORG/org-modeでODTへのエクスポートに対応する
+** TODO ORG/個別のedrawリンクにHTML属性値を指定出来るようにする
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
 それともhtml-attr=で一つにまとめる？
 ** TODO 表示改善/パスUIのハンドルや点が見づらいのを何とかする
 ストローク色に応じて色を変えられないか。
+グリッドを mix-blend-mode: difference にしたら激重だったので、そのやり方は避けたいかも。
+
 ** TODO 表示改善/選択中オブジェクトのアウトラインに線を入れる
 ** TODO カスタムシェイプ/貼り付け前に縮尺を指定できるようにする
 あらかじめ大きさを指定したい。
@@ -289,12 +289,16 @@ edraw-shape-descriptor-to-svg-element にダミーのdefrefsを使っている�
 ** TODO シェイプピッカー/org-modeファイルをピッカーに出来るようにする
 edraw-org-shape-picker-minor-modeが必要？
 
+** TODO プロパティエディタ/ボタン類の表示を改善する
+バッファの上の方に表示できないか。バーのようにすると良い？
+Prev, Nextを連続して押しづらい。
+見た目もあまりよろしくない。
+
 ** TODO プロパティエディタ/複数選択してプロパティを設定
 - 必須プロパティは除外
 - 全てnilで始めるか、全てが完全に一致しているものだけ埋めるか
 - 例によって代理となるオブジェクトを作る
 ** TODO プロパティエディタ/エラーチェックを強化する
-** TODO プロパティエディタ/child frameにする？
 ** TODO SHIFT+ドラッグで水平垂直45度移動に限定する(可能?)
 最初にSHIFTが押されていれば分かるが、それ以降のmodifierの変化は分からない。
 S-mouse-movementが来たりは *しない* 。現在のキー状態を直接取得する方法も無い。
@@ -1466,3 +1470,6 @@ data-edraw-type=属性によって、生成するオブジェクトを切り替�
 図形タイプリスト(edraw-shape-types)を作成する。タイプ毎にSVGノードの作成(:create-element)とSVG→オブジェクト変換(:from-element)を定義する。
 
 tagという表記を使っている部分を確認して可能な限りtypeに置き換える。
+** DONE 手書きツールを改善する
+CLOSED: [2023-03-27 Mon 20:33]
+もっと点の数を減らしたい。
