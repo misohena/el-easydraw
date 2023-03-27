@@ -115,13 +115,25 @@
   (cons (ceiling (car cell))
         (ceiling (cdr cell))))
 
-(defsubst edraw-xy-add (a b)
-  (cons (+ (car a) (car b))
-        (+ (cdr a) (cdr b))))
+(defmacro edraw-xy-add (&rest xys)
+  (let* ((vars (mapcar (lambda (_) (gensym "xy")) xys)))
+    `(let ,(cl-loop for var in vars
+                    for exp in xys
+                    unless (eq var exp)
+                    collect `(,var ,exp))
+       (cons
+        (+ ,@(cl-loop for var in vars collect `(car ,var)))
+        (+ ,@(cl-loop for var in vars collect `(cdr ,var)))))))
 
-(defsubst edraw-xy-sub (a b)
-  (cons (- (car a) (car b))
-        (- (cdr a) (cdr b))))
+(defmacro edraw-xy-sub (&rest xys)
+  (let* ((vars (mapcar (lambda (_) (gensym "xy")) xys)))
+    `(let ,(cl-loop for var in vars
+                    for exp in xys
+                    unless (eq var exp)
+                    collect `(,var ,exp))
+       (cons
+        (- ,@(cl-loop for var in vars collect `(car ,var)))
+        (- ,@(cl-loop for var in vars collect `(cdr ,var)))))))
 
 (defsubst edraw-xy-nmul (n xy)
   (cons (* n (car xy))
