@@ -2197,6 +2197,7 @@ For use with `edraw-editor-with-temp-undo-list',
     `(((edraw-msg "Delete...") edraw-editor-delete-selected)
       ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
+      ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes)
       ((edraw-msg "Group") edraw-editor-group-selected-shapes)
       ((edraw-msg "Transform")
        (((edraw-msg "Translate...") edraw-editor-translate-selected)
@@ -2411,6 +2412,10 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-make-undo-group editor 'cut
       (dolist (shape selected-shapes)
         (edraw-remove shape)))))
+
+(edraw-editor-defcmd edraw-duplicate-selected-shapes ((editor edraw-editor))
+  (edraw-select-shapes editor
+                       (edraw-duplicate-shapes (edraw-selected-shapes editor))))
 
 ;;;;; Editor - Default Shape Properties
 
