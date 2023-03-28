@@ -167,14 +167,15 @@ When nil, disable auto view enlargement."
   (let ((km (make-sparse-keymap)))
     (define-key km [remap self-insert-command] 'ignore)
     (define-key km [down-mouse-1] 'edraw-editor-dispatch-event)
-    (define-key km [double-mouse-1] 'edraw-editor-dispatch-event)
-    (define-key km [mouse-1] 'edraw-editor-dispatch-event)
-    (define-key km [mouse-3] 'edraw-editor-dispatch-event)
     (define-key km [C-down-mouse-1] 'edraw-editor-dispatch-event)
-    (define-key km [C-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-down-mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [M-down-mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [C-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-mouse-1] 'edraw-editor-dispatch-event)
+    (define-key km [double-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [down-mouse-2] 'edraw-editor-scroll-by-dragging)
+    (define-key km [mouse-3] 'edraw-editor-dispatch-event)
     (define-key km (vector (intern (format "C-%s" mouse-wheel-up-event))) 'edraw-editor-zoom-out-by-mouse)
     (define-key km (vector (intern (format "C-%s" mouse-wheel-down-event))) 'edraw-editor-zoom-in-by-mouse)
     (define-key km " " 'edraw-editor-interactive-scroll-and-zoom)
@@ -2675,6 +2676,14 @@ For use with `edraw-editor-with-temp-undo-list',
   `((,mouse-wheel-up-event . wheel-down)
     (,mouse-wheel-down-event . wheel-up)))
 
+(defun edraw-editor-event-handler-name (event)
+  (let* ((event-name (car event))
+         ;; Remap mouse-5 to wheel-down
+         (event-name (alist-get event-name edraw-event-remap-table
+                                event-name))
+         (method-name (intern (concat "edraw-on-" (symbol-name event-name)))))
+    method-name))
+
 (defun edraw-editor-dispatch-event (event)
   "Call the editor's method corresponding to the EVENT.
 
@@ -2684,53 +2693,43 @@ position where the EVENT occurred."
   (interactive "e")
 
   (when-let ((editor (edraw-editor-at-input event)))
-    (let* ((event-name (car event))
-           ;; Remap mouse-5 to wheel-down
-           (event-name (alist-get event-name edraw-event-remap-table
-                                  event-name))
-           (method-name (intern (concat "edraw-on-" (symbol-name event-name)))))
+    (let ((method-name (edraw-editor-event-handler-name event)))
       (when (fboundp method-name)
         (funcall method-name editor event)))))
 
-(cl-defmethod edraw-on-down-mouse-1 ((editor edraw-editor) down-event)
+(cl-defmethod edraw-call-tool-event-handler ((editor edraw-editor) event)
   (with-slots (tool) editor
     (when tool
-      (edraw-on-down-mouse-1 tool down-event))))
+      (let ((method-name (edraw-editor-event-handler-name event)))
+        (when (fboundp method-name)
+          (funcall method-name tool event))))))
+
+(cl-defmethod edraw-on-down-mouse-1 ((editor edraw-editor) down-event)
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-S-down-mouse-1 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-C-down-mouse-1 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-C-down-mouse-1 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
+
+(cl-defmethod edraw-on-M-down-mouse-1 ((editor edraw-editor) down-event)
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-mouse-1 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-mouse-1 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-double-mouse-1 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-double-mouse-1 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-S-mouse-1 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-S-mouse-1 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-C-mouse-1 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-C-mouse-1 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-mouse-3 ((editor edraw-editor) down-event)
-  (with-slots (tool) editor
-    (when tool
-      (edraw-on-mouse-3 tool down-event))))
+  (edraw-call-tool-event-handler editor down-event))
 
 ;;;;; Editor - Toolbar
 
@@ -3191,14 +3190,11 @@ position where the EVENT occurred."
          (shapes (edraw-find-shapes-by-xy editor down-xy))
          (down-shape (car shapes)) ;;most front
          (down-selected-p (memq down-shape selected-shapes))
-         (event-type (if (seq-set-equal-p (event-modifiers down-event)
-                                          '(control down))
-                         'C-down
-                       'down))
+         (modifiers (edraw-event-modifiers-symbol down-event))
          moving-shapes)
     (when down-shape
       ;; Select shape
-      (pcase event-type
+      (pcase modifiers
         ('C-down
          (if down-selected-p
              ;; Remove from selection and prevent dragging
@@ -3240,10 +3236,52 @@ position where the EVENT occurred."
                   (dolist (shape moving-shapes)
                     (edraw-translate shape delta-xy)))) ;;notify modification
             ;; On Click
-            (pcase event-type
+            (pcase modifiers
               ('down
                (if down-selected-p
                    (edraw-select down-shape)))))))
+      t)))
+
+(cl-defmethod edraw-mouse-drag-shape-duplicate ((editor edraw-editor)
+                                                down-event)
+  (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
+         (down-xy-snapped (edraw-snap-xy editor down-xy))
+         (down-shape (car (edraw-find-shapes-by-xy editor down-xy)))) ;;most front
+    (when down-shape
+      (let* ((selected-shapes (edraw-selected-shapes editor))
+             (down-selected-p (memq down-shape selected-shapes))
+             ;;(modifiers (edraw-event-modifiers-symbol down-event))
+             (target-shapes (if down-selected-p
+                                selected-shapes
+                              (list down-shape)))
+             (start-xy down-xy-snapped)
+             (move-xy nil))
+        ;; Preview while dragging
+        (edraw-editor-with-temp-modifications editor
+          (let ((preview-shapes (edraw-duplicate-shapes target-shapes)))
+            (edraw-editor-with-temp-modifications editor
+              (edraw-track-dragging
+               down-event
+               (lambda (move-event)
+                 ;; Cancel previous move
+                 (edraw-undo-all editor)
+                 ;; Move
+                 (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+                 (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
+                   (dolist (shape preview-shapes)
+                     (edraw-translate shape delta-xy)))))))) ;;notify modification
+        ;; Commit
+        (if move-xy
+            ;; On Drag
+            (edraw-make-undo-group editor 'shapes-duplicate-by-drag
+              (let ((delta-xy (edraw-xy-sub move-xy start-xy))
+                    (new-shapes (edraw-duplicate-shapes target-shapes)))
+                (dolist (shape new-shapes)
+                  (edraw-translate shape delta-xy)) ;;notify modification
+                (edraw-select-shapes editor new-shapes)))
+          ;; On Click
+          ))
+      ;; Handled
       t)))
 
 (cl-defmethod edraw-context-menu-at-point ((editor edraw-editor) xy)
@@ -3355,11 +3393,12 @@ position where the EVENT occurred."
      (oref tool editor) shape-type))) ;;e.g. (rect (a . "1") (b . "2"))
 
 (cl-defmethod edraw-on-down-mouse-1 ((_tool edraw-editor-tool) _down-event))
-(cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
-(cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
-(cl-defmethod edraw-on-S-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-C-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-S-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-M-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-C-mouse-1 ((_tool edraw-editor-tool) _click-event))
+(cl-defmethod edraw-on-S-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-double-mouse-1 ((_tool edraw-editor-tool) _click-event))
 
 (cl-defmethod edraw-on-mouse-3 ((tool edraw-editor-tool) click-event)
@@ -3417,6 +3456,11 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-deselected ((_tool edraw-editor-tool-select))
   ;;(edraw-deselect-shape (oref tool editor))
   (cl-call-next-method))
+
+(cl-defmethod edraw-on-M-down-mouse-1 ((tool edraw-editor-tool-select)
+                                       down-event)
+  (with-slots (editor) tool
+    (edraw-mouse-drag-shape-duplicate editor down-event)))
 
 (cl-defmethod edraw-on-C-down-mouse-1 ((tool edraw-editor-tool-select)
                                        down-event)
@@ -4899,6 +4943,23 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-duplicate-and-select ((shape edraw-shape))
   (when-let ((new-shape (edraw-clone shape)))
     (edraw-select new-shape)))
+
+(defun edraw-duplicate-shapes (shapes)
+  (when shapes
+    (with-slots (editor) (car shapes)
+      (let* (;; Sort by Z order
+             (sorted-shapes
+              (seq-sort-by #'edraw-node-position #'< shapes))
+             (shape-descriptor-list
+              (mapcar #'edraw-shape-descriptor sorted-shapes))
+             (z-index
+              (1+ (edraw-node-position (car (last sorted-shapes))))))
+
+        (edraw-make-undo-group editor 'duplicate-shapes
+          (edraw-shape-from-shape-descriptor-list
+           editor (edraw-svg-body editor)
+           z-index
+           shape-descriptor-list))))))
 
 (cl-defmethod edraw-edit-properties ((shape edraw-shape))
   (edraw-property-editor-open shape))

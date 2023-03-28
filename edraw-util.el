@@ -222,6 +222,43 @@
               (push (cons t event) unread-command-events)))))
         result))))
 
+;;;; Input Event
+
+(defun edraw-event-mouse-modifiers (event)
+  (seq-remove (lambda (m) (not (memq m '(click double triple drag down))))
+              (event-modifiers event)))
+
+(defun edraw-event-key-modifiers (event)
+  (seq-remove (lambda (m) (not (memq m '(meta control shift hyper super alt))))
+              (event-modifiers event)))
+
+(defun edraw-event-key-modifiers-equal (event modifiers)
+  (seq-set-equal-p
+   (edraw-event-key-modifiers event)
+   modifiers))
+
+(defun edraw-event-modifiers-symbol (event)
+  (edraw-make-event-modifiers-symbol (event-modifiers event)))
+
+(defun edraw-make-event-modifiers-symbol (modifiers)
+  (let ((modifier-symbols '(alt control hyper meta shift super
+                                double triple
+                                drag down click))
+        (modifier-strings '("A" "C" "H" "M" "S" "s"
+                            "double" "triple" "drag" "down" "click"))
+        (code 0))
+    (cl-loop for m in modifiers
+             for pos = (seq-position modifier-symbols m #'eq)
+             when pos do (setq code (logior code (lsh 1 pos))))
+    (when (/= code 0)
+      (intern
+       (cl-loop with str = nil
+                for s in modifier-strings
+                for bit = 1 then (lsh bit 1)
+                when (/= (logand code bit) 0)
+                if str do (setq str (concat str "-" s)) else do (setq str s)
+                finally return str)))))
+
 
 
 ;;;; Hook Utility
