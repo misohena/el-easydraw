@@ -2406,12 +2406,10 @@ For use with `edraw-editor-with-temp-undo-list',
     shapes))
 
 (edraw-editor-defcmd edraw-copy-selected-shapes ((editor edraw-editor))
-  (when-let ((selected-shapes (edraw-selected-shapes editor)))
+  (when-let ((selected-shapes (edraw-selected-shapes-back-to-front editor)))
     (edraw-clipboard-set
      'shape-descriptor-list
-     (mapcar #'edraw-shape-descriptor
-             ;; Sort by Z order
-             (seq-sort-by #'edraw-node-position #'< selected-shapes)))))
+     (mapcar #'edraw-shape-descriptor selected-shapes))))
 
 (edraw-editor-defcmd edraw-cut-selected-shapes ((editor edraw-editor))
   (when-let ((selected-shapes (copy-sequence (edraw-selected-shapes editor))))
