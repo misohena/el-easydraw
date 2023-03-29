@@ -1042,6 +1042,14 @@ For use with `edraw-editor-with-temp-undo-list',
                       (edraw-shape-from-element node editor 'noerror))
                     (dom-children (edraw-svg-body editor)))))
 
+(cl-defmethod edraw-back-shape ((editor edraw-editor))
+  (seq-some (lambda (node) (edraw-shape-from-element node editor 'noerror))
+            (dom-children (edraw-svg-body editor))))
+
+(cl-defmethod edraw-front-shape ((editor edraw-editor))
+  (seq-some (lambda (node) (edraw-shape-from-element node editor 'noerror))
+            (reverse (dom-children (edraw-svg-body editor)))))
+
 (defun edraw-read-translate-params ()
   (edraw-xy
    (read-number (edraw-msg "Delta X: ") 0)
@@ -2354,16 +2362,20 @@ For use with `edraw-editor-with-temp-undo-list',
         (edraw-send-to-back shape)))))
 
 (edraw-editor-defcmd edraw-select-next-shape ((editor edraw-editor))
-  (when (edraw-selected-shapes editor) ;;@todo error?
-    (when-let ((front (car (edraw-selected-shapes-front-to-back editor)))
-               (next (edraw-next-sibling front)))
-      (edraw-select-shape editor next))))
+  (if (edraw-selected-shapes editor)
+      (when-let ((front (car (edraw-selected-shapes-front-to-back editor)))
+                 (next (edraw-next-sibling front)))
+        (edraw-select-shape editor next))
+    (when-let ((back (edraw-back-shape editor)))
+      (edraw-select-shape editor back))))
 
 (edraw-editor-defcmd edraw-select-previous-shape ((editor edraw-editor))
-  (when (edraw-selected-shapes editor) ;;@todo error?
-    (when-let ((back (car (edraw-selected-shapes-back-to-front editor)))
-               (prev (edraw-previous-sibling back)))
-      (edraw-select-shape editor prev))))
+  (if (edraw-selected-shapes editor)
+      (when-let ((back (car (edraw-selected-shapes-back-to-front editor)))
+                 (prev (edraw-previous-sibling back)))
+        (edraw-select-shape editor prev))
+    (when-let ((front (edraw-front-shape editor)))
+      (edraw-select-shape editor front))))
 
 (edraw-editor-defcmd edraw-group-selected-shapes ((editor edraw-editor))
   (with-slots (selected-shapes) editor
