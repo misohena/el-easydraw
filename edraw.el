@@ -3157,7 +3157,6 @@ position where the EVENT occurred."
                                              down-event)
   "Drag a handle point or select it."
   (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
-         (moved-p nil)
          (selected-anchor (edraw-selected-anchor editor))
          (selected-handle (edraw-selected-handle editor))
          (handle (and selected-anchor
@@ -3167,20 +3166,20 @@ position where the EVENT occurred."
                        down-xy))))
     (when handle
       (let ((anchor-xy (edraw-get-xy (edraw-parent-anchor handle)))
-            (shift-p (memq 'shift (event-modifiers down-event))))
+            (shift-p (memq 'shift (event-modifiers down-event)))
+            move-xy)
         (edraw-track-dragging
          down-event
          (lambda (move-event)
-           (setq moved-p t)
-           (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
-             (when shift-p
-               (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
-             ;; If selected handle, move it alone
-             (if (and selected-handle
-                      (edraw-same-point-p handle selected-handle))
-                 (edraw-move-on-transformed handle move-xy) ;;notify modification
-               (edraw-move-with-opposite-handle-on-transformed handle move-xy)))))
-        (unless moved-p
+           (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+           (when shift-p
+             (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
+           ;; If selected handle, move it alone
+           (if (and selected-handle
+                    (edraw-same-point-p handle selected-handle))
+               (edraw-move-on-transformed handle move-xy) ;;notify modification
+             (edraw-move-with-opposite-handle-on-transformed handle move-xy))))
+        (unless move-xy
           ;; Click handle point
           (edraw-select-handle editor handle)))
       t)))
