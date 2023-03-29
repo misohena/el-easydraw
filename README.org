@@ -90,8 +90,9 @@ The key bindings that are not displayed are as follows.
 | M-left, M-up, M-right, M-down                                                  | Move selected object (numerical input)                              |
 | Right-click on shapes, anchor points, background, shape picker, or edraw links | Show context menu                                                   |
 | (Select Tool) C-down-mouse-1                                                   | Add/Remove clicked shape to selection list                          |
-| (Select Tool) M-down-mouse-1                                                   | Duplicate dragged shape                                             |
+| (Select Tool) M-drag-mouse-1                                                   | Duplicate dragged shape                                             |
 | (Path Tool) C-u down-mouse-1                                                   | Ignore existing points (Avoid connecting or moving existing points) |
+| S-drag-mouse-1                                                                 | 45 degree unit movement or square specification                     |
 | Middle-drag                                                                    | Scroll                                                              |
 | C-wheel-up, C-wheel-down                                                       | Zoom                                                                |
 | (In Property Editor) Middle-click                                              | Close window                                                        |

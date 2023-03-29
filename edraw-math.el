@@ -88,6 +88,18 @@
         (+ (- n m) interval)
       (- n m))))
 
+(defsubst edraw-sign (n)
+  (if (< n 0) -1
+    (if (> n 0) 1
+      n))) ;; 0 or NaN
+
+(defsubst edraw-sign-mul (n x)
+  (if (< n 0) (- x)
+    (if (> n 0) x
+      n))) ;; 0 or NaN
+
+
+
 ;;;; Vector
 
 (defmacro edraw-xy (x y) `(cons ,x ,y))
@@ -249,6 +261,36 @@
 (defsubst edraw-xy-empty-aabb-p (a b)
   (or (= (car a) (car b))
       (= (cdr a) (cdr b))))
+
+(defun edraw-xy-snap-to-45deg (xy &optional origin-xy)
+  (let* ((tan22.5 0.41421356237309503) ;;(tan (degrees-to-radians 22.5))
+         (ox (if origin-xy (edraw-x origin-xy) 0))
+         (oy (if origin-xy (edraw-y origin-xy) 0))
+         (x (- (edraw-x xy) ox))
+         (y (- (edraw-y xy) oy)))
+    (cond
+     ((< (abs y) (* (abs x) tan22.5))
+      (edraw-xy (+ ox x) oy))
+     ((< (abs x) (* (abs y) tan22.5))
+      (edraw-xy ox (+ oy y)))
+     (t
+      (let ((r (* (+ (abs x) (abs y)) 0.5)))
+        (edraw-xy
+         (+ ox (edraw-sign-mul x r))
+         (+ oy (edraw-sign-mul y r))))))))
+
+(defun edraw-xy-snap-to-square (xy &optional origin-xy)
+  (let* ((ox (if origin-xy (edraw-x origin-xy) 0))
+         (oy (if origin-xy (edraw-y origin-xy) 0))
+         (x (edraw-x xy))
+         (y (edraw-y xy))
+         (dx (- x ox))
+         (dy (- y oy))
+         (adx (abs dx))
+         (ady (abs dy)))
+    (if (< adx ady)
+        (edraw-xy (+ ox (if (< dx 0) (- ady) ady)) y)
+      (edraw-xy x (+ oy (if (< dy 0) (- adx) adx) )))))
 
 ;;;; Rectangle
 
