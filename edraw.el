@@ -2015,10 +2015,10 @@ For use with `edraw-editor-with-temp-undo-list',
   (interactive
    (let* ((editor (edraw-current-editor))
           (w (edraw-read-integer-or-nil
-              "View Width(or Empty): " (edraw-scroll-view-width editor)))
+              (edraw-msg "View Width(or Empty): ") (edraw-scroll-view-width editor)))
           (h (when w
                (edraw-read-integer
-                "View Height: " (edraw-scroll-view-height editor)))))
+                (edraw-msg "View Height: ") (edraw-scroll-view-height editor)))))
      (list editor (if (and w h) (cons w h)))))
 
   (edraw-set-setting editor 'view-size-spec wh) ;;nil or (w . h)
@@ -2556,12 +2556,13 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (defun edraw-transform-method-menu (obj)
   `((edraw-msg "Transform Method")
+    ;; @todo Use :radio instead of :toggle. However, when using :radio, Japanese characters are garbled on MS-Windows.
     (((edraw-msg "Auto") edraw-editor-set-transform-method-auto
-      :button (:radio . ,(eq (edraw-get-transform-method obj) 'auto)))
+      :button (:toggle . ,(eq (edraw-get-transform-method obj) 'auto)))
      ((edraw-msg "\"transform\" Property") edraw-editor-set-transform-method-transform-property
-      :button (:radio . ,(eq (edraw-get-transform-method obj) 'transform-property)))
+      :button (:toggle . ,(eq (edraw-get-transform-method obj) 'transform-property)))
      ((edraw-msg "Anchor Points") edraw-editor-set-transform-method-anchor-points
-      :button (:radio . ,(eq (edraw-get-transform-method obj) 'anchor-points))))))
+      :button (:toggle . ,(eq (edraw-get-transform-method obj) 'anchor-points))))))
 
 ;;;;; Editor - Main Menu
 
@@ -2932,9 +2933,14 @@ position where the EVENT occurred."
 
 (defun edraw-editor-make-tool-help-echo (tool-id)
   (edraw-editor-make-toolbar-help-echo
-   (edraw-msg (symbol-name tool-id))
+   (edraw-editor-make-tool-title tool-id)
    (edraw-editor-tool-select-function-name tool-id)))
 
+(defun edraw-editor-make-tool-title (tool-id)
+  (let ((fun (intern (format "edraw-editor-tool-%s-title" tool-id))))
+    (if (and fun (fboundp fun))
+        (funcall fun)
+      (edraw-msg (capitalize (symbol-name tool-id))))))
 
 (defun edraw-editor-make-tool (tool-id)
   (funcall (edraw-editor-make-tool-class-name tool-id)))
@@ -3109,7 +3115,10 @@ position where the EVENT occurred."
            (edraw-editor-make-toolbar-help-echo
             (format "%s %s"
                     (edraw-msg (capitalize (symbol-name shape-type)))
-                    (edraw-msg (capitalize (symbol-name prop-name))))
+                    (pcase prop-name
+                      ('fill (edraw-msg "Fill"))
+                      ('stroke (edraw-msg "Stroke"))
+                      (_ (edraw-msg (capitalize (symbol-name prop-name))))))
             key-id)
            nil))))))
 
@@ -3464,10 +3473,14 @@ position where the EVENT occurred."
                                       selected-shapes))
                       (setq actions (edraw-get-actions target-spoint))))
             (edraw-popup-menu
-             (format (edraw-msg "%s Point") ;;"Anchor Point" or "Handle Point"
-                     (capitalize
-                      (symbol-name
-                       (edraw-get-point-type target-spoint))))
+             (let ((point-type (edraw-get-point-type target-spoint)))
+               (pcase point-type
+                 ('anchor (edraw-msg "Anchor Point"))
+                 ('handle (edraw-msg "Handle Point"))
+                 (_ (format (edraw-msg "%s Point")
+                            (capitalize
+                             (symbol-name
+                              point-type))))))
              actions target-spoint)
             t)))
        ;; Shape
@@ -3487,6 +3500,8 @@ position where the EVENT occurred."
 
 
 ;;;;; Tool - Select Tool
+
+(defun edraw-editor-tool-select-title () (edraw-msg "Select Tool"))
 
 (defclass edraw-editor-tool-select (edraw-editor-tool)
   ())
@@ -3550,6 +3565,8 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Rect Tool
 
+(defun edraw-editor-tool-rect-title () (edraw-msg "Rect Tool"))
+
 (defclass edraw-editor-tool-rect (edraw-editor-tool)
   ()
   )
@@ -3608,6 +3625,8 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Ellipse Tool
 
+(defun edraw-editor-tool-ellipse-title () (edraw-msg "Ellipse Tool"))
+
 (defclass edraw-editor-tool-ellipse (edraw-editor-tool)
   ()
   )
@@ -3665,6 +3684,8 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Text Tool
 
+(defun edraw-editor-tool-text-title () (edraw-msg "Text Tool"))
+
 (defclass edraw-editor-tool-text (edraw-editor-tool)
   ()
   )
@@ -3715,6 +3736,8 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Image Tool
 
+(defun edraw-editor-tool-image-title () (edraw-msg "Image Tool"))
+
 (defclass edraw-editor-tool-image (edraw-editor-tool)
   ()
   )
@@ -3755,6 +3778,8 @@ position where the EVENT occurred."
 
 
 ;;;;; Tool - Path Tool
+
+(defun edraw-editor-tool-path-title () (edraw-msg "Path Tool"))
 
 (defclass edraw-editor-tool-path (edraw-editor-tool)
   ((editing-path
@@ -3961,6 +3986,8 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Freehand Tool
 
+(defun edraw-editor-tool-freehand-title () (edraw-msg "Freehand Tool"))
+
 (defclass edraw-editor-tool-freehand (edraw-editor-tool)
   ())
 
@@ -4025,6 +4052,8 @@ position where the EVENT occurred."
 
 
 ;;;;; Tool - Custom Shape Tool
+
+(defun edraw-editor-tool-custom-shape-title () (edraw-msg "Custom Shape Tool"))
 
 (defclass edraw-editor-tool-custom-shape (edraw-editor-tool)
   ((on-picker-notify :initform nil)

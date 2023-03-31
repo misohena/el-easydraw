@@ -26,13 +26,7 @@
 
 (require 'cl-lib)
 (require 'subr-x)
-
-
-;;;; Message Catalog
-
-(defun edraw-msg (msg-id)
-  ;;@todo translate messages
-  msg-id)
+(require 'edraw-msg)
 
 ;;;; Clipboard
 
