@@ -66,9 +66,9 @@
 
 
 (defgroup edraw-faces nil
-  "Faces used by edraw"
-  :prefix "edraw-"
-  :group 'faces)
+  "Faces in Edraw."
+  :tag "Edraw Faces"
+  :group 'edraw)
 
 (defface edraw-widget-button
   '((((type x w32 ns) (class color))
@@ -92,7 +92,8 @@
   :group 'edraw-faces)
 
 (defgroup edraw-property-editor nil
-  "Emacs Easy Draw Property Editor"
+  "Edit object properties in list format."
+  :tag "Edraw Property Editor"
   :prefix "edraw-property-editor-"
   :group 'edraw-editor)
 

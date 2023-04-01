@@ -58,9 +58,10 @@
 ;;;; Customize
 
 (defgroup edraw-org nil
-  "Embed Drawing Editor for Org-mode"
+  "Embeds drawing editors in Org documents."
+  :tag "Edraw Org"
   :prefix "edraw-org-"
-  :group 'multimedia
+  :group 'edraw
   :group 'org)
 
 (defcustom edraw-org-link-compress-data-p t

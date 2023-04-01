@@ -24,6 +24,11 @@
 
 ;;; Code:
 
+(defgroup edraw-msg nil
+  "The language of the message text to display."
+  :tag "Edraw Message Text"
+  :group 'edraw)
+
 (defconst edraw-msg-language-file-alist
   '(("Japanese" . "msg/edraw-msg-ja")))
 
@@ -65,11 +70,11 @@
 
 (defcustom edraw-msg-file 'auto
   "File name of message catalog."
-  :group 'edraw
+  :group 'edraw-msg
   :set 'edraw-msg-file-set ;; (edraw-msg-load) is called immediately!!
   :type '(choice (const :tag "Determine by current-language-environment and edraw-msg-language-file-alist" auto)
                  (const :tag "Disable translation" nil)
-                 (file :tag "A file loaded by load-library")))
+                 (file :tag "File name in load path")))
 
 (provide 'edraw-msg)
 ;;; edraw-msg.el ends here

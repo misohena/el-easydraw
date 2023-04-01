@@ -41,7 +41,8 @@
 ;;;; Customize
 
 (defgroup edraw-shape-picker nil
-  "Emacs Easy Draw Shape Picker"
+  "Quickly select predefined shapes."
+  :tag "Edraw Shape Picker"
   :prefix "edraw-shape-picker-"
   :group 'edraw-editor)
 

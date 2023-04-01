@@ -69,9 +69,10 @@
 ;;;;; Editor - Variables
 
 (defgroup edraw-editor nil
-  "Emacs Easy Draw Editor"
+  "Drawing editor."
+  :tag "Edraw Editor"
   :prefix "edraw-editor-"
-  :group 'multimedia)
+  :group 'edraw)
 
 (defvar edraw-default-document-properties
   '((width . 560)

@@ -28,6 +28,15 @@
 (require 'subr-x)
 (require 'edraw-msg)
 
+;;;; Customize
+
+(defgroup edraw nil
+  "A drawing environment that runs within Emacs."
+  :tag "Edraw"
+  :prefix "edraw-"
+  :group 'multimedia)
+
+
 ;;;; Clipboard
 
 (defvar edraw-clipboard-type-data nil)
