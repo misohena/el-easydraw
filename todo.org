@@ -1,6 +1,17 @@
 
 
 * Inbox
+** TODO 一番最初に選択するツールを変更できるようにしたい
+rectよりもselectの方が間違いが無い。
+カスタマイズ変数を追加するくらい？
+デフォルトもselectの方がいいのでは？
+
+** TODO ドキュメントを内容に合わせてリサイズしたい
+トリミングしたい。内容にフィットするようにリサイズしたい。
+最低限平行移動せずに全て収まるようなサイズに変更したい。
+ドラッグで範囲選択させるという手もある。
+
+** TODO パスツールのSHIFT+クリックで点を追加するときに45度単位にすべき
 ** TODO SHIFT+ドラッグで矩形をリサイズするときの原点を対角点にすべき
 現状はドラッグするアンカーポイントの元の座標が原点になっている。
 しかしその点から45度単位でリサイズするのは何か違和感がある。
@@ -1477,8 +1488,23 @@ CLOSED: [2023-03-28 Tue 21:46]
 最初にSHIFTが押されていれば分かるが、それ以降のmodifierの変化は分からない。
 S-mouse-movementが来たりは *しない* 。現在のキー状態を直接取得する方法も無い。
 read-eventで何かキーが押されたらモードを切り替えるというようなことなら出来る？
-とりあえずS-down-mouse-1、つまりSHIFTを最初に押しているときだけ45度単位移動にする。
+Emacsではこの辺りは難しいので、とりあえずS-down-mouse-1、つまりSHIFTを最初に押しているときだけ45度単位移動にする。
 また、rect, ellipse, image, customツールはSHIFTが押されている場合は正方形に限定する。
+
+45度単位のスナップ。
+
+[[edraw:data=H4sIADrpI2QAA7VWUZPaNhD+KxplppN0jJFWki0nmIfeQ/tAnpP0zcUCPOezb4zugA4/vivZJmBz6XFtmDtWK6H9vt2VP3m2fV6TXZHbTUoVY5RsTLHe2JQKic6zabZFXaWUh5yS/UNZbVO6sfbx43S62+3CnQjrZj0FxtgUA9H5LDerLSnylJq8yXYT5+LsQ9bcm4a05kuLFtHO/6NDxInnwux+q/cpZYQR7v4oaczqK3Lzg29+UDeFqXBD9mRrSra2qe9NSqu6MpSsirJM6bskSegljQmbZE1T75DNY2Y3BNc+s4CHirBA43ccskD9Scl0Ppu2vHDg6M9njVnal2vk2FJy8N8d+mq1GvL6zuWvbHm/buqnKvdg6/OlOj/0/PrtbSpt4DaUYy6ResQWoL3tKzkxFS4+NeX7d6O8P/SMJl0mwsO/AgsBAgRaOCt/MpZMQi6kVBFLdIRGBsBUmAAwzrUWmjO9gJiFOlJKioRxoaSUAecyZHGcaM15xHUCYsiAf2fgcxptCEZhF0PoOA6G/C4zuMzthwRiFXIZcx2BiiMuBQQgZagVaC5iCUKrWCxGU8Fw25vxRwWIhrkpHY0qoGFcpjdTGNYyHrWRX232qC3/YxMGMxCPexCNOhWpWxmYsiwet6bXizxHLViikPhneXnoBo2bcfbQ2lPcaKnwc+Uhc/Em9WO2LKwTpFB5NGv2lqzqyk5W2UNR4sq3J/J7bTfFkrbz2+JvjMuBEvfbSVYtN3WT0q3NGntSNQDwOse58KoHsaLzQ2qz6j1AqHKz/vDrfjZ1EW7A1APMhyLPS3MJ6sCSVmQ5Fnv+01Dw1HkUwTCzm0GG5XspFaU9SKxd+U65nKnj2WH5sVxiVQIO7E5wb4n3I0a8H7G7cx8vab8O7gY7fwpwwun7nbMCf9Tpvbfo35186NbB+7ee+VeXUf77KcQqCugPBPbqeDiSX0r7iVwcxuP+eHMPh+AvHpQWXeCGOeI48Evsw/FKY1/sI5aYS7zPnVXRm+5YeO0dC9IflgUADzjj/wGslzEnXSB76YJOusDJj9MuP+gKyPxn+HZ0Fuvq61y/ywOdNFJeBXIvcGv8x/fR+T/iN+hE3goAAA==]]
+
+まずはx軸にスナップすることを考える。x軸から+-22.5度の範囲はx軸にスナップする。つまり、 ~abs(y) < tan(22.5deg)*abs(x)~ ならx軸にスナップする。そのときy座標は0とし、x座標だけ残せば良い。
+
+y軸にスナップするときも同じようにすれば良い。
+
+45度の線にスナップするのは、上の条件に合致しなかった場合。xとyの負号だけを取った方向の線にスナップする。
+
+クリック座標(x,y)から一番近い45度線上の点へスナップしなければならない。
+
+[[edraw:data=H4sIAL/2I2QAA71WXZOaMBT9K5nri05BkoCIHfGhfWgfts/t9o1K+BiR7IQo2l/ffEBl6+7UjmUH4ebDnHNuci66bo45astUFjH4GAMqWJkXMgYaqs6RiabkdQxkTgCd9lXdxFBI+fTe89q2nbf+nIvcoxhjTwHBZp2yrEFlGgNLRdK6uqtG94nYMYFs+GrZQuj6nztGNXAsWfuBn2LACCOiP4AEy77FsDCNR9PgomS1WpAcJAfUSMF3LIaa1wxQVlZVDJNwEW6zFTxX4mI3EYK3StBTIguk5r5gh8wXCDuRei7n2Fl8B+Rt1p6Vpho6g81asK18fZu0YEBn8+wEZFn2p7SLlh/JdpcLfqhTQ5YPp3h67vX1yyer1aoHtlBaeYAdte8P1MaezO1FGuQbYEK1nOIHHf4O0k8EL8tROOp2AnxJfbLE+voHII1AFBKJfCfye5O4rFaTB1FNJ1fnORvQ9Qd/W/KGa2VVU3KVP70VhwQWR8d7cBY29aUJ96AEBiR4BUOyk0QZr6WbJfuyUsZ9PKBPXBblFux4U/5U8CQCpL/rJvW24CKGfZmm1aXKKKXG/CSw9qc+hg1de3rN/2ehdMASjMXSpaL3f7xUOpJgmMgtNos6m0V32hV3OPh+u4bWruFdKJEBid7KrtHASP5YZ0zwgIWMbdfwDUiiMbeLDgtvGjh0NtrBhJZpqYl8x589q8CrWlG/jOooTc0pbR+7iCg24318wbkX12f6GsfK4eVNMj29O8+83+8sL1e3+lO2+QWRRQVS4wkAAA==]]
+
 ** DONE 日本語に翻訳する
 CLOSED: [2023-04-01 Sat 00:06]
 地味によく分からないのが言語、国をどのように割り出すか。
@@ -1532,9 +1558,10 @@ tutorialファイルの拡張子から取ってみてはどうか。
 ("Japanese" . "ja") => edraw-msg-ja.el
 もちろん言語ファイル名を設定で直接指定出来るようにする。
 
-current-language-environmentの変化を監視するかどうかは微妙。
+current-language-environmentの変化を監視するかどうかは微妙。一応set-language-environment-hookでできるけど。とりあえずやらないでおく。起動した後に切り替える人なんて少ないからね。
 
 後の課題はメッセージを収集する方法。gettextユーティリティのようなものが欲しい。
+elファイルからメッセージを収集してメッセージカタログを更新するコマンドが必要。メッセージ使用箇所へジャンプするコマンドも欲しい。
 ** DONE プロパティエディタをフレーム化したときに図形が作れないのを直す
 CLOSED: [2023-04-01 Sat 10:25]
 フレーム化していると矩形ツールや楕円ツールで図形が作れない。
@@ -1543,3 +1570,8 @@ CLOSED: [2023-04-01 Sat 10:25]
 CLOSED: [2023-04-01 Sat 10:24]
 - 何個中何番目の図形かを表示する(図形の時のみ)。
 - 前、次ボタンを適切にdisable(:deactivate)する。ボタンの位置を動かないところにする。
+** DONE M-矢印キーは複製にしたい
+CLOSED: [2023-04-01 Sat 22:53]
+連続するM-矢印キーも一つ一つ複製してから移動する。
+M-S-は10ピクセル単位の複製移動。
+数値入力は「C-u 数値 矢印キー」で既に出来る。単体の「C-u 矢印キー」の時にプロンプトを出す(現在は4ピクセル移動)。
