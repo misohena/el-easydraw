@@ -4719,6 +4719,9 @@ position where the EVENT occurred."
 
 ;;;;;; Z Order (Sibling Relationship)
 
+(cl-defmethod edraw-node-siblings-count ((shape edraw-shape))
+  (length (dom-children (edraw-parent-element shape))))
+
 (cl-defmethod edraw-node-position ((shape edraw-shape))
   (seq-position
    (dom-children (edraw-parent-element shape))

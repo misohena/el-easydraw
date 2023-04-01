@@ -32,6 +32,8 @@
 (require 'edraw-color-picker)
 (require 'edraw-editor-util)
 
+(declare-function edraw-node-position "edraw")
+(declare-function edraw-node-siblings-count "edraw")
 
 ;;;; Property Editor Target
 
@@ -186,21 +188,22 @@ editor when the selected shape changes."
          ;; Get property editor object
          (pedit (or (with-current-buffer buffer edraw-property-editor--pedit)
                     (edraw-property-editor-create-object buffer))))
-    (with-current-buffer buffer
-      ;; Release current target
-      (edraw-unobserve-target pedit)
+    (unless (eq target (oref pedit target))
+      (with-current-buffer buffer
+        ;; Release current target
+        (edraw-unobserve-target pedit)
 
-      ;; Activating major mode does following:
-      ;; - Call (kill-all-local-variables)
-      ;; - Call (use-local-map edraw-property-editor-mode-map)
-      ;;@todo need every time?
-      (edraw-property-editor-mode)
+        ;; Activating major mode does following:
+        ;; - Call (kill-all-local-variables)
+        ;; - Call (use-local-map edraw-property-editor-mode-map)
+        ;;@todo need every time?
+        (edraw-property-editor-mode)
 
-      (setq-local edraw-property-editor--pedit pedit)
-      (edraw-observe-target pedit target))
+        (setq-local edraw-property-editor--pedit pedit)
+        (edraw-observe-target pedit target))
 
-    ;; Open window or frame
-    (edraw-display-buffer pedit)))
+      ;; Open window or frame
+      (edraw-display-buffer pedit))))
 
 (defun edraw-property-editor-create-object (buffer)
   (edraw-property-editor
@@ -253,34 +256,56 @@ editor when the selected shape changes."
     (setq-local widget-button-pressed-face 'edraw-widget-button-pressed)
     (setq-local widget-mouse-face 'edraw-widget-button-mouse)
 
+    ;; Title
     (if target
         (widget-insert (format (edraw-msg "Properties of %s")
                                (or (edraw-name target) ""))
                        "\n")
       (widget-insert (edraw-msg "No target object") "\n\n"))
 
+    ;; Prev / Next
+    (when (edraw-property-editor-target-shape-p target)
+      ;;(widget-insert (make-string 2 ? ))
+      (let* ((shape-index (edraw-property-editor--shape-index))
+             (num-shapes (edraw-property-editor--num-shapes))
+             (num-shapes-digits (if (< num-shapes 10)
+                                    1
+                                  (1+ (floor (log num-shapes 10)))))
+             prev next)
+        (setq prev
+              (widget-create 'push-button
+                             :notify 'edraw-property-editor--prev
+                             :keymap edraw-property-editor-push-button-map
+                             (edraw-msg "Prev")))
+        (when (<= shape-index 0)
+          (widget-apply prev :deactivate))
+        (widget-insert " "
+                       (format (format "%%%dd/%%%dd"
+                                       num-shapes-digits
+                                       num-shapes-digits)
+                               (1+ shape-index) num-shapes)
+                       " ")
+        (setq next
+              (widget-create 'push-button
+                             :notify 'edraw-property-editor--next
+                             :keymap edraw-property-editor-push-button-map
+                             (edraw-msg "Next")))
+        (when (>= shape-index (1- num-shapes))
+          (widget-apply next :deactivate)))
+      (widget-insert "\n"))
+
+    ;; Properties
     (when target
       (edraw-insert-property-widgets pedit))
 
+    ;; Bottom
     (widget-insert (make-string 2 ? ))
-
     (when target
-      (when (edraw-property-editor-target-shape-p target)
-        (widget-create 'push-button
-                       :notify 'edraw-property-editor--prev
-                       :keymap edraw-property-editor-push-button-map
-                       (edraw-msg "Prev"))
-        (widget-insert " ")
-        (widget-create 'push-button
-                       :notify 'edraw-property-editor--next
-                       :keymap edraw-property-editor-push-button-map
-                       (edraw-msg "Next"))
-        (widget-insert " ")
-        (widget-create 'push-button
-                       :notify 'edraw-property-editor--set-as-default
-                       :keymap edraw-property-editor-push-button-map
-                       (edraw-msg "Set as default"))
-        (widget-insert " "))
+      (widget-create 'push-button
+                     :notify 'edraw-property-editor--set-as-default
+                     :keymap edraw-property-editor-push-button-map
+                     (edraw-msg "Set as default"))
+      (widget-insert " ")
 
       (unless edraw-property-editor-apply-immediately
         (widget-create 'push-button :notify 'edraw-property-editor--apply
@@ -293,6 +318,7 @@ editor when the selected shape changes."
     (widget-create 'push-button :notify 'edraw-property-editor--menu
                    (edraw-msg "Menu"))
     (widget-insert "\n")
+
     (widget-insert "\n")
 
     (widget-setup)
@@ -741,6 +767,18 @@ editor when the selected shape changes."
   (interactive)
   (edraw-property-editor--with-event-buffer
    (edraw-apply-properties edraw-property-editor--pedit)))
+
+(defun edraw-property-editor--shape-index ()
+  (when-let ((pedit edraw-property-editor--pedit))
+    (with-slots (target) pedit
+      (when (edraw-property-editor-target-shape-p target)
+        (edraw-node-position target)))))
+
+(defun edraw-property-editor--num-shapes ()
+  (when-let ((pedit edraw-property-editor--pedit))
+    (with-slots (target) pedit
+      (when (edraw-property-editor-target-shape-p target)
+        (edraw-node-siblings-count target)))))
 
 (defun edraw-property-editor--prevnext (prev-or-next-func)
   (when-let ((pedit edraw-property-editor--pedit))
