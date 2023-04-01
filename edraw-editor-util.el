@@ -115,10 +115,9 @@
   (with-slots (frame window buffer frame-mode-line-p) bd
     (if (frame-live-p frame)
         ;; Use existing frame
-        (progn
-          (select-frame frame)
-          (delete-other-windows)
-          (setq window (selected-window)))
+        (let ((fwindow (frame-selected-window frame)))
+          (delete-other-windows fwindow)
+          (setq window fwindow))
       ;; Create new frame
       (setq frame (make-frame (edraw-make-frame-parameters bd)))
       (setq window (frame-root-window frame))
