@@ -346,7 +346,8 @@ line-prefix and wrap-prefix are used in org-indent.")
   (edraw-update-image editor)
 
   (edraw-update-toolbar editor)
-  (edraw-select-tool editor (edraw-editor-make-tool 'rect))
+  (defvar edraw-editor-default-tool) ;;defcustom
+  (edraw-select-tool editor (edraw-editor-make-tool edraw-editor-default-tool))
   ;; Return editor
   editor)
 
@@ -2759,7 +2760,14 @@ position where the EVENT occurred."
 
 ;;;;; Editor - Toolbar
 
-(defvar edraw-editor-tool-list '(select rect ellipse path freehand text image custom-shape))
+(defvar edraw-editor-tool-list
+  '(select rect ellipse path freehand text image custom-shape))
+
+(defcustom edraw-editor-default-tool 'select
+  "The first tool selected when opening the editor."
+  :type `(choice ,(mapcar (lambda (x) `(const ,x)) edraw-editor-tool-list))
+  :group 'edraw-editor)
+
 (defvar edraw-editor-tool-map nil)
 
 (defconst edraw-editor-toolbar-button-w 30)
