@@ -3940,8 +3940,13 @@ position where the EVENT occurred."
                 (edraw-select-shape editor editing-path)))
 
           (let* ((shift-p (memq 'shift (event-modifiers down-event)))
+                 (last-anchor (edraw-get-last-anchor-point editing-path))
+                 (last-xy (when last-anchor (edraw-get-xy last-anchor)))
+                 (new-xy (if (and shift-p last-xy)
+                             (edraw-xy-snap-to-45deg down-xy last-xy)
+                           down-xy))
                  ;; Add a new point
-                 (anchor-point (edraw-add-anchor-point editing-path down-xy)) ;;notify modification
+                 (anchor-point (edraw-add-anchor-point editing-path new-xy)) ;;notify modification
                  dragging-point)
 
             ;; Select last anchor point
@@ -3954,7 +3959,7 @@ position where the EVENT occurred."
                (let* ((move-xy
                        (edraw-mouse-event-to-xy-snapped editor move-event)))
                  (when shift-p
-                   (setq move-xy (edraw-xy-snap-to-45deg move-xy down-xy)))
+                   (setq move-xy (edraw-xy-snap-to-45deg move-xy new-xy)))
 
                  (unless dragging-point
                    (setq dragging-point
