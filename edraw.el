@@ -1993,7 +1993,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (let (quit)
     (while (not quit)
       (let ((event (read-event
-                    (edraw-msg "drag:Scroll wheel:Zoom 0:reset q/r-click:quit"))))
+                    (edraw-msg "drag:Scroll, wheel:Zoom, 0:reset, q/r-click:quit"))))
         (cond
          ;; Drag and scroll
          ((eq (car-safe event) 'down-mouse-1)

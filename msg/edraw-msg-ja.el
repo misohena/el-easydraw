@@ -238,7 +238,7 @@
      "Zoom Out" "ズームアウト"
      "\"transform\" Property" "\"transform\"プロパティ"
      "all, none, property names separated by spaces, or empty: " "all, none, 空白区切りのプロパティ名列, or 空: "
-     "drag:Scroll wheel:Zoom 0:reset q/r-click:quit" "ドラッグ:スクロール ホイール:ズーム 0:リセット q/右クリック:終了"
+     "drag:Scroll, wheel:Zoom, 0:reset, q/r-click:quit" "ドラッグ:スクロール, ホイール:ズーム, 0:リセット, q/右クリック:終了"
      ;; [END MSG DATA]
      )))
 
