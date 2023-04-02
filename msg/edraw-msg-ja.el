@@ -239,7 +239,7 @@
      "View" "表示"
      "Write edraw file: " "出力edrawファイル: "
      "Yes" "はい"
-     "Z-Order" "奥行き順序"
+     "Z-Order" "重ね順"
      "Zoom In" "ズームイン"
      "Zoom Out" "ズームアウト"
      "\"transform\" Property" "\"transform\"プロパティ"
