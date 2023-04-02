@@ -196,6 +196,7 @@ When nil, disable auto view enlargement."
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
     (define-key km "db" 'edraw-editor-set-background)
     (define-key km "dr" 'edraw-editor-set-size)
+    (define-key km "dc" 'edraw-editor-crop)
     (define-key km "dtt" 'edraw-editor-translate-all-shapes)
     (define-key km "dts" 'edraw-editor-scale-all-shapes)
     (define-key km "dtr" 'edraw-editor-rotate-all-shapes)
@@ -929,6 +930,44 @@ For use with `edraw-editor-with-temp-undo-list',
         (edraw-invalidate-ui-parts editor 'all) ;; Update <svg width= height=> etc...
         (edraw-on-document-changed editor 'document-size)))))
 
+;;;;;; Editor - Document - Crop
+
+(edraw-editor-defcmd edraw-crop ((editor edraw-editor) rect)
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          rect)
+     (while (null rect)
+       (let ((event (read-event
+                     (edraw-msg "Drag the cropping range."))))
+         (cond
+          ((eq (car-safe event) 'down-mouse-1)
+           (setq rect (edraw-read-rectangle editor event t))) ;;snap
+          ((or (eq (car-safe event) 'mouse-3)
+               (eq event ?q)
+               (eq event ? ))
+           (signal 'quit nil))
+          ;; Scroll and Zoom
+          ((eq (car-safe event) 'down-mouse-2)
+           (edraw-editor-scroll-by-dragging event))
+          ((eq (car-safe event) mouse-wheel-down-event)
+           (edraw-zoom-in editor))
+          ((eq (car-safe event) mouse-wheel-up-event)
+           (edraw-zoom-out editor))
+          ((eq event ?0)
+           (edraw-reset-scroll-and-zoom editor))
+          ((memq (event-basic-type event) '(left up right down))
+           (edraw-editor-scroll-by-arrow-key editor)
+           ))))
+     (list editor rect)))
+
+  (when (edraw-rect-empty-p rect)
+    (error (edraw-msg "The crop range is empty.")))
+
+  (edraw-make-undo-group editor 'document-crop
+    (unless (edraw-xy-zero-p (edraw-rect-lt rect))
+      (edraw-translate-all-shapes editor (edraw-xy-neg (edraw-rect-lt rect))))
+    (edraw-set-size editor (edraw-rect-width rect) (edraw-rect-height rect))))
+
 ;;;;;; Editor - Document - View Box
 
 (edraw-editor-defcmd edraw-set-view-box ((editor edraw-editor) new-value)
@@ -1225,6 +1264,7 @@ For use with `edraw-editor-with-temp-undo-list',
    `(((edraw-msg "Document")
       (((edraw-msg "Set Background...") edraw-editor-set-background)
        ((edraw-msg "Resize...") edraw-editor-set-size)
+       ((edraw-msg "Crop...") edraw-editor-crop)
        ((edraw-msg "View Box...") edraw-editor-set-view-box)
        ((edraw-msg "Transform")
         (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
@@ -2585,6 +2625,7 @@ For use with `edraw-editor-with-temp-undo-list',
       `(((edraw-msg "Document")
          (((edraw-msg "Set Background...") edraw-editor-set-background)
           ((edraw-msg "Resize...") edraw-editor-set-size)
+          ((edraw-msg "Crop...") edraw-editor-crop)
           ((edraw-msg "View Box...") edraw-editor-set-view-box)
           ((edraw-msg "Transform")
            (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)

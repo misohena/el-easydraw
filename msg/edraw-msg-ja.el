@@ -32,6 +32,9 @@
     test equal
     data
     (
+     ;; (load-library (expand-file-name "./edraw-msg-tools.el"))
+     ;; (edraw-msg-update-catalog-buffer)
+     ;; M-x edraw-msg-search at point
      ;; [BEGIN MSG DATA]
      "%s Point" "%sポイント"
      "%s Selected Shapes" "%s個の選択図形"
@@ -66,6 +69,7 @@
      "Copied %s" "%sをコピーしました"
      "Copy Contents" "内容をコピー"
      "Copy" "コピー"
+     "Crop..." "切り抜き..."
      "Custom Shape Tool" "カスタムシェイプツール"
      "Custom shapes have unsaved changes." "カスタムシェイプに未保存の変更があります"
      "Cut %s entries" "%s項目をカットしました"
@@ -83,6 +87,7 @@
      "Document Height: " "ドキュメント高さ: "
      "Document Width: " "ドキュメント幅: "
      "Document" "ドキュメント"
+     "Drag the cropping range." "切り抜き範囲をドラッグで指定してください。"
      "Duplicate" "複製"
      "Edit" "編集"
      "Edraw editor has unsaved changes. Discard changes ?" "エディタには未保存の変更があります。変更を破棄しますか?"
@@ -210,6 +215,7 @@
      "Text" "テキスト"
      "Text: " "テキスト: "
      "The buffer has been killed" "バッファが既に削除されています"
+     "The crop range is empty." "切り抜き範囲が空です。"
      "The extension is not .edraw.svg" "拡張子が .edraw.svg ではありません"
      "The link at point is not of type `file:'" "ポイントにあるリンクが `file:' タイプではありません"
      "The root entry cannot be deleted" "ルート項目は削除できません"
