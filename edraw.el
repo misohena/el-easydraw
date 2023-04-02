@@ -2296,9 +2296,15 @@ For use with `edraw-editor-with-temp-undo-list',
                   ('up (edraw-xy 0 (- d)))
                   ('down (edraw-xy 0 d))
                   (_ (edraw-xy 0 0)))))
-        (when (memq 'meta mods)
-          (edraw-duplicate-selected-shapes editor))
-        (edraw-translate-selected editor v)))))
+        (if (and (memq 'meta mods)
+                 ;; Do not duplicate anchor or handle
+                 (null (edraw-selected-anchor editor))
+                 (null (edraw-selected-handle editor)))
+            (edraw-make-undo-group editor
+                'selected-shapes-duplicate-and-translate
+              (edraw-duplicate-selected-shapes editor)
+              (edraw-translate-selected editor v))
+          (edraw-translate-selected editor v))))))
 
 (edraw-editor-defcmd edraw-translate-selected ((editor edraw-editor) xy)
   (interactive
