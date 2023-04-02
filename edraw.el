@@ -6245,10 +6245,17 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   nil)
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-rect-boundary))
   (edraw-get-anchor-position (oref spt shape) spt))
-(cl-defmethod edraw-move ((spt edraw-shape-point-rect-boundary) xy)
-  (edraw-set-anchor-position (oref spt shape) spt xy))
+(cl-defmethod edraw-move ((spt edraw-shape-point-rect-boundary) &optional xy)
+  (edraw-set-anchor-position (oref spt shape) spt
+                             (or xy (edraw-read-shape-point-xy spt))))
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-rect-boundary) spt2)
   (eq spt1 spt2))
+
+(defun edraw-read-shape-point-xy (spt)
+  (let ((xy (edraw-get-xy spt)))
+    (edraw-xy
+     (read-number (edraw-msg "X: ") (edraw-x xy))
+     (read-number (edraw-msg "Y: ") (edraw-y xy)))))
 
 ;;;;; Shape Point - Text
 
@@ -6262,8 +6269,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   nil)
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-text))
   (edraw-get-anchor-position (oref spt shape)))
-(cl-defmethod edraw-move ((spt edraw-shape-point-text) xy)
-  (edraw-set-anchor-position (oref spt shape) xy))
+(cl-defmethod edraw-move ((spt edraw-shape-point-text) &optional xy)
+  (edraw-set-anchor-position (oref spt shape)
+                             (or xy (edraw-read-shape-point-xy spt))))
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-text) spt2)
   (eq spt1 spt2))
 
@@ -6358,7 +6366,9 @@ transformations."
                            opposite-index-old-xy))
              (list #'edraw-move-nth-point shape index old-xy))))))))
 
-(cl-defmethod edraw-move ((spt edraw-shape-point-path) xy)
+(cl-defmethod edraw-move ((spt edraw-shape-point-path) &optional xy)
+  (unless xy
+    (setq xy (edraw-read-shape-point-xy spt)))
   (with-slots (ppoint shape) spt
     (let ((old-xy (edraw-xy-clone (edraw-path-point-xy ppoint))))
       (unless (edraw-xy-equal-p xy old-xy)
@@ -6463,9 +6473,14 @@ transformations."
           ((edraw-msg "Split Path at Point") edraw-split-path-at)
           ((edraw-msg "Insert Point Before") edraw-insert-point-before
            :enable ,(not (null (edraw-path-point-prev-anchor ppoint))))
+          ((edraw-msg "Move by Coordinates...") edraw-move)
           ((edraw-msg "Make Smooth") edraw-make-smooth)
           ((edraw-msg "Make Corner") edraw-make-corner
-           :enable ,(or backward-handle forward-handle))))))))
+           :enable ,(or backward-handle forward-handle))))
+       ((edraw-path-point-handle-p ppoint)
+        `(((edraw-msg "Delete Point") edraw-delete-point)
+          ((edraw-msg "Move by Coordinates...") edraw-move)
+          ))))))
 
 (cl-defmethod edraw-delete-point ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
