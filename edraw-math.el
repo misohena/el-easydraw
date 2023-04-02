@@ -379,10 +379,16 @@
      (< (cdar rect1) (cddr rect2))
      (> (cddr rect1) (cdar rect2)))))
 
+(defsubst edraw-rect-cx (rect)
+  (* 0.5 (+ (caar rect) (cadr rect))))
+
+(defsubst edraw-rect-cy (rect)
+  (* 0.5 (+ (cdar rect) (cddr rect))))
+
 (defun edraw-rect-center (rect)
   (cons
-   (* 0.5 (+ (caar rect) (cadr rect)))
-   (* 0.5 (+ (cdar rect) (cddr rect)))))
+   (edraw-rect-cx rect)
+   (edraw-rect-cy rect)))
 
 
 (defun edraw-rect-empty-p (rect)

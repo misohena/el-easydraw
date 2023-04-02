@@ -2303,8 +2303,26 @@ For use with `edraw-editor-with-temp-undo-list',
             (edraw-make-undo-group editor
                 'selected-shapes-duplicate-and-translate
               (edraw-duplicate-selected-shapes editor)
-              (edraw-translate-selected editor v))
-          (edraw-translate-selected editor v))))))
+              (edraw-translate-selected editor v)
+              (edraw-display-selected-object-coordinates editor))
+          (edraw-translate-selected editor v)
+          (edraw-display-selected-object-coordinates editor))))))
+
+(cl-defmethod edraw-display-selected-object-coordinates ((editor edraw-editor))
+  (with-slots (selected-shapes selected-anchor selected-handle) editor
+    (cond
+     ((or selected-handle selected-anchor)
+      (let ((xy (edraw-get-xy (or selected-handle selected-anchor))))
+        (message "X:%s Y:%s" (edraw-x xy) (edraw-y xy))))
+     (selected-shapes
+      (let ((rect (edraw-shape-aabb selected-shapes)))
+        (message "L:%s T:%s R:%s B:%s CX:%s CY:%s"
+                 (edraw-rect-left rect)
+                 (edraw-rect-top rect)
+                 (edraw-rect-right rect)
+                 (edraw-rect-bottom rect)
+                 (edraw-rect-cx rect)
+                 (edraw-rect-cy rect)))))))
 
 (edraw-editor-defcmd edraw-translate-selected ((editor edraw-editor) xy)
   (interactive
@@ -3249,7 +3267,8 @@ position where the EVENT occurred."
              (edraw-move-with-opposite-handle-on-transformed handle move-xy))))
         (unless move-xy
           ;; Click handle point
-          (edraw-select-handle editor handle)))
+          (edraw-select-handle editor handle)
+          (edraw-display-selected-object-coordinates editor)))
       t)))
 
 (cl-defmethod edraw-mouse-down-anchor-point ((editor edraw-editor)
@@ -3276,7 +3295,8 @@ position where the EVENT occurred."
             ;; Fix position
             (edraw-move-on-transformed anchor move-xy) ;;notify modification
           ;; Click the anchor point if the mouse does not move
-          (edraw-select-anchor editor anchor)))
+          (edraw-select-anchor editor anchor)
+          (edraw-display-selected-object-coordinates editor)))
       t)))
 
 (cl-defmethod edraw-mouse-down-shape ((editor edraw-editor) down-event)
@@ -4006,6 +4026,7 @@ position where the EVENT occurred."
 
             ;; Select last anchor point
             (edraw-select-anchor editor anchor-point)
+            (edraw-display-selected-object-coordinates editor)
 
             ;; Drag handle points of the new point
             (edraw-track-dragging
