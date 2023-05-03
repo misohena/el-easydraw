@@ -4492,6 +4492,9 @@ position where the EVENT occurred."
   ((_target edraw-shape))
   t) ;;see: edraw-property-editor.el
 
+(cl-defgeneric edraw-shape-type (shape) ;; Must be implement in derived classes
+  "Return a symbol representing the type of SHAPE.")
+
 ;;;;;; Internal
 
 (cl-defmethod edraw-element ((shape edraw-shape))
@@ -5287,13 +5290,23 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                           'transform
                           (edraw-svg-transform-from-matrix mat)))))
 
+;;;;;; Anchor Point
 
+(cl-defgeneric edraw-get-anchor-points (object) ;; Must be implement in derived classes
+  "Return a list of anchor points that OBJECT has.")
 
-;;;;;; Implemented in Derived Classes
-;;(cl-defmethod edraw-get-anchor-points ((shape edraw-shape-*)) )
+(cl-defgeneric edraw-get-anchor-point-count (object)
+  "Return (length (edraw-get-anchor-points OBJECT)).
 
-(cl-defgeneric edraw-shape-type (shape) ;;(shape edraw-shape-*)
-  "Return a symbol representing the type of SHAPE.")
+Some classes have efficient implementations."
+  (length (edraw-get-anchor-points object)))
+
+(cl-defgeneric edraw-get-nth-anchor-point (object index)
+  "Return (nth INDEX (edraw-get-anchor-points OBJECT)).
+
+Some classes have efficient implementations."
+  (nth index (edraw-get-anchor-points object)))
+
 
 
 ;;;;; Shape - Rect Boundary
@@ -5312,6 +5325,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (setq p0p1 (edraw-get-rect-local shape))
       (setq anchor-points
             (list
+             ;; Check `edraw-get-anchor-point-count' when changing
              ;; Corners
              (edraw-shape-point-rect-boundary :shape shape :ref-x 0 :ref-y 0)
              (edraw-shape-point-rect-boundary :shape shape :ref-x 1 :ref-y 0)
@@ -5324,6 +5338,12 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
              (edraw-shape-point-rect-boundary :shape shape :ref-x nil :ref-y 1)
              )))
     anchor-points))
+
+(cl-defmethod edraw-get-anchor-point-count ((_shape edraw-shape-with-rect-boundary))
+  ;; (edraw-make-anchor-points-from-element shape)
+  ;; (with-slots (anchor-points) shape
+  ;;   (length anchor-points))
+  8) ;; !!!!!
 
 (cl-defmethod edraw-get-anchor-points ((shape edraw-shape-with-rect-boundary))
   (edraw-make-anchor-points-from-element shape)
@@ -5651,7 +5671,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (let ((shape (edraw-shape-text)))
     (oset shape element element)
     (oset shape editor editor)
-    (oset shape anchor-points (list (edraw-shape-point-text :shape shape)))
+    (oset shape anchor-points (list (edraw-shape-point-text :shape shape))) ;; Check `edraw-get-anchor-point-count' when changing
     shape))
 
 (defclass edraw-shape-text (edraw-shape)
@@ -5662,6 +5682,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-get-anchor-points ((shape edraw-shape-text))
   (oref shape anchor-points))
+
+(cl-defmethod edraw-get-anchor-point-count ((_shape edraw-shape-text))
+  1) ;; !!!!!
 
 (cl-defmethod edraw-get-anchor-position ((shape edraw-shape-text))
   (with-slots (element) shape
@@ -5889,6 +5912,10 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                 points)))
       (nreverse points))))
 
+(cl-defmethod edraw-get-anchor-point-count ((shape edraw-shape-path))
+  (with-slots (cmdlist) shape
+    (edraw-path-cmdlist-anchor-point-count cmdlist)))
+
 (cl-defmethod edraw-pick-point ((shape edraw-shape-path) xy)
   (with-slots (cmdlist) shape
     (let ((scale (if-let ((editor (oref shape editor)))
@@ -5910,6 +5937,13 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-get-nth-point ((shape edraw-shape-path) index)
   (with-slots (cmdlist) shape
     (when-let (ppoint (edraw-path-cmdlist-nth-point cmdlist index))
+      (edraw-shape-point-path
+       :shape shape
+       :ppoint ppoint))))
+
+(cl-defmethod edraw-get-nth-anchor-point ((shape edraw-shape-path) index)
+  (with-slots (cmdlist) shape
+    (when-let ((ppoint (edraw-path-cmdlist-nth-anchor-point cmdlist index)))
       (edraw-shape-point-path
        :shape shape
        :ppoint ppoint))))

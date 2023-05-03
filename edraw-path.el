@@ -555,6 +555,27 @@ The CMDLIST will be empty after calling this function. "
     (edraw-path-cmd-prev-anchor-point
      (edraw-path-cmdlist-end cmdlist))))
 
+(defun edraw-path-cmdlist-nth-anchor-point (cmdlist index)
+  (when (>= index 0)
+    (let (result
+          (cmd (edraw-path-cmdlist-begin cmdlist))
+          (end (edraw-path-cmdlist-end cmdlist)))
+      (while (and (not (eq cmd end))
+                  (null result))
+        (when-let ((anchor-point (edraw-path-cmd-anchor-point cmd nil)))
+          (if (= index 0)
+              (setq result anchor-point)
+            (cl-decf index)))
+        (setq cmd (edraw-path-cmd--next cmd)))
+      result)))
+
+(defun edraw-path-cmdlist-anchor-point-count (cmdlist)
+  (let ((count 0))
+    (edraw-path-cmdlist-loop cmdlist cmd
+      (when (edraw-path-cmd-anchor-point-arg-index cmd nil)
+        (cl-incf count)))
+    count))
+
 ;;;;;; cmdlist - String Conversion
 
 (defun edraw-path-cmdlist-to-string (cmdlist)
