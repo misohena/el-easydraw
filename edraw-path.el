@@ -2227,7 +2227,8 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      ((eq
        (< (edraw-xy-perpdot
            (edraw-xy-sub p3 p0)
-           (edraw-xy-sub pt p0)) 0) ;; pt is left of vector p0 to p3 ?
+           (edraw-xy-sub pt p0))
+          0) ;; pt is left of vector p0 to p3 ?
        (< p3y p0y)) ;; vector p0 to p3 is up dir?
       0) ;;NG: The straight line is right side of PT
      (t
@@ -2313,10 +2314,12 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      ((> (abs (edraw-xy-perpdot v32 v03)) allowable-perpdot) nil) ;;p2 is far from v03
      ((not (< (- allowable-dot)
               (edraw-xy-dot v03 v01)
-              (+ (* d03 d03) allowable-dot))) nil) ;;p1 is before p0 or after p3
+              (+ (* d03 d03) allowable-dot)))
+      nil) ;;p1 is before p0 or after p3
      ((not (< (- allowable-dot)
               (- (edraw-xy-dot v03 v32))
-              (+ (* d03 d03) allowable-dot))) nil) ;;p2 is before p0 or after p3
+              (+ (* d03 d03) allowable-dot)))
+      nil) ;;p2 is before p0 or after p3
      (t t))))
 ;; TEST: (edraw-path-bezier-seg-straight-p [(10 . 10) (12 . 10) (18 . 10) (20 . 10)]) => t
 
@@ -2374,7 +2377,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
    edraw-path-d-wsp "?"))
 
 (defun edraw-path-d-parse (d)
-  "Return (type . list of number)"
+  "Parse path data D and return a list of (command type . a list of number)."
   (let ((pos 0)
         commands)
     (while (string-match edraw-path-d-command d pos)
