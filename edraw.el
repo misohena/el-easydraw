@@ -4382,7 +4382,7 @@ position where the EVENT occurred."
 
 (defun edraw-shape-type-from-element (element)
   "Return a symbol that represents the shape type of the SVG ELEMENT."
-  (or (dom-attr element :data-edraw-type) ;;<?? data-edraw-type="type" ...>
+  (or (dom-attr element 'data-edraw-type) ;;<?? data-edraw-type="type" ...>
       (dom-tag element))) ;;<type ...>
 
 (defun edraw-shape-from-element-create (element editor)
