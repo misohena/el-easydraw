@@ -375,9 +375,32 @@ editor when the selected shape changes."
      :widget widget
      :prop-info prop-info)))
 
+(defvar edraw-property-editor-prop-widget--notification-suppressed nil)
+
+(defun edraw-property-editor-prop-widget-value-set-without-notify
+    (widget new-w-value)
+  "Same as widget-value-set, but suppresses widget change notifications."
+  (let ((edraw-property-editor-prop-widget--notification-suppressed t))
+    (widget-value-set widget new-w-value)))
+
+(defun edraw-property-editor-prop-widget-value-set (widget new-w-value)
+  "Same as widget-value-set, but suppresses property update
+once. widget-value-set updates the same property four times."
+  ;; Change widget text without notification
+  (edraw-property-editor-prop-widget-value-set-without-notify
+   widget new-w-value)
+  ;; Notify only once
+  (widget-apply widget :notify widget nil));;event=nil
+
 (defun edraw-property-editor-prop-widget-create-updator (target prop-info)
   (lambda (widget _changed-widget &optional _event)
-    (when edraw-property-editor-apply-immediately
+    ;; Called 4 times per widget-value-set call.
+    ;; 1. delete chars (event=(before-change BEG END))
+    ;; 2. delete chars (event=(after-change BEG END))
+    ;; 3. insert chars (event=(before-change BEG END))
+    ;; 4. insert chars (event=(after-change BEG END))
+    (when (and edraw-property-editor-apply-immediately
+               (not edraw-property-editor-prop-widget--notification-suppressed))
       (edraw-set-property
        target
        (plist-get prop-info :name)
@@ -524,8 +547,9 @@ editor when the selected shape changes."
     (setq value (edraw-clamp value min-value max-value))
     (when (/= divisor 1)
       (setq value (/ (round (* value divisor)) divisor)))
-    (widget-value-set widget
-                      (funcall (plist-get prop-info :to-string) value))))
+    (edraw-property-editor-prop-widget-value-set
+     widget
+     (funcall (plist-get prop-info :to-string) value))))
 
 (cl-defmethod edraw-increase ((field edraw-property-editor-number-field) delta)
   (edraw-set-value field (+ (edraw-get-value field)
@@ -599,7 +623,7 @@ editor when the selected shape changes."
     (widget-create
      'push-button :notify
      (lambda (&rest _ignore)
-       (widget-value-set
+       (edraw-property-editor-prop-widget-value-set
         field-widget
         (edraw-property-editor-read-property-paint-color target prop-name
                                                          field-widget)))
@@ -638,7 +662,8 @@ editor when the selected shape changes."
                         edraw-editor-image-scaling-factor)
                (list
                 (cons :scale-direct edraw-editor-image-scaling-factor)))))
-      (widget-value-set field-widget current-value))))
+      (edraw-property-editor-prop-widget-value-set
+       field-widget current-value))))
 
 ;;;;;; Increase/Decrease Value By Wheel
 
@@ -688,11 +713,8 @@ editor when the selected shape changes."
                                                  prop-info)
         ;;(message "target chagned: %s: %s to %s" prop-name old-w-value new-w-value)
         ;; Prevent notification
-        (let ((old-notify (widget-get widget :notify)))
-          (widget-put widget :notify #'ignore)
-          (unwind-protect
-              (widget-value-set widget new-w-value)
-            (widget-put widget :notify old-notify)))))))
+        (edraw-property-editor-prop-widget-value-set-without-notify
+         widget new-w-value)))))
 
 (defun edraw-property-editor-equal-value (wv1 wv2 prop-info)
   (cond
