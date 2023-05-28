@@ -4868,44 +4868,23 @@ position where the EVENT occurred."
   (edraw-dom-first-node-p (edraw-parent-element shape) (edraw-element shape)))
 
 (cl-defmethod edraw-bring-to-front ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape))
-        (editor (oref shape editor)))
-    (when (edraw-dom-reorder-last (edraw-parent-element shape)
-                                  (edraw-element shape))
-      (edraw-make-undo-group editor 'shape-z-order
-        (edraw-push-undo editor 'shape-z-order
-                         (list 'edraw-set-node-position shape old-pos))
-        (edraw-on-shape-changed shape 'shape-z-order)))))
+  (edraw-set-node-position shape (1- (edraw-node-siblings-count shape))))
 
 (cl-defmethod edraw-bring-forward ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape))
-        (editor (oref shape editor)))
-    (when (edraw-dom-reorder-next (edraw-parent-element shape)
-                                  (edraw-element shape))
-      (edraw-make-undo-group editor 'shape-z-order
-        (edraw-push-undo editor 'shape-z-order
-                         (list 'edraw-set-node-position shape old-pos))
-        (edraw-on-shape-changed shape 'shape-z-order)))))
+  (let* ((old-pos (edraw-node-position shape))
+         (new-pos (1+ old-pos))
+         (num-siblings (edraw-node-siblings-count shape)))
+    (when (< new-pos num-siblings)
+      (edraw-set-node-position shape new-pos))))
 
 (cl-defmethod edraw-send-backward ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape))
-        (editor (oref shape editor)))
-    (when (edraw-dom-reorder-prev (edraw-parent-element shape)
-                                  (edraw-element shape))
-      (edraw-make-undo-group editor 'shape-z-order
-        (edraw-push-undo editor 'shape-z-order
-                         (list 'edraw-set-node-position shape old-pos))
-        (edraw-on-shape-changed shape 'shape-z-order)))))
+  (let* ((old-pos (edraw-node-position shape))
+         (new-pos (1- old-pos)))
+    (when (>= new-pos 0)
+      (edraw-set-node-position shape new-pos))))
 
 (cl-defmethod edraw-send-to-back ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape))
-        (editor (oref shape editor)))
-    (when (edraw-dom-reorder-first (edraw-parent-element shape)
-                                   (edraw-element shape))
-      (edraw-make-undo-group editor 'shape-z-order
-        (edraw-push-undo editor 'shape-z-order
-                         (list 'edraw-set-node-position shape old-pos))
-        (edraw-on-shape-changed shape 'shape-z-order)))))
+  (edraw-set-node-position shape 0))
 
 ;;;;;; Transform
 

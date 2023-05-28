@@ -1,15 +1,6 @@
 
 
 * Inbox
-** TODO できるだけedraw-set-node-positionを使う
-Z orderを変更する関数はできるだけedraw-set-node-positionを使うべき。
-UNDOの処理などが重複しているので。
-
-- edraw-bring-to-front
-- edraw-bring-forward
-- edraw-send-backward
-- edraw-send-to-back
-
 ** TODO テキストのedraw-set-anchor-positionはプロパティ変更を使うべき
 その方がrect系などとの統一性を出しやすいはず。
 UNDO等の挙動において。
@@ -1796,3 +1787,12 @@ ANCHOR()は長いので単にA()と書いても良いことにする。
 - ~A.p = connect-obj-dir(B, dir)~
 - ~ANCHOR(p):OBJDIR(B dir)~
 
+** DONE できるだけedraw-set-node-positionを使う
+CLOSED: [2023-05-28 Sun 21:18]
+Z orderを変更する関数はできるだけedraw-set-node-positionを使うべき。
+UNDOの処理などが重複しているので。
+
+- edraw-bring-to-front
+- edraw-bring-forward
+- edraw-send-backward
+- edraw-send-to-back
