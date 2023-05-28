@@ -752,7 +752,18 @@ For use with `edraw-editor-with-temp-undo-list',
                               (edraw-svg-defrefs-defs defrefs)))
 
     ;; #edraw-body
-    (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)))
+    (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)
+
+    ;; Restore Point Connections
+    (edraw-restore-point-connections editor)))
+
+(cl-defmethod edraw-restore-point-connections ((editor edraw-editor))
+  (edraw-editor-with-no-undo-data
+    (dolist (element
+             (dom-elements (edraw-svg-body editor)
+                           'data-edraw-point-connections ""))
+      (when-let ((shape (edraw-shape-from-element element editor t)))
+        (edraw-restore-point-connections shape)))))
 
 (defun edraw-create-document-svg (&optional width height background children)
   (let* ((width (or width (alist-get 'width edraw-default-document-properties)))
@@ -1233,6 +1244,20 @@ For use with `edraw-editor-with-temp-undo-list',
       (edraw-notify-change-hook shape 'document-close))))
 
 ;; Shape Finding
+
+(cl-defmethod edraw-find-shape-by-internal-id ((editor edraw-editor) id)
+  (when-let ((element (car (dom-elements
+                            (edraw-svg-body editor)
+                            'data-edraw-id
+                            (concat "\\`" id "\\'")))))
+    (edraw-shape-from-element element editor t)))
+
+(cl-defmethod edraw-find-shapes-by-xy ((shapes list) xy)
+  (nreverse ;;front to back
+   (seq-filter
+    (lambda (shape)
+      (edraw-svg-element-contains-point-p (edraw-element shape) xy))
+    shapes)))
 
 (cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
   (nreverse ;;front to back
@@ -4439,8 +4464,9 @@ position where the EVENT occurred."
                  (edraw-create-shape-svg-element (oref editor defrefs)
                                                  parent index type props-alist)
                  editor)))
-    (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
-    (edraw-on-shape-changed shape 'shape-create)
+    (edraw-make-undo-group editor 'shape-create
+      (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
+      (edraw-on-shape-changed shape 'shape-create))
     shape))
 
 (defun edraw-create-shape-svg-element (defrefs parent index type props-alist)
@@ -4482,7 +4508,9 @@ position where the EVENT occurred."
    (editor :initarg :editor
            :type edraw-editor)
    (change-hook :initform (edraw-hook-make))
-   (removed-p :initform nil))
+   (removed-p :initform nil)
+   (point-connections :initform nil)
+   (point-connection-referrers :initform nil))
   :abstract t)
 
 (defun edraw-shape-derived-p (obj)
@@ -4700,6 +4728,7 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
   (with-slots (editor) shape
+    (edraw-update-related-point-connections shape type)
     (edraw-on-document-changed editor 'shape)
     (edraw-notify-change-hook shape type)
     (edraw-notify-ancestors-of-change shape type)))
@@ -4783,8 +4812,9 @@ position where the EVENT occurred."
                (t (length (dom-children parent-element))))))
         (edraw-dom-insert-nth parent-element element pos)
         (setq removed-p nil)
-        (edraw-push-undo editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
-        (edraw-on-shape-changed shape 'shape-insert)))))
+        (edraw-make-undo-group editor 'shape-insert
+          (edraw-push-undo editor 'shape-insert (list 'edraw-remove shape));;@todo if not removed-p?
+          (edraw-on-shape-changed shape 'shape-insert))))))
 
 ;;;;;; Remove
 
@@ -4792,16 +4822,17 @@ position where the EVENT occurred."
   (with-slots (element editor removed-p) shape
     (when (or (not removed-p)
               (edraw-parent-element shape))
-      (edraw-push-undo
-       editor
-       'shape-remove
-       (list 'edraw-insert
-             (edraw-parent-element shape)
-             shape
-             (edraw-node-position shape)))
-      (dom-remove-node (edraw-parent-element shape) element)
-      (setq removed-p t)
-      (edraw-on-shape-changed shape 'shape-remove))))
+      (edraw-make-undo-group editor 'shape-remove
+        (edraw-push-undo
+         editor
+         'shape-remove
+         (list 'edraw-insert
+               (edraw-parent-element shape)
+               shape
+               (edraw-node-position shape)))
+        (dom-remove-node (edraw-parent-element shape) element)
+        (setq removed-p t)
+        (edraw-on-shape-changed shape 'shape-remove))))) ;; Call edraw-update-related-point-connections
 
 (cl-defmethod edraw-removed-p ((shape edraw-shape))
   (oref shape removed-p))
@@ -4817,17 +4848,18 @@ position where the EVENT occurred."
    (edraw-element shape)
    #'eq))
 
-(cl-defmethod edraw-set-node-position ((shape edraw-shape) pos)
-  (let ((old-pos (edraw-node-position shape)))
-    (unless (equal pos old-pos)
-      (edraw-push-undo
-       (oref shape editor)
-       'shape-z-order (list 'edraw-set-node-position shape old-pos))
-      (let ((parent (edraw-parent-element shape))
-            (element (edraw-element shape)))
-        (dom-remove-node parent element)
-        (edraw-dom-insert-nth parent element pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
+(cl-defmethod edraw-set-node-position ((shape edraw-shape) new-pos)
+  (let ((old-pos (edraw-node-position shape))
+        (editor (oref shape editor)))
+    (unless (equal new-pos old-pos)
+      (edraw-make-undo-group editor 'shape-z-order
+        (edraw-push-undo editor 'shape-z-order
+                         (list 'edraw-set-node-position shape old-pos))
+        (let ((parent (edraw-parent-element shape))
+              (element (edraw-element shape)))
+          (dom-remove-node parent element)
+          (edraw-dom-insert-nth parent element new-pos))
+        (edraw-on-shape-changed shape 'shape-z-order)))))
 
 (cl-defmethod edraw-front-p ((shape edraw-shape))
   (edraw-dom-last-node-p (edraw-parent-element shape) (edraw-element shape)))
@@ -4836,36 +4868,44 @@ position where the EVENT occurred."
   (edraw-dom-first-node-p (edraw-parent-element shape) (edraw-element shape)))
 
 (cl-defmethod edraw-bring-to-front ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
+  (let ((old-pos (edraw-node-position shape))
+        (editor (oref shape editor)))
     (when (edraw-dom-reorder-last (edraw-parent-element shape)
                                   (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
+      (edraw-make-undo-group editor 'shape-z-order
+        (edraw-push-undo editor 'shape-z-order
+                         (list 'edraw-set-node-position shape old-pos))
+        (edraw-on-shape-changed shape 'shape-z-order)))))
 
 (cl-defmethod edraw-bring-forward ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
+  (let ((old-pos (edraw-node-position shape))
+        (editor (oref shape editor)))
     (when (edraw-dom-reorder-next (edraw-parent-element shape)
                                   (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
+      (edraw-make-undo-group editor 'shape-z-order
+        (edraw-push-undo editor 'shape-z-order
+                         (list 'edraw-set-node-position shape old-pos))
+        (edraw-on-shape-changed shape 'shape-z-order)))))
 
 (cl-defmethod edraw-send-backward ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
+  (let ((old-pos (edraw-node-position shape))
+        (editor (oref shape editor)))
     (when (edraw-dom-reorder-prev (edraw-parent-element shape)
                                   (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
+      (edraw-make-undo-group editor 'shape-z-order
+        (edraw-push-undo editor 'shape-z-order
+                         (list 'edraw-set-node-position shape old-pos))
+        (edraw-on-shape-changed shape 'shape-z-order)))))
 
 (cl-defmethod edraw-send-to-back ((shape edraw-shape))
-  (let ((old-pos (edraw-node-position shape)))
+  (let ((old-pos (edraw-node-position shape))
+        (editor (oref shape editor)))
     (when (edraw-dom-reorder-first (edraw-parent-element shape)
                                    (edraw-element shape))
-      (edraw-push-undo (oref shape editor) 'shape-z-order
-                       (list 'edraw-set-node-position shape old-pos))
-      (edraw-on-shape-changed shape 'shape-z-order))))
+      (edraw-make-undo-group editor 'shape-z-order
+        (edraw-push-undo editor 'shape-z-order
+                         (list 'edraw-set-node-position shape old-pos))
+        (edraw-on-shape-changed shape 'shape-z-order)))))
 
 ;;;;;; Transform
 
@@ -4969,6 +5009,35 @@ If you want to transform the anchor point coordinates, use
                             (edraw-get-handle-points anchor))))
             (edraw-get-anchor-points shape)))
 
+;;;;;; Internal ID
+
+(cl-defmethod edraw-internal-id ((shape edraw-shape))
+  "Return the internal ID dedicated to edraw.
+
+Returns the data-edraw-id attribute if it exists. If not,
+generate a new ID, set it to the data-edraw-id attribute, and
+return it."
+  (with-slots (element editor) shape
+    (or (dom-attr element 'data-edraw-id)
+        (let (id)
+          (while (progn
+                   (setq id (edraw-internal-id-gen))
+                   (edraw-find-shape-by-internal-id editor id)))
+          (dom-set-attribute element 'data-edraw-id id)
+          id))))
+
+(defun edraw-internal-id-gen ()
+  "Generate an ID for internal use."
+  (let* ((rnd (sha1 (format "%s%s%s%s%s%s%s"
+                            (random)
+                            (current-time)
+                            (user-uid)
+                            (emacs-pid)
+                            (user-full-name)
+                            user-mail-address
+                            (recent-keys)))))
+    (substring rnd 0 8)))
+
 ;;;;;; Properties
 
 (cl-defmethod edraw-name ((shape edraw-shape))
@@ -5037,12 +5106,14 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                             defrefs)))))
     (when old-prop-list
       (setq changed t)
-      (edraw-push-undo
-       (oref shape editor)
-       'shape-properties
-       (list #'edraw-set-properties shape old-prop-list))
-      (edraw-on-shape-properties-changed shape old-prop-list)
-      (edraw-on-shape-changed shape 'shape-properties)))
+      (let ((editor (oref shape editor)))
+        (edraw-make-undo-group editor 'shape-properties
+          (edraw-push-undo
+           editor
+           'shape-properties
+           (list #'edraw-set-properties shape old-prop-list))
+          (edraw-on-shape-properties-changed shape old-prop-list)
+          (edraw-on-shape-changed shape 'shape-properties)))))
 
   ;; Merge undo data
   (unless edraw-editor-inhibit-make-undo-data
@@ -5693,13 +5764,14 @@ Some classes have efficient implementations."
      (or (edraw-svg-attr-coord element 'y) 0))))
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-text) xy)
-  (with-slots (element) shape
+  (with-slots (element editor) shape
     (when (or (/= (car xy) (or (edraw-svg-attr-coord element 'x) 0))
               (/= (cdr xy) (or (edraw-svg-attr-coord element 'y) 0)))
-      (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
-      (edraw-merge-set-properties-undo-data (edraw-undo-list (oref shape editor)) nil 'shape-text-anchor nil t)
-      (edraw-svg-text-set-xy element xy)
-      (edraw-on-shape-changed shape 'anchor-position))))
+      (edraw-make-undo-group editor 'shape-text-anchor
+        (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
+        (edraw-svg-text-set-xy element xy)
+        (edraw-on-shape-changed shape 'anchor-position))
+      (edraw-merge-set-properties-undo-data (edraw-undo-list editor) nil 'shape-text-anchor nil t))))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-text) matrix)
   (cond
@@ -5822,11 +5894,12 @@ Some classes have efficient implementations."
         (with-slots (cmdlist) shape
           (unless (string= d (edraw-path-cmdlist-to-string cmdlist))
             (setq changed t)
-            ;;(message "%s => %s" (edraw-path-cmdlist-to-string cmdlist) d)
-            (edraw-path-cmdlist-swap cmdlist (edraw-path-cmdlist-from-d d))
-            (edraw-push-undo-properties shape 'shape-path-d '(d))
-            (edraw-update-path-data shape)
-            (edraw-on-shape-changed shape 'shape-path-data))))
+            (edraw-make-undo-group (oref shape editor) 'shape-path-d
+              ;;(message "%s => %s" (edraw-path-cmdlist-to-string cmdlist) d)
+              (edraw-path-cmdlist-swap cmdlist (edraw-path-cmdlist-from-d d))
+              (edraw-push-undo-properties shape 'shape-path-d '(d))
+              (edraw-update-path-data shape)
+              (edraw-on-shape-changed shape 'shape-path-data)))))
       (setf (alist-get 'd prop-list nil 'remove) nil))
     ;; other properties
     (edraw-set-properties-internal shape prop-list undo-list-end changed)))
@@ -5892,14 +5965,10 @@ Some classes have efficient implementations."
 (cl-defmethod edraw-transform-anchor-points-local ((shape edraw-shape-path) matrix)
   (with-slots (cmdlist) shape
     (edraw-path-cmdlist-transform cmdlist matrix))
-  (edraw-push-undo-properties shape 'shape-path-transform '(d))
-  (edraw-merge-set-properties-undo-data
-   (edraw-undo-list (oref shape editor))
-   (cddr (edraw-undo-list (oref shape editor)))
-   'shape-transform
-   nil t)
-  (edraw-update-path-data shape)
-  (edraw-on-shape-changed shape 'shape-transform))
+  (edraw-make-undo-group (oref shape editor) 'shape-path-transform
+    (edraw-push-undo-properties shape 'shape-path-transform '(d))
+    (edraw-update-path-data shape)
+    (edraw-on-shape-changed shape 'shape-transform)))
 
 (cl-defmethod edraw-get-anchor-points ((shape edraw-shape-path))
   (with-slots (cmdlist) shape
@@ -5966,9 +6035,10 @@ Some classes have efficient implementations."
   (with-slots (cmdlist) shape
     (let ((anchor-point (edraw-path-cmdlist-add-anchor-point cmdlist xy)))
 
-      (edraw-push-undo-properties shape 'shape-path-transform '(d))
-      (edraw-update-path-data shape)
-      (edraw-on-shape-changed shape 'anchor-add)
+      (edraw-make-undo-group (oref shape editor) 'shape-path-transform
+        (edraw-push-undo-properties shape 'shape-path-transform '(d))
+        (edraw-update-path-data shape)
+        (edraw-on-shape-changed shape 'anchor-add))
 
       ;; Return a new shape point
       (edraw-shape-point-path
@@ -6008,26 +6078,29 @@ Some classes have efficient implementations."
 (cl-defmethod edraw-close-path-shape ((shape edraw-shape-path))
   (with-slots (cmdlist) shape
     (when (edraw-path-cmdlist-close-path cmdlist)
-      (edraw-push-undo-properties shape 'shape-path-close '(d))
-      (edraw-update-path-data shape)
-      (edraw-on-shape-changed shape 'shape-close-path)
+      (edraw-make-undo-group (oref shape editor) 'shape-path-close
+        (edraw-push-undo-properties shape 'shape-path-close '(d))
+        (edraw-update-path-data shape)
+        (edraw-on-shape-changed shape 'shape-close-path))
       t)))
 
 (cl-defmethod edraw-open-path-shape ((shape edraw-shape-path))
   (with-slots (cmdlist) shape
     (when (edraw-path-cmdlist-open-path cmdlist)
-      (edraw-push-undo-properties shape 'shape-path-open '(d))
-      (edraw-update-path-data shape)
-      (edraw-on-shape-changed shape 'shape-open-path)
+      (edraw-make-undo-group (oref shape editor) 'shape-path-open
+        (edraw-push-undo-properties shape 'shape-path-open '(d))
+        (edraw-update-path-data shape)
+        (edraw-on-shape-changed shape 'shape-open-path))
       t)))
 
 (cl-defmethod edraw-reverse-path ((shape edraw-shape-path))
   "Reverse the order of anchor points in the path."
   (with-slots (cmdlist) shape
     (edraw-path-cmdlist-reverse cmdlist)
-    (edraw-push-undo-properties shape 'shape-path-reverse '(d))
-    (edraw-update-path-data shape)
-    (edraw-on-shape-changed shape 'shape-reverse-path)
+    (edraw-make-undo-group (oref shape editor) 'shape-path-reverse
+      (edraw-push-undo-properties shape 'shape-path-reverse '(d))
+      (edraw-update-path-data shape)
+      (edraw-on-shape-changed shape 'shape-reverse-path))
     t))
 
 (cl-defmethod edraw-connect-path-to-anchor ((src-shape edraw-shape-path) dst-anchor)
@@ -6371,8 +6444,12 @@ Some classes have efficient implementations."
        :ppoint result-point))))
 
 (cl-defmethod edraw-index-in-path ((spt edraw-shape-point-path))
-  (with-slots (ppoint shape) spt
+  (with-slots (ppoint) spt
     (edraw-path-point-index-in-cmdlist ppoint)))
+
+(cl-defmethod edraw-anchor-index-in-path ((spt edraw-shape-point-path))
+  (with-slots (ppoint) spt
+    (edraw-path-anchor-point-index-in-cmdlist ppoint)))
 
 (cl-defmethod edraw-get-xy ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
@@ -6390,42 +6467,48 @@ possible. Because undoing invalidates all point objects."
         ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
         (edraw-push-undo-properties shape type '(d))))))
 
-(cl-defmethod edraw-push-undo-path-point-move ((spt edraw-shape-point-path)
-                                               type merge
-                                               old-xy
-                                               &optional
-                                               opposite-index-old-xy)
-  "Register undo data for when SPT moves.
+(cl-defmethod edraw-on-path-point-move ((spt edraw-shape-point-path)
+                                        type
+                                        old-xy
+                                        &optional
+                                        opposite-index-old-xy)
+  (with-slots (shape) spt
+    ;; Check previous undo data before making undo group
+    (let* ((index (edraw-index-in-path spt))
+           (type (intern (format "%s-p%s" type index)))
+           (editor (oref shape editor))
+           (prev-undo-data (edraw-last-undo-data editor))
+           (prev-undo-data-same-target-p
+            (edraw-undo-data-starts-with-args-p
+             prev-undo-data
+             type
+             (if opposite-index-old-xy
+                 #'edraw-move-nth-points
+               #'edraw-move-nth-point)
+             shape)))
+      ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
 
-This function does not register the entire d property as undo
-data.  Registering the d property as undo data would cause all
-point objects to become invalid when undoing, preventing them
-from being dragged. Undoing while dragging is necessary for group
-transformations."
-  (unless edraw-editor-inhibit-make-undo-data
-    (with-slots (shape) spt
-      (let* ((index (edraw-index-in-path spt))
-             (type (intern (format "%s-p%s" type index)))
-             (editor (oref shape editor))
-             (prev-undo-data (edraw-last-undo-data editor)))
-        ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
-        (unless (and merge
-                     (edraw-undo-data-starts-with-args-p
-                      prev-undo-data
-                      type
-                      (if opposite-index-old-xy
-                          #'edraw-move-nth-points
-                        #'edraw-move-nth-point)
-                      shape))
-          (edraw-push-undo
-           editor type
-           (if opposite-index-old-xy
-               ;; Always push opposite xy even if the coordinates
-               ;; haven't changed for easy implementation of merging.
-               (list #'edraw-move-nth-points shape
-                     (list (cons index old-xy)
-                           opposite-index-old-xy))
-             (list #'edraw-move-nth-point shape index old-xy))))))))
+      (edraw-make-undo-group (oref shape editor) type
+        ;; Register undo data.
+        ;; This function does not register the entire d property
+        ;; as undo data.  Registering the d property as undo data
+        ;; would cause all point objects to become invalid when
+        ;; undoing, preventing them from being dragged. Undoing
+        ;; while dragging is necessary for group transformations.
+        (unless edraw-editor-inhibit-make-undo-data
+          (unless prev-undo-data-same-target-p
+            (edraw-push-undo
+             editor type
+             (if opposite-index-old-xy
+                 ;; Always push opposite xy even if the coordinates
+                 ;; haven't changed for easy implementation of merging.
+                 (list #'edraw-move-nth-points shape
+                       (list (cons index old-xy)
+                             opposite-index-old-xy))
+               (list #'edraw-move-nth-point shape index old-xy)))))
+
+        ;; Notify point move.
+        (edraw-on-shape-point-changed shape 'point-move)))))
 
 (cl-defmethod edraw-move ((spt edraw-shape-point-path) &optional xy)
   (unless xy
@@ -6434,8 +6517,7 @@ transformations."
     (let ((old-xy (edraw-xy-clone (edraw-path-point-xy ppoint))))
       (unless (edraw-xy-equal-p xy old-xy)
         (edraw-path-point-move-with-related-points ppoint xy)
-        (edraw-push-undo-path-point-move spt 'path-point-move t old-xy)
-        (edraw-on-shape-point-changed shape 'point-move)))))
+        (edraw-on-path-point-move spt 'path-point-move old-xy)))))
 
 (cl-defmethod edraw-get-opposite-handle-index-xy ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
@@ -6451,11 +6533,10 @@ transformations."
       (unless (edraw-xy-equal-p xy old-xy)
         (let ((opposite-index-old-xy (edraw-get-opposite-handle-index-xy spt)))
           (edraw-path-handle-move-with-opposite-handle ppoint xy)
-          (edraw-push-undo-path-point-move
+          (edraw-on-path-point-move
            spt
-           'path-point-move-with-opposite-handle t old-xy
-           opposite-index-old-xy)
-          (edraw-on-shape-point-changed shape 'point-move))))))
+           'path-point-move-with-opposite-handle old-xy
+           opposite-index-old-xy))))))
 
 (cl-defmethod edraw-move-with-opposite-handle-on-transformed ((spt edraw-shape-point-path) xy)
   (when-let ((shape (edraw-parent-shape spt))
@@ -6469,11 +6550,10 @@ transformations."
       (unless (edraw-xy-equal-p xy old-xy)
         (let ((opposite-index-old-xy (edraw-get-opposite-handle-index-xy spt)))
           (edraw-path-handle-move-with-opposite-handle-symmetry ppoint xy include-same-position-p)
-          (edraw-push-undo-path-point-move
+          (edraw-on-path-point-move
            spt
-           'path-point-move-with-opposite-handle t old-xy
-           opposite-index-old-xy)
-          (edraw-on-shape-point-changed shape 'point-move))))))
+           'path-point-move-with-opposite-handle old-xy
+           opposite-index-old-xy))))))
 
 (cl-defmethod edraw-move-with-opposite-handle-symmetry-on-transformed ((spt edraw-shape-point-path) xy include-same-position-p)
   (when-let ((shape (edraw-parent-shape spt))
@@ -6506,9 +6586,11 @@ transformations."
   (with-slots (ppoint shape) spt
     (when (edraw-path-point-anchor-p ppoint)
       (when-let ((handle-ppoint (edraw-path-anchor-create-forward-handle ppoint)))
-        ;;@todo Avoid using edraw-push-undo-path-d-change?
-        (edraw-push-undo-path-d-change spt 'path-point-create-forward-handle)
-        (edraw-on-shape-point-changed shape 'handle-create) ;;@todo check get or create?
+        (edraw-make-undo-group (oref shape editor)
+            'path-point-create-forward-handle
+          ;;@todo Avoid using edraw-push-undo-path-d-change?
+          (edraw-push-undo-path-d-change spt 'path-point-create-forward-handle)
+          (edraw-on-shape-point-changed shape 'handle-create)) ;;@todo check get or create?
         (edraw-shape-point-path
          :shape shape
          :ppoint handle-ppoint)))))
@@ -6517,9 +6599,11 @@ transformations."
   (with-slots (ppoint shape) spt
     (when (edraw-path-point-anchor-p ppoint)
       (when-let ((handle-ppoint (edraw-path-anchor-create-backward-handle ppoint)))
-        ;;@todo Avoid using edraw-push-undo-path-d-change?
-        (edraw-push-undo-path-d-change spt 'path-point-create-backward-handle)
-        (edraw-on-shape-point-changed shape 'handle-create) ;;@todo check get or create?
+        (edraw-make-undo-group (oref shape editor)
+            'path-point-create-backward-handle
+          ;;@todo Avoid using edraw-push-undo-path-d-change?
+          (edraw-push-undo-path-d-change spt 'path-point-create-backward-handle)
+          (edraw-on-shape-point-changed shape 'handle-create)) ;;@todo check get or create?
         (edraw-shape-point-path
          :shape shape
          :ppoint handle-ppoint)))))
@@ -6527,7 +6611,8 @@ transformations."
 (cl-defmethod edraw-get-actions ((spt edraw-shape-point-path))
   (with-slots (ppoint) spt
     (let ((backward-handle (edraw-path-anchor-backward-handle ppoint))
-          (forward-handle (edraw-path-anchor-forward-handle ppoint)))
+          (forward-handle (edraw-path-anchor-forward-handle ppoint))
+          (glued-p (edraw-glued-p spt)))
       (cond
        ((edraw-path-point-anchor-p ppoint)
         `(((edraw-msg "Delete Point") edraw-delete-point)
@@ -6537,7 +6622,12 @@ transformations."
           ((edraw-msg "Move by Coordinates...") edraw-move)
           ((edraw-msg "Make Smooth") edraw-make-smooth)
           ((edraw-msg "Make Corner") edraw-make-corner
-           :enable ,(or backward-handle forward-handle))))
+           :enable ,(or backward-handle forward-handle))
+          ((edraw-msg "Glue to selected shape") edraw-glue-to-selected-shape
+           :visible ,(not glued-p)
+           :enable ,(edraw-can-be-glued-to-selected-shape spt))
+          ((edraw-msg "Unglue") edraw-unglue
+           :visible ,glued-p)))
        ((edraw-path-point-handle-p ppoint)
         `(((edraw-msg "Delete Point") edraw-delete-point)
           ((edraw-msg "Move by Coordinates...") edraw-move)
@@ -6545,29 +6635,36 @@ transformations."
 
 (cl-defmethod edraw-delete-point ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
-    (when (edraw-path-point-remove ppoint)
-      ;; @todo if cmdline is empty or contains Z, M only
-        ;;@todo Avoid using edraw-push-undo-path-d-change?
-      (edraw-push-undo-path-d-change spt 'path-point-delete)
-      (edraw-on-shape-point-changed shape 'point-remove)
-      t)))
+    (edraw-make-undo-group (oref shape editor) 'path-point-delete
+      ;; Unglue if SPT is glued.
+      (when (edraw-glued-p spt)
+        (edraw-unglue spt))
+      ;; Delete Point
+      (when (edraw-path-point-remove ppoint)
+        ;; @todo if cmdline is empty or contains Z, M only
+          ;;@todo Avoid using edraw-push-undo-path-d-change?
+        (edraw-push-undo-path-d-change spt 'path-point-delete)
+        (edraw-on-shape-point-changed shape 'point-remove)
+        t))))
 
 (cl-defmethod edraw-insert-point-before ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
     (when (edraw-path-anchor-insert-midpoint-before ppoint)
-        ;;@todo Avoid using edraw-push-undo-path-d-change?
-      (edraw-push-undo-path-d-change spt 'path-point-insert-before)
-      (edraw-on-shape-point-changed shape 'anchor-insert)
-      t)))
+      (edraw-make-undo-group (oref shape editor) 'path-point-insert-before
+          ;;@todo Avoid using edraw-push-undo-path-d-change?
+        (edraw-push-undo-path-d-change spt 'path-point-insert-before)
+        (edraw-on-shape-point-changed shape 'anchor-insert)
+        t))))
 
 (cl-defmethod edraw-make-smooth ((spt edraw-shape-point-path))
   "Add handles to SPT anchor point."
   (with-slots (ppoint shape) spt
-    (edraw-path-anchor-make-smooth ppoint)
-    ;;@todo Avoid using edraw-push-undo-path-d-change?
-    (edraw-push-undo-path-d-change spt 'path-point-smooth)
-    (edraw-on-shape-point-changed shape 'anchor-make-smooth)
-    t))
+    (edraw-make-undo-group (oref shape editor) 'path-point-smooth
+      (edraw-path-anchor-make-smooth ppoint)
+      ;;@todo Avoid using edraw-push-undo-path-d-change?
+      (edraw-push-undo-path-d-change spt 'path-point-smooth)
+      (edraw-on-shape-point-changed shape 'anchor-make-smooth)
+      t)))
 
 (cl-defmethod edraw-make-corner ((spt edraw-shape-point-path))
   "Remove handles from SPT anchor point."
@@ -6577,10 +6674,11 @@ transformations."
            (f (if fh (edraw-path-point-remove fh))) ;;may destroy next cmd(C => L, -forward-handle-point => nil)
            (b (if bh (edraw-path-point-remove bh)))) ;;may destroy curr cmd(C => L)
       (when (or f b)
-        ;;@todo Avoid using edraw-push-undo-path-d-change?
-        (edraw-push-undo-path-d-change spt 'path-point-corner)
-        (edraw-on-shape-point-changed shape 'anchor-make-corner)
-        t))))
+        (edraw-make-undo-group (oref shape editor) 'path-point-corner
+          ;;@todo Avoid using edraw-push-undo-path-d-change?
+          (edraw-push-undo-path-d-change spt 'path-point-corner)
+          (edraw-on-shape-point-changed shape 'anchor-make-corner)
+          t)))))
 
 (cl-defmethod edraw-in-closed-subpath-p ((spt edraw-shape-point-path))
   "Returns t if the point SPT is part of a closed subpath in the path shape."
@@ -6611,6 +6709,559 @@ transformations."
             (edraw-on-shape-changed shape 'split-path-at-anchor)
             t))))))
 
+(cl-defmethod edraw-glue-destination-of-selected-shape
+  ((spt edraw-shape-point-path))
+  "Return the selected shape that is the glue destination."
+  (with-slots (ppoint shape) spt
+    (with-slots (editor) shape
+      (let* ((selected-shapes ;;without this shape
+              (remq shape (edraw-selected-shapes editor)))
+             ;;(remq shape (edraw-all-shapes editor)))))
+             (dst-shape
+              (or
+               ;; the selected shape
+               (and (null (cdr selected-shapes))
+                    (car selected-shapes))
+               ;; the most front overlapping shape
+               (car (edraw-find-shapes-by-xy
+                     (or selected-shapes
+                         ;;(remq shape (edraw-all-shapes editor))
+                         )
+                     (edraw-get-xy spt))))))
+        dst-shape))))
+
+(cl-defmethod edraw-can-be-glued-to-selected-shape ((spt edraw-shape-point-path))
+  (with-slots (ppoint shape) spt
+    (and (edraw-anchor-p spt)
+         (not (edraw-glued-p spt))
+         (edraw-glue-destination-of-selected-shape spt))))
+
+(cl-defmethod edraw-glue-to-selected-shape ((spt edraw-shape-point-path))
+  ;; Determine the destination shape
+  (when (edraw-anchor-p spt)
+    (with-slots (shape) spt
+      (let* ((dst-shape (edraw-glue-destination-of-selected-shape spt))
+             (num-anchors (edraw-get-anchor-point-count shape))
+             (anchor-index (edraw-anchor-index-in-path spt)))
+        (when (and dst-shape anchor-index)
+          ;; Reverse anchor index
+          (when (>= anchor-index (/ num-anchors 2))
+            (setq anchor-index (- anchor-index num-anchors)))
+          ;;(message "Connect src=(%s %s) dst=%s" (edraw-name shape) anchor-index (edraw-name dst-shape))
+
+          (edraw-make-undo-group (oref shape editor) 'glue-to-selected-shape
+            (let ((conn (edraw-point-connection
+                         :src (edraw-point-connection-src-anchor
+                               :shape shape :index anchor-index)
+                         :dst (edraw-point-connection-dst-shape
+                               :shape dst-shape))))
+              ;; Update XY before adding CONN to SHAPE.
+              (edraw-update conn)
+              ;; Add CONN to SHAPE.
+              (edraw-add-point-connection shape conn)
+              ;; Do not update XY after adding CONN.
+              ;; When undoing, CONN must be removed before undoing XY move.
+              ;;(edraw-update-all-point-connections shape)
+              )))))))
+
+(cl-defmethod edraw-unglue ((spt edraw-shape-point-path))
+  (when (edraw-anchor-p spt)
+    (with-slots (shape) spt
+      (edraw-remove-point-connection
+       shape
+       (edraw-point-connection-src-anchor
+        :shape shape
+        :index (edraw-anchor-index-in-path spt))))))
+
+(cl-defmethod edraw-glued-p ((spt edraw-shape-point-path))
+  (when (edraw-anchor-p spt)
+    (with-slots (shape) spt
+      (not (null (edraw-find-point-connection
+                  shape
+                  (edraw-point-connection-src-anchor
+                   :shape shape
+                   :index (edraw-anchor-index-in-path spt))))))))
+
+;;;; Point Connection
+
+;; Point Connection is a mechanism to glue connection source points of
+;; shapes to connection destination points.
+
+;;;;; Point Connection Source
+
+(defclass edraw-point-connection-src ()
+  ((shape :type edraw-shape :initarg :shape))
+  "A class that represents a connection source point."
+  :abstruct t)
+
+(cl-defmethod edraw-equal ((_src1 edraw-point-connection-src)
+                           (_src2 edraw-point-connection-src))
+  "Return non-nil if SRC1 and SRC2 point to the same point."
+  nil)
+
+(cl-defmethod edraw-update ((src edraw-point-connection-src))
+  "Return the coordinates where the connection SRC should be."
+  (or
+   ;; Compute the destination coordinates
+   (with-slots (shape) src
+     (when-let ((conn (edraw-find-point-connection shape src)))
+       (edraw-update conn)))
+   ;; Return the current source coordinates
+   (edraw-get-xy src)))
+
+;;;;;; Point Connection Source Path Anchor Point
+
+(defclass edraw-point-connection-src-anchor (edraw-point-connection-src)
+  ((index :type integer :initarg :index)))
+
+(cl-defmethod edraw-equal ((src1 edraw-point-connection-src-anchor)
+                           (src2 edraw-point-connection-src-anchor))
+  "Return non-nil if SRC1 and SRC2 point to the same point."
+  (and
+   (eq (oref src1 shape) (oref src2 shape))
+   (eq (edraw-normalized-index src1) (edraw-normalized-index src2))))
+
+(cl-defmethod edraw-to-string ((src edraw-point-connection-src-anchor))
+  ;;@todo Add option to output shape id?
+  ;; A(index)
+  (format "A(%s)" (oref src index)))
+
+(cl-defmethod edraw-normalized-index ((src edraw-point-connection-src-anchor))
+  (with-slots (shape index) src
+    (if (>= index 0)
+        index
+      (+ (edraw-get-anchor-point-count shape) index))))
+
+(cl-defmethod edraw-next-inside ((src edraw-point-connection-src-anchor))
+  (with-slots (shape index) src
+    (let ((next-index (if (>= index 0) (1+ index) (1- index)))
+          (count (edraw-get-anchor-point-count shape)))
+      (when (and (< next-index count)
+                 (>= next-index (- count)))
+        (edraw-point-connection-src-anchor :shape shape :index next-index)))))
+
+(cl-defmethod edraw-get-xy ((src edraw-point-connection-src-anchor))
+  "Return the current coordinates of the connection SRC."
+  (with-slots (shape index) src
+    (when-let ((spt (edraw-get-nth-anchor-point shape (edraw-normalized-index src))))
+      (edraw-get-xy spt))))
+
+(cl-defmethod edraw-set-xy ((src edraw-point-connection-src-anchor) xy)
+  "Move SRC to XY."
+  (when xy
+    (with-slots (shape index) src
+      (when-let ((spt (edraw-get-nth-anchor-point shape (edraw-normalized-index src))))
+        ;;(message "set-xy %s %s %s" (edraw-name shape) (edraw-normalized-index src) xy)
+        (edraw-move spt xy))))
+  xy)
+
+;;;;;; Point Connection Source Attribute Pair
+
+(defclass edraw-point-connection-src-attrs (edraw-point-connection-src)
+  ((attr-x :type symbol :initarg :attr-x)
+   (attr-y :type symbol :initarg :attr-y)))
+
+(cl-defmethod edraw-equal ((src1 edraw-point-connection-src-attrs)
+                           (src2 edraw-point-connection-src-attrs))
+  "Return non-nil if SRC1 and SRC2 point to the same point."
+  (and
+   (eq (oref src1 shape) (oref src2 shape))
+   (eq (oref src1 attr-x) (oref src2 attr-x))
+   (eq (oref src1 attr-y) (oref src2 attr-y))))
+
+(cl-defmethod edraw-to-string ((src edraw-point-connection-src-attrs))
+  ;;@todo Add option to output shape id?
+  ;; ATTRS(attr-x attr-y)
+  (with-slots (attr-x attr-y) src
+    (format "ATTRS(%s %s)" attr-x attr-y)))
+
+(cl-defmethod edraw-next-inside ((_src edraw-point-connection-src-attrs))
+  nil)
+
+(cl-defmethod edraw-get-xy ((src edraw-point-connection-src-attrs))
+  "Return the current coordinates of the connection SRC."
+  (with-slots (shape attr-x attr-y) src
+    (edraw-xy
+     (edraw-get-property shape attr-x)
+     (edraw-get-property shape attr-y))))
+
+(cl-defmethod edraw-set-xy ((src edraw-point-connection-src-attrs) xy)
+  "Move SRC to XY."
+  (when xy
+    (with-slots (shape attr-x attr-y) src
+      (edraw-set-properties
+       shape
+       (list (cons attr-x (edraw-x xy))
+             (cons attr-y (edraw-y xy))))))
+  xy)
+
+;;;;; Point Connection Destination
+
+(defclass edraw-point-connection-dst ()
+  ((shape :type edraw-shape :initarg :shape))
+  "A class that represents where to glue the connection source point."
+  :abstruct t)
+
+(cl-defmethod edraw-shape-center ((dst edraw-point-connection-dst))
+  (edraw-rect-center (edraw-shape-aabb (oref dst shape))))
+
+;;;;;; Point Connection Destination with Specified Shape
+
+(defclass edraw-point-connection-dst-shape (edraw-point-connection-dst)
+  ())
+
+(cl-defmethod edraw-to-string ((dst edraw-point-connection-dst-shape))
+  ;; OBJ(id)
+  (format "OBJ(%s)" (edraw-internal-id (oref dst shape))))
+
+(defvar edraw-point-connection-dst-shape--updating-dst nil)
+
+(cl-defmethod edraw-update-src ((dst edraw-point-connection-dst-shape)
+                                (src edraw-point-connection-src))
+  (if (memq dst edraw-point-connection-dst-shape--updating-dst)
+      ;; If there is a circular reference, discontinue the calculation
+      ;; and return the center point of DST.
+      (edraw-shape-center dst)
+    (let ((edraw-point-connection-dst-shape--updating-dst
+           (cons dst edraw-point-connection-dst-shape--updating-dst)))
+      ;; intersection(dst.shape.center to next-inside(src), dst.shape.edge)
+      (let* ((src-next-inside (edraw-next-inside src))
+             (xy-src-next-inside (when src-next-inside
+                                   (edraw-update src-next-inside))))
+        (or
+         (when xy-src-next-inside
+           (let* ((dst-shape-center (edraw-shape-center dst))
+                  (dir (edraw-xy-sub xy-src-next-inside dst-shape-center))
+                  (len-sq (edraw-xy-length-squared dir)))
+             (when (> len-sq 1e-6)
+               (let ((xy (car (last (edraw-svg-element-and-line-intersections
+                                     (edraw-element (oref dst shape))
+                                     dst-shape-center
+                                     dir)))))
+                 ;;(message "Compute dst %s to %s (dir=%s) = %s" dst-shape-center xy-src-next-inside dir xy)
+                 (edraw-set-xy src xy)
+                 xy))))
+         (let ((xy (edraw-shape-center dst)))
+           (edraw-set-xy src xy)
+           xy))))))
+
+;;;;;; Point Connection Destination with Specified Shape and Direction
+
+(defclass edraw-point-connection-dst-shape-dir (edraw-point-connection-dst)
+  ((dir :type number :initarg :dir)))
+
+(cl-defmethod edraw-to-string ((dst edraw-point-connection-dst-shape-dir))
+  ;; OBJDIR(id dir)
+  (with-slots (shape dir) dst
+    (format "OBJDIR(%s %s)" (edraw-internal-id shape) dir)))
+
+(cl-defmethod edraw-update-src ((dst edraw-point-connection-dst-shape-dir)
+                                (src edraw-point-connection-src))
+  ;; intersection(dst.shape.center for dir, dst.shape.edge)
+  (let* ((dst-shape-center (edraw-shape-center dst))
+         (angle (degrees-to-radians (oref dst dir)))
+         (dir (edraw-xy (cos angle) (sin angle)))
+         (xy (car (last (edraw-svg-element-and-line-intersections
+                         (edraw-element (oref dst shape))
+                         dst-shape-center
+                         dir)))))
+    (edraw-set-xy src xy)
+    xy))
+
+
+;;;;; Point Connection Class
+
+(defclass edraw-point-connection ()
+  ((src :type edraw-point-connection-src :initarg :src :reader edraw-src)
+   (dst :type edraw-point-connection-dst :initarg :dst :reader edraw-dst))
+  "A class that represents which point to glue to where.")
+
+(cl-defmethod edraw-to-string ((conn edraw-point-connection))
+  ;; Aindex:OBJ(id)
+  (with-slots (src dst) conn
+    (concat (edraw-to-string src) ":" (edraw-to-string dst))))
+
+(cl-defmethod edraw-update ((conn edraw-point-connection))
+  (with-slots (src dst) conn
+    (edraw-update-src dst src))) ;; Return xy
+
+(cl-defmethod edraw-detach ((conn edraw-point-connection))
+  (let* ((src (edraw-src conn))
+         (shape (oref src shape)))
+    (edraw-remove-point-connection shape src)))
+
+(cl-defmethod edraw-detach-dst ((conn edraw-point-connection))
+  (edraw-remove-point-connection-referrer (oref (edraw-dst conn) shape) conn))
+
+;;;;; Point Connection Update
+
+(defvar edraw-shape-updated-point-connections nil)
+
+(defun edraw-point-connection--update-list (connections)
+  ;; Prevents endless loops with circular updates.
+  (if edraw-shape-updated-point-connections
+      (edraw-point-connection--update-list-internal connections)
+    (let ((edraw-shape-updated-point-connections (list nil)))
+      (edraw-point-connection--update-list-internal connections))))
+
+(defun edraw-point-connection--update-list-internal (connections)
+  (dolist (conn connections)
+    (unless (memq conn (cdr edraw-shape-updated-point-connections))
+      (push conn (cdr edraw-shape-updated-point-connections))
+      (edraw-update conn))))
+
+;;;;; Shape
+
+;;;;;; Add/Remove/Find Point Connection
+
+(cl-defmethod edraw-get-point-connections ((shape edraw-shape))
+  (oref shape point-connections))
+
+(cl-defmethod edraw-set-point-connections ((shape edraw-shape) conn)
+  (oset shape point-connections conn))
+
+(cl-defmethod edraw-get-point-connection-referrers ((shape edraw-shape))
+  (oref shape point-connection-referrers))
+
+(cl-defmethod edraw-set-point-connection-referrers ((shape edraw-shape) value)
+  (oset shape point-connection-referrers value))
+
+(cl-defmethod edraw-find-point-connection ((shape edraw-shape)
+                                           (src edraw-point-connection-src))
+  (cl-loop for conn in (edraw-get-point-connections shape)
+           when (edraw-equal (edraw-src conn) src)
+           return conn))
+
+(cl-defmethod edraw-add-point-connection ((shape edraw-shape)
+                                          (conn edraw-point-connection))
+  (unless (edraw-find-point-connection shape (edraw-src conn)) ;;Already exists?
+    (edraw-set-point-connections
+     shape
+     (cons conn (edraw-get-point-connections shape)))
+
+    ;; Add referrer
+    (when-let ((dst-shape (oref (edraw-dst conn) shape)))
+      (edraw-set-point-connection-referrers
+       dst-shape
+       (cons conn (edraw-get-point-connection-referrers dst-shape))))
+
+    ;; Update data attribute
+    (edraw-update-point-connections-attribute shape)
+
+    ;; Add undo data
+    (with-slots (editor) shape
+      (edraw-push-undo editor 'point-connection-add
+                       (list 'edraw-remove-point-connection
+                             shape
+                             conn)))))
+
+(cl-defmethod edraw-add-point-connection ((shape edraw-shape)
+                                          (connections list))
+  (dolist (conn connections)
+    (edraw-add-point-connection shape conn)))
+
+(cl-defmethod edraw-remove-point-connection ((shape edraw-shape)
+                                             (conn edraw-point-connection))
+  (edraw-remove-point-connection shape (edraw-src conn)))
+
+(cl-defmethod edraw-remove-point-connection ((shape edraw-shape)
+                                             (src edraw-point-connection-src))
+  (let* ((lst (cons nil (edraw-get-point-connections shape)))
+         (p lst))
+    ;; Find connection
+    (while (and (cdr p)
+                (not (edraw-equal (edraw-src (cadr p)) src)))
+      (setq p (cdr p)))
+
+    ;; Found
+    (when (cdr p)
+      (let ((conn (cadr p)))
+        ;; Delete
+        (setcdr p (cddr p))
+        (edraw-set-point-connections shape (cdr lst))
+
+        ;; Remove referrer
+        (edraw-detach-dst conn)
+
+        ;; Update data attribute
+        (edraw-update-point-connections-attribute shape)
+
+        ;; Add undo data
+        (with-slots (editor) shape
+          (edraw-push-undo editor 'point-connection-remove
+                           (list 'edraw-add-point-connection
+                                 shape
+                                 conn)))))))
+
+(cl-defmethod edraw-remove-point-connection-referrer ((shape edraw-shape)
+                                                      (conn edraw-point-connection))
+  (edraw-set-point-connection-referrers
+   shape
+   (delq conn (edraw-get-point-connection-referrers shape))))
+
+
+(cl-defmethod edraw-remove-all-point-connections ((shape edraw-shape))
+  (let ((connections (edraw-get-point-connections shape)))
+    (when connections
+      ;; Add undo data
+      (with-slots (editor) shape
+        (edraw-push-undo editor 'point-connection-remove
+                         (list 'edraw-add-point-connection
+                               shape
+                               (seq-copy connections))))
+
+      ;; Remove connection referrers
+      (mapc #'edraw-detach-dst connections)
+      ;; Remove connections
+      (edraw-set-point-connections shape nil)
+
+      ;; Update data attribute
+      (edraw-update-point-connections-attribute shape))))
+
+(cl-defmethod edraw-remove-all-point-connection-referrers ((shape edraw-shape))
+  ;; called when SHAPE is removed
+  (while (edraw-get-point-connection-referrers shape)
+    (let ((conn (car (edraw-get-point-connection-referrers shape))))
+      (edraw-detach conn))))
+
+(cl-defmethod edraw-update-point-connections-attribute ((shape edraw-shape))
+  (dom-set-attribute
+   (edraw-element shape)
+   'data-edraw-point-connections
+   (mapconcat #'edraw-to-string
+              (edraw-get-point-connections shape)
+              ",")))
+
+;;;;;; Update Point Connections
+
+(cl-defmethod edraw-update-related-point-connections ((shape edraw-shape)
+                                                      change-type)
+  (let ((related-connections
+         (append
+          (edraw-get-point-connections shape)
+          (edraw-get-point-connection-referrers shape))))
+    (when related-connections
+      (if (eq change-type 'shape-remove)
+          ;; Removed
+          ;;@todo remove point-connections?
+          (edraw-remove-all-point-connection-referrers shape)
+        ;; Changed
+        (edraw-point-connection--update-list related-connections)))))
+
+(cl-defmethod edraw-update-all-point-connections ((shape edraw-shape))
+  (edraw-point-connection--update-list (edraw-get-point-connections shape)))
+
+;;;;;; Restore Point Connections
+
+(cl-defmethod edraw-restore-point-connections ((shape edraw-shape))
+  (when-let* ((attr-str (dom-attr (edraw-element shape) 'data-edraw-point-connections))
+              (connections
+               (condition-case err
+                   (edraw-point-connection-parse-attribute attr-str shape
+                                                           (oref shape editor))
+                 (error
+                  (message "Failed to restore connection (shape=%s): %s"
+                           (edraw-name shape)
+                           err)
+                  nil))))
+    (edraw-remove-all-point-connections shape)
+    (edraw-add-point-connection shape connections)))
+
+(defun edraw-point-connection-parse-attribute (str src-shape editor)
+  (let ((str-len (length str))
+        (input (cons str 0))
+        connections)
+    (cl-symbol-macrolet ((str (car input)) (pos (cdr input)))
+      ;; <connection> , <connection> ...
+      (while (progn
+               (edraw-point-connection-skip-ws input)
+               (< pos str-len))
+        (when connections
+          (edraw-point-connection-skip-single-char input ?,))
+        (push (edraw-point-connection-parse-connection input src-shape editor)
+              connections)))
+    (nreverse connections)))
+
+(defun edraw-point-connection-parse-connection (input src-shape editor)
+  (cl-symbol-macrolet ((str (car input)) (pos (cdr input)))
+    ;; <src> : <dst>
+    (let ((src (edraw-point-connection-parse-src input src-shape))
+          (_ (edraw-point-connection-skip-ws input))
+          (_ (edraw-point-connection-skip-single-char input ?:))
+          (dst (edraw-point-connection-parse-dst input editor)))
+      (edraw-point-connection :src src :dst dst))))
+
+(defun edraw-point-connection-skip-ws (input)
+  (cl-symbol-macrolet ((str (car input)) (pos (cdr input)))
+    (let ((str-len (length str))
+          (i pos))
+      (while (and (< i str-len) (= (elt str i) ? ))
+        (cl-incf i))
+      (setf pos i))))
+
+(defun edraw-point-connection-skip-single-char (input expected-char)
+  (cl-symbol-macrolet ((str (car input)) (pos (cdr input)))
+    (unless (= (elt str pos) expected-char)
+      (error "Unexpected %s (Expected %s) at %s" (elt str pos) expected-char input))
+    (cl-incf pos)))
+
+(defun edraw-point-connection-parse-function (input)
+  (cl-symbol-macrolet ((str (car input)) (pos (cdr input)))
+    ;; <name> ( <args> )
+    (unless (equal (string-match " *\\([A-Z0-9_]+\\) *( *\\([^)]*\\) *)" str pos) pos)
+      (error "Invalid point connection function %s" input))
+    (setf pos (match-end 0))
+    (let ((name (match-string 1 str))
+          (args (match-string 2 str)))
+      (cons name (split-string args " ")))))
+
+(defconst edraw-point-connection-src-types
+  '(("A" . edraw-point-connection-parse-src-anchor)
+    ("ANCHOR" . edraw-point-connection-parse-src-anchor)
+    ("ATTRS" . edraw-point-connection-parse-src-attrs)))
+
+(defun edraw-point-connection-parse-src (input src-shape)
+  (let* ((fun (edraw-point-connection-parse-function input))
+         (name (car fun))
+         (args (cdr fun)))
+    (if-let ((constructor (alist-get name edraw-point-connection-src-types nil nil #'string=)))
+        (funcall constructor src-shape args)
+      (error "Invalid point connection src name %s" name))))
+
+(defun edraw-point-connection-parse-src-anchor (src-shape args)
+  (edraw-point-connection-src-anchor
+   :shape src-shape
+   :index (string-to-number (nth 0 args))))
+
+(defun edraw-point-connection-parse-src-attrs (src-shape args)
+  (edraw-point-connection-src-attrs
+   :shape src-shape
+   :attr-x (intern (nth 0 args)) :attr-y (intern (nth 1 args))))
+
+(defconst edraw-point-connection-dst-types
+  '(("OBJ" . edraw-point-connection-parse-dst-shape)
+    ("OBJDIR" . edraw-point-connection-parse-dst-shape-dir)))
+
+(defun edraw-point-connection-parse-dst (input editor)
+  (let* ((fun (edraw-point-connection-parse-function input))
+         (name (car fun))
+         (args (cdr fun))
+         (id (nth 0 args))
+         (dst-shape (edraw-find-shape-by-internal-id editor id)))
+
+    (unless dst-shape
+      (error "Cannot find shape %s" id))
+    (if-let ((constructor (alist-get name edraw-point-connection-dst-types nil nil #'string=)))
+        (funcall constructor dst-shape args)
+      (error "Invalid point connection dst name %s" name))))
+
+(defun edraw-point-connection-parse-dst-shape (dst-shape _args)
+  (edraw-point-connection-dst-shape :shape dst-shape))
+
+(defun edraw-point-connection-parse-dst-shape-dir (dst-shape args)
+  (edraw-point-connection-dst-shape-dir
+   :shape dst-shape
+   :dir (string-to-number (nth 1 args))))
 
 
 ;;;; Utility

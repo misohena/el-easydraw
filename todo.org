@@ -1,6 +1,65 @@
 
 
 * Inbox
+** TODO できるだけedraw-set-node-positionを使う
+Z orderを変更する関数はできるだけedraw-set-node-positionを使うべき。
+UNDOの処理などが重複しているので。
+
+- edraw-bring-to-front
+- edraw-bring-forward
+- edraw-send-backward
+- edraw-send-to-back
+
+** TODO テキストのedraw-set-anchor-positionはプロパティ変更を使うべき
+その方がrect系などとの統一性を出しやすいはず。
+UNDO等の挙動において。
+
+** TODO パスのedraw-set-propertiesはdの変更を同時に行うべき
+現状はまずdの更新を完全に済ませてからその他のプロパティを更新している。
+UNDOをマージすることが前提になっている。
+UNDO登録やon-shape-changedを1回にまとめられないものか。
+
+** TODO UNDOのマージ機能を作り直す
+同じ属性を変更するときではなく、同じコマンドが連続するときだけマージするべき。
+
+今のマージ機能は全て廃止する。
+- edraw-push-undo-path-point-moveのmerge引数
+
+コマンド側に必要に応じてUNDOしてから変更する機能を追加する。
+
+** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
+無駄なので。
+edraw-on-shape-changedに何か形が変わらない変更であることが分かるようなヒントを追加する。
+
+全ての変更時に毎回座標の再計算をすべきではない。幸いedraw-move sptは同じ座標なら何もしないが、それでも変更タイプを見て再計算するか判断すべき。そうは言っても現実にはなかなか難しい。プロパティ値の変更はプロパティの種類によって異なる。edraw-on-shape-changedに形状の変化かどうかのヒントを付けるべき。AABB再計算なんかにも利用できるかもしれない。
+
+実際にはZオーダーや色の変更くらいしか無いと思う。
+
+- ★(edraw-on-shape-changed shape 'shape-z-order)
+- ▲(edraw-on-shape-changed shape 'shape-properties)の一部 区別する仕組みが必要
+
+** TODO 点接続/パスのdプロパティが直接変化したときの点接続の削除
+
+edraw-delete-pointでunglueしているが、それ以外の場所で点が削除される場合を考慮していない。
+とりあえずedraw-set-propertyで直接書き替えるようなケースが考えられる。
+その他にある？
+
+** TODO 点接続/おそらくUNDOで戻らないケースがある
+座標をUNDOしたときに接続点が更新されて補正されてしまうので。
+循環しているケースは特に怪しい。
+循環しているケースは正しい点に移動しないので、戻したときに同じ点に戻らないのでは？
+
+[[edraw:data=H4sIAAtlcWQAA52T7WrCMBSGb6XEPwptmq9+RIyw/Rwdu4baJG3RJdJmVu9+ma5bRQbOAwkk4Zz3OS8nq/5QB0MrXSNAkiIQNKqtGycAI/5wUF3fWiMAhhgEx/ed6QVonNsv43gYBjhQaLs6Jgih2BcC61WnKvd3vaMAfj+dd93udgLMtNYg6F1nt0oAY40CQSsFULIrh2hTVtu6sx9GgiBer+rpk5Unr7cvXfOTPuOcj8Wibwg2Kl1q+/xXQjDM09/IQpIxmE5vihyFzEPK0pXRRXBvW+OiyhrjW/SmeCee5mixfHt+mZe6wlpt+OIq4wtWU5wypC/8j8DiBEFOf4OFOMkgnQYuqMfFBN2o00oSL8/vbmTEXTzMS9IEsqmXHpjmV+6mtGCEhCS/3+CxkVuDZVpqxeXmYWDKKMymdiYhQfza4azACIX0HxMxYt0Cj7NyBo5rv/zPWX8CdUfKFogDAAA=]]
+
+** TODO 点接続/テキストの位置を図形の中心に固定できるようにする
+** TODO 点接続/コネクターツールを追加する
+** TODO 点接続/辺からの距離を調整する機能を追加する
+** TODO 点接続/接続する位置を角度で設定できるようにする
+アンカーポイントをドラッグしたときにOBJDIRに切り替える。
+ツール側で行う。
+
+** TODO 点接続/使われていない内部IDを削除する
+今のところpoint-connection-referrersが空なら消して良いはず。
 ** TODO 図形の複製機能にキーを割り当てる
 コピー、ペーストやM-移動すれば良いのだが、一つのキーでやりたい。
 Dとか？
@@ -67,15 +126,6 @@ edraw-push-undo-path-point-moveによるパスのアンカーやハンドルの�
 - マニピュレータがあるときは選択済みオブジェクト、アンカー、ハンドルは操作できない(?)
 
 ある種のモードなのだろうか。モーダルであるべきか否か。
-
-** TODO 点を他の図形に接続する機能を追加する
-data属性でどの点をどの点へ接続するかを記述させてはどうか。
-
-data-connect-beginning-point-to="nearest point on edge of obj123456"
-
-もっと一般化した機能を作れないか。任意の点を任意の場所に追従させるような。例えばtextの(x, y)を指定した図形の中心に追従させたり。
-
-ところでオブジェクトIDって維持されるのだろうか。id=を設定するようにしないとダメなのでは？
 
 ** TODO 別ファイルの内容をインポートする機能を追加する
 別ファイルの#edraw-bodyの中身を現在のドキュメントに追加する。
@@ -1608,3 +1658,141 @@ CLOSED: [2023-04-02 Sun 12:08]
 アンカーとハンドルは点の座標を表示すれば良いとして、他はとりあえずAABBの左右上下中心を表示しておく。テキストはちょっと問題ありかもしれないが必要なら対応する。
 
 他にも、アンカーやハンドルを選択したときにも座標を表示する。
+** DONE 点を他の図形に接続する機能を追加する
+CLOSED: [2023-05-28 Sun 19:02]
+1. 図形と直線の交点を求める
+  - edraw-svg-element-and-line-intersections (内外判定関数を流用)
+2. 接続関係を表すクラスを追加
+  - edraw-point-connectionクラス(srcとdstを持つ)
+  - edraw-point-connection-srcクラス(接続元を表す)
+  - edraw-point-connection-src-anchorクラス
+  - edraw-point-connection-src-attrsクラス
+  - edraw-point-connection-dstクラス(接続先を表す)
+  - edraw-point-connection-dst-shapeクラス (接続元の方向を使う)
+  - edraw-point-connection-dst-shape-dirクラス (方向を角度で指定する)
+3. edraw-shapeクラスに対する修正
+  - 新規スロット
+    - point-connections
+    - point-connection-referrers
+  - 新規メソッド
+    - 内部ID管理
+      - (edraw-internal-id shape) 接続先を表すのに必要。edraw専用の内部ID
+    - スロットのアクセッサ
+      - edraw-get-point-connections
+      - edraw-set-point-connections
+      - edraw-get-point-connection-referrers
+      - edraw-set-point-connection-referrers
+    - 接続オブジェクトの検索、追加、削除
+      - edraw-find-point-connection
+      - edraw-add-point-connection(connection版)
+      - edraw-add-point-connection(list版)
+      - edraw-remove-point-connection(connection版)
+      - edraw-remove-point-connection(src版)
+      - edraw-remove-point-connection-referrer 内部的に使用
+      - edraw-remove-all-point-connections 基本的には必要ない
+      - edraw-remove-all-point-connection-referrers 接続先が削除されたとき使用
+    - 接続点座標の更新
+      - edraw-update-point-connection-referrers 接続先が変化したときの処理
+      - edraw-update-all-point-connections 接続した直後の最初の更新で使用
+    - 接続状態の保存・復元
+      - edraw-update-point-connections-attribute 属性を更新する。この際IDが必要
+      - edraw-restore-point-connections エディタ起動時に使用
+      - edraw-point-connection-parse-* 属性の解析に使用
+      - edraw-point-connection-skip-* 属性の解析に使用
+  - 動作の修正
+    - edraw-on-shape-changedでedraw-update-point-connection-referrersを呼ぶ
+4. edraw-shape-point-pathに対する修正
+  - (edraw-anchor-index-in-path shape-point-path)を追加
+  - (edraw-get-actions shape-point-path)に接着コマンドを追加
+  - edraw-glue-to-selected-shape(接着コマンド)を追加
+  - edraw-unglue(接着解除コマンド)を追加
+  - edraw-glued-p
+5. edraw-editorに対する修正
+  - edraw-initialize-svg-documentのタイミングでedraw-restore-point-connections
+  - (edraw-restore-point-connections editor)を追加
+  - (edraw-find-shape-by-internal-id editor id)を追加
+  - (edraw-find-shapes-by-xy list xy)を追加
+6. UNDOがまとまらない問題を修正
+  - 図形に対するほぼ全ての変更のUNDOをグループ化(edraw-on-shape-changedで追加の変更がされる可能性があるから。merge問題は保留)
+  - プロパティエディタでプロパティ名をドラッグしたときの冗長な更新を抑制
+
+やり残し
+- [X] 全選択移動すると線がズレる
+- [X] 日本語化
+- [X] 接着解除コマンド
+- [ ] 不要な内部IDの削除
+- [ ] 距離を調整する機能
+- [ ] 接続ツール
+- [X] 接続されている点を削除したときの処理
+
+  edraw-delete-pointでanchorを削除したとき、そのアンカーに対するconnectionがあるならそれも削除する。
+- [ ] 接続されている点を移動したときの処理 (OBJDIRに切り替えたい)
+
+  edraw-moveでconnectionがあるanchorを移動するときにそのような処理をする？
+  いや、ツールの方で対処した方が良い。全体の平行移動等と区別が付かない。
+- [X] 接続されている図形を移動したときの処理(その図形に設定されている全接続を更新してしまうのが手っ取り早い)
+
+*** 座標の計算手順
+
+下図PATH1オブジェクト内のA0(先頭)とA-1(末尾)の座標を求める。
+
+[[edraw:data=H4sIAA2acmQAA81WXW+jOBT9K5b70koh+AMIGYVI3dVq52FGGo1G2p15o8EkqAQqQ5tmf/342oTy2TZpqq5oQ8D2OcfX996TRfGwRrskKjcBdj2C0UYk600ZYIephwchiyTPAkynFKPHbZoVAd6U5d0n297tdtMdn+ZybTNCiK2A8HIRibhASRRgEclwZ8GjersN5a2QyNz+MWwerp4/V4zqxUMidn/kjwEmiCAKfxhJEf+rtOkvP/WXXCYiUwvC+zLHqChlfisCnOWZwChO0jTAFx6BC7eVWMQKpcx3StBdWG6QGvtKJnTqIjLx1edsSibuL4zs5cI20v43ymlfOTXSqdHOpu7Ha49viE/8rnZ2fNRtyJvlQopVOZ6cIBijvf48CIjjrrQnLTfh6nYt8/ss0mTr5lAe7Q/6DJRZrOPsKrUO+UJn6u6bO2PqPld3EGX4rEonexJwQWO4NJveSj3APbhq2VGkJEm1Hx35vbnDIzcbBJYK3m9GgbwdmpOXsWG64+rplLv1dNqYThtn4MLVDQtvhOWQJk18r8KfHYkPUXbgGiAcwGf0DPoPhE18v8J3zxuf4YxUGchZlYmcNFYemoepI0tkavq9TC8vej3wqhYQhcVGvQr3usp7yWw3Ww6UwMwQ+/WOjLBn0PrCijKUZU8a7Urrq+iFwiOTuRLkK2G0V4t0uBZHkRSEhpofhXRYzSohnA6GprGyh92F4pUQNj8Z6pkUYEemQC9UpvOpNHCNwtHMbfVPzzVnNJA13d7ZUXTEXtoiSvFYojjPSisOt0mq0H7eo7/zcpOssHlfJP8JKF+MYK4VZqtNLgOsE7QuWcaYbpqMmKaptoSX1wRdXlvO1cKGlRVXc5I+u7NwL68pcPFRLt0FzsXFgIuNc83OyMWBi9ZcIk2Tu0KgFbRU4FntjS01cwbcjBszG+nKgzCcHY1T5zD3TA47pPL8I2qStYyCOy9aetetm07es/kB6Ocs/WRs9339n8/f0T/1CfrGM7lHJ9RlIyd4sKk3t6Unl22JmM8nzPG/gJhh/zxVw0uG2lIxY+CZfM7G+vFrrQqQwDMB6nSnMgXma//kvv9W/wQo8E+AeoN/AlRV7grKGYN6N+vq9R4+8z7GP1V5OrTyNMc/X+8nwz5z4GKed2b/HPYZ7jd8pu0Jw5kz7DM1jPaZ43BO/pmyTaIoFbj7O8U1EfQ9vPz+158/aDfE1ThnJ0Z4gFYTsRbR+TfEiNrRt+sfn+mriF71i85EwidtXS5W2MVdmKFVGhZFgDVWmsAJmmVGx1RlcYCSrBSyUFaW5NklTLrUYZ+uBAxMUDWVXk2QGRDRWkAyAsNLRCiCwhPbmtGio5SsS6nqy3CyDmcVP3ut/ouH9fI3C4hlwAgUAAA=]]
+
+A0はRECT1に接続すべきPATH1内のアンカー点である。A0の座標は、RECT1の中心からA0の次の点(A1)へ向かう線上にある。また、RECT1の辺の上でもあるので、両者の交点がその座標となる。A-1も同様に考える。これら各点、各オブジェクトの関係を仮に次のように表す。
+
+- ~PATH1.A0 = intersection(line(RECT1.CENTER, PATH1.A1), RECT1.edge)~
+- ~PATH1.A-1 = intersection(line(RECT2.CENTER, PATH1.A-2), RECT2.edge)~
+
+長いので略して次のようにも書く。
+
+- ~PATH1.A0 = connect-obj(RECT1, PATH1.A1)~
+- ~PATH1.A-1 = connect-obj(RECT2, PATH1.A-2)~
+
+PATH1.A0のconnect-obj(RECT1, PATH1.A1)はどのように計算すべきか。
+
+- A1が存在しない場合、RECT1の中心点とする。または点を更新しなくても良い。(PATH1に点が一つしか存在しないケース)
+- A1が固定座標の場合、問題なく計算できる。(上図左のケース)
+- A1が計算で求めるべき点(接続されている点)の場合。(上図右のケース)
+  - ~PATH1.A-1 = connect-obj(RECT2, PATH1.A-2)~
+
+    インデックス番号を正規化する。上図右のケースだとA-1はA1、A-2はA0なので
+
+    ~PATH1.A1 = connect-obj(RECT2, PATH1.A0)~
+
+    A1の座標は今まさに求めたいPATH1.A0に依存しているので循環していることが分かる。
+
+    ~PATH1.A0 = connect-obj(RECT1, PATH1.A1) = connect-obj(RECT1, connect-obj(RECT2, PATH1, A0))~
+
+    connect-obj(RECT2, PATH1.A0)は現在計算中のA0を含んでいるので、これではいつになっても計算が終わらない。そこでRECT2.CENTERに置き換える。
+
+    ~PATH1.A0 = connect-obj(RECT1, RECT2.CENTER)~
+
+    となり計算できるようになる。
+  - それ以外のケースはひとまず非対応で良い。
+
+*** data属性上での接続の表現
+
+物体Aの任意のアンカー点pの座標を、「物体Bの中心から物体Bの任意のアンカー点qへの直線」と「物体Bの辺」との交点に接続したい。そのことを次のように書いた。
+
+- ~A.p = intersection(line(B.center, A.q), B.edge)~
+- ~A.p = connect-obj(B, A.q)~
+
+通常A.qはA.pの次(0なら1、-1なら-2)なので省略して良い。
+
+この関係をSVGに記録するため、物体Aのdata-edraw-point-connections属性を使用する。
+
+#+begin_src svg
+<rect data-edraw-id="bbbbbbbb" x= ... />
+<rect data-edraw-id="cccccccc" x= ... />
+<path data-edraw-id="aaaaaaaa" data-edraw-point-connections="ANCHOR(0):OBJ(bbbbbbbb),ANCHOR(-1):OBJ(cccccccc)," />
+#+end_src
+
+ANCHOR()は長いので単にA()と書いても良いことにする。
+
+*** 方向指定接続先
+物体の明示的に指定された任意の方向(角度)に接続する機能があると便利かもしれない。これは次のように書く。
+
+- ~A.p = intersection(line(B.center, B.center + (cos(dir), sin(dir))), B.edge)~
+- ~A.p = connect-obj-dir(B, dir)~
+- ~ANCHOR(p):OBJDIR(B dir)~
+

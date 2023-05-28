@@ -1720,6 +1720,27 @@ This function does not consider the effect of the transform attribute."
             (edraw-svg-element-intersects-rect-p child rect sub-matrix)))
      (dom-children element))))
 
+;;;; Intersection Coordinates of SVG Shape and Line
+
+(defun edraw-svg-element-and-line-intersections (element pt dir &optional matrix local-p)
+  (setq dir (edraw-xy-normalize dir))
+  (let* ((segments (edraw-svg-element-to-seglist element matrix local-p))
+         (invdir (edraw-xy (edraw-x dir) (- (edraw-y dir))))
+         (invdir90 (edraw-xy-rot90 invdir))
+         (invpt-y (+ (* (edraw-x pt) (edraw-y invdir))
+                     (* (edraw-y pt) (edraw-y invdir90))))
+         (invpt-y-dir90 (edraw-xy-nmul invpt-y (edraw-xy-rot90 dir))))
+    (edraw-path-seglist-transform-mat22
+     segments
+     (cons invdir invdir90))
+
+    (mapcar
+     (lambda (x) (edraw-xy-add (edraw-xy-nmul x dir) invpt-y-dir90))
+     (sort
+      (edraw-path-seglist-and-horizontal-line-intersections
+       segments invpt-y)
+      #'<))))
+;; (edraw-svg-element-and-line-intersections (dom-node 'rect '((x . "100") (y . "50") (width . 300) (height . 200))) (edraw-xy 100 100) (edraw-xy 10 10))
 
 ;;;; SVG Shape Thumbnail
 

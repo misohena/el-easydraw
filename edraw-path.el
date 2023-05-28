@@ -1435,6 +1435,22 @@ and `edraw-path-cmd-overwrite-from-ppoints'."
       (setq cmd (edraw-path-cmd-prev cmd)))
     (+ count (edraw-path-point-arg-index ppoint))))
 
+(defun edraw-path-anchor-point-index-in-cmdlist (ppoint)
+  "Return the anchor point index of PPOINT in cmdlist."
+  (when (edraw-path-point-anchor-p ppoint)
+    (let* ((last-cmd (edraw-path-point-cmd ppoint))
+           (cmd (edraw-path-cmd-prev last-cmd))
+           (count 0))
+      (while cmd
+        (setq count
+              (+ count
+                 (pcase (edraw-path-cmd-type cmd)
+                   ((or 'M 'L) 1)
+                   ((or 'C) 1)
+                   (_ 0))))
+        (setq cmd (edraw-path-cmd-prev cmd)))
+      count)))
+
 (defun edraw-path-point-prev-anchor (ppoint)
   (edraw-path-cmd-prev-anchor-point (edraw-path-point-cmd ppoint)))
 
@@ -2236,6 +2252,70 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
 ;; TEST: (edraw-path-straight-seg-intersects-left-horizontal-half-line '(10 . 10) '(10 . 20) '(20 . 20)) => 0
 ;; TEST: (edraw-path-straight-seg-intersects-left-horizontal-half-line '(10 . 20) '(10 . 30) '(20 . 20)) => 1
 
+;;;;; Line and Path Intersection Test
+
+(defun edraw-path-seglist-and-horizontal-line-intersections (seglist y)
+  (cl-loop for seg in seglist
+           nconc (edraw-path-seg-and-horizontal-line-intersections seg y)))
+
+(defun edraw-path-seg-and-horizontal-line-intersections (seg y)
+  (if (= (length seg) 2)
+      (edraw-path-straight-seg-and-horizontal-line-intersections
+       (elt seg 0) (elt seg 1) y)
+    (edraw-path-bezier-seg-and-horizontal-line-intersections seg y)))
+
+(defun edraw-path-bezier-seg-and-horizontal-line-intersections (seg y)
+  (let* ((aabb (edraw-path-bezier-seg-rough-aabb seg))
+         (aabb-left (caar aabb))
+         (aabb-top (cdar aabb))
+         (aabb-right (cadr aabb))
+         (aabb-bottom (cddr aabb)))
+    (cond
+     ((> aabb-top y) nil) ;;NG: AABB is under Y
+     ((< aabb-bottom y) nil) ;;NG: AABB is above Y
+
+     ;;@todo Solve cubic equation
+     ;; If the range is small enough, treat seg and y as intersections.
+     ;; Strictly, they may not intersect, or they may intersect twice
+     ;; or three times.
+     ((and (< (- aabb-right aabb-left) 1)
+           (< (- aabb-bottom aabb-top) 1))
+      (list (* 0.5 (+ aabb-left aabb-right))))
+
+     ((edraw-path-bezier-seg-straight-p seg) ;; SEG is a straight line
+      (edraw-path-straight-seg-and-horizontal-line-intersections
+       (elt seg 0) (elt seg 3) y))
+     (t
+      ;;divide SEG
+      (let ((seg2 (edraw-path-bezier-seg-divide seg)))
+        (nconc
+         (edraw-path-seg-and-horizontal-line-intersections (car seg2) y)
+         (edraw-path-seg-and-horizontal-line-intersections (cdr seg2) y)))))))
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 200) => nil
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 140) => (81.94482534642032 61.84016247628084)
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 120) => (88.41227347611202 60.0)
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 100) => (90.22539239788199)
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 60) => (76.22797424514114)
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 40) => (40.0)
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 40) (140 . 60) (60 . 220) (60 . 120)) 39) => nil
+;; TEST: (edraw-path-bezier-seg-and-horizontal-line-intersections '((40 . 120) (40 . 20) (140 . 180) (140 . 80)) 100) => (42.08159975036405 90.0 137.91840024963594)
+
+(defun edraw-path-straight-seg-and-horizontal-line-intersections (p0 p3 y)
+  (let* ((p0x (car p0))
+         (p0y (cdr p0))
+         (p3x (car p3))
+         (p3y (cdr p3)))
+    ;; straight line p0 to p3 is left side of PT?
+    (cond
+     ((> (min p0y p3y) y) nil) ;; NG: The straight line is under Y (minimum side is close)
+     ((<= (max p0y p3y) y) nil) ;; NG: The straight line is above Y (maximum side is open)
+     ((= p0y p3y) nil) ;; NG: ignore horizontal line (?)
+     (t
+      (let ((d03x (- p3x p0x))
+            (d03y (- p3y p0y))
+            (d0y (- y p0y)))
+        (list (+ p0x (* (/ d03x d03y) d0y))))))))
+
 ;;;;; Bounding Box
 
 (defun edraw-path-seg-aabb (seg)
@@ -2291,6 +2371,26 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
   (dotimes (i (length seg))
     (let ((xy (aref seg i)))
       (edraw-matrix-mul-mat-xy mat xy xy))))
+
+(defun edraw-path-seglist-transform-mat22 (segments mat22)
+  (dolist (seg segments)
+    (edraw-path-seg-transform-mat22 seg mat22)))
+
+(defun edraw-path-seg-transform-mat22 (seg mat22)
+  (let* ((vx (car mat22))
+         (vxx (car vx))
+         (vxy (cdr vx))
+         (vy (cdr mat22))
+         (vyx (car vy))
+         (vyy (cdr vy)))
+    (dotimes (i (length seg))
+      (let* ((xy (aref seg i))
+             (x (car xy))
+             (y (cdr xy))
+             (new-x (+ (* x vxx) (* y vyx)))
+             (new-y (+ (* x vxy) (* y vyy))))
+        (setcar xy new-x)
+        (setcdr xy new-y)))))
 
 ;;;;; Bezier Segment
 
