@@ -5065,11 +5065,13 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                            (edraw-get-property shape prop-name)))))
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape) prop-list)
+  "Returns t if the property is actually changed."
   (edraw-set-properties-internal
    shape prop-list (edraw-undo-list (oref shape editor)) nil))
 
 (cl-defmethod edraw-set-properties-internal ((shape edraw-shape) prop-list
                                              undo-list-end changed)
+  "Returns t if the property is actually changed."
   (let ((old-prop-list nil)
         (defrefs (edraw-get-defrefs shape)))
     (with-slots (element) shape
@@ -5403,6 +5405,7 @@ Some classes have efficient implementations."
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-with-rect-boundary)
                                          anchor
                                          xy)
+  "Returns t if the property is actually changed."
   (with-slots (anchor-points p0p1) shape
     (let* ((ref-x (edraw-ref-x anchor))
            (ref-y (edraw-ref-y anchor))
@@ -5517,6 +5520,7 @@ Some classes have efficient implementations."
           (cons (+ x width) (+ y height)))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-rect) _old-p0p1)
+  "Returns t if the property is actually changed."
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5574,6 +5578,7 @@ Some classes have efficient implementations."
           (cons (+ cx rx) (+ cy ry)))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-ellipse) _old-p0p1)
+  "Returns t if the property is actually changed."
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5634,6 +5639,7 @@ Some classes have efficient implementations."
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-circle)
                                          anchor
                                          xy)
+  "Returns t if the property is actually changed."
   (with-slots (anchor-points p0p1) shape
     (let* ((ref-x (edraw-ref-x anchor))
            (ref-y (edraw-ref-y anchor))
@@ -5678,6 +5684,7 @@ Some classes have efficient implementations."
         (edraw-on-anchor-position-changed shape old-p0p1)))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-circle) _old-p0p1)
+  "Returns t if the property is actually changed."
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -5743,6 +5750,7 @@ Some classes have efficient implementations."
      (or (edraw-svg-attr-coord element 'y) 0))))
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-text) xy)
+  "Returns t if the property is actually changed."
   (with-slots (element editor) shape
     (when (or (/= (car xy) (or (edraw-svg-attr-coord element 'x) 0))
               (/= (cdr xy) (or (edraw-svg-attr-coord element 'y) 0)))
@@ -5750,7 +5758,9 @@ Some classes have efficient implementations."
         (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
         (edraw-svg-text-set-xy element xy)
         (edraw-on-shape-changed shape 'anchor-position))
-      (edraw-merge-set-properties-undo-data (edraw-undo-list editor) nil 'shape-text-anchor nil t))))
+      (edraw-merge-set-properties-undo-data (edraw-undo-list editor) nil 'shape-text-anchor nil t)
+      ;; Changed
+      t)))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-text) matrix)
   (cond
@@ -5808,6 +5818,7 @@ Some classes have efficient implementations."
           (cons (+ x width) (+ y height)))))
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-image) _old-p0p1)
+  "Returns t if the property is actually changed."
   (with-slots (p0p1) shape
     ;; Update x,y,width,height from p0p1
     ;; @todo Suppress p0p1 changes in edraw-on-shape-properties-changed?
@@ -6186,6 +6197,7 @@ Some classes have efficient implementations."
 
 
 (cl-defmethod edraw-on-anchor-position-changed ((shape edraw-shape-group) old-p0p1)
+  "Returns t if the property is actually changed."
   (with-slots (p0p1) shape
     ;; Transform descendants from current local aabb to fit p0p1.
     (let ((src-rect old-p0p1)
@@ -6201,9 +6213,12 @@ Some classes have efficient implementations."
 
       ;;@todo Support more transform methods.
       ;;(edraw-transform-anchor-points-local
-      (edraw-transform-local
-       shape
-       (edraw-matrix-fit-rect-to-rect src-rect dst-rect)))))
+      (let ((matrix (edraw-matrix-fit-rect-to-rect src-rect dst-rect)))
+        (unless (edraw-matrix-identity-p matrix)
+          (edraw-transform-local shape matrix)
+          ;; Changed
+          ;;@todo Check if descendants were actually changed.
+          t)))))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-group) matrix)
   (cond
