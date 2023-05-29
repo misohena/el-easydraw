@@ -3312,19 +3312,27 @@ position where the EVENT occurred."
     (when handle
       (let ((anchor-xy (edraw-get-xy (edraw-parent-anchor handle)))
             (shift-p (memq 'shift (event-modifiers down-event)))
-            move-xy)
-        (edraw-track-dragging
-         down-event
-         (lambda (move-event)
-           (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
-           (when shift-p
-             (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
-           ;; If selected handle, move it alone
-           (if (and selected-handle
-                    (edraw-same-point-p handle selected-handle))
-               (edraw-move-on-transformed handle move-xy) ;;notify modification
-             (edraw-move-with-opposite-handle-on-transformed handle move-xy))))
-        (unless move-xy
+            (move-xy nil))
+        (edraw-editor-with-temp-modifications editor
+          (edraw-track-dragging
+           down-event
+           (lambda (move-event)
+             (edraw-undo-all editor) ;; Cancel previous move
+             (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+             (when shift-p
+               (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
+             ;; If selected handle, move it alone
+             (if (and selected-handle
+                      (edraw-same-point-p handle selected-handle))
+                 (edraw-move-on-transformed handle move-xy) ;;notify modification
+               (edraw-move-with-opposite-handle-on-transformed handle move-xy)))))
+        (if move-xy
+            ;; Fix position
+            ;; If selected handle, move it alone
+            (if (and selected-handle
+                     (edraw-same-point-p handle selected-handle))
+                (edraw-move-on-transformed handle move-xy) ;;notify modification
+              (edraw-move-with-opposite-handle-on-transformed handle move-xy))
           ;; Click handle point
           (edraw-select-handle editor handle)
           (edraw-display-selected-object-coordinates editor)))
@@ -3937,33 +3945,34 @@ position where the EVENT occurred."
                                               down-event)
   (with-slots (editor editing-path) tool
     (when (null editing-path)
-      ;;@todo support all selected shapes or all shapes
-      (when-let ((selected-path (edraw-cast (edraw-last-selected-shape editor)
-                                            'edraw-shape-path)))
-        (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
-               (last-anchor (edraw-get-last-anchor-point selected-path))
-               (first-anchor (edraw-get-first-anchor-point selected-path))
-               (anchor
-                (or
-                 (when (and last-anchor
-                            (not (edraw-in-closed-subpath-p last-anchor))
-                            (edraw-hit-input-p last-anchor down-xy))
-                   last-anchor)
-                 (when (and first-anchor
-                            (not (edraw-in-closed-subpath-p first-anchor))
-                            (edraw-hit-input-p first-anchor down-xy))
-                   (edraw-reverse-path selected-path)
-                   first-anchor))))
-          (when anchor
-            (setq editing-path selected-path)
+      (edraw-make-undo-group editor 'path-tool-continue-path
+        ;;@todo support all selected shapes or all shapes
+        (when-let ((selected-path (edraw-cast (edraw-last-selected-shape editor)
+                                              'edraw-shape-path)))
+          (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
+                 (last-anchor (edraw-get-last-anchor-point selected-path))
+                 (first-anchor (edraw-get-first-anchor-point selected-path))
+                 (anchor
+                  (or
+                   (when (and last-anchor
+                              (not (edraw-in-closed-subpath-p last-anchor))
+                              (edraw-hit-input-p last-anchor down-xy))
+                     last-anchor)
+                   (when (and first-anchor
+                              (not (edraw-in-closed-subpath-p first-anchor))
+                              (edraw-hit-input-p first-anchor down-xy))
+                     (edraw-reverse-path selected-path)
+                     (edraw-get-last-anchor-point selected-path)))))
+            (when anchor
+              (setq editing-path selected-path)
 
-            (message (edraw-msg "Connected"))
-            (edraw-select-anchor editor anchor)
+              (message (edraw-msg "Connected"))
+              (edraw-select-anchor editor anchor)
 
-            ;; Drag
-            (edraw-drag-handle-on-click-anchor anchor nil down-event editor)
-            t
-            ))))))
+              ;; Drag
+              (edraw-drag-handle-on-click-anchor anchor nil down-event editor)
+              t
+              )))))))
 
 (cl-defmethod edraw-mouse-down-close-path ((tool edraw-editor-tool) down-event)
   "Click the first anchor point of the editing path and drag it."
@@ -3973,17 +3982,18 @@ position where the EVENT occurred."
       (let ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
             (anchor (edraw-get-first-anchor-point editing-path)))
         (when (and anchor
-                   (edraw-hit-input-p anchor down-xy)
-                   (edraw-close-path-shape editing-path))
-          (message (edraw-msg "Closed"))
+                   (edraw-hit-input-p anchor down-xy))
+          (edraw-make-undo-group editor 'path-tool-close-path
+            (when (edraw-close-path-shape editing-path)
+              (message (edraw-msg "Closed"))
 
-          (edraw-select-anchor editor anchor)
+              (edraw-select-anchor editor anchor)
 
-          ;; Drag the `backward' handle of ANCHOR
-          (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
-          (edraw-clear tool)
-          t
-          )))))
+              ;; Drag the `backward' handle of ANCHOR
+              (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
+              (edraw-clear tool)
+              t
+              )))))))
 
 (cl-defmethod edraw-mouse-down-connect-to-another-path ((tool edraw-editor-tool) down-event)
   (with-slots (editor editing-path) tool
@@ -3991,25 +4001,28 @@ position where the EVENT occurred."
       (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
              (anchor (car (delq editing-path (edraw-find-end-points-of-path-shapes editor down-xy)))))
         (when anchor
-          (when (edraw-connect-path-to-anchor editing-path anchor) ;;notify modification
-            (edraw-clear tool)
-            (edraw-select-shape editor (edraw-parent-shape anchor))
-            (edraw-select-anchor editor anchor)
-            (message (edraw-msg "Connected"))
+          (edraw-make-undo-group editor 'path-tool-connect-to-another-path
+            (when (edraw-connect-path-to-anchor editing-path anchor) ;;notify modification
+              (edraw-clear tool)
+              (edraw-select-shape editor (edraw-parent-shape anchor))
+              (edraw-select-anchor editor anchor)
+              (message (edraw-msg "Connected"))
 
-            (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
-            t))))))
+              (edraw-drag-handle-on-click-anchor anchor 'backward down-event editor)
+              t)))))))
 
 (defun edraw-drag-handle-on-click-anchor (anchor backward-p down-event editor)
   (let ((shift-p (memq 'shift (event-modifiers down-event)))
         (anchor-xy (edraw-get-xy-transformed anchor))
+        (anchor-index (edraw-anchor-index-in-path anchor))
+        (shape (edraw-parent-shape anchor))
         dragging-point
-        moved-p)
-    (edraw-track-dragging
-     down-event
-     (lambda (move-event)
-       (setq moved-p t)
-       (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
+        move-xy)
+    (edraw-editor-with-temp-modifications editor
+      (edraw-track-dragging
+       down-event
+       (lambda (move-event)
+         (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
          (when shift-p
            (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
          (when (null dragging-point)
@@ -4025,7 +4038,23 @@ position where the EVENT occurred."
                 (edraw-xy-sub (edraw-xy-nmul 2 anchor-xy) move-xy)
               move-xy)))
          )))
-    moved-p))
+    (when move-xy
+      ;; ANCHOR may have been invalidated by UNDO handle creation,
+      ;; so reacquire it.
+      (let* ((anchor (edraw-get-nth-anchor-point shape anchor-index))
+             (dragging-point
+              ;;notify modification
+              (if backward-p
+                  (edraw-create-backward-handle anchor)
+                (edraw-create-forward-handle anchor))))
+        (edraw-select-anchor editor anchor)
+        (when dragging-point
+          (edraw-move-with-opposite-handle-on-transformed ;;notify modification
+           dragging-point
+           (if backward-p
+               (edraw-xy-sub (edraw-xy-nmul 2 anchor-xy) move-xy)
+             move-xy))
+          t)))))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-path)
                                        down-event)
@@ -4081,18 +4110,19 @@ position where the EVENT occurred."
                            down-xy))
                  ;; Add a new point
                  (anchor-point (edraw-add-anchor-point editing-path new-xy)) ;;notify modification
-                 dragging-point)
+                 dragging-point
+                 move-xy)
 
             ;; Select last anchor point
             (edraw-select-anchor editor anchor-point)
             (edraw-display-selected-object-coordinates editor)
 
             ;; Drag handle points of the new point
-            (edraw-track-dragging
-             down-event
-             (lambda (move-event)
-               (let* ((move-xy
-                       (edraw-mouse-event-to-xy-snapped editor move-event)))
+            (edraw-editor-with-temp-modifications editor
+              (edraw-track-dragging
+               down-event
+               (lambda (move-event)
+                 (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
                  (when shift-p
                    (setq move-xy (edraw-xy-snap-to-45deg move-xy new-xy)))
 
@@ -4107,7 +4137,21 @@ position where the EVENT occurred."
                     dragging-point
                     move-xy
                     t);;notify modification
-                   )))))))))))
+                   ))))
+
+            (when move-xy
+              ;; ANCHOR-POINT may have been invalidated by UNDO handle creation,
+              ;; so reacquire it.
+              (let* ((anchor-point (edraw-get-last-anchor-point editing-path))
+                     (dragging-point (edraw-create-forward-handle anchor-point))) ;;notify modification
+                (edraw-select-anchor editor anchor-point)
+                (when dragging-point
+                  (edraw-create-backward-handle anchor-point)
+                  (edraw-move-with-opposite-handle-symmetry-on-transformed
+                   dragging-point
+                   move-xy
+                   t);;notify modification
+                  ))))))))))
 
 (cl-defmethod edraw-clear ((tool edraw-editor-tool-path))
   (with-slots (editor editing-path) tool
@@ -6501,19 +6545,22 @@ possible. Because undoing invalidates all point objects."
                                         &optional
                                         opposite-index-old-xy)
   (with-slots (shape) spt
-    ;; Check previous undo data before making undo group
     (let* ((index (edraw-index-in-path spt))
            (type (intern (format "%s-p%s" type index)))
            (editor (oref shape editor))
-           (prev-undo-data (edraw-last-undo-data editor))
-           (prev-undo-data-same-target-p
-            (edraw-undo-data-starts-with-args-p
-             prev-undo-data
-             type
-             (if opposite-index-old-xy
-                 #'edraw-move-nth-points
-               #'edraw-move-nth-point)
-             shape)))
+           ;; Check previous undo data before making undo group
+           ;; [Grouping consecutive changes to the same target is now
+           ;; the responsibility of a higher command, so the following
+           ;; are no longer used.]
+           ;; (prev-undo-data-same-target-p
+           ;;  (edraw-undo-data-starts-with-args-p
+           ;;   (edraw-last-undo-data editor)
+           ;;   type
+           ;;   (if opposite-index-old-xy
+           ;;       #'edraw-move-nth-points
+           ;;     #'edraw-move-nth-point)
+           ;;   shape))
+           (prev-undo-data-same-target-p nil))
       ;;(message "type=%s len undo=%s" type (length (edraw-undo-list (oref shape editor))))
 
       (edraw-make-undo-group (oref shape editor) type

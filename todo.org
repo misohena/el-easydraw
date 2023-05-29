@@ -1,10 +1,6 @@
 
 
 * Inbox
-** TODO edraw-mouse-down-handle-pointをedraw-editor-with-temp-modifications
-edraw-editor-with-temp-modificationsを使うようにする。
-edraw-move-on-transformedのマージ機能に頼らないようにする。
-
 ** TODO テキストのedraw-set-anchor-positionはプロパティ変更を使うべき
 その方がrect系などとの統一性を出しやすいはず。
 UNDO等の挙動において。
@@ -23,7 +19,7 @@ UNDO登録やon-shape-changedを1回にまとめられないものか。
   - プロパティエディタでドラッグしたとき
   - プロパティエディタで連続して数値を変更したとき(しなくていい?)
   プロパティエディタはedraw.elに直接依存していないのでUNDOを直接制御できない所が難しい。
-- [ ] ドラッグ移動したとき(既に対応しているつもりだが漏れがないか確認する)
+- [X] ドラッグ移動したとき(既に対応しているつもりだが漏れがないか確認する)
   - ハンドルのドラッグが未対応
 - [X] キーで移動したとき(キー移動コマンドが連続するなら一つにまとめるべき)
 
@@ -229,6 +225,9 @@ d全体をUNDOデータにすると実際にアンドゥしたときに全ての
 注意点:
 - 選択状態の追跡部分は注意が必要。現在のedraw-on-selected-shape-changedは shape-path-data タイプの変更で deselectしているので。点を削除したら点をdeselectしなければならないはず。
 - パスデータはLからCへ暗黙的に変換される場合がある。これが行われるとインデックス番号がずれてしまう場合がある。そもそもCからLにはどうやっても戻らないのでデータも戻らない。結局dを戻した方が簡単かもしれない。
+
+[2023-05-30 Tue]追記:
+[[elisp-function:edraw-create-forward-handle]]と[[elisp-function:edraw-create-backward-handle]]はできればUNDOでポイントが無効にならないようにしたい。なぜなら、ハンドルをドラッグするときに使用しており、UNDOで無効になるせいで再取得を余儀なくされているから(see: [[elisp-function:edraw-drag-handle-on-click-anchor]]、edraw-on-down-mouse-1(edraw-editor-tool-path)。
 
 ** TODO パス編集/UNDOしたときに-forward-handle-pointが失われるのを何とかする
 edraw-move-nth-pointで指定indexのポイントが見つかれない問題として表面化する。
@@ -1810,3 +1809,11 @@ UNDOの処理などが重複しているので。
 - edraw-bring-forward
 - edraw-send-backward
 - edraw-send-to-back
+** DONE ハンドルのドラッグはedraw-editor-with-temp-modificationsを使うべき
+CLOSED: [2023-05-29 Mon 15:33]
+edraw-editor-with-temp-modificationsを使うようにする。
+edraw-move(edraw-on-path-point-move)のマージ機能に頼らないようにする。
+
+- [X] edraw-mouse-down-handle-point 単純にハンドルを移動するとき
+- [X] edraw-drag-handle-on-click-anchor パスを継続したり閉じたりするとき
+- [X] edraw-on-down-mouse-1 edraw-editor-tool-path 最初のアンカー
