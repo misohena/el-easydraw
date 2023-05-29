@@ -2306,10 +2306,15 @@ For use with `edraw-editor-with-temp-undo-list',
      (edraw-get-actions-for-selected-shapes editor)
      editor)))
 
+(defvar edraw-editor-move-selected-by-arrow-key--last-op nil)
+(defvar edraw-editor-move-selected-by-arrow-key--delta nil)
+(defvar edraw-editor-move-selected-by-arrow-key--last-undo-pushed-p nil)
+
 (defun edraw-editor-move-selected-by-arrow-key (&optional editor n)
   (interactive "i\nP")
   (let ((event last-input-event))
-    (when-let ((editor (or editor (edraw-editor-at-input event))))
+    (unless editor (setq editor (edraw-editor-at-input event)))
+    (when editor
       (let* ((mods (event-modifiers event))
              (d (* (if (consp n)
                        (read-number (edraw-msg "Moving Distance: ") 20)
@@ -2320,18 +2325,47 @@ For use with `edraw-editor-with-temp-undo-list',
                   ('right (edraw-xy d 0))
                   ('up (edraw-xy 0 (- d)))
                   ('down (edraw-xy 0 d))
-                  (_ (edraw-xy 0 0)))))
-        (if (and (memq 'meta mods)
-                 ;; Do not duplicate anchor or handle
-                 (null (edraw-selected-anchor editor))
-                 (null (edraw-selected-handle editor)))
-            (edraw-make-undo-group editor
-                'selected-shapes-duplicate-and-translate
-              (edraw-duplicate-selected-shapes editor)
-              (edraw-translate-selected editor v)
-              (edraw-display-selected-object-coordinates editor))
-          (edraw-translate-selected editor v)
-          (edraw-display-selected-object-coordinates editor))))))
+                  (_ (edraw-xy 0 0))))
+             (op (if (and (memq 'meta mods)
+                          ;; Do not duplicate anchor or handle
+                          (null (edraw-selected-anchor editor))
+                          (null (edraw-selected-handle editor)))
+                     'duplicate
+                   'translate)))
+        (pcase op
+          ('duplicate
+           (edraw-make-undo-group editor
+               'selected-shapes-duplicate-and-translate
+             (edraw-duplicate-selected-shapes editor)
+             (edraw-translate-selected editor v)
+             (edraw-display-selected-object-coordinates editor)))
+
+          ('translate
+           ;; Combine consecutive translations into a single operation
+           (if (and (eq last-command
+                        'edraw-editor-move-selected-by-arrow-key)
+                    (eq edraw-editor-move-selected-by-arrow-key--last-op
+                        'translate)
+                    edraw-editor-move-selected-by-arrow-key--last-undo-pushed-p)
+               ;; Undo using last pushed undo data and accumulate vector
+               (progn
+                 (edraw-undo editor)
+                 (setq edraw-editor-move-selected-by-arrow-key--delta
+                       (edraw-xy-add
+                        edraw-editor-move-selected-by-arrow-key--delta v)))
+             (setq edraw-editor-move-selected-by-arrow-key--delta v))
+           ;; Translate
+           (edraw-make-undo-group editor
+               'selected-shapes-translate-by-arrow-key
+             (edraw-translate-selected
+              editor
+              edraw-editor-move-selected-by-arrow-key--delta)
+             ;; Is UNDO data pushed?
+             (setq edraw-editor-move-selected-by-arrow-key--last-undo-pushed-p
+                   (not (edraw-empty-undo-p editor))))
+           (edraw-display-selected-object-coordinates editor)))
+        ;; Record last operation type
+        (setq edraw-editor-move-selected-by-arrow-key--last-op op)))))
 
 (cl-defmethod edraw-display-selected-object-coordinates ((editor edraw-editor))
   (with-slots (selected-shapes selected-anchor selected-handle) editor

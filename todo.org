@@ -1,6 +1,10 @@
 
 
 * Inbox
+** TODO edraw-mouse-down-handle-pointをedraw-editor-with-temp-modifications
+edraw-editor-with-temp-modificationsを使うようにする。
+edraw-move-on-transformedのマージ機能に頼らないようにする。
+
 ** TODO テキストのedraw-set-anchor-positionはプロパティ変更を使うべき
 その方がrect系などとの統一性を出しやすいはず。
 UNDO等の挙動において。
@@ -12,11 +16,19 @@ UNDO登録やon-shape-changedを1回にまとめられないものか。
 
 ** TODO UNDOのマージ機能を作り直す
 同じ属性を変更するときではなく、同じコマンドが連続するときだけマージするべき。
+コマンド側に必要に応じてUNDOしてから変更する機能を追加する。
+
+新しいマージ機能を作る。
+- [ ] プロパティエディタ
+  - プロパティエディタでドラッグしたとき
+  - プロパティエディタで連続して数値を変更したとき(しなくていい?)
+  プロパティエディタはedraw.elに直接依存していないのでUNDOを直接制御できない所が難しい。
+- [ ] ドラッグ移動したとき(既に対応しているつもりだが漏れがないか確認する)
+  - ハンドルのドラッグが未対応
+- [X] キーで移動したとき(キー移動コマンドが連続するなら一つにまとめるべき)
 
 今のマージ機能は全て廃止する。
 - edraw-push-undo-path-point-moveのmerge引数
-
-コマンド側に必要に応じてUNDOしてから変更する機能を追加する。
 
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
@@ -41,6 +53,8 @@ edraw-delete-pointでunglueしているが、それ以外の場所で点が削�
 循環しているケースは正しい点に移動しないので、戻したときに同じ点に戻らないのでは？
 
 [[edraw:data=H4sIAAtlcWQAA52T7WrCMBSGb6XEPwptmq9+RIyw/Rwdu4baJG3RJdJmVu9+ma5bRQbOAwkk4Zz3OS8nq/5QB0MrXSNAkiIQNKqtGycAI/5wUF3fWiMAhhgEx/ed6QVonNsv43gYBjhQaLs6Jgih2BcC61WnKvd3vaMAfj+dd93udgLMtNYg6F1nt0oAY40CQSsFULIrh2hTVtu6sx9GgiBer+rpk5Unr7cvXfOTPuOcj8Wibwg2Kl1q+/xXQjDM09/IQpIxmE5vihyFzEPK0pXRRXBvW+OiyhrjW/SmeCee5mixfHt+mZe6wlpt+OIq4wtWU5wypC/8j8DiBEFOf4OFOMkgnQYuqMfFBN2o00oSL8/vbmTEXTzMS9IEsqmXHpjmV+6mtGCEhCS/3+CxkVuDZVpqxeXmYWDKKMymdiYhQfza4azACIX0HxMxYt0Cj7NyBo5rv/zPWX8CdUfKFogDAAA=]]
+
+UNDO時には接続の更新を抑制するような仕組みがあればよい。
 
 ** TODO 点接続/テキストの位置を図形の中心に固定できるようにする
 ** TODO 点接続/コネクターツールを追加する
@@ -89,7 +103,7 @@ edraw-merge-set-properties-undo-data等、同じ操作を連続して行った�
 
 プロパティエディタでx属性をドラッグで変化させた場合は一つのUNDO情報にまとめられる。これはありがたい機能。
 
-キーボードによる選択図形の移動は現在の所マージされていない。当初はマージされていたかもしれないが、今は複数の選択図形を一度に移動するためにグループ化されているので、グループ同士はマージされない。
++キーボードによる選択図形の移動は現在の所マージされていない。当初はマージされていたかもしれないが、今は複数の選択図形を一度に移動するためにグループ化されているので、グループ同士はマージされない。+ [2023-05-29 Mon]連続するedraw-editor-move-selected-by-arrow-keyコマンドによる平行移動はUNDOして一つにまとめられるようにした。
 
 右クリックで一つの図形を選んで平行移動する場合でも、edraw-set-properties-internalが無変化のプロパティを削除するので、マージされない場合がある。例えばrectの場合、最初はx,y,width,heightが文字列なので一回目の平行移動はx,y,width,heightの全てのプロパティが変化する。しかし二回目はxやyのみ変化するので、一回目のプロパティ列と一致しないのでマージされない。
 
