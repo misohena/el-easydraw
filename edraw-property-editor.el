@@ -555,6 +555,11 @@ once. widget-value-set updates the same property four times."
   (edraw-set-value field (+ (edraw-get-value field)
                             (/ delta (oref field divisor)))))
 
+(defcustom edraw-property-editor-number-dragging-use-slider-bar nil
+  "Non-nil means show the slider bar while dragging the property name."
+  :group 'edraw-property-editor
+  :type 'boolean)
+
 (defun edraw-property-editor-number-dragging (down-event)
   (interactive "e")
   (when-let ((field (edraw-property-editor-field-at down-event)))
@@ -567,29 +572,36 @@ once. widget-value-set updates the same property four times."
                       (+ (* divisor (- min-value start-value)) down-x)))
              (max-x (when max-value
                       (+ (* divisor (- max-value start-value)) down-x)))
-             ;; Motion events come only character by character.
+             ;; If mouse-fine-grained-tracking is nil,
+             ;; motion events come only character by character.
              ;; However, when the mouse pointer is over an image,
              ;; events come pixel by pixel.
-             (ov (with-current-buffer buffer
-                   (save-excursion
-                     (goto-char down-pos)
-                     (make-overlay (line-beginning-position)
-                                   (line-beginning-position))))))
-        (overlay-put ov 'after-string "\n")
-        (edraw-property-editor-number-dragging-image-update
-         ov window down-x min-x max-x)
+             (ov (when edraw-property-editor-number-dragging-use-slider-bar
+                   (with-current-buffer buffer
+                     (save-excursion
+                       (goto-char down-pos)
+                       (make-overlay (line-beginning-position)
+                                     (line-beginning-position)))))))
+        (when ov
+          (overlay-put ov 'after-string "\n")
+          (edraw-property-editor-number-dragging-image-update
+           ov window down-x min-x max-x))
         (unwind-protect
-            (edraw-track-dragging
-             down-event
-             (lambda (move-event)
-               (let* ((move-x (car (posn-x-y (event-start move-event))))
-                      (delta-value (/ (- move-x down-x) divisor))
-                      (new-value (+ start-value delta-value)))
-                 (edraw-set-value field new-value)
-                 (edraw-property-editor-number-dragging-image-update
-                  ov window move-x min-x max-x)))
-             nil nil 'window)
-          (delete-overlay ov))))))
+            (let ((mouse-fine-grained-tracking t))
+              (edraw-track-dragging
+               down-event
+               (lambda (move-event)
+                 (let* ((move-x (car (posn-x-y (event-start move-event))))
+                        (delta-value (/ (- move-x down-x) divisor))
+                        (new-value (+ start-value delta-value)))
+                   (edraw-set-value field new-value)
+                   (when ov
+                     (edraw-property-editor-number-dragging-image-update
+                      ov window move-x min-x max-x))
+                   ))
+               nil nil 'window t))
+          (when ov
+            (delete-overlay ov)))))))
 
 (defun edraw-property-editor-number-dragging-image-update (ov window
                                                               x min-x max-x)

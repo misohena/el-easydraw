@@ -24,7 +24,9 @@ UNDO登録やon-shape-changedを1回にまとめられないものか。
 - [X] キーで移動したとき(キー移動コマンドが連続するなら一つにまとめるべき)
 
 今のマージ機能は全て廃止する。
-- edraw-push-undo-path-point-moveのmerge引数
+- [X] edraw-push-undo-path-point-moveのmerge引数 => キー移動とドラッグ
+- [ ] テキストのedraw-set-anchor-position => set-propertiesを使うべき
+- [ ] edraw-set-properties-internal(一般的なプロパティ設定) => プロパティエディタ
 
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
@@ -1817,3 +1819,9 @@ edraw-move(edraw-on-path-point-move)のマージ機能に頼らないように�
 - [X] edraw-mouse-down-handle-point 単純にハンドルを移動するとき
 - [X] edraw-drag-handle-on-click-anchor パスを継続したり閉じたりするとき
 - [X] edraw-on-down-mouse-1 edraw-editor-tool-path 最初のアンカー
+** DONE プロパティエディタ/プロパティ名のドラッグ時にスライダーを非表示にする
+CLOSED: [2023-05-29 Mon 16:24]
+
+元々イベントが文字単位でしか来ない問題を回避するために画像を表示したが、mouse-fine-grained-trackingという変数をtにすることでも回避できることが分かった。
+
+edraw-property-editor-number-dragging-use-slider-barというカスタマイズ変数で従来通りの表示も出来るようにしておく。
