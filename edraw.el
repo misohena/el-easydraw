@@ -5450,6 +5450,16 @@ Some classes have efficient implementations."
   (edraw-make-undo-group (oref shape editor) 'unglue-all
     (edraw-remove-all-point-connections shape)))
 
+(cl-defmethod edraw-point-connection-aabb ((shape edraw-shape))
+  "Return AABB for point connection calculations.
+
+Returns a bounding rectangle suitable for layout calculations.
+
+The edraw-shape-text class returns a rectangle that does not
+contain the descent of the last line. In the future this function
+may be replaced by another mechanism."
+  (edraw-shape-aabb shape))
+
 ;;;;; Shape - Rect Boundary
 
 (defclass edraw-shape-with-rect-boundary (edraw-shape)
@@ -5878,6 +5888,11 @@ Some classes have efficient implementations."
                     (edraw-msg "Font Size: ")
                     (edraw-get-property shape 'font-size))))
     (edraw-set-property shape 'font-size font-size)))
+
+(cl-defmethod edraw-point-connection-aabb ((shape edraw-shape-text))
+  ;; Exclude descent of the last line.
+  (let ((edraw-svg-text-contents-aabb--remove-last-descent t))
+    (edraw-shape-aabb shape)))
 
 
 
@@ -7005,7 +7020,7 @@ possible. Because undoing invalidates all point objects."
 (cl-defmethod edraw-get-xy ((src edraw-point-connection-src-aabb))
   "Return the current coordinates of the connection SRC."
   (with-slots (shape x-ratio y-ratio) src
-    (when-let ((aabb (edraw-shape-aabb shape)))
+    (when-let ((aabb (edraw-point-connection-aabb shape)))
       (edraw-xy
        (+ (edraw-rect-left aabb)
           (* x-ratio (edraw-rect-width aabb)))
@@ -7027,7 +7042,7 @@ possible. Because undoing invalidates all point objects."
   :abstruct t)
 
 (cl-defmethod edraw-shape-center ((dst edraw-point-connection-dst))
-  (edraw-rect-center (edraw-shape-aabb (oref dst shape))))
+  (edraw-rect-center (edraw-point-connection-aabb (oref dst shape))))
 
 ;;;;;; Point Connection Destination with Specified Shape
 

@@ -1057,6 +1057,8 @@
     (edraw-path-seglist-aabb
      (edraw-svg-element-to-seglist element matrix local-p))))
 
+(defvar edraw-svg-text-contents-aabb--remove-last-descent nil)
+
 (defun edraw-svg-text-contents-aabb (element)
   "Return the axis-aligned bounding box of the text ELEMENT.
 
@@ -1098,6 +1100,8 @@ This function does not consider the effect of the transform attribute."
                                   ("middle" -0.5) ("end" -1) (_ 0)))))
            (text-y (- (car ys) font-ascent))
            (text-h (* font-size (length lines))))
+      (when edraw-svg-text-contents-aabb--remove-last-descent
+        (setq text-h (max 0 (- text-h (- font-size font-ascent)))))
       ;;(message "x=%s y=%s text-x=%s text-y=%s text-w=%s text-h=%s text-anchor=%s" (car xs) (car ys) text-x text-y text-w text-h text-anchor)
       (edraw-rect-xywh text-x text-y text-w text-h))))
 
