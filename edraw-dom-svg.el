@@ -974,9 +974,9 @@
      (dom-node 'marker
                `((markerWidth . "6")
                  (markerHeight . "6")
-                 (viewBox . "0 0 10 10")
-                 (refX . "5")
-                 (refY . "5")
+                 (viewBox . "-10 -10 20 20")
+                 (refX . "0")
+                 (refY . "0")
                  (orient . "auto")
                  (stroke . "none")
                  (fill .
@@ -990,8 +990,8 @@
                          ;; @todo I want to use auto-start-reverse
                          ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
                          (if (eq prop-name 'marker-start)
-                             `((d . "M10,1.5 10,8.5 2.5,5Z"))
-                           `((d . "M0,1.5 0,8.5 7.0,5Z"))))))
+                             `((d . "M10,-7 10,7 -4,0Z")) ;; <|
+                           `((d . "M-10,-7 -10,7 4,0Z")))))) ;; |>
     ("circle"
      (dom-node 'marker
                `((markerWidth . "4")
