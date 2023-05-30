@@ -5161,23 +5161,21 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (edraw-set-properties-internal shape prop-list nil))
 
 (cl-defmethod edraw-set-properties-internal ((shape edraw-shape) prop-list
-                                             changed)
+                                             old-prop-list)
   "Returns t if the property is actually changed."
-  (let ((old-prop-list nil)
-        (defrefs (edraw-get-defrefs shape)))
+  (let ((defrefs (edraw-get-defrefs shape)))
     (with-slots (element) shape
       (dolist (prop prop-list)
         (let* ((prop-name (car prop))
                (new-value (cdr prop))
-               (old-value (edraw-svg-element-get-property
-                           element prop-name defrefs)))
-          (when (not (equal new-value old-value))
+               (old-value (edraw-svg-element-get-property element prop-name
+                                                          defrefs)))
+          (unless (equal new-value old-value)
             ;;(message "%s: %s to %s" prop-name old-value new-value)
             (push (cons prop-name old-value) old-prop-list)
             (edraw-svg-element-set-property element prop-name new-value
                                             defrefs)))))
     (when old-prop-list
-      (setq changed t)
       (let ((editor (oref shape editor)))
         (edraw-make-undo-group editor 'shape-properties
           (edraw-push-undo
@@ -5185,9 +5183,9 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            'shape-properties
            (list #'edraw-set-properties shape old-prop-list))
           (edraw-on-shape-properties-changed shape old-prop-list)
-          (edraw-on-shape-changed shape 'shape-properties)))))
-
-  changed)
+          ;; NOTE: Other connected shapes may change.
+          (edraw-on-shape-changed shape 'shape-properties)))
+      t)))
 
 (cl-defmethod edraw-on-shape-properties-changed ((_shape edraw-shape)
                                                  _old-prop-list)
@@ -5912,21 +5910,23 @@ Some classes have efficient implementations."
     (cl-call-next-method)))
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape-path) prop-list)
-  (let ((changed nil))
+  (let (old-prop-list)
     (when-let ((d-cell (assq 'd prop-list)))
-      (let ((d (or (cdr d-cell) "")))
-        (with-slots (cmdlist) shape
-          (unless (string= d (edraw-path-cmdlist-to-string cmdlist))
-            (setq changed t)
-            (edraw-make-undo-group (oref shape editor) 'shape-path-d
-              ;;(message "%s => %s" (edraw-path-cmdlist-to-string cmdlist) d)
-              (edraw-path-cmdlist-swap cmdlist (edraw-path-cmdlist-from-d d))
-              (edraw-push-undo-properties shape 'shape-path-d '(d))
-              (edraw-update-path-data shape)
-              (edraw-on-shape-changed shape 'shape-path-data)))))
+      (with-slots (cmdlist) shape
+        (let ((new-d (or (cdr d-cell) ""))
+              (old-d-attr (dom-attr (edraw-element shape) 'd))
+              (old-d-prop (edraw-path-cmdlist-to-string cmdlist)))
+          (unless (or (string= new-d old-d-attr)
+                      (string= new-d old-d-prop))
+            ;;(message "Change path data %s => %s" old-d-prop new-d)
+            ;; Update cmdlist
+            (edraw-path-cmdlist-swap cmdlist (edraw-path-cmdlist-from-d new-d))
+            ;; Update d= attribute
+            (edraw-update-path-data shape)
+            (push (cons 'd old-d-attr) old-prop-list))))
       (setf (alist-get 'd prop-list nil 'remove) nil))
     ;; other properties
-    (edraw-set-properties-internal shape prop-list changed)))
+    (edraw-set-properties-internal shape prop-list old-prop-list)))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape-path))
   (let* ((items (copy-tree (cl-call-next-method)))

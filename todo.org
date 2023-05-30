@@ -1,11 +1,6 @@
 
 
 * Inbox
-** TODO パスのedraw-set-propertiesはdの変更を同時に行うべき
-現状はまずdの更新を完全に済ませてからその他のプロパティを更新している。
-+UNDOをマージすることが前提になっている。+
-UNDO登録やon-shape-changedを1回にまとめられないものか。
-
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
 edraw-on-shape-changedに何か形が変わらない変更であることが分かるようなヒントを追加する。
@@ -1856,3 +1851,8 @@ edraw-push-undo-path-point-moveによるパスのアンカーやハンドルの�
 CLOSED: [2023-05-30 Tue 13:39]
 その方がrect系などとの統一性を出しやすいはず。
 UNDO等の挙動において。
+** DONE パスのedraw-set-propertiesはdの変更を同時に行うべき
+CLOSED: [2023-05-30 Tue 16:07]
+現状はまずdの更新を完全に済ませてからその他のプロパティを更新している。
++UNDOをマージすることが前提になっている。+
+UNDO登録やon-shape-changedを1回にまとめられないものか。
