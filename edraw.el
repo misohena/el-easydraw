@@ -1253,11 +1253,10 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-shape-from-element element editor t)))
 
 (cl-defmethod edraw-find-shapes-by-xy ((shapes list) xy)
-  (nreverse ;;front to back
-   (seq-filter
-    (lambda (shape)
-      (edraw-svg-element-contains-point-p (edraw-element shape) xy))
-    shapes)))
+  (seq-filter
+   (lambda (shape)
+     (edraw-svg-element-contains-point-p (edraw-element shape) xy))
+   shapes))
 
 (cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
   (nreverse ;;front to back
@@ -1272,6 +1271,12 @@ For use with `edraw-editor-with-temp-undo-list',
     (if (cdr shapes)
         (edraw-popup-shape-selection-menu shapes)
       (car shapes))))
+
+(cl-defmethod edraw-find-shapes-by-rect ((shapes list) rect)
+  (seq-filter
+   (lambda (shape)
+     (edraw-svg-element-intersects-rect-p (edraw-element shape) rect))
+   shapes))
 
 (cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect)
   (nreverse ;;front to back
@@ -5315,6 +5320,11 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
        :enable ,(not (edraw-back-p shape)))
       ((edraw-msg "Send to Back") edraw-send-to-back
        :enable ,(not (edraw-back-p shape)))))
+    ((edraw-msg "Glue")
+     (((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
+       :enable ,(null (edraw-get-point-connections shape)))
+      ((edraw-msg "Unglue All") edraw-unglue-all
+       :enable ,(not (null (edraw-get-point-connections shape))))))
     ((edraw-msg "Delete...") edraw-delete-with-confirm)
     ((edraw-msg "Duplicate") edraw-duplicate-and-select)
     ((edraw-msg "Copy") edraw-copy)
@@ -5395,7 +5405,50 @@ Some classes have efficient implementations."
 Some classes have efficient implementations."
   (nth index (edraw-get-anchor-points object)))
 
+;;;;;; Point Connection
 
+(cl-defmethod edraw-glue-destination-of-selected-or-overlapped-shape
+  ((shape edraw-shape))
+  "Return the shape that is the glue destination."
+  (with-slots (editor) shape
+    (let* ((selected-shapes ;;without this shape
+            (remq shape (edraw-selected-shapes editor)))
+           ;;(remq shape (edraw-all-shapes editor)))))
+           (dst-shape
+            (or
+             ;; the selected shape
+             (and (null (cdr selected-shapes))
+                  (car selected-shapes))
+             ;; the most front overlapping shape
+             (car (edraw-find-shapes-by-rect
+                   (reverse
+                    (or selected-shapes ;;@todo sort?
+                        (remq shape (edraw-all-shapes editor))))
+                   (edraw-shape-aabb shape))))))
+      dst-shape)))
+
+(cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((shape edraw-shape))
+  ;; Determine the destination shape
+  (let* ((dst-shape (edraw-glue-destination-of-selected-or-overlapped-shape shape)))
+    (when dst-shape
+      (edraw-make-undo-group (oref shape editor) 'glue-to-selected-or-overlapped-shape
+        (let ((conn (edraw-point-connection
+                     :src (edraw-point-connection-src-aabb
+                           :shape shape :x-ratio 0.5 :y-ratio 0.5)
+                     :dst (edraw-point-connection-dst-shape
+                           :shape dst-shape))))
+          ;; Update coordinates before adding CONN to SHAPE.
+          (edraw-update conn)
+          ;; Add CONN to SHAPE.
+          (edraw-add-point-connection shape conn)
+          ;; Do not update coordinates after adding CONN.
+          ;; When undoing, CONN must be removed before undoing XY move.
+          ;;(edraw-update-all-point-connections shape)
+          )))))
+
+(cl-defmethod edraw-unglue-all ((shape edraw-shape))
+  (edraw-make-undo-group (oref shape editor) 'unglue-all
+    (edraw-remove-all-point-connections shape)))
 
 ;;;;; Shape - Rect Boundary
 
@@ -6755,8 +6808,9 @@ possible. Because undoing invalidates all point objects."
                     (car selected-shapes))
                ;; the most front overlapping shape
                (car (edraw-find-shapes-by-xy
-                     (or selected-shapes
-                         (remq shape (edraw-all-shapes editor)))
+                     (reverse ;; front to back
+                      (or selected-shapes ;;@todo sort?
+                          (remq shape (edraw-all-shapes editor))))
                      (edraw-get-xy spt))))))
         dst-shape))))
 
