@@ -1,6 +1,12 @@
 
 
 * Inbox
+** TODO Set=>Fillでパスの塗りつぶし色を設定するときpreviewされないことがある
+
+パスに限らずfillが指定されていない図形で起きる。カラーピッカー内で最初の色をクリックしたときだけpreviewが反映されない。変化チェックが正しく機能していない？
+
+[[edraw:data=H4sIAIqjdWQAA3WP0Q6DIAxFf4XUZ0WcWeIi/osTRCIDA0z079cZt+xlD21z0/Se2zasiiQt4sShKksgk9RqihxYhWKVPmhnURUMyPYwNnCYYlxulKaUinQpnFcUD0uKRtC1Xg7xv9/GAft+9FEbwyEbxxFIiN7NkoN1VgLRgoMUvk/5vR9m5d3TCiC0a9XvyokdedIYvQT5dciqijWsATIgi70DDIi74vTbOVHX5YeZn1nrA0AVFj7SvQC7tom7FwEAAA==]]
+
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
 edraw-on-shape-changedに何か形が変わらない変更であることが分かるようなヒントを追加する。
@@ -28,6 +34,10 @@ edraw-delete-pointでunglueしているが、それ以外の場所で点が削�
 UNDO時には接続の更新を抑制するような仕組みがあればよい。
 
 ** TODO 点接続/テキストの位置を図形の中心に固定できるようにする
+~AABB(0.5 0.5):OBJ(somerectshape)~ のように指定出来るようにする。
+AABBの中心だとわずかに上にずれるが、そこは今後の課題。
+接着するコマンドが必要。
+
 ** TODO 点接続/コネクターツールを追加する
 ** TODO 点接続/辺からの距離を調整する機能を追加する
 ** TODO 点接続/接続する位置を角度で設定できるようにする
@@ -1856,3 +1866,9 @@ CLOSED: [2023-05-30 Tue 16:07]
 現状はまずdの更新を完全に済ませてからその他のプロパティを更新している。
 +UNDOをマージすることが前提になっている。+
 UNDO登録やon-shape-changedを1回にまとめられないものか。
+** DONE 点接続/AABBを基準にした接続元クラスを追加する
+CLOSED: [2023-05-30 Tue 18:26]
+~AABB(0.5 0.5):OBJ(somerectshape)~ のように指定出来るようにする。
+1. edraw-point-connection-src-aabbクラスを追加する。
+2. edraw-point-connection-parse-src-aabbを追加する。
+3. edraw-point-connection-src-typesに登録する。

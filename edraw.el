@@ -6926,6 +6926,46 @@ possible. Because undoing invalidates all point objects."
              (cons attr-y (edraw-y xy))))))
   xy)
 
+;;;;;; Point Connection Source AABB
+
+(defclass edraw-point-connection-src-aabb (edraw-point-connection-src)
+  ((x-ratio :type float :initarg :x-ratio)
+   (y-ratio :type float :initarg :y-ratio)))
+
+(cl-defmethod edraw-equal ((src1 edraw-point-connection-src-aabb)
+                           (src2 edraw-point-connection-src-aabb))
+  "Return non-nil if SRC1 and SRC2 point to the same point."
+  (and
+   (eq (oref src1 shape) (oref src2 shape))
+   (eq (oref src1 x-ratio) (oref src2 x-ratio))
+   (eq (oref src1 y-ratio) (oref src2 y-ratio))))
+
+(cl-defmethod edraw-to-string ((src edraw-point-connection-src-aabb))
+  ;;@todo Add option to output shape id?
+  ;; AABB(x-ratio y-ratio)
+  (with-slots (x-ratio y-ratio) src
+    (format "AABB(%s %s)" x-ratio y-ratio)))
+
+(cl-defmethod edraw-next-inside ((_src edraw-point-connection-src-aabb))
+  nil)
+
+(cl-defmethod edraw-get-xy ((src edraw-point-connection-src-aabb))
+  "Return the current coordinates of the connection SRC."
+  (with-slots (shape x-ratio y-ratio) src
+    (when-let ((aabb (edraw-shape-aabb shape)))
+      (edraw-xy
+       (+ (edraw-rect-left aabb)
+          (* x-ratio (edraw-rect-width aabb)))
+       (+ (edraw-rect-top aabb)
+          (* y-ratio (edraw-rect-height aabb)))))))
+
+(cl-defmethod edraw-set-xy ((src edraw-point-connection-src-aabb) xy)
+  "Move SRC to XY."
+  (when xy
+    (when-let ((curr-xy (edraw-get-xy src)))
+      (edraw-translate (oref src shape) (edraw-xy-sub xy curr-xy))))
+  xy)
+
 ;;;;; Point Connection Destination
 
 (defclass edraw-point-connection-dst ()
@@ -7249,7 +7289,8 @@ possible. Because undoing invalidates all point objects."
 (defconst edraw-point-connection-src-types
   '(("A" . edraw-point-connection-parse-src-anchor)
     ("ANCHOR" . edraw-point-connection-parse-src-anchor)
-    ("ATTRS" . edraw-point-connection-parse-src-attrs)))
+    ("ATTRS" . edraw-point-connection-parse-src-attrs)
+    ("AABB" . edraw-point-connection-parse-src-aabb)))
 
 (defun edraw-point-connection-parse-src (input src-shape)
   (let* ((fun (edraw-point-connection-parse-function input))
@@ -7268,6 +7309,12 @@ possible. Because undoing invalidates all point objects."
   (edraw-point-connection-src-attrs
    :shape src-shape
    :attr-x (intern (nth 0 args)) :attr-y (intern (nth 1 args))))
+
+(defun edraw-point-connection-parse-src-aabb (src-shape args)
+  (edraw-point-connection-src-aabb
+   :shape src-shape
+   :x-ratio (float (string-to-number (nth 0 args)))
+   :y-ratio (float (string-to-number (nth 1 args)))))
 
 (defconst edraw-point-connection-dst-types
   '(("OBJ" . edraw-point-connection-parse-dst-shape)
