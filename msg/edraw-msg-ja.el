@@ -113,7 +113,7 @@
      "Font Size: " "フォントサイズ: "
      "Frame" "フレーム"
      "Freehand Tool" "手書きツール"
-     "Glue to selected shape" "選択図形と接着"
+     "Glue to selected or overlapped shape" "選択または重なり図形と接着"
      "Grid Interval: " "グリッド間隔: "
      "Grid" "グリッド"
      "Group" "グループ化"

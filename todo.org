@@ -38,6 +38,8 @@ UNDO時には接続の更新を抑制するような仕組みがあればよい�
 AABBの中心だとわずかに上にずれるが、そこは今後の課題。
 接着するコマンドが必要。
 
+(edraw-glue-to-selected-or-overlapped-shape (shape edraw-shape-text))を追加する。
+
 ** TODO 点接続/コネクターツールを追加する
 ** TODO 点接続/辺からの距離を調整する機能を追加する
 ** TODO 点接続/接続する位置を角度で設定できるようにする
@@ -1872,3 +1874,7 @@ CLOSED: [2023-05-30 Tue 18:26]
 1. edraw-point-connection-src-aabbクラスを追加する。
 2. edraw-point-connection-parse-src-aabbを追加する。
 3. edraw-point-connection-src-typesに登録する。
+** DONE 点接続/選択または重なり図形と接着
+CLOSED: [2023-05-30 Tue 18:52]
+「選択図形と接着」を「選択または重なり図形と接着」へ変更する。
+選択しなくても接着できて便利。

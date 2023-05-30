@@ -6654,9 +6654,9 @@ possible. Because undoing invalidates all point objects."
           ((edraw-msg "Make Smooth") edraw-make-smooth)
           ((edraw-msg "Make Corner") edraw-make-corner
            :enable ,(or backward-handle forward-handle))
-          ((edraw-msg "Glue to selected shape") edraw-glue-to-selected-shape
+          ((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
            :visible ,(not glued-p)
-           :enable ,(edraw-can-be-glued-to-selected-shape spt))
+           :enable ,(edraw-can-be-glued-to-selected-or-overlapped-shape spt))
           ((edraw-msg "Unglue") edraw-unglue
            :visible ,glued-p)))
        ((edraw-path-point-handle-p ppoint)
@@ -6740,9 +6740,9 @@ possible. Because undoing invalidates all point objects."
             (edraw-on-shape-changed shape 'split-path-at-anchor)
             t))))))
 
-(cl-defmethod edraw-glue-destination-of-selected-shape
+(cl-defmethod edraw-glue-destination-of-selected-or-overlapped-shape
   ((spt edraw-shape-point-path))
-  "Return the selected shape that is the glue destination."
+  "Return the shape that is the glue destination."
   (with-slots (ppoint shape) spt
     (with-slots (editor) shape
       (let* ((selected-shapes ;;without this shape
@@ -6756,22 +6756,21 @@ possible. Because undoing invalidates all point objects."
                ;; the most front overlapping shape
                (car (edraw-find-shapes-by-xy
                      (or selected-shapes
-                         ;;(remq shape (edraw-all-shapes editor))
-                         )
+                         (remq shape (edraw-all-shapes editor)))
                      (edraw-get-xy spt))))))
         dst-shape))))
 
-(cl-defmethod edraw-can-be-glued-to-selected-shape ((spt edraw-shape-point-path))
+(cl-defmethod edraw-can-be-glued-to-selected-or-overlapped-shape ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
     (and (edraw-anchor-p spt)
          (not (edraw-glued-p spt))
-         (edraw-glue-destination-of-selected-shape spt))))
+         (edraw-glue-destination-of-selected-or-overlapped-shape spt))))
 
-(cl-defmethod edraw-glue-to-selected-shape ((spt edraw-shape-point-path))
+(cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((spt edraw-shape-point-path))
   ;; Determine the destination shape
   (when (edraw-anchor-p spt)
     (with-slots (shape) spt
-      (let* ((dst-shape (edraw-glue-destination-of-selected-shape spt))
+      (let* ((dst-shape (edraw-glue-destination-of-selected-or-overlapped-shape spt))
              (num-anchors (edraw-get-anchor-point-count shape))
              (anchor-index (edraw-anchor-index-in-path spt)))
         (when (and dst-shape anchor-index)
@@ -6780,7 +6779,7 @@ possible. Because undoing invalidates all point objects."
             (setq anchor-index (- anchor-index num-anchors)))
           ;;(message "Connect src=(%s %s) dst=%s" (edraw-name shape) anchor-index (edraw-name dst-shape))
 
-          (edraw-make-undo-group (oref shape editor) 'glue-to-selected-shape
+          (edraw-make-undo-group (oref shape editor) 'glue-to-selected-or-overlapped-shape
             (let ((conn (edraw-point-connection
                          :src (edraw-point-connection-src-anchor
                                :shape shape :index anchor-index)
