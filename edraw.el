@@ -6939,6 +6939,32 @@ possible. Because undoing invalidates all point objects."
                  (>= next-index (- count)))
         (edraw-point-connection-src-anchor :shape shape :index next-index)))))
 
+(cl-defmethod edraw-gap-distance ((src edraw-point-connection-src-anchor)
+                                  dst-shape)
+  "Return gap length between source and destination."
+  (with-slots (shape index) src
+    (or
+     (when (or (= index 0) (= index -1))
+       (let ((marker (edraw-get-property
+                      shape (if (= index 0) 'marker-start 'marker-end))))
+         (when (equal marker "arrow")
+           (let ((src-stroke (edraw-get-property shape 'stroke))
+                 (dst-stroke (edraw-get-property dst-shape 'stroke)))
+             (+
+              (if (not (or (null src-stroke)
+                           (equal src-stroke "")
+                           (equal src-stroke "none")))
+                  (* edraw-svg-marker-arrow-overhang
+                     (edraw-get-property-as-length shape 'stroke-width 0))
+                0)
+              (if (not (or (null dst-stroke)
+                           (equal dst-stroke "")
+                           (equal dst-stroke "none")))
+                  (* 0.5
+                     (edraw-get-property-as-length dst-shape 'stroke-width 0))
+                0))))))
+     0)))
+
 (cl-defmethod edraw-get-xy ((src edraw-point-connection-src-anchor))
   "Return the current coordinates of the connection SRC."
   (with-slots (shape index) src
@@ -6976,6 +7002,10 @@ possible. Because undoing invalidates all point objects."
 
 (cl-defmethod edraw-next-inside ((_src edraw-point-connection-src-attrs))
   nil)
+
+(cl-defmethod edraw-gap-distance ((_src edraw-point-connection-src-attrs)
+                                  _dst-shape)
+  0)
 
 (cl-defmethod edraw-get-xy ((src edraw-point-connection-src-attrs))
   "Return the current coordinates of the connection SRC."
@@ -7016,6 +7046,10 @@ possible. Because undoing invalidates all point objects."
 
 (cl-defmethod edraw-next-inside ((_src edraw-point-connection-src-aabb))
   nil)
+
+(cl-defmethod edraw-gap-distance ((_src edraw-point-connection-src-aabb)
+                                  _dst-shape)
+  0)
 
 (cl-defmethod edraw-get-xy ((src edraw-point-connection-src-aabb))
   "Return the current coordinates of the connection SRC."
@@ -7077,6 +7111,10 @@ possible. Because undoing invalidates all point objects."
                                      (edraw-element (oref dst shape))
                                      dst-shape-center
                                      dir)))))
+                 ;; Add gap
+                 (let ((gap (edraw-gap-distance src (oref dst shape))))
+                   (when (and gap (/= gap 0))
+                     (setq xy (edraw-xy-add xy (edraw-xy-nmul (/ gap (sqrt len-sq)) dir)))))
                  ;;(message "Compute dst %s to %s (dir=%s) = %s" dst-shape-center xy-src-next-inside dir xy)
                  (edraw-set-xy src xy)
                  xy))))

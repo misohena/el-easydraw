@@ -11,13 +11,14 @@
 Ctrl+クリックで接着するとか？
 二回目に接着したときはそこでパスを終わらせる必要がある。
 コネクターツールを作るのは後でも出来る。
+ツール選択時にヘルプを出す。
+[Path] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection
 ** TODO テキストをスナップするときに接着するかどうかを選べるようにする
 - カスタマイズ変数で何もしない、スナップ、接着を選べるようにする
 - Ctrl+クリックで接着・スナップしないようにする
 - 接着したら接着したと表示する
+[Text] Click:Add text, C-Click:Glue, C-u Click:Avoid snap to shape
 ** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
-** TODO 点接続/場当たり的で良いので矢印の位置を調整する
-矢印の大きさ(パスの線の太さ)と接続先の線の太さを考慮すべき。
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
 edraw-on-shape-changedに何か形が変わらない変更であることが分かるようなヒントを追加する。
@@ -1904,3 +1905,8 @@ CLOSED: [2023-05-31 Wed 07:15]
 修正後:
 
 [[edraw:data=H4sIAIZ1dmQAA82TyW7DIBBAfwVNLq0UwtIoS2V86KmH9Nzl5ga8KI6JMAnJ3xeM06R1e+mpkvEwIHiPMU7aQ4FcJW0pgE8poFJVRWn75KBMW+lGAJswQMdt3bQCSmt394Q45ybubqJNQTillPiNIE2kyltUSQFKmszhkPrRbWY2yqAYniNtBn3+2BP9wKFS7kEfBWBGUWg8PICMyl8ExM5r19GmUo1flO2tBtRaozdKQKMbBSiv6lrAaLlcwlcVTHFmjHbeaJfZEvm5J08Z43mAjedoOqZvgEiakKj2f8zZ0DyKd954KE5C6dPEqLX9/fseO6NT9+7ZeZ5/t7qYvGfrTWH0vpEdrLie0vIEPe/HQ0npFxlPZKEapxh9yqNBCGdPeuW5oB2qO/V531igmOHPRWdSpIYKzeiYc7rygYUtY2mwavzc3tQ3o8HFuP07iy06yipEzi+01mbGDnjsmkcK3/zvk34A5j05w40DAAA=]]
+** DONE 点接続/場当たり的で良いので矢印の位置を調整する
+CLOSED: [2023-05-31 Wed 08:02]
+矢印の大きさ(パスの線の太さ)と接続先の線の太さを考慮すべき。
+
+~(cl-defmethod edraw-gap-distance ((src edraw-point-connection-src-anchor) dst-shape) ...)~ を追加。

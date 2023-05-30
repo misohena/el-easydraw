@@ -967,6 +967,11 @@
 
 ;;;; SVG Marker
 
+(defconst edraw-svg-marker-arrow-overhang
+  (/ (*
+      6 ;;markerWidth
+      4) ;;arrow tip position
+     20.0)) ;;viewBox width
 
 (defun edraw-svg-create-marker (type prop-name element)
   (pcase type
