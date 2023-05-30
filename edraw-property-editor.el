@@ -43,6 +43,10 @@
 
 (cl-defmethod edraw-name
   ((_target edraw-property-editor-target)))
+(cl-defmethod edraw-last-undo-data
+  ((_target edraw-property-editor-target)))
+(cl-defmethod edraw-undo
+  ((_target edraw-property-editor-target)))
 (cl-defmethod edraw-get-property-info-list
   ((_target edraw-property-editor-target)))
 (cl-defmethod edraw-get-property
@@ -170,7 +174,9 @@ editor when the selected shape changes."
    (display :initarg :display)
    (target :initform nil)
    (widgets)
-   (update-timer :initform nil)))
+   (update-timer :initform nil)
+   (last-edit-undo-data :initform nil)
+   (last-edit-prop-name :initform nil)))
 
 (defvar-local edraw-property-editor--pedit nil)
 
@@ -237,6 +243,7 @@ editor when the selected shape changes."
     (edraw-unobserve-target pedit)
 
     (setq target new-target)
+    (edraw-set-last-edit pedit nil nil)
     (edraw-update-buffer pedit)
     (edraw-initialize-hooks pedit)))
 
@@ -349,7 +356,7 @@ editor when the selected shape changes."
                             (string-width
                              (symbol-name (plist-get prop-info :name))))))
             (push (edraw-property-editor-prop-widget-create
-                   target prop-info indent)
+                   target prop-info indent pedit)
                   widgets))))
       (setq widgets (nreverse widgets)))))
 
@@ -366,9 +373,11 @@ editor when the selected shape changes."
   ((widget :initarg :widget)
    (prop-info :initarg :prop-info)))
 
-(defun edraw-property-editor-prop-widget-create (target prop-info indent)
+(defun edraw-property-editor-prop-widget-create (target prop-info indent pedit)
+  ;;@todo Retrieve TARGET from PEDIT?
   (let* ((notify (edraw-property-editor-prop-widget-create-updator
-                  target prop-info))
+                  target prop-info
+                  pedit))
          (widget (edraw-property-editor-prop-widget-create-widget
                   target prop-info indent notify)))
     (edraw-property-editor-prop-widget
@@ -392,7 +401,19 @@ once. widget-value-set updates the same property four times."
   ;; Notify only once
   (widget-apply widget :notify widget nil));;event=nil
 
-(defun edraw-property-editor-prop-widget-create-updator (target prop-info)
+(cl-defmethod edraw-last-edit-undo-data ((pedit edraw-property-editor))
+  (oref pedit last-edit-undo-data))
+
+(cl-defmethod edraw-last-edit-prop-name ((pedit edraw-property-editor))
+  (oref pedit last-edit-prop-name))
+
+(cl-defmethod edraw-set-last-edit ((pedit edraw-property-editor)
+                                   undo-data prop-name)
+  (oset pedit last-edit-undo-data undo-data)
+  (oset pedit last-edit-prop-name prop-name))
+
+(defun edraw-property-editor-prop-widget-create-updator (target prop-info pedit)
+  ;;@todo Retrieve TARGET from PEDIT?
   (lambda (widget _changed-widget &optional _event)
     ;; Called 4 times per widget-value-set call.
     ;; 1. delete chars (event=(before-change BEG END))
@@ -401,12 +422,27 @@ once. widget-value-set updates the same property four times."
     ;; 4. insert chars (event=(after-change BEG END))
     (when (and edraw-property-editor-apply-immediately
                (not edraw-property-editor-prop-widget--notification-suppressed))
-      (edraw-set-property
-       target
-       (plist-get prop-info :name)
-       (edraw-property-editor-widget-value-to-prop-value
-        (widget-value widget)
-        prop-info)))))
+      (let ((undo-before-change (edraw-last-undo-data target))
+            (prop-name (plist-get prop-info :name)))
+        ;; Consecutive change to the same target and same property?
+        (when (and (eq undo-before-change (edraw-last-edit-undo-data pedit))
+                   (eq prop-name (edraw-last-edit-prop-name pedit)))
+          (edraw-undo target)
+          (setq undo-before-change (edraw-last-undo-data target)))
+        ;; Change property
+        (edraw-set-property
+         target
+         prop-name
+         (edraw-property-editor-widget-value-to-prop-value
+          (widget-value widget)
+          prop-info))
+        ;; Record last change
+        (let ((undo-after-change (edraw-last-undo-data target)))
+          (if (eq undo-before-change undo-after-change)
+              ;; No undo data generated (Probably same values)
+              (edraw-set-last-edit pedit nil nil)
+            ;; New undo data generated
+            (edraw-set-last-edit pedit undo-after-change prop-name)))))))
 
 (defun edraw-property-editor-prop-widget-create-widget (target
                                                         prop-info
@@ -654,7 +690,8 @@ once. widget-value-set updates the same property four times."
 (defun edraw-property-editor-read-property-paint-color (target
                                                         prop-name field-widget)
   (defvar edraw-editor-image-scaling-factor) ;;edraw.el
-  (let ((current-value (widget-value field-widget)))
+  (let ((current-value (widget-value field-widget))
+        last-undo)
     (unwind-protect
         (edraw-color-picker-read-color
          (format "%s: " prop-name)
@@ -664,18 +701,29 @@ once. widget-value-set updates the same property four times."
            (:no-color . "none")
            ,@(when (edraw-property-editor-target-shape-p target)
                (list
-                (cons :on-input-change
-                      (lambda (string color)
-                        (when (or (member string '("" "none"))
-                                  color)
-                          ;;@todo suppress modified flag change and notification
-                          (edraw-set-property target prop-name string))))))
+                (cons
+                 :on-input-change
+                 (lambda (string color)
+                   (when (or (member string '("" "none"))
+                             color)
+                     (let ((undo-before-change (edraw-last-undo-data target)))
+                       ;; Undo previous change
+                       (when (and last-undo (eq undo-before-change last-undo))
+                         (edraw-undo target)
+                         (setq undo-before-change (edraw-last-undo-data target)))
+                       ;;@todo suppress modified flag change and notification
+                       (edraw-set-property target prop-name string)
+                       ;; Detect generation of undo data
+                       (let ((undo-after-change (edraw-last-undo-data target)))
+                         (unless (eq undo-after-change undo-before-change)
+                           (setq last-undo undo-after-change)))))))))
            ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                         edraw-editor-image-scaling-factor)
                (list
                 (cons :scale-direct edraw-editor-image-scaling-factor)))))
-      (edraw-property-editor-prop-widget-value-set
-       field-widget current-value))))
+      ;; Undo previous change
+      (when last-undo
+        (edraw-undo target)))))
 
 ;;;;;; Increase/Decrease Value By Wheel
 
