@@ -5789,15 +5789,13 @@ Some classes have efficient implementations."
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-text) xy)
   "Returns t if the property is actually changed."
-  (with-slots (element editor) shape
-    (when (or (/= (car xy) (or (edraw-svg-attr-coord element 'x) 0))
-              (/= (cdr xy) (or (edraw-svg-attr-coord element 'y) 0)))
-      (edraw-make-undo-group editor 'shape-text-anchor
-        (edraw-push-undo-properties shape 'shape-text-anchor '(x y))
-        (edraw-svg-text-set-xy element xy)
-        (edraw-on-shape-changed shape 'anchor-position))
-      ;; Changed
-      t)))
+  (when (or (/= (edraw-x xy) (edraw-get-property-as-length shape 'x 0))
+            (/= (edraw-y xy) (edraw-get-property-as-length shape 'y 0)))
+    (edraw-set-properties
+     shape
+     (list
+      (cons 'x (edraw-x xy))
+      (cons 'y (edraw-y xy))))))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-text) matrix)
   (cond

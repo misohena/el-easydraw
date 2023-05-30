@@ -1,10 +1,6 @@
 
 
 * Inbox
-** TODO テキストのedraw-set-anchor-positionはプロパティ変更を使うべき
-その方がrect系などとの統一性を出しやすいはず。
-UNDO等の挙動において。
-
 ** TODO パスのedraw-set-propertiesはdの変更を同時に行うべき
 現状はまずdの更新を完全に済ませてからその他のプロパティを更新している。
 +UNDOをマージすることが前提になっている。+
@@ -1856,3 +1852,7 @@ edraw-push-undo-path-point-moveによるパスのアンカーやハンドルの�
 これらの挙動には一部一貫性が欠ける動作があるように思えるがどうしたら良いか。
 
 →対処法: UNDOデータのマージはもっと高レベルの場所で制御すべき。edraw-set-propertiesのレベルではマージすべきではない。
+** DONE テキストのedraw-set-anchor-positionはプロパティ変更を使うべき
+CLOSED: [2023-05-30 Tue 13:39]
+その方がrect系などとの統一性を出しやすいはず。
+UNDO等の挙動において。
