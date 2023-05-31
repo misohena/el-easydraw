@@ -5305,7 +5305,10 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-select ((shape edraw-shape))
   (with-slots (editor) shape
-    (edraw-select-tool editor 'select)
+    (unless (let ((current-tool (edraw-selected-tool editor)))
+              (and current-tool
+                   (eq (edraw-tool-type current-tool) 'select)))
+      (edraw-select-tool editor 'select))
     (edraw-select-shape editor shape)))
 
 (cl-defmethod edraw-selected-p ((shape edraw-shape))
