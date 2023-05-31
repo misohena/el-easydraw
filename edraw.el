@@ -3856,31 +3856,46 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-text))
   'text)
 
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-text))
+  (message (edraw-msg "[Text Tool] Click:Add, C-Click:Glue")))
+
 (cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (edraw-put-text-shape tool click-event edraw-snap-text-to-shape-center))
 
 (cl-defmethod edraw-on-S-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (edraw-put-text-shape tool click-event (not edraw-snap-text-to-shape-center)))
 
+(cl-defmethod edraw-on-C-mouse-1 ((tool edraw-editor-tool-text) click-event)
+  (edraw-put-text-shape tool click-event (not edraw-snap-text-to-shape-center)))
+
 (cl-defmethod edraw-put-text-shape ((tool edraw-editor-tool-text) click-event
                                     snap-to-shape-center-p)
-  (let ((text (read-string (edraw-msg "Text: "))))
-    (unless (string-empty-p text)
-      (with-slots (editor) tool
+  (with-slots (editor) tool
+    (let* ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))
+           (click-xy-snapped
+            (or (and snap-to-shape-center-p
+                     (edraw-snap-text-to-back-shape-center tool click-xy))
+                (edraw-snap-xy editor click-xy)))
+           (glue-dst-shape
+            (when (memq 'control (event-modifiers click-event))
+              (or (car (edraw-find-shapes-by-xy editor click-xy))
+                  (error (edraw-msg "No glue target")))))
+           (text (read-string (edraw-msg "Text: "))))
+      (unless (string-empty-p text)
         (edraw-deselect-all-shapes editor)
-        (let* ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))
-               (click-xy-snapped
-                (or (and snap-to-shape-center-p
-                         (edraw-snap-text-to-back-shape-center tool click-xy))
-                    (edraw-snap-xy editor click-xy)))
-               (shape (edraw-create-shape ;;notify modification
-                       editor
-                       (edraw-svg-body editor)
-                       'text
-                       'x (car click-xy-snapped)
-                       'y (cdr click-xy-snapped)
-                       'text text)))
-          (edraw-select-shape editor shape))))))
+        (edraw-make-undo-group editor 'text-tool-create
+          (let ((shape (edraw-create-shape ;;notify modification
+                        editor
+                        (edraw-svg-body editor)
+                        'text
+                        'x (car click-xy-snapped)
+                        'y (cdr click-xy-snapped)
+                        'text text)))
+
+            (when glue-dst-shape
+              (edraw-glue-to shape glue-dst-shape))
+
+            (edraw-select-shape editor shape)))))))
 
 (cl-defmethod edraw-snap-text-to-back-shape-center ((tool edraw-editor-tool-text) xy)
   (with-slots (editor) tool
@@ -5477,23 +5492,28 @@ Some classes have efficient implementations."
       dst-shape)))
 
 (cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((shape edraw-shape))
+  (edraw-glue-to
+   shape
+   ;; Determine the destination shape
+   (edraw-glue-destination-of-selected-or-overlapped-shape shape)))
+
+(cl-defmethod edraw-glue-to ((shape edraw-shape) (dst-shape edraw-shape))
   ;; Determine the destination shape
-  (let* ((dst-shape (edraw-glue-destination-of-selected-or-overlapped-shape shape)))
-    (when dst-shape
-      (edraw-make-undo-group (oref shape editor) 'glue-to-selected-or-overlapped-shape
-        (let ((conn (edraw-point-connection
-                     :src (edraw-point-connection-src-aabb
-                           :shape shape :x-ratio 0.5 :y-ratio 0.5)
-                     :dst (edraw-point-connection-dst-shape
-                           :shape dst-shape))))
-          ;; Update coordinates before adding CONN to SHAPE.
-          (edraw-update conn)
-          ;; Add CONN to SHAPE.
-          (edraw-add-point-connection shape conn)
-          ;; Do not update coordinates after adding CONN.
-          ;; When undoing, CONN must be removed before undoing XY move.
-          ;;(edraw-update-all-point-connections shape)
-          )))))
+  (when dst-shape
+    (edraw-make-undo-group (oref shape editor) 'glue-shape-to-shape
+      (let ((conn (edraw-point-connection
+                   :src (edraw-point-connection-src-aabb
+                         :shape shape :x-ratio 0.5 :y-ratio 0.5)
+                   :dst (edraw-point-connection-dst-shape
+                         :shape dst-shape))))
+        ;; Update coordinates before adding CONN to SHAPE.
+        (edraw-update conn)
+        ;; Add CONN to SHAPE.
+        (edraw-add-point-connection shape conn)
+        ;; Do not update coordinates after adding CONN.
+        ;; When undoing, CONN must be removed before undoing XY move.
+        ;;(edraw-update-all-point-connections shape)
+        ))))
 
 (cl-defmethod edraw-unglue-all ((shape edraw-shape))
   (edraw-make-undo-group (oref shape editor) 'unglue-all

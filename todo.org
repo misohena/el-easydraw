@@ -7,11 +7,6 @@
 
 [[edraw:data=H4sIAIqjdWQAA3WP0Q6DIAxFf4XUZ0WcWeIi/osTRCIDA0z079cZt+xlD21z0/Se2zasiiQt4sShKksgk9RqihxYhWKVPmhnURUMyPYwNnCYYlxulKaUinQpnFcUD0uKRtC1Xg7xv9/GAft+9FEbwyEbxxFIiN7NkoN1VgLRgoMUvk/5vR9m5d3TCiC0a9XvyokdedIYvQT5dciqijWsATIgi70DDIi74vTbOVHX5YeZn1nrA0AVFj7SvQC7tom7FwEAAA==]]
 
-** TODO テキストをスナップするときに接着するかどうかを選べるようにする
-- カスタマイズ変数で何もしない、スナップ、接着を選べるようにする
-- Ctrl+クリックで接着・スナップしないようにする
-- 接着したら接着したと表示する
-[Text] Click:Add text, C-Click:Glue, C-u Click:Avoid snap to shape
 ** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
@@ -1911,3 +1906,10 @@ Ctrl+クリックで接着するとか？
 コネクターツールを作るのは後でも出来る。
 ツール選択時にヘルプを出す。
 [Path] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection
+** DONE テキスト追加時に接着できるようにする
+CLOSED: [2023-05-31 Wed 11:08]
+- +カスタマイズ変数で何もしない、スナップ、接着を選べるようにする+
+- Ctrl+クリックで接着・スナップしないようにする
+- +接着したら接着したと表示する+
+- ヘルプを表示する
+[Text] Click:Add text, C-Click:Glue
