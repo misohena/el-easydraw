@@ -3673,6 +3673,9 @@ position where the EVENT occurred."
   ;;(edraw-deselect-shape (oref tool editor))
   (cl-call-next-method))
 
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-select))
+  (message (edraw-msg "[Select Tool] Click:Select, Drag:Range select or Move, M-Drag:Duplicate and move, S-Click:45-degree, Double Click:Properties")))
+
 (cl-defmethod edraw-on-M-S-down-mouse-1 ((tool edraw-editor-tool-select)
                                          down-event)
   (edraw-on-M-down-mouse-1 tool down-event))
@@ -3737,6 +3740,9 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-rect))
   'rect)
 
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-rect))
+  (message (edraw-msg "[Rect Tool] Drag:Add rect, S-Drag:Square")))
+
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-rect)
                                        down-event)
   (edraw-on-down-mouse-1 tool down-event))
@@ -3796,6 +3802,9 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-ellipse))
   'ellipse)
+
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-ellipse))
+  (message (edraw-msg "[Ellipse Tool] Drag:Add ellipse, S-Drag:Square")))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-ellipse)
                                        down-event)
@@ -3922,6 +3931,9 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-image))
   'image)
+
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-image))
+  (message (edraw-msg "[Image Tool] Click:Add image(original size), Drag:Add image(specified size), S-Drag:Square")))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-image)
                                        down-event)
@@ -4200,7 +4212,7 @@ position where the EVENT occurred."
            ;; Find glue target
            (dst-shape (car (remq editing-path (edraw-find-shapes-by-xy editor down-xy)))))
       (unless dst-shape
-        (error (edraw-msg "No glue target.")))
+        (error (edraw-msg "No glue target")))
 
       (edraw-make-undo-group editor 'path-tool-add-new-point
         ;; Add a new shape
@@ -4258,6 +4270,9 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-freehand))
   'path)
+
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-freehand))
+  (message (edraw-msg "[Freehand Tool] Drag:Add path")))
 
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-freehand)
                                      down-event)
@@ -4329,6 +4344,9 @@ position where the EVENT occurred."
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-custom-shape))
   ;;@todo Default values should be per tool, not per type
   'path) ;;Although not only path, default properties can be set only for path
+
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-custom-shape))
+  (message (edraw-msg "[Custom Shape Tool] Click:Add shape(original size), Drag:Add shape(specified size), S-Drag:Square")))
 
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool-custom-shape)
                                  (_editor edraw-editor))

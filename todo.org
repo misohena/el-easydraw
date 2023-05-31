@@ -1913,3 +1913,6 @@ CLOSED: [2023-05-31 Wed 11:08]
 - +接着したら接着したと表示する+
 - ヘルプを表示する
 [Text] Click:Add text, C-Click:Glue
+** DONE 各ツールでマウス操作のヘルプを表示する
+CLOSED: [2023-05-31 Wed 13:00]
+すでにpath、textでは実装済み。

@@ -145,6 +145,7 @@
      "Next" "次"
      "No editor here" "ここにエディタはありません"
      "No entries at point" "この場所に項目がありません"
+     "No glue target" "接着先がありません"
      "No link at point" "この場所にリンクがありません"
      "No need to convert" "変換の必要がありません"
      "No need to rotate" "回転の必要がありません"
@@ -249,9 +250,17 @@
      "Z-Order" "重ね順"
      "Zoom In" "ズームイン"
      "Zoom Out" "ズームアウト"
+     "[Custom Shape Tool] Click:Add shape(original size), Drag:Add shape(specified size), S-Drag:Square" "[カスタム図形ツール] クリック:図形追加(元サイズ), ドラッグ:図形追加(指定サイズ), S-ドラッグ:正方形指定"
      "\"transform\" Property" "\"transform\"プロパティ"
+     "[Ellipse Tool] Drag:Add ellipse, S-Drag:Square" "[楕円ツール] ドラッグ:楕円追加, S-ドラッグ:正方形指定"
      "all, none, property names separated by spaces, or empty: " "all, none, 空白区切りのプロパティ名列, or 空: "
+     "[Freehand Tool] Drag:Add path" "[手書きツール] ドラッグ:パス追加"
      "drag:Scroll, wheel:Zoom, 0:reset, q/r-click:quit" "ドラッグ:スクロール, ホイール:ズーム, 0:リセット, q/右クリック:終了"
+     "[Image Tool] Click:Add image(original size), Drag:Add image(specified size), S-Drag:Square" "[画像ツール] クリック:画像追加(元サイズ), ドラッグ:画像追加(指定サイズ), S-ドラッグ:正方形指定"
+     "[Path Tool] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection" "[パスツール] クリック:アンカー追加, ドラッグ:アンカーとハンドルの追加, S-クリック:45度単位, C-クリック:接着, C-u クリック:接続の回避"
+     "[Rect Tool] Drag:Add rect, S-Drag:Square" "[矩形ツール] ドラッグ:矩形追加, S-ドラッグ:正方形指定"
+     "[Select Tool] Click:Select, Drag:Range select or Move, M-Drag:Duplicate and move, S-Click:45-degree, Double Click:Properties" "[選択ツール] クリック:選択, ドラッグ:範囲指定または移動, M-ドラッグ:複製移動, S-クリック:45度単位, ダブルクリック:プロパティエディタ"
+     "[Text Tool] Click:Add, C-Click:Glue" "[テキストツール] クリック:テキスト追加, C-クリック:接着"
      ;; [END MSG DATA]
      )))
 
