@@ -7,12 +7,6 @@
 
 [[edraw:data=H4sIAIqjdWQAA3WP0Q6DIAxFf4XUZ0WcWeIi/osTRCIDA0z079cZt+xlD21z0/Se2zasiiQt4sShKksgk9RqihxYhWKVPmhnURUMyPYwNnCYYlxulKaUinQpnFcUD0uKRtC1Xg7xv9/GAft+9FEbwyEbxxFIiN7NkoN1VgLRgoMUvk/5vR9m5d3TCiC0a9XvyokdedIYvQT5dciqijWsATIgi70DDIi74vTbOVHX5YeZn1nrA0AVFj7SvQC7tom7FwEAAA==]]
 
-** TODO パスのアンカーポイントを追加するときに接着できるようにする
-Ctrl+クリックで接着するとか？
-二回目に接着したときはそこでパスを終わらせる必要がある。
-コネクターツールを作るのは後でも出来る。
-ツール選択時にヘルプを出す。
-[Path] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection
 ** TODO テキストをスナップするときに接着するかどうかを選べるようにする
 - カスタマイズ変数で何もしない、スナップ、接着を選べるようにする
 - Ctrl+クリックで接着・スナップしないようにする
@@ -1910,3 +1904,10 @@ CLOSED: [2023-05-31 Wed 08:02]
 矢印の大きさ(パスの線の太さ)と接続先の線の太さを考慮すべき。
 
 ~(cl-defmethod edraw-gap-distance ((src edraw-point-connection-src-anchor) dst-shape) ...)~ を追加。
+** DONE パスのアンカーポイントを追加するときに接着できるようにする
+CLOSED: [2023-05-31 Wed 11:02]
+Ctrl+クリックで接着するとか？
+二回目に接着したときはそこでパスを終わらせる必要がある。
+コネクターツールを作るのは後でも出来る。
+ツール選択時にヘルプを出す。
+[Path] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection

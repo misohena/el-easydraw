@@ -3550,7 +3550,8 @@ position where the EVENT occurred."
       (edraw-on-deselected tool))
     (setq tool new-tool)
     (when tool
-      (edraw-on-selected tool editor))
+      (edraw-on-selected tool editor)
+      (edraw-print-help tool))
     (edraw-update-toolbar editor)))
 
 (cl-defmethod edraw-selected-tool ((editor edraw-editor))
@@ -3596,6 +3597,9 @@ position where the EVENT occurred."
   (when-let ((shape-type (edraw-shape-type-to-create tool)))
     (edraw-get-default-shape-properties-by-tag
      (oref tool editor) shape-type))) ;;e.g. (rect (a . "1") (b . "2"))
+
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool))
+  )
 
 (cl-defmethod edraw-on-down-mouse-1 ((_tool edraw-editor-tool) _down-event))
 (cl-defmethod edraw-on-C-down-mouse-1 ((_tool edraw-editor-tool) _click-event))
@@ -3952,6 +3956,9 @@ position where the EVENT occurred."
   (edraw-clear tool)
   (cl-call-next-method))
 
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-path))
+  (message (edraw-msg "[Path Tool] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection")))
+
 (cl-defmethod edraw-mouse-down-continue-path ((tool edraw-editor-tool-path)
                                               down-event)
   (with-slots (editor editing-path) tool
@@ -4163,6 +4170,48 @@ position where the EVENT occurred."
                    move-xy
                    t);;notify modification
                   ))))))))))
+
+(cl-defmethod edraw-on-C-down-mouse-1 ((tool edraw-editor-tool-path)
+                                       down-event)
+  (with-slots (editor editing-path) tool
+    ;; Update editing-path
+    (when (and editing-path
+               (or (edraw-removed-p editing-path)
+                   (edraw-closed-path-shape-p editing-path)))
+      (setq editing-path nil))
+
+    ;; C-Click
+    (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event))
+           ;; Find glue target
+           (dst-shape (car (remq editing-path (edraw-find-shapes-by-xy editor down-xy)))))
+      (unless dst-shape
+        (error (edraw-msg "No glue target.")))
+
+      (edraw-make-undo-group editor 'path-tool-add-new-point
+        ;; Add a new shape
+        (when (null editing-path)
+          (edraw-deselect-all-shapes editor)
+          (setq editing-path
+                (edraw-create-shape ;;notify modification
+                 editor (edraw-svg-body editor) 'path))
+          ;; Select new shape
+          (edraw-select-shape editor editing-path))
+
+        (let* ((last-anchor (edraw-get-last-anchor-point editing-path))
+               (new-xy down-xy)
+               ;; Add a new point
+               (anchor-point (edraw-add-anchor-point editing-path new-xy))) ;;notify modification
+
+          ;; Glue
+          (edraw-glue-to anchor-point dst-shape)
+
+          ;; Select last anchor point
+          (edraw-select-anchor editor anchor-point)
+
+          ;; End editing-path
+          (when last-anchor
+            (edraw-clear tool)))))))
+
 
 (cl-defmethod edraw-clear ((tool edraw-editor-tool-path))
   (with-slots (editor editing-path) tool
@@ -6838,30 +6887,37 @@ possible. Because undoing invalidates all point objects."
 (cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((spt edraw-shape-point-path))
   ;; Determine the destination shape
   (when (edraw-anchor-p spt)
-    (with-slots (shape) spt
-      (let* ((dst-shape (edraw-glue-destination-of-selected-or-overlapped-shape spt))
-             (num-anchors (edraw-get-anchor-point-count shape))
-             (anchor-index (edraw-anchor-index-in-path spt)))
-        (when (and dst-shape anchor-index)
-          ;; Reverse anchor index
-          (when (>= anchor-index (/ num-anchors 2))
-            (setq anchor-index (- anchor-index num-anchors)))
-          ;;(message "Connect src=(%s %s) dst=%s" (edraw-name shape) anchor-index (edraw-name dst-shape))
+    (edraw-glue-to
+     spt
+     (edraw-glue-destination-of-selected-or-overlapped-shape spt))))
 
-          (edraw-make-undo-group (oref shape editor) 'glue-to-selected-or-overlapped-shape
-            (let ((conn (edraw-point-connection
-                         :src (edraw-point-connection-src-anchor
-                               :shape shape :index anchor-index)
-                         :dst (edraw-point-connection-dst-shape
-                               :shape dst-shape))))
-              ;; Update XY before adding CONN to SHAPE.
-              (edraw-update conn)
-              ;; Add CONN to SHAPE.
-              (edraw-add-point-connection shape conn)
-              ;; Do not update XY after adding CONN.
-              ;; When undoing, CONN must be removed before undoing XY move.
-              ;;(edraw-update-all-point-connections shape)
-              )))))))
+(cl-defmethod edraw-glue-to ((spt edraw-shape-point-path)
+                             (dst-shape edraw-shape))
+  (when (and (edraw-anchor-p spt)
+             dst-shape)
+    (let* ((src-shape (oref spt shape))
+           (num-anchors (edraw-get-anchor-point-count src-shape))
+           (anchor-index (edraw-anchor-index-in-path spt)))
+      (when anchor-index
+        ;; Reverse anchor index
+        (when (>= anchor-index (/ (1+ num-anchors) 2))
+          (setq anchor-index (- anchor-index num-anchors)))
+        ;;(message "Connect src=(%s %s) dst=%s" (edraw-name src-shape) anchor-index (edraw-name dst-shape))
+
+        (edraw-make-undo-group (oref src-shape editor) 'glue-to-selected-or-overlapped-shape
+          (let ((conn (edraw-point-connection
+                       :src (edraw-point-connection-src-anchor
+                             :shape src-shape :index anchor-index)
+                       :dst (edraw-point-connection-dst-shape
+                             :shape dst-shape))))
+            ;; Update XY before adding CONN to SRC-SHAPE.
+            (edraw-update conn)
+            ;; Add CONN to SRC-SHAPE.
+            (edraw-add-point-connection src-shape conn)
+            ;; Do not update XY after adding CONN.
+            ;; When undoing, CONN must be removed before undoing XY move.
+            ;;(edraw-update-all-point-connections src-shape)
+            ))))))
 
 (cl-defmethod edraw-unglue ((spt edraw-shape-point-path))
   (when (edraw-anchor-p spt)
