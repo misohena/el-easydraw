@@ -11,6 +11,10 @@ Emacs Easy Draw is a drawing tool that runs inside Emacs.
 - gzip and gunzip(or zlib support)
 - libxml support
 
+* Screenshots
+
+[[https://github.com/misohena/el-easydraw/wiki/Screenshots]]
+
 * Use In Org-Mode - edraw-org.el
 ** Config
 
