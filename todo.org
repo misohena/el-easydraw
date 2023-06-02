@@ -1916,3 +1916,47 @@ CLOSED: [2023-05-31 Wed 11:08]
 ** DONE 各ツールでマウス操作のヘルプを表示する
 CLOSED: [2023-05-31 Wed 13:00]
 すでにpath、textでは実装済み。
+** DONE 親子関係のあるshapeの変更通知機構を直す
+CLOSED: [2023-06-02 Fri 16:18]
+edraw-transform等で子孫の変更を一回にまとめるための仕組みが必要。
+現状だと子孫の一つが変化するたびに更新通知が発生してしまう。
+更新通知で点接続の更新をしているので、子孫が一つ変形するたびに位置を更新してを繰り返しグループ内の形状がメチャクチャになってしまう。
+ただ、将来子孫を直接選択出来るようにした場合、必ずしも悪くないかもしれない。
+
+とりあえず子孫の変更が親を飛び越えて祖先要素へ通知される仕様は廃止した。
+** DONE グループを他のshapeに接着すると動かしている間に崩れる
+CLOSED: [2023-06-02 Fri 16:19]
+次の図で矩形を移動するとりんごがバラバラになる。
+
+[[edraw:data=H4sIAPnudmQAA52T32+bMBDH/xXLfWklYnz4dxUiNXmbNu19bzQ4gJpBRLzS/Pc7Aum8NJWmnWSMz+f7fu4My+NrRYamDHVOBeeU1L6p6pBTsLh49f2x6VpcMaDk7ee+Pea0DuHwmKbDMLBBsK6v0oxznmIiulr2fhs+z/eWU3yezs9ds9/n9G6321FyDH334nPadq2npClz6su+GBbPxfal6rtfbUlJulpW8VZXni56fx+fE5clHupREVCsP00zLu1EoHGaOUFGnKO/LEKxmGRGQedl8ey8nxmi3UPXtGGx7doWMbBR2J2np/X6njNFcDw8fl9/ub8cf0DcQxHqd9w759yl9sXMIt/5vRZeoCYCfINMJdYyoSMzm9GrDTNcS5XpjGdCZIqABBbHaZcYxfAu/hgQUPyjdwMKNWKDW0eN+sTrJLMuMrsZvQASu3Ej9WWDT2+bG+BzCNYJ3DAXV09u9uTH+Y7+vcvTF3NusTCM2whQJlYxiKvMEDFjqOqYkDEnFnGFrscgDnEzMOhKARKLHv3/yPJjQsmMiT1fQV41XiZaMXUWTat54L+7+g2BFNnVCgQAAA==]]
+
+パスに限らずrectやellipseをグループ化したものでも起きる。
+
+[[edraw:data=H4sIACjudmQAA32R0W6EIBBFf4VMnxVZN+26Ef9FBZFowSBd9O87Kk1sYvsgk2Hg3nOxnF+KBC18zyHPMiC91Kr3HNgDm5d0s7YGu5QBWT5HM3PovZ+elIYQ0pCn1il6y7KMolA88lxGbYarg6woCrpPoSqdbP3f1gsHXNd97fQ4cnjrug7I7J0dJAdjjQSiBQcpXB2Spm4H5eyXEUBoVarzyIr1x+/39SgsBF5y6MjQzK1HxfZxELxjiZzsfuLc9kXt6+Sw2Qxb0XzUTdFEhtN0str4pLXGIAa+KT4kMslx1NMsr7HyBxMCI7dLNG7Xg2lDvUXUrdL/wsmGCXadbxeNmjHgOd/9kKYqfviHq2/PW2uQMAIAAA==]]
+
+あ原因分かった。子供が一つ動くたびに親のon-shape-changedが呼ばれるからだ。どうしよう。最低でもtransformするときは子供を全部transformし終わってから一回だけon-shape-changedを呼ぶようにしなければならない。それで問題ない？
+
+他にも一括で要素全体を操作するものはできるだけ一回にまとめた方が無難かも。
+
+その前に親子関係の通知の仕組みがメチャクチャなので徹底的に直した方が良い。
+
+厄介なのはUNDO。transformを一つにまとめたとしても、UNDOは一つにまとまらない。UNDOはそれぞれの子孫のtransformのUNDOが個別に実行されるから。
+
+対策案:
+
+- ×UNDOも一つにまとめる(子孫のUNDO登録を抑制して、最後にgroup全体に対する逆transformを一つだけ登録する)
+  => 誤差が累積しやすい(今更?) 逆行列が求められない場合がある(全く元に戻らない)
+- △make-undo-group時に個別に変更通知がいかないようにする仕組みを作る
+  => make-undo-group自体には手を加えたくない。
+- ○make-undo-groupで出来たUNDOデータをさらに包んで更新通知を抑制する
+- point-connection-src-aabbはtransformプロパティの変更によって移動する
+  => 最終手段
+- まとめなくても正しく動作するようにする
+  => どうやって
+
+一つ目をやろうとしたが無理があった。逆行列が求められない場合がある。そんな場合でも個別にUNDOすることはできることが多い。ほとんどの形状のtransformはxとかyとかのプロパティ値の変更になるので、元のプロパティ値に戻すUNDOが登録される。
+
+make-undo-groupで一つにしたUNDOデータをさらに包んで通知を抑制するのが一番簡単そう。
+
+1. (edraw-funcall-with-child-change-notification-suppressed group change-type fun args...)みたいな関数を作成する。
+2. make-undo-groupと似たような方法で包む。

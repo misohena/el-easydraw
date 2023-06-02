@@ -548,7 +548,9 @@ The format of each data is (TYPE FUNCTION ARGUMENTS...)."
 
 ;; Undo Data Structure
 
+(defmacro edraw-undo-data (type func-args) `(cons ,type ,func-args))
 (defmacro edraw-undo-data-type (data) `(car ,data))
+(defmacro edraw-undo-data-func-args (data) `(cdr ,data))
 (defmacro edraw-undo-data-func (data) `(cadr ,data))
 (defmacro edraw-undo-data-args (data) `(cddr ,data))
 (defmacro edraw-undo-data-arg0 (data) `(caddr ,data))
@@ -586,7 +588,7 @@ This function deletes all redo data."
   (with-slots (undo-list redo-list) editor
     (unless edraw-editor-redo-in-progress
       (setq redo-list nil))
-    (push (cons type data) undo-list)
+    (push (edraw-undo-data type data) undo-list)
     ;; Discard undo data exceeding the limit.
     (unless (or (> edraw-editor-undo-group-level 0)
                 edraw-editor-inhibit-discarding-undo-data)
@@ -630,10 +632,10 @@ This function deletes all redo data."
     (cons
      #'edraw-call-each-args
      ;;strip type
-     (mapcar #'cdr undo-list)))
+     (mapcar (lambda (data) (edraw-undo-data-func-args data)) undo-list)))
    ;; single data
    (undo-list
-    (cdr (car undo-list)));; strip type
+    (edraw-undo-data-func-args (car undo-list)));; strip type
    ;; no data
    (t nil)))
 
@@ -4898,11 +4900,20 @@ position where the EVENT occurred."
 ;;;;;; Hooks
 
 (cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
+  ;;(message "on shape changed %s %s" (edraw-name shape) type)
   (with-slots (editor) shape
     (edraw-update-related-point-connections shape type)
-    (edraw-on-document-changed editor 'shape)
-    (edraw-notify-change-hook shape type)
-    (edraw-notify-ancestors-of-change shape type)))
+    (edraw-notify-parent-of-change shape type)
+    (edraw-notify-change-hook shape type)))
+
+(cl-defmethod edraw-notify-parent-of-change ((shape edraw-shape) type)
+  (if-let ((parent (edraw-parent shape)))
+      (edraw-on-child-changed parent shape type)
+    (edraw-on-document-changed (oref shape editor) 'shape)))
+
+(cl-defmethod edraw-on-child-changed ((shape edraw-shape)
+                                      (_child edraw-shape) _type)
+  (edraw-on-shape-changed shape 'child-change))
 
 (cl-defmethod edraw-notify-change-hook ((shape edraw-shape) type)
   (with-slots (editor change-hook) shape
@@ -4915,16 +4926,6 @@ position where the EVENT occurred."
 (cl-defmethod edraw-remove-change-hook ((shape edraw-shape) function &rest args)
   (with-slots (change-hook) shape
     (apply 'edraw-hook-remove change-hook function args)))
-
-(cl-defmethod edraw-notify-ancestors-of-change ((shape edraw-shape) type)
-  "Notify ancestor nodes of change in descendant nodes."
-  (let ((ancestor shape))
-    (while (setq ancestor (edraw-parent ancestor))
-      (edraw-on-descendant-changed ancestor shape type))))
-
-(cl-defmethod edraw-on-descendant-changed ((_shape edraw-shape)
-                                           _changed-shape _type)
-  )
 
 ;;;;;; Parent
 
@@ -6353,13 +6354,22 @@ may be replaced by another mechanism."
     shape))
 
 (defclass edraw-shape-group (edraw-shape-with-rect-boundary)
-  ())
+  ((child-change-notification-suppressed-p :type boolean :initform nil)))
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-group))
   'g)
 
-(cl-defmethod edraw-on-descendant-changed ((shape edraw-shape-group)
-                                           _changed-shape _type)
+(cl-defmethod edraw-on-child-changed ((shape edraw-shape-group)
+                                      (_child edraw-shape) _type)
+  ;;(message "on child changed group=%s child=%s type=%s suppress=%s" (edraw-name shape) (edraw-name _child) _type (oref shape child-change-notification-suppressed-p))
+  (unless (oref shape child-change-notification-suppressed-p)
+    ;; Update anchor points
+    (edraw-update-p0p1-to-aabb shape)
+    ;; Treat as a change in this group
+    (edraw-on-shape-changed shape 'child-change)))
+
+(cl-defmethod edraw-update-p0p1-to-aabb ((shape edraw-shape-group))
+  "Update anchor points to fit descendants aabb."
   (let ((aabb (edraw-shape-aabb-local shape)))
     (if aabb
         (edraw-set-p0p1-without-notify shape
@@ -6367,9 +6377,7 @@ may be replaced by another mechanism."
                                        (edraw-rect-top aabb)
                                        (edraw-rect-right aabb)
                                        (edraw-rect-bottom aabb))
-      (edraw-set-p0p1-without-notify shape 0 0 0 0)))
-  ;;@todo Should it be a different kind of notification?
-  (edraw-on-shape-changed shape 'group-contents))
+      (edraw-set-p0p1-without-notify shape 0 0 0 0))))
 
 (cl-defmethod edraw-get-rect-local ((shape edraw-shape-group))
   (or (edraw-shape-aabb-local shape)
@@ -6421,19 +6429,67 @@ may be replaced by another mechanism."
    (t
     (edraw-transform-local shape matrix))))
 
-(cl-defmethod edraw-transform-local ((group edraw-shape-group) matrix)
+(cl-defmethod edraw-funcall-with-child-change-notification-suppressed
+  ((group edraw-shape-group)
+   change-type
+   func &rest args)
+
+  (let ((old-suppress-p
+         (oref group child-change-notification-suppressed-p)))
+    (oset group child-change-notification-suppressed-p t)
+    (unwind-protect
+        (apply func args)
+      (oset group child-change-notification-suppressed-p old-suppress-p)))
+  ;; Update anchor points
+  (edraw-update-p0p1-to-aabb group)
+  ;; Notify change
+  (edraw-on-shape-changed group change-type))
+
+(cl-defmethod edarw-transform-internal ((group edraw-shape-group) matrix
+                                        transform-function
+                                        change-type
+                                        change-type-undo)
   ;; Transform child shapes.
   (with-slots (editor) group
-    (edraw-make-undo-group editor 'group-transform
-      (dolist (child (edraw-children group))
-        (edraw-transform child matrix)))))
+    ;;@todo Check empty group
+
+    (let ((undo-data-before-change (edraw-last-undo-data editor)))
+      ;; Create one or zero undo data
+      (edraw-make-undo-group editor change-type
+        (edraw-funcall-with-child-change-notification-suppressed
+         group
+         change-type
+         (lambda ()
+           (dolist (child (edraw-children group))
+             (funcall transform-function child matrix)))))
+
+      ;; If new undo data exists
+      (unless (eq (edraw-last-undo-data editor) undo-data-before-change)
+        ;; Wrap undo data in suppressed funcall
+        (with-slots (undo-list) editor
+          ;; Rewrite the latest undo data
+          (setcar undo-list
+                  (edraw-undo-data
+                   change-type-undo
+                   (append
+                    (list
+                     #'edraw-funcall-with-child-change-notification-suppressed
+                     group
+                     change-type-undo)
+                    ;; (func args...)
+                    (edraw-undo-data-func-args (car undo-list)))))))))) ;;strip type
+
+(cl-defmethod edraw-transform-local ((group edraw-shape-group) matrix)
+  (edarw-transform-internal group matrix
+                            #'edraw-transform
+                            'group-transform-local
+                            'group-transform-local-undo))
 
 (cl-defmethod edraw-transform-anchor-points-local ((group edraw-shape-group) matrix)
-  ;; Transform anchor points of child shapes.
-  (with-slots (editor) group
-    (edraw-make-undo-group editor 'group-transform-anchor-points
-      (dolist (child (edraw-children group))
-        (edraw-transform-anchor-points child matrix)))))
+  (edarw-transform-internal group matrix
+                            #'edraw-transform-anchor-points
+                            'group-transform-anchor-points-local
+                            'group-transform-anchor-points-local-undo))
 
 (cl-defmethod edraw-shape-group-add-children ((group edraw-shape-group) children)
   ;; sort children by z-order
