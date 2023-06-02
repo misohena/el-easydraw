@@ -1977,3 +1977,13 @@ CLOSED: [2023-06-02 Fri 20:01]
 [[edraw:data=H4sIACjFeWQAA3VPyw7CIBD8FbJeNNHysDWpKf2XWpASEQyg1L93NWq8eNiZTDY7M9ulmyHFqjxJEIwBmbQ1U5bABYqbjskGj6riQOaz80nClPNlT2kppSrbKkRD8ZBRNIK+i3rM//1mCYj3Fx6tcxKiOQxL0TTrz7BqWzd8BSTlGE5agg9eA7FKglZxKJvDMJ5MDFevgNC+M7+roO7YQTtnL0l/HRZC8Ja3QEbM589SI1bYIcf5zahr9sncvPvXrwBqcPC5/gGwADr4KwEAAA==]]
 
 edraw-color-picker-read-color 内の on-color-change lambdaでpicker-color-strと同時にminibuffer-colorをコールバックに渡しているのが原因。なぜそんなことをしたんだろう。気が付かなかっただけ？
+** DONE 点接続/パスを接着したときの位置が微妙にずれている
+CLOSED: [2023-06-02 Fri 21:56]
+
+最初にアンカーを置いた場所に引きずられているように見える。
+
+[[edraw:data=H4sIADrbeWQAA52SS26DMBBAr4ImmyAFsAnlE2GkdFm16hlcbD4KtZFxQ3L7TiCkyaJS1ZEYy8Yz72GcD8faGVthGwZPMQGnkW3dWAZRiJOjNEOrFQPqU3BOn50aGDTW9rsgGMfRH7e+NnUQEkICbARFbmRpf+93YoD5POWq7ToGq6qqwBms0QfJQGklwWkFAykMH70PXh5qo7+UACco8vr+lRbnhfdYfm0sBBYZJFKEmfM84jSeDS7D1RP1fzwv64Jb7s2YC5BXZSoSIieHfwNp+neiTLiMknI7EXtumxtxlWXZcl7etVu0KMw6WP9G49AndJveIttQmvnZfSSvNI59EmFeAneljza9bpX1Sq0UfjdeBfz/+zVxd+/PL+vlXNzNfu3ReW0xdyf1oMYHL0bxDTiM9LpnAgAA]]
+
+追加する前にコネクションを更新しているのが問題なのだと思う。
+追加してから、コネクションを更新して、その後UNDOデータを登録する。
+そのためにはadd-point-connectionにupdate引数を追加しなければならない。

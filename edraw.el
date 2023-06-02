@@ -5531,9 +5531,9 @@ Some classes have efficient implementations."
                    :dst (edraw-point-connection-dst-shape
                          :shape dst-shape))))
         ;; Update coordinates before adding CONN to SHAPE.
-        (edraw-update conn)
+        ;;(edraw-update conn)
         ;; Add CONN to SHAPE.
-        (edraw-add-point-connection shape conn)
+        (edraw-add-point-connection shape conn t)
         ;; Do not update coordinates after adding CONN.
         ;; When undoing, CONN must be removed before undoing XY move.
         ;;(edraw-update-all-point-connections shape)
@@ -7010,9 +7010,9 @@ possible. Because undoing invalidates all point objects."
                        :dst (edraw-point-connection-dst-shape
                              :shape dst-shape))))
             ;; Update XY before adding CONN to SRC-SHAPE.
-            (edraw-update conn)
+            ;;(edraw-update conn)
             ;; Add CONN to SRC-SHAPE.
-            (edraw-add-point-connection src-shape conn)
+            (edraw-add-point-connection src-shape conn t)
             ;; Do not update XY after adding CONN.
             ;; When undoing, CONN must be removed before undoing XY move.
             ;;(edraw-update-all-point-connections src-shape)
@@ -7365,7 +7365,8 @@ possible. Because undoing invalidates all point objects."
            return conn))
 
 (cl-defmethod edraw-add-point-connection ((shape edraw-shape)
-                                          (conn edraw-point-connection))
+                                          (conn edraw-point-connection)
+                                          &optional update-conn)
   (unless (edraw-find-point-connection shape (edraw-src conn)) ;;Already exists?
     (edraw-set-point-connections
      shape
@@ -7379,6 +7380,9 @@ possible. Because undoing invalidates all point objects."
 
     ;; Update data attribute
     (edraw-update-point-connections-attribute shape)
+
+    (when update-conn
+      (edraw-update conn))
 
     ;; Add undo data
     (with-slots (editor) shape
