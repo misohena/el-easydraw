@@ -1387,7 +1387,11 @@ OVERLAY uses the display property to display the color PICKER."
                     (insert picker-color-str)
                     ;; callback
                     (funcall notify-input-change
-                             picker-color-str minibuffer-color))))))))
+                             picker-color-str
+                             picker-color
+                             ;;or (edraw-color-picker-color-from-string picker-color-str)?
+                             ;;NG: minibuffer-color
+                             ))))))))
 
     (edraw-add-hook picker 'ok on-ok)
     (edraw-add-hook picker 'cancel on-cancel)

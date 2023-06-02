@@ -1,11 +1,20 @@
 
 
 * Inbox
-** TODO Set=>Fillでパスの塗りつぶし色を設定するときpreviewされないことがある
+** TODO SVGのルート直下を直接編集できるようにする
+現在は ~<g id="edraw-body">~ 内に限定されている。<svg>直下を直接編集できるようになれば、他のツールで生成したSVGを手直しするのに使える場合もあるかもしれない。svgの中にsvgを入れることが出来るので、不可能では無いはず。
 
-パスに限らずfillが指定されていない図形で起きる。カラーピッカー内で最初の色をクリックしたときだけpreviewが反映されない。変化チェックが正しく機能していない？
+ただし、現在との互換性を維持する必要はあるので、最悪モードを切り替えるような仕組みが必要。
 
-[[edraw:data=H4sIAIqjdWQAA3WP0Q6DIAxFf4XUZ0WcWeIi/osTRCIDA0z079cZt+xlD21z0/Se2zasiiQt4sShKksgk9RqihxYhWKVPmhnURUMyPYwNnCYYlxulKaUinQpnFcUD0uKRtC1Xg7xv9/GAft+9FEbwyEbxxFIiN7NkoN1VgLRgoMUvk/5vR9m5d3TCiC0a9XvyokdedIYvQT5dciqijWsATIgi70DDIi74vTbOVHX5YeZn1nrA0AVFj7SvQC7tom7FwEAAA==]]
+defsもsvgルートの直下にあるので、これを(奥行きの処理などで)適切に無視する必要がある。
+
+SVG読み込み時にルート直下のdefs以外を#edraw-bodyへ移動してしまった方が楽なのかもしれないが。そのような動作をするインポートコマンドを作るという手もある。
+
+** TODO shape毎に変形モードを持たせられるようにする
+shape毎にどのような方式で変形するかを決められるように出来たら便利かもしれない。パスやグループ内の座標を維持したい場合は、そのshapeだけtransformプロパティを使うように設定できる。SVG内では ~edraw-data-transform-method=~ のような属性で記録すれば良い。
+
+** TODO グループの子孫を直接編集できるようにする
+モード切替等で、#edraw-body直下よりも下の階層にあるshapeを直接選択、操作出来るようにする。
 
 ** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
@@ -1960,3 +1969,11 @@ make-undo-groupで一つにしたUNDOデータをさらに包んで通知を抑�
 
 1. (edraw-funcall-with-child-change-notification-suppressed group change-type fun args...)みたいな関数を作成する。
 2. make-undo-groupと似たような方法で包む。
+** DONE Set=>Fillでパスの塗りつぶし色を設定するときpreviewされないことがある
+CLOSED: [2023-06-02 Fri 20:01]
+
+パスに限らずfillが指定されていない図形で起きる。カラーピッカー内で最初の色をクリックしたときだけpreviewが反映されない。変化チェックが正しく機能していない？
+
+[[edraw:data=H4sIACjFeWQAA3VPyw7CIBD8FbJeNNHysDWpKf2XWpASEQyg1L93NWq8eNiZTDY7M9ulmyHFqjxJEIwBmbQ1U5bABYqbjskGj6riQOaz80nClPNlT2kppSrbKkRD8ZBRNIK+i3rM//1mCYj3Fx6tcxKiOQxL0TTrz7BqWzd8BSTlGE5agg9eA7FKglZxKJvDMJ5MDFevgNC+M7+roO7YQTtnL0l/HRZC8Ja3QEbM589SI1bYIcf5zahr9sncvPvXrwBqcPC5/gGwADr4KwEAAA==]]
+
+edraw-color-picker-read-color 内の on-color-change lambdaでpicker-color-strと同時にminibuffer-colorをコールバックに渡しているのが原因。なぜそんなことをしたんだろう。気が付かなかっただけ？
