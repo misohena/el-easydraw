@@ -3891,7 +3891,9 @@ position where the EVENT occurred."
             (when (memq 'control (event-modifiers click-event))
               (or (car (edraw-find-shapes-by-xy editor click-xy))
                   (error (edraw-msg "No glue target")))))
-           (text (read-string (edraw-msg "Text: "))))
+           (text (read-string (if glue-dst-shape
+                                  (edraw-msg "Glued Text: ")
+                                (edraw-msg "Text: ")))))
       (unless (string-empty-p text)
         (edraw-deselect-all-shapes editor)
         (edraw-make-undo-group editor 'text-tool-create
