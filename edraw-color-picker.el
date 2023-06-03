@@ -50,6 +50,8 @@
 ;;    boolean
 ;; :enable-recent-colors
 ;;    boolean
+;; :recent-colors
+;;    edraw-list : String list of recently used colors
 ;; :color-float-format (default: 4)
 ;;    integer : Number of digits after the decimal point
 ;;    string : format string (e.g. "%s")
@@ -82,53 +84,60 @@
 (defconst edraw-color-picker-font-size 14)
 (defconst edraw-color-picker-font-acent 0.85)
 
-(defvar edraw-color-picker-recent-colors-max-size 32)
-(defvar edraw-color-picker-recent-colors
-  (list
-   "#000000ff"
-   "#0000ffff"
-   "#00ff00ff"
-   "#00ffffff"
-   "#ff0000ff"
-   "#ff00ffff"
-   "#ffff00ff"
-   "#ffffffff"
-   "#00000080"
-   "#0000ff80"
-   "#00ff0080"
-   "#00ffff80"
-   "#ff000080"
-   "#ff00ff80"
-   "#ffff0080"
-   "#ffffff80"))
-
 (defvar edraw-color-picker-model-suppress-change-hook nil)
 
 
 ;;;; Recent Colors
 
-(defun edraw-color-picker-add-to-recent-colors (color)
-  ;;@todo validate color more
-  (let ((color (if (stringp color)
-                   color
-                 (edraw-to-string color))))
-    (setq edraw-color-picker-recent-colors
-          (cons
-           color
-           (seq-remove (lambda (c)
-                         (string=
-                          (edraw-to-string (edraw-color-from-string c))
-                          color))
-                       edraw-color-picker-recent-colors)))
-    (setq edraw-color-picker-recent-colors
-          (seq-take edraw-color-picker-recent-colors
-                    edraw-color-picker-recent-colors-max-size))
-    ;;@todo save to file
-    ))
+(defvar edraw-color-picker-recent-colors-max-size 32)
+
+(defconst edraw-color-picker-recent-colors-default
+  '("#000000ff"
+    "#0000ffff"
+    "#00ff00ff"
+    "#00ffffff"
+    "#ff0000ff"
+    "#ff00ffff"
+    "#ffff00ff"
+    "#ffffffff"
+    "#00000080"
+    "#0000ff80"
+    "#00ff0080"
+    "#00ffff80"
+    "#ff000080"
+    "#ff00ff80"
+    "#ffff0080"
+    "#ffffff80"))
+
+(defvar edraw-color-picker-recent-colors
+  (edraw-list edraw-color-picker-recent-colors-default))
+
+(defun edraw-color-picker-normalize-color-string (color)
+  "Return normalized COLOR string."
+  ;;@todo validate more
+  (edraw-to-string
+   (if (stringp color)
+       (edraw-color-from-string color)
+     color)))
+
+(defun edraw-color-picker-get-recent-colors (options)
+  (edraw-list-data
+   (alist-get :recent-colors options edraw-color-picker-recent-colors)))
+
+(defun edraw-color-picker-add-recent-color (options color)
+  (let ((color-str (edraw-color-picker-normalize-color-string color))
+        (colors (alist-get :recent-colors options edraw-color-picker-recent-colors)))
+    (edraw-remove-if colors
+                     (lambda (c)
+                       (string=
+                        (edraw-color-picker-normalize-color-string c)
+                        color-str)))
+    (edraw-push-front colors color-str)
+    (edraw-shrink colors edraw-color-picker-recent-colors-max-size)))
+
 
 
 ;;;; SVG Common
-
 
 (defun edraw-color-picker-rect (x y w h fill &optional stroke &rest attrs)
   (dom-node 'rect
@@ -799,10 +808,10 @@
    'move-to-top
    `(move-dx ,padding-left)
    `(move-dy ,padding-top)
-   `(move-dy 256)
+   '(move-dy 256)
    '(move-dy 14)
    (when (and (alist-get :enable-recent-colors options t)
-              edraw-color-picker-recent-colors)
+              (edraw-color-picker-get-recent-colors options))
      (list 'element
            (lambda (x y _left _top _right _bottom)
              (dom-node 'text
@@ -820,7 +829,7 @@
                     (w 24)
                     (h 20)
                     (num-entries (floor (/ (- right x) (+ w spacing)))))
-               (cl-loop for color in edraw-color-picker-recent-colors
+               (cl-loop for color in (edraw-color-picker-get-recent-colors options)
                         for i from 0 to (1- num-entries)
                         collect
                         (edraw-color-picker-area-palette
@@ -1008,7 +1017,8 @@
             (lambda (_area)
               ;; Add color to recent-colors
               (when (alist-get :enable-recent-colors options t)
-                (edraw-color-picker-add-to-recent-colors
+                (edraw-color-picker-add-recent-color
+                 options
                  (edraw-get-current-color picker)))
               ;; Callback
               (when-let ((fun (alist-get :ok options)))
@@ -1438,7 +1448,7 @@ OVERLAY uses the display property to display the color PICKER."
           (when-let ((result-color
                       (edraw-color-picker-color-from-string result options)))
             ;; Avoid color name
-            (edraw-color-picker-add-to-recent-colors result-color))
+            (edraw-color-picker-add-recent-color options result-color))
           result)
       (edraw-close picker)
       (delete-overlay overlay))))
@@ -1487,7 +1497,8 @@ Valid options are:
   (if (cl-typep obj 'edraw-color)
       obj
     (or (if (stringp obj) (edraw-color-picker-color-from-string obj options))
-        (edraw-color-ensure (car edraw-color-picker-recent-colors))
+        (edraw-color-ensure (car
+                             (edraw-color-picker-get-recent-colors options)))
         (edraw-color-f 1 0 0 1))))
 
 

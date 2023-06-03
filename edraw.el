@@ -262,6 +262,24 @@ buffer.
 
 line-prefix and wrap-prefix are used in org-indent.")
 
+;;;;; Editor - Color
+
+(defvar edraw-editor-recent-colors nil)
+
+(defun edraw-editor-recent-colors ()
+  (unless edraw-editor-recent-colors
+    (setq edraw-editor-recent-colors
+          (edraw-list
+           (edraw-ui-state-get 'color-picker 'recent-colors
+                               edraw-color-picker-recent-colors-default))))
+  edraw-editor-recent-colors)
+
+(defun edraw-editor-save-recent-colors ()
+  (when edraw-editor-recent-colors
+    (edraw-ui-state-set 'color-picker 'recent-colors
+                        (edraw-list-data edraw-editor-recent-colors))
+    (edraw-ui-state-save)))
+
 ;;;;; Editor - Constructor
 
 (defun edraw-editor-create (overlay-spec &optional svg)
@@ -360,7 +378,8 @@ line-prefix and wrap-prefix are used in org-indent.")
       (edraw-select-tool editor nil) ;;deselect tool (some tools need to disconnect)
       (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?
       (edraw-update-image-timer-cancel editor)
-      (delete-overlay overlay))))
+      (delete-overlay overlay)
+      (edraw-editor-save-recent-colors))))
 
 ;;;;; Editor - User Settings
 
@@ -1065,7 +1084,8 @@ For use with `edraw-editor-with-temp-undo-list',
                                     color)
                             ;;@todo suppress notification?
                             (edraw-set-background editor string))))
-                    (:scale-direct . ,(oref editor image-scale))))
+                    (:scale-direct . ,(oref editor image-scale))
+                    (:recent-colors . ,(edraw-editor-recent-colors))))
                (edraw-set-background editor current-value)))))
      (list editor new-value)))
 
@@ -3283,7 +3303,8 @@ position where the EVENT occurred."
                       '("" "none")
                       `((:color-name-scheme . web)
                         (:no-color . "none")
-                        (:scale-direct . ,(oref editor image-scale))))))
+                        (:scale-direct . ,(oref editor image-scale))
+                        (:recent-colors . ,(edraw-editor-recent-colors))))))
       (edraw-set-selected-tool-default-shape-property
        editor prop-name new-value)
       (edraw-update-toolbar editor))))
@@ -5365,7 +5386,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                    color)
                            ;;@todo suppress modified flag change and notification
                            (edraw-set-property shape prop-name string))))
-                   (:scale-direct . ,(oref (oref shape editor) image-scale))))
+                   (:scale-direct . ,(oref (oref shape editor) image-scale))
+                   (:recent-colors . ,(edraw-editor-recent-colors))))
               (edraw-set-property shape prop-name curr-value)))))
     (when (string-empty-p new-value)
       (setq new-value nil))

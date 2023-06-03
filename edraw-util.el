@@ -311,6 +311,67 @@
 
 
 
+;;;; List Structure
+
+(cl-defstruct (edraw-list
+               (:constructor edraw-list-construct))
+  (data nil))
+
+(defun edraw-list (&optional list)
+  (edraw-list-construct :data (mapcar #'identity list)))
+
+(cl-defmethod edraw-assign ((list edraw-list) sequence)
+  (setf (edraw-list-data list) (mapcar #'identity sequence))
+  list)
+
+(cl-defmethod edraw-clear ((list edraw-list))
+  (setf (edraw-list-data list) nil)
+  list)
+
+(cl-defmethod edraw-length ((list edraw-list))
+  (length (edraw-list-data list)))
+
+(cl-defmethod edraw-empty-p ((list edraw-list))
+  (null (edraw-list-data list)))
+
+(cl-defmethod edraw-push-front ((list edraw-list) element)
+  (push element (edraw-list-data list))
+  element)
+
+(cl-defmethod edraw-pop-front ((list edraw-list))
+  (pop (edraw-list-data list)))
+
+(cl-defmethod edraw-front ((list edraw-list))
+  (car (edraw-list-data list)))
+
+(cl-defmethod edraw-shrink ((list edraw-list) n)
+  (if (< n 1)
+      (edraw-clear list)
+    (when-let ((cell (nthcdr (1- n) (edraw-list-data list))))
+      (setcdr cell nil)))
+  list)
+
+(cl-defmethod edraw-resize ((list edraw-list) n)
+  (if (< n 1)
+      (edraw-clear list)
+    (let ((size (edraw-length list)))
+      (cond
+       ((< n size)
+        (setcdr (nthcdr (1- n) (edraw-list-data list)) nil))
+       ((> n size)
+        (nconc (edraw-list-data list) (make-list (- n size) nil))))))
+  list)
+
+(cl-defmethod edraw-remove-if ((list edraw-list) predicate)
+  (setf (edraw-list-data list)
+        (cl-remove-if predicate (edraw-list-data list)))
+  list)
+
+(cl-defmethod edraw-nth ((list edraw-list) n)
+  (nth n (edraw-list-data list)))
+
+
+
 ;;;; Misc
 
 (defun edraw-alist-get-as-number (key alist default)
