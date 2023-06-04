@@ -2320,7 +2320,8 @@ For use with `edraw-editor-with-temp-undo-list',
         ((edraw-msg "Send Backward") edraw-editor-send-selected-backward
          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
         ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
-         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes)))))))))))))
+         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
+      ((edraw-msg "Properties...") edraw-editor-edit-properties-of-selected-shapes))))
 
 (cl-defmethod edraw-get-summary-for-selected-shapes ((editor edraw-editor))
   (let ((selected-shapes (edraw-selected-shapes editor)))
@@ -2541,6 +2542,15 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-make-undo-group editor 'create-group
       (let ((group (edraw-create-shape editor (edraw-svg-body editor) 'g)))
         (edraw-shape-group-add-children group selected-shapes)))))
+
+(edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
+  (with-slots (selected-shapes) editor
+    (when (null selected-shapes)
+      (error (edraw-msg "No shape selected")))
+    (let ((shapes (edraw-multiple-shapes
+                   :shapes (copy-sequence selected-shapes)
+                   :editor editor)))
+      (edraw-property-editor-open shapes))))
 
 ;;;;; Editor - Copy & Paste
 
@@ -7627,6 +7637,78 @@ possible. Because undoing invalidates all point objects."
   (edraw-point-connection-dst-shape-dir
    :shape dst-shape
    :dir (string-to-number (nth 1 args))))
+
+
+;;;; Multiple Shapes
+
+(defclass edraw-multiple-shapes ()
+  ((shapes :type list :initarg :shapes)
+   (editor :type edraw-editor :initarg :editor)
+   (change-hook :initform (edraw-hook-make))))
+
+(cl-defmethod edraw-name ((obj edraw-multiple-shapes))
+  (format (edraw-msg "%s shapes") (length (oref obj shapes))))
+
+(cl-defmethod edraw-last-undo-data ((obj edraw-multiple-shapes))
+  (edraw-last-undo-data (oref obj editor)))
+
+(cl-defmethod edraw-undo ((obj edraw-multiple-shapes))
+  (edraw-undo (oref obj editor)))
+
+(cl-defmethod edraw-get-property-info-list ((obj edraw-multiple-shapes))
+  (let ((info-list-list
+         (mapcar #'edraw-get-property-info-list (oref obj shapes))))
+    (seq-reduce #'seq-intersection (cdr info-list-list) (car info-list-list))))
+
+(cl-defmethod edraw-get-property ((obj edraw-multiple-shapes) prop-name)
+  (with-slots (shapes) obj
+    (when shapes
+      (let ((value (edraw-get-property (car shapes) prop-name)))
+        (if (seq-some (lambda (s)
+                        (not (equal (edraw-get-property s prop-name) value)))
+                      (cdr shapes))
+            nil;;@todo represent invalid
+          value)))))
+
+(cl-defmethod edraw-set-property ((obj edraw-multiple-shapes) prop-name value)
+  (edraw-set-properties
+   obj
+   (list (cons prop-name value))))
+
+(cl-defmethod edraw-set-properties ((obj edraw-multiple-shapes) prop-list)
+  (edraw-make-undo-group (oref obj editor) 'shape-properties
+    (dolist (shape (oref obj shapes))
+      (edraw-set-properties shape prop-list))))
+
+(cl-defmethod edraw-add-change-hook ((obj edraw-multiple-shapes)
+                                     function &rest args)
+  (with-slots (change-hook) obj
+    ;; Add hook to SHAPES if the first observer is added
+    (when (= (edraw-hook-length change-hook) 0)
+      (dolist (shape (oref obj shapes))
+        (edraw-add-change-hook shape #'edraw-on-target-changed obj)))
+    ;; Add the hook to OBJ
+    (apply 'edraw-hook-add change-hook function args)))
+
+(cl-defmethod edraw-remove-change-hook ((obj edraw-multiple-shapes)
+                                        function &rest args)
+  (with-slots (change-hook) obj
+    ;; Remove the hook from OBJ
+    (apply 'edraw-hook-remove change-hook function args)
+    ;; Remove hooks from SHAPES if no one is observing OBJ
+    (when (= (edraw-hook-length change-hook) 0)
+      (dolist (shape (oref obj shapes))
+        (edraw-remove-change-hook shape #'edraw-on-target-changed obj)))))
+
+(cl-defmethod edraw-on-target-changed ((obj edraw-multiple-shapes) _source type)
+  (with-slots (change-hook) obj
+    ;; Treat changes to SOURCE as changes to OBJ
+    (edraw-hook-call change-hook obj type)));;@todo Convert type?
+
+;;(cl-defmethod edraw-property-editor-shape-p (_obj) nil)
+;;(cl-defmethod edraw-set-all-properties-as-default ((obj edraw-multiple-shapes)))
+
+
 
 
 ;;;; Utility

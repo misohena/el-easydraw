@@ -38,6 +38,7 @@
      ;; [BEGIN MSG DATA]
      "%s Point" "%sポイント"
      "%s Selected Shapes" "%s個の選択図形"
+     "%s shapes" "%s個の図形"
      "<no name>" "<無名>"
      "Anchor Point" "アンカーポイント"
      "Anchor Points" "アンカーポイント"

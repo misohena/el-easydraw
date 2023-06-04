@@ -285,6 +285,9 @@
   (edraw-hook-mark-delete hook (cons function args))
   (edraw-hook-sweep hook))
 
+(defun edraw-hook-length (hook)
+  (length (cdr hook)))
+
 (defun edraw-hook-mark-delete (hook function-args)
   (let ((p (cdr hook)))
     (while p
