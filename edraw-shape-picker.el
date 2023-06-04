@@ -751,7 +751,10 @@
             ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                          edraw-editor-image-scaling-factor)
                 (list
-                 (cons :scale-direct edraw-editor-image-scaling-factor)))))
+                 (cons :scale-direct edraw-editor-image-scaling-factor)))
+            ,@(when (fboundp 'edraw-editor-recent-colors)
+                (list
+                 (cons :recent-colors (edraw-editor-recent-colors))))))
          (fill (edraw-color-picker-read-color
                 "Fill Color: "
                 (alist-get 'fill (cdr curr-val) "")

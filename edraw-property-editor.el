@@ -720,7 +720,10 @@ once. widget-value-set updates the same property four times."
            ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                         edraw-editor-image-scaling-factor)
                (list
-                (cons :scale-direct edraw-editor-image-scaling-factor)))))
+                (cons :scale-direct edraw-editor-image-scaling-factor)))
+           ,@(when (fboundp 'edraw-editor-recent-colors)
+               (list
+                (cons :recent-colors (edraw-editor-recent-colors))))))
       ;; Undo previous change
       (when last-undo
         (edraw-undo target)))))
