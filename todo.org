@@ -1987,7 +1987,16 @@ CLOSED: [2023-06-02 Fri 21:56]
 追加する前にコネクションを更新しているのが問題なのだと思う。
 追加してから、コネクションを更新して、その後UNDOデータを登録する。
 そのためにはadd-point-connectionにupdate引数を追加しなければならない。
-** DONE カラーピッカーの最近使った色を保存・復元する
+** DONE 色/カラーピッカーの最近使った色を保存・復元する
 CLOSED: [2023-06-03 Sat 19:37]
 optionsに:recent-colorsを追加する。
 単なるリストでは無くedraw-listというコンテナ構造体を作ってそれを使用する。
+** DONE 色/カラーピッカーで最近使った色をキー操作で選べるようにする
+CLOSED: [2023-06-04 Sun 13:16]
+C-c 1のようなキー割り当てにする。
+ミニバッファに割り当てるにはマイナーモードが必要(vertico-modeのように)。
+color-picker-minibuffer-mode-map。
+またはset-transient-mapのようなやり方でもいいのかもしれない。
+
+さらにツールチップで色コードとキー割り当てを表示したい。
+areaにhelp-echoを持たせて、svg-image :map image-mapに設定する。

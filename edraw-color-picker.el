@@ -86,57 +86,6 @@
 
 (defvar edraw-color-picker-model-suppress-change-hook nil)
 
-
-;;;; Recent Colors
-
-(defvar edraw-color-picker-recent-colors-max-size 32)
-
-(defconst edraw-color-picker-recent-colors-default
-  '("#000000ff"
-    "#0000ffff"
-    "#00ff00ff"
-    "#00ffffff"
-    "#ff0000ff"
-    "#ff00ffff"
-    "#ffff00ff"
-    "#ffffffff"
-    "#00000080"
-    "#0000ff80"
-    "#00ff0080"
-    "#00ffff80"
-    "#ff000080"
-    "#ff00ff80"
-    "#ffff0080"
-    "#ffffff80"))
-
-(defvar edraw-color-picker-recent-colors
-  (edraw-list edraw-color-picker-recent-colors-default))
-
-(defun edraw-color-picker-normalize-color-string (color)
-  "Return normalized COLOR string."
-  ;;@todo validate more
-  (edraw-to-string
-   (if (stringp color)
-       (edraw-color-from-string color)
-     color)))
-
-(defun edraw-color-picker-get-recent-colors (options)
-  (edraw-list-data
-   (alist-get :recent-colors options edraw-color-picker-recent-colors)))
-
-(defun edraw-color-picker-add-recent-color (options color)
-  (let ((color-str (edraw-color-picker-normalize-color-string color))
-        (colors (alist-get :recent-colors options edraw-color-picker-recent-colors)))
-    (edraw-remove-if colors
-                     (lambda (c)
-                       (string=
-                        (edraw-color-picker-normalize-color-string c)
-                        color-str)))
-    (edraw-push-front colors color-str)
-    (edraw-shrink colors edraw-color-picker-recent-colors-max-size)))
-
-
-
 ;;;; SVG Common
 
 (defun edraw-color-picker-rect (x y w h fill &optional stroke &rest attrs)
@@ -193,6 +142,7 @@
    (create-element :initarg :create-element :initform nil)
    (on-mouse :initarg :on-mouse :initform nil)
    (on-click :initarg :on-click :initform nil)
+   (image-map-id-props :initarg :image-map-id-props :initform nil)
    ))
 
 (defun edraw-color-picker-area-or-derived-p (obj)
@@ -840,7 +790,17 @@
                          :height h
                          ;;@todo remove bad gradient-colors usage
                          :gradient-colors (list (edraw-color-from-string color))
-                         :target-value (oref model color-rgba-setter)))))))))
+                         :target-value (oref model color-rgba-setter)
+                         :image-map-id-props
+                         (list
+                          'hot-spot
+                          (list 'pointer 'arrow
+                                'help-echo
+                                (concat
+                                 (edraw-to-string color)
+                                 (let ((command (edraw-color-picker-select-recent-color-fname i)))
+                                   (when (commandp command)
+                                     (format "(\\[%s])" command))))))))))))))
 
 (defun edraw-color-picker-areas-layout (spec-list)
   (let* ((left 0)
@@ -902,6 +862,25 @@
         element)))
    areas))
 
+(defun edraw-color-picker-areas-create-image-map (areas image-scale)
+  (delq nil
+        (mapcar
+         (lambda (area)
+           (when (edraw-color-picker-area-or-derived-p area)
+             (when-let ((image-map-id-props (oref area image-map-id-props)))
+               (let* ((x0 (oref area left))
+                      (y0 (oref area top))
+                      (x1 (+ x0 (oref area width)))
+                      (y1 (+ y0 (oref area height))))
+                 (cons
+                  (cons 'rect
+                        (cons (cons (round (* image-scale x0))
+                                    (round (* image-scale y0)))
+                              (cons (round (* image-scale x1))
+                                    (round (* image-scale y1)))))
+                  image-map-id-props)))))
+         areas)))
+
 (defun edraw-color-picker-areas-find-by-xy (areas xy)
   (seq-find (lambda (area)
               (when (edraw-color-picker-area-or-derived-p area)
@@ -957,6 +936,8 @@
    (image-width :reader edraw-image-width)
    (image-height :reader edraw-image-height)
    (image-scale)
+   (image-map)
+   (options)
    (display :initarg :display)
    (hooks :initform (list
                      (cons 'color-change (edraw-hook-make))
@@ -1011,6 +992,9 @@
     (oset picker image-width image-width)
     (oset picker image-height image-height)
     (oset picker image-scale image-scale)
+    (oset picker image-map
+          (edraw-color-picker-areas-create-image-map areas image-scale))
+    (oset picker options options)
 
     ;; Setup event routing
     (when-let ((button (edraw-color-picker-areas-find-by-name areas "ok")))
@@ -1061,7 +1045,9 @@
   (edraw-update picker))
 
 (cl-defmethod edraw-get-image ((picker edraw-color-picker))
-  (svg-image (oref picker svg) :scale 1.0)) ;;Cancel image-scale effect
+  (svg-image (oref picker svg)
+             :scale 1.0 ;;Cancel image-scale effect
+             :map (oref picker image-map)))
 
 (cl-defmethod edraw-on-down-mouse-1 ((picker edraw-color-picker) down-event)
   (with-slots (areas image-scale) picker
@@ -1073,9 +1059,123 @@
   (with-slots (areas) picker
     (edraw-color-picker-areas-click-by-name areas name)))
 
+;;;; Color Picker Search
+
+(defun edraw-color-picker-at-input (event)
+  (if (or (mouse-event-p event)
+          (memq (event-basic-type event)
+                '(wheel-up wheel-down 'mouse-4 'mouse-5 'drag-n-drop)))
+      (let* ((mouse-pos (event-start event))
+             (window (posn-window mouse-pos))
+             (buffer (window-buffer window))
+             (pos (posn-point mouse-pos)))
+        ;; (when move-point-on-click-p
+        ;;   (select-window window)
+        ;;   (set-window-point window pos))
+        (with-current-buffer buffer
+          (edraw-color-picker-at pos)))
+    (edraw-color-picker-at (point))))
+
+(defvar-local edraw-color-picker-finder nil)
+
+(defun edraw-color-picker-at (pos)
+  (or (and edraw-color-picker-finder
+           (funcall edraw-color-picker-finder pos))
+      ;; for overlay display
+      (edraw-color-picker-overlaid-at pos)
+      ;;@todo search text property?
+      ))
+
+;;;; Recent Colors
+
+(defvar edraw-color-picker-recent-colors-max-size 32)
+
+(defconst edraw-color-picker-recent-colors-default
+  '("#000000ff"
+    "#0000ffff"
+    "#00ff00ff"
+    "#00ffffff"
+    "#ff0000ff"
+    "#ff00ffff"
+    "#ffff00ff"
+    "#ffffffff"
+    "#00000080"
+    "#0000ff80"
+    "#00ff0080"
+    "#00ffff80"
+    "#ff000080"
+    "#ff00ff80"
+    "#ffff0080"
+    "#ffffff80"))
+
+(defvar edraw-color-picker-recent-colors
+  (edraw-list edraw-color-picker-recent-colors-default))
+
+(defun edraw-color-picker-normalize-color-string (color)
+  "Return normalized COLOR string."
+  ;;@todo validate more
+  (edraw-to-string
+   (if (stringp color)
+       (edraw-color-from-string color)
+     color)))
+
+(defun edraw-color-picker-get-recent-colors (options)
+  (edraw-list-data
+   (alist-get :recent-colors options edraw-color-picker-recent-colors)))
+
+(defun edraw-color-picker-add-recent-color (options color)
+  (let ((color-str (edraw-color-picker-normalize-color-string color))
+        (colors (alist-get :recent-colors options edraw-color-picker-recent-colors)))
+    (edraw-remove-if colors
+                     (lambda (c)
+                       (string=
+                        (edraw-color-picker-normalize-color-string c)
+                        color-str)))
+    (edraw-push-front colors color-str)
+    (edraw-shrink colors edraw-color-picker-recent-colors-max-size)))
+
+(cl-defmethod edraw-select-recent-color ((picker edraw-color-picker) index)
+  (with-slots (options) picker
+    (when-let* ((color-str (nth
+                            index
+                            (edraw-color-picker-get-recent-colors options)))
+                (color (edraw-color-from-string color-str)))
+      (edraw-set-current-color picker color))))
+
+(defun edraw-color-picker-select-recent-color (index)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-select-recent-color picker index)))
+
+(defun edraw-color-picker-select-recent-color-fname (i)
+  (intern (format "edraw-color-picker-select-recent-color-%d" i)))
+
+;; Define select-recent-color-<n> commands
+(dotimes (i 10)
+  (defalias (edraw-color-picker-select-recent-color-fname i)
+    (lambda ()
+      (interactive)
+      (edraw-color-picker-select-recent-color i))))
+
 
 ;;;; Overlay Display
 
+(defvar edraw-color-picker-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km [down-mouse-1] #'edraw-color-picker-on-down-mouse-1)
+    (define-key km [hot-spot down-mouse-1] #'edraw-color-picker-on-down-mouse-1)
+    (define-key km [drag-mouse-1] 'ignore)
+    (define-key km [mouse-1] 'ignore)
+    (define-key km [double-down-mouse-1] 'ignore)
+    (define-key km [double-drag-mouse-1] 'ignore)
+    (define-key km [double-mouse-1] 'ignore)
+    (define-key km [triple-down-mouse-1] 'ignore)
+    (define-key km [triple-drag-mouse-1] 'ignore)
+    (define-key km [triple-mouse-1] 'ignore)
+    (dotimes (i 10)
+      (define-key km (kbd (format "C-%d" (% (1+ i) 10)))
+        (edraw-color-picker-select-recent-color-fname i)))
+    km))
 
 (defun edraw-color-picker-overlay
     (overlay-or-args-props target-property &optional initial-color options)
@@ -1093,7 +1193,7 @@ Specify one of 'display, 'before-string, or 'after-string."
                    :overlay (edraw-color-picker-make-overlay
                              overlay-or-args-props)
                    :target-property (or target-property 'display)
-                   :keymap (make-sparse-keymap)))
+                   :keymap edraw-color-picker-map))
          (picker (edraw-color-picker
                   :initial-color initial-color
                   :display display)))
@@ -1112,23 +1212,10 @@ Specify one of 'display, 'before-string, or 'after-string."
   (with-slots (overlay target-property keymap) display
     ;; Set overlay properties
     (when (eq target-property 'display)
+      (overlay-put overlay 'edraw-color-picker picker)
       (overlay-put overlay 'face 'default)
       (overlay-put overlay 'keymap keymap)
-      (overlay-put overlay 'pointer 'arrow))
-
-    ;; Set mouse handler
-    (define-key keymap [down-mouse-1]
-      (lambda (down-event)
-        (interactive "e")
-        (edraw-on-down-mouse-1 picker down-event)))
-    (define-key keymap [drag-mouse-1] 'ignore)
-    (define-key keymap [mouse-1] 'ignore)
-    (define-key keymap [double-down-mouse-1] 'ignore)
-    (define-key keymap [double-drag-mouse-1] 'ignore)
-    (define-key keymap [double-mouse-1] 'ignore)
-    (define-key keymap [triple-down-mouse-1] 'ignore)
-    (define-key keymap [triple-drag-mouse-1] 'ignore)
-    (define-key keymap [triple-mouse-1] 'ignore)))
+      (overlay-put overlay 'pointer 'arrow))))
 
 (cl-defmethod edraw-close ((display edraw-color-picker-display-overlay))
   (with-slots (overlay target-property) display
@@ -1203,6 +1290,16 @@ OVERLAY uses the display property to display the color PICKER."
         (overlay-put overlay 'after-string "\n")
         t))))
 
+(defun edraw-color-picker-overlaid-at (pos)
+  (seq-some (lambda (ov) (overlay-get ov 'edraw-color-picker))
+            (overlays-at pos)))
+
+(defun edraw-color-picker-on-down-mouse-1 (down-event)
+  (interactive "e")
+  (when-let ((picker (edraw-color-picker-at-input down-event)))
+    (edraw-on-down-mouse-1 picker down-event)))
+
+
 
 ;;;; Applications
 
@@ -1228,10 +1325,14 @@ OVERLAY uses the display property to display the color PICKER."
     (edraw-color-picker-move-overlay-at-point overlay picker)
     (overlay-put overlay 'evaporate t)
 
-    (define-key (overlay-get overlay 'keymap) (kbd "C-c C-c")
-      (lambda () (interactive) (edraw-click-area picker "ok")))
-    (define-key (overlay-get overlay 'keymap) (kbd "C-c C-k")
-      (lambda () (interactive) (edraw-click-area picker "cancel")))
+    (let ((km (make-sparse-keymap)))
+      (set-keymap-parent km (overlay-get overlay 'keymap))
+      (define-key km (kbd "C-c C-c")
+        (lambda () (interactive) (edraw-click-area picker "ok")))
+      (define-key km (kbd "C-c C-k")
+        (lambda () (interactive) (edraw-click-area picker "cancel")))
+      (overlay-put overlay 'keymap km))
+
     (edraw-add-hook picker 'ok on-ok)
     (edraw-add-hook picker 'cancel on-cancel)
     (message "C-c C-c: OK, C-c C-k: Cancel")
@@ -1309,6 +1410,22 @@ OVERLAY uses the display property to display the color PICKER."
 
 ;;;;; Read Color from Minibuffer
 
+(defvar-local edraw-color-picker-minibuffer--picker nil)
+
+(defun edraw-color-picker-in-minibuffer (&rest _args)
+  edraw-color-picker-minibuffer--picker)
+
+(defun edraw-color-picker-minibuffer--make-keymap ()
+  (cl-loop for i from 0 to 9
+           collect
+           (cons
+            (kbd (format "C-%d" (% (1+ i) 10)))
+            (edraw-color-picker-select-recent-color-fname i))))
+
+(define-minor-mode edraw-color-picker-minibuffer-mode
+  "Defines keybindings for the color picker in the minibuffer."
+  :keymap (edraw-color-picker-minibuffer--make-keymap))
+
 (defun edraw-color-picker-read-color (&optional
                                       prompt initial-color
                                       allow-strings options)
@@ -1367,7 +1484,11 @@ OVERLAY uses the display property to display the color PICKER."
             (unless buffer
               (setq buffer (current-buffer))
               (move-overlay overlay (point-min) (point-min) buffer)
-              (add-hook 'post-command-hook on-post-command nil t))))
+              (add-hook 'post-command-hook on-post-command nil t)
+              (edraw-color-picker-minibuffer-mode)
+              (setq-local
+               edraw-color-picker-minibuffer--picker picker
+               edraw-color-picker-finder #'edraw-color-picker-in-minibuffer))))
          (minibuffer-setup-hook (cons on-minibuffer-setup
                                       minibuffer-setup-hook))
          (on-ok
