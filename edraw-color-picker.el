@@ -937,8 +937,8 @@
    (image-height :reader edraw-image-height)
    (image-scale)
    (image-map)
-   (options)
-   (display :initarg :display)
+   (options :reader edraw-options)
+   (display :initarg :display :reader edraw-get-display)
    (hooks :initform (list
                      (cons 'color-change (edraw-hook-make))
                      (cons 'ok (edraw-hook-make))
@@ -1059,6 +1059,9 @@
   (with-slots (areas) picker
     (edraw-color-picker-areas-click-by-name areas name)))
 
+(cl-defmethod edraw-buffer ((picker edraw-color-picker))
+  (edraw-buffer (oref picker display)))
+
 ;;;; Color Picker Search
 
 (defun edraw-color-picker-at-input (event)
@@ -1157,6 +1160,10 @@
       (interactive)
       (edraw-color-picker-select-recent-color i))))
 
+(defun edraw-color-picker-define-keys-for-recent-colors (keymap)
+  (dotimes (i 10)
+    (define-key keymap (kbd (format "C-%d" (% (1+ i) 10)))
+      (edraw-color-picker-select-recent-color-fname i))))
 
 ;;;; Overlay Display
 
@@ -1172,9 +1179,7 @@
     (define-key km [triple-down-mouse-1] 'ignore)
     (define-key km [triple-drag-mouse-1] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
-    (dotimes (i 10)
-      (define-key km (kbd (format "C-%d" (% (1+ i) 10)))
-        (edraw-color-picker-select-recent-color-fname i)))
+    (edraw-color-picker-define-keys-for-recent-colors km)
     km))
 
 (defun edraw-color-picker-overlay
@@ -1206,6 +1211,12 @@ Specify one of 'display, 'before-string, or 'after-string."
   ((overlay :initarg :overlay)
    (target-property :initarg :target-property)
    (keymap :initarg :keymap)))
+
+(cl-defmethod edraw-overlay ((display edraw-color-picker-display-overlay))
+  (oref display overlay))
+
+(cl-defmethod edraw-buffer ((display edraw-color-picker-display-overlay))
+  (overlay-buffer (oref display overlay)))
 
 (cl-defmethod edraw-initialize ((display edraw-color-picker-display-overlay)
                                 picker)
@@ -1410,22 +1421,6 @@ OVERLAY uses the display property to display the color PICKER."
 
 ;;;;; Read Color from Minibuffer
 
-(defvar-local edraw-color-picker-minibuffer--picker nil)
-
-(defun edraw-color-picker-in-minibuffer (&rest _args)
-  edraw-color-picker-minibuffer--picker)
-
-(defun edraw-color-picker-minibuffer--make-keymap ()
-  (cl-loop for i from 0 to 9
-           collect
-           (cons
-            (kbd (format "C-%d" (% (1+ i) 10)))
-            (edraw-color-picker-select-recent-color-fname i))))
-
-(define-minor-mode edraw-color-picker-minibuffer-mode
-  "Defines keybindings for the color picker in the minibuffer."
-  :keymap (edraw-color-picker-minibuffer--make-keymap))
-
 (defun edraw-color-picker-read-color (&optional
                                       prompt initial-color
                                       allow-strings options)
@@ -1441,121 +1436,23 @@ OVERLAY uses the display property to display the color PICKER."
                     ov))
          (picker (edraw-color-picker-overlay
                   overlay 'before-string initial-color options))
-         (buffer nil)
-         (buffer-contents nil)
-         (notify-input-change
-          (lambda (string color)
-            (when (not (equal string buffer-contents))
-              (setq buffer-contents string)
-              (when-let ((callback (alist-get :on-input-change options)))
-                (funcall callback string color)))))
-         (in-post-command-p nil)
-         (on-post-command
-          (lambda ()
-            (setq in-post-command-p t)
-            (condition-case err
-                (let* ((picker-color (edraw-get-current-color picker))
-                       (picker-color-str (edraw-color-picker-color-to-string
-                                          picker-color options))
-                       (minibuffer-string (minibuffer-contents-no-properties))
-                       (minibuffer-color (edraw-color-picker-color-from-string
-                                          minibuffer-string options)))
-                  ;; update color picker
-                  (when (and
-                         ;; not equals string representation of picker color
-                         ;; (set by last on-color-change)
-                         (not (string= minibuffer-string
-                                       picker-color-str))
-                         ;; is valid color
-                         minibuffer-color
-                         ;; not equals picker color
-                         (not (edraw-color-equal-p minibuffer-color
-                                                   picker-color)))
-                    (edraw-set-current-color picker minibuffer-color))
-                  ;; callback minibuffer string change
-                  ;; (include invalid string. e.g. "none")
-                  (funcall notify-input-change
-                           minibuffer-string
-                           minibuffer-color))
-              (error (message "err=%s" err)))
-            (setq in-post-command-p nil)))
          (on-minibuffer-setup
           (lambda ()
-            (unless buffer
-              (setq buffer (current-buffer))
-              (move-overlay overlay (point-min) (point-min) buffer)
-              (add-hook 'post-command-hook on-post-command nil t)
-              (edraw-color-picker-minibuffer-mode)
-              (setq-local
-               edraw-color-picker-minibuffer--picker picker
-               edraw-color-picker-finder #'edraw-color-picker-in-minibuffer))))
+            (edraw-color-picker-minibuffer--on-minibuffer-setup picker)))
          (minibuffer-setup-hook (cons on-minibuffer-setup
-                                      minibuffer-setup-hook))
-         (on-ok
-          (lambda (_picker)
-            (with-current-buffer buffer
-              (exit-minibuffer))))
-         (on-cancel
-          (lambda (_picker)
-            (with-current-buffer buffer
-              (minibuffer-keyboard-quit))))
-         (on-no-color
-          (lambda (_picker)
-            (with-current-buffer buffer
-              (delete-minibuffer-contents)
-              (goto-char (minibuffer-prompt-end))
-              (insert (alist-get :no-color options "")))))
-         (on-color-change
-          (lambda (_picker)
-            (when (and buffer
-                       (not in-post-command-p))
-              (let* ((picker-color (edraw-get-current-color picker))
-                     (picker-color-str (edraw-color-picker-color-to-string
-                                        picker-color options))
-                     (minibuffer-string (with-current-buffer buffer
-                                          (minibuffer-contents-no-properties)))
-                     (minibuffer-color (edraw-color-picker-color-from-string
-                                        minibuffer-string options))
-                     (minibuffer-color-str
-                      (if minibuffer-color
-                          (edraw-color-picker-color-to-string minibuffer-color
-                                                              options))))
-                (when (not (equal picker-color-str minibuffer-color-str))
-                  (with-current-buffer buffer
-                    (delete-minibuffer-contents)
-                    (goto-char (minibuffer-prompt-end))
-                    (insert picker-color-str)
-                    ;; callback
-                    (funcall notify-input-change
-                             picker-color-str
-                             picker-color
-                             ;;or (edraw-color-picker-color-from-string picker-color-str)?
-                             ;;NG: minibuffer-color
-                             ))))))))
+                                      minibuffer-setup-hook)))
 
-    (edraw-add-hook picker 'ok on-ok)
-    (edraw-add-hook picker 'cancel on-cancel)
+    ;; Add hooks to picker
+    (edraw-add-hook picker 'ok #'edraw-color-picker-minibuffer--on-ok)
+    (edraw-add-hook picker 'cancel #'edraw-color-picker-minibuffer--on-cancel)
     (when (alist-get :no-color options)
-      (edraw-add-hook picker 'no-color on-no-color))
-    (edraw-add-hook picker 'color-change on-color-change)
+      (edraw-add-hook picker 'no-color
+                      #'edraw-color-picker-minibuffer--on-no-color))
+    (edraw-add-hook picker 'color-change
+                    #'edraw-color-picker-minibuffer--on-color-change)
 
     (unwind-protect
         (let ((max-mini-window-height 1.0)
-              (actual-prompt
-               (or prompt
-                   (format
-                    "Color (%s name or %s%s): "
-                    (alist-get :color-name-scheme options 'emacs)
-                    (if (alist-get 'enable-opacity options t)
-                        "#RGBA" "#RGB")
-                    (if allow-strings
-                        (concat
-                         " or "
-                         (mapconcat
-                          (lambda (s) (if (string-empty-p s) "empty" s))
-                          allow-strings
-                          " or "))
-                      ""))))
               (initial-input
                (cond
                 ((cl-typep initial-color 'edraw-color)
@@ -1568,10 +1465,9 @@ OVERLAY uses the display property to display the color PICKER."
                   (edraw-get-current-color picker) options))))
               (result nil))
           (while (null result)
-            (let ((input
-                   (read-string actual-prompt initial-input)))
-              (setq buffer nil) ;;minibuffer is killed
-              (setq buffer-contents nil)
+            (let ((input (read-string (edraw-color-picker-minibuffer--prompt
+                                       prompt allow-strings options)
+                                      initial-input)))
               (when (or (member input allow-strings)
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
@@ -1582,6 +1478,156 @@ OVERLAY uses the display property to display the color PICKER."
           result)
       (edraw-close picker)
       (delete-overlay overlay))))
+
+(defun edraw-color-picker-minibuffer--prompt (prompt allow-strings options)
+  "Create a prompt for `edraw-color-picker-read-color'."
+  (or prompt
+      (format
+       "Color (%s name or %s%s): "
+       (alist-get :color-name-scheme options 'emacs)
+       (if (alist-get 'enable-opacity options t)
+           "#RGBA" "#RGB")
+       (if allow-strings
+           (concat
+            " or "
+            (mapconcat
+             (lambda (s) (if (string-empty-p s) "empty" s))
+             allow-strings
+             " or "))
+         ""))))
+
+(defvar-local edraw-color-picker-minibuffer--picker nil)
+(defvar-local edraw-color-picker-minibuffer--buffer-contents nil)
+(defvar-local edraw-color-picker-minibuffer--in-post-command-p nil)
+
+(define-minor-mode edraw-color-picker-minibuffer-mode
+  "Defines keybindings for the color picker in the minibuffer."
+  :keymap (let ((km (make-sparse-keymap)))
+            (edraw-color-picker-define-keys-for-recent-colors km)
+            km))
+
+(defun edraw-color-picker-minibuffer--on-minibuffer-setup (picker)
+  "Initialize minibuffer for `edraw-color-picker-read-color'"
+  (unless edraw-color-picker-minibuffer-mode
+    (edraw-color-picker-minibuffer-mode)
+    ;; Initialize local variables
+    (setq-local
+     edraw-color-picker-finder #'edraw-color-picker-in-minibuffer
+     edraw-color-picker-minibuffer--picker picker
+     edraw-color-picker-minibuffer--in-post-command-p nil
+     edraw-color-picker-minibuffer--buffer-contents nil)
+    ;; Display overlay at the beginning of the minibuffer
+    (move-overlay (edraw-overlay (edraw-get-display picker))
+                  (point-min) (point-min) (current-buffer))
+    ;; Update color picker each time command is executed
+    (add-hook 'post-command-hook
+              #'edraw-color-picker-minibuffer--on-post-command nil t)))
+
+(defun edraw-color-picker-in-minibuffer (&rest _args)
+  "A function that is set to the `edraw-color-picker-finder'
+variable. Ensure that `edraw-color-picker-at' can find the color
+picker. Make `edraw-color-picker-select-recent-color' work
+correctly."
+  edraw-color-picker-minibuffer--picker)
+
+(defun edraw-color-picker-minibuffer--on-post-command ()
+  "Update color picker each time command is executed."
+  (when edraw-color-picker-minibuffer-mode
+    (setq edraw-color-picker-minibuffer--in-post-command-p t)
+    (condition-case err
+        (let* ((picker edraw-color-picker-minibuffer--picker)
+               (options (edraw-options picker))
+               (picker-color (edraw-get-current-color picker))
+               (picker-color-str (edraw-color-picker-color-to-string
+                                  picker-color options))
+               (minibuffer-string (minibuffer-contents-no-properties))
+               (minibuffer-color (edraw-color-picker-color-from-string
+                                  minibuffer-string options)))
+          ;; update color picker
+          (when (and
+                 ;; not equals string representation of picker color
+                 ;; (set by last on-color-change)
+                 (not (string= minibuffer-string
+                               picker-color-str))
+                 ;; is valid color
+                 minibuffer-color
+                 ;; not equals picker color
+                 (not (edraw-color-equal-p minibuffer-color
+                                           picker-color)))
+            (edraw-set-current-color picker minibuffer-color))
+          ;; callback minibuffer string change
+          ;; (include invalid string. e.g. "none")
+          (edraw-color-picker-minibuffer--notify-input-change
+           minibuffer-string
+           minibuffer-color))
+      (error
+       (message "err=%s" err)))
+    (setq edraw-color-picker-minibuffer--in-post-command-p nil)))
+
+(defun edraw-color-picker-minibuffer--notify-input-change (string color)
+  "Notifies the callback specified by the :on-input-change option
+of input changes."
+  ;; assert current-buffer is minibuffer
+  (unless (equal string edraw-color-picker-minibuffer--buffer-contents)
+    (setq edraw-color-picker-minibuffer--buffer-contents string)
+    (when-let ((picker edraw-color-picker-minibuffer--picker)
+               (options (edraw-options picker))
+               (callback (alist-get :on-input-change options)))
+      (funcall callback string color))))
+
+(defun edraw-color-picker-minibuffer--on-color-change (picker)
+  "Called when the color picker color changes."
+  (let ((buffer (edraw-buffer picker)))
+    (when (and buffer (buffer-live-p buffer))
+      (with-current-buffer buffer
+        (unless edraw-color-picker-minibuffer--in-post-command-p
+
+          (let* ((options (edraw-options picker))
+                 (picker-color (edraw-get-current-color picker))
+                 (picker-color-str (edraw-color-picker-color-to-string
+                                    picker-color options))
+                 (minibuffer-string (with-current-buffer buffer
+                                      (minibuffer-contents-no-properties)))
+                 (minibuffer-color (edraw-color-picker-color-from-string
+                                    minibuffer-string options))
+                 (minibuffer-color-str
+                  (if minibuffer-color
+                      (edraw-color-picker-color-to-string
+                       minibuffer-color
+                       options))))
+            (unless (equal picker-color-str minibuffer-color-str)
+              ;; Update minibuffer text
+              (edraw-color-picker-minibuffer--set-contents picker-color-str)
+              ;; Callback
+              (edraw-color-picker-minibuffer--notify-input-change
+               picker-color-str
+               picker-color
+               ;;or (edraw-color-picker-color-from-string picker-color-str)?
+               ;;NG: minibuffer-color
+               ))))))))
+
+(defun edraw-color-picker-minibuffer--on-ok (picker)
+  (with-current-buffer (edraw-buffer picker)
+    ;; Close minibuffer
+    (exit-minibuffer)))
+
+(defun edraw-color-picker-minibuffer--on-cancel (picker)
+  (with-current-buffer (edraw-buffer picker)
+    ;; Abort input
+    (minibuffer-keyboard-quit)))
+
+(defun edraw-color-picker-minibuffer--on-no-color (picker)
+  (with-current-buffer (edraw-buffer picker)
+    ;; Set minibuffer text to invalid value (e.g. none)
+    (edraw-color-picker-minibuffer--set-contents
+     (alist-get :no-color (oref picker options) ""))))
+
+(defun edraw-color-picker-minibuffer--set-contents (string)
+  "Change the content text in the minibuffer to STRING."
+  (delete-minibuffer-contents)
+  (goto-char (minibuffer-prompt-end))
+  (insert string))
+
 
 
 ;;;; Color Utility
