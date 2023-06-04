@@ -140,6 +140,7 @@
 ;;;; SVG Common
 
 (defun edraw-color-picker-rect (x y w h fill &optional stroke &rest attrs)
+  "Create an SVG rect element."
   (dom-node 'rect
             `((x . ,x) (y . ,y) (width . ,w) (height . ,h)
               ,@(if fill `((fill . ,fill)))
@@ -194,7 +195,7 @@
    (on-click :initarg :on-click :initform nil)
    ))
 
-(defun edraw-color-picker-area-type-p (obj)
+(defun edraw-color-picker-area-or-derived-p (obj)
   "Return non-nil, if OBJ is an object of type
 `edraw-color-picker-area' or one of its derived classes."
   (cl-typep obj 'edraw-color-picker-area))
@@ -748,7 +749,7 @@
     (apply 'edraw-hook-add hooks function args)))
 
 
-;;;; Areas
+;;;; Areas (Layout)
 
 
 (defun edraw-color-picker-areas-create (model padding-left padding-top options)
@@ -870,7 +871,7 @@
            (push (list 'element
                        (funcall fun x y left top right bottom))
                  areas))
-          ((and (pred edraw-color-picker-area-type-p)
+          ((and (pred edraw-color-picker-area-or-derived-p)
                 area)
            (pcase flow-dir
              ('right (setq x (+ x (oref area spacing))))
@@ -894,7 +895,7 @@
   (mapcar
    (lambda (area)
      (pcase area
-       ((pred edraw-color-picker-area-type-p)
+       ((pred edraw-color-picker-area-or-derived-p)
         (edraw-create-element area))
        ;;SVG element
        (`(element ,element)
@@ -903,13 +904,13 @@
 
 (defun edraw-color-picker-areas-find-by-xy (areas xy)
   (seq-find (lambda (area)
-              (when (edraw-color-picker-area-type-p area)
+              (when (edraw-color-picker-area-or-derived-p area)
                 (edraw-contains-point-p area xy)))
             areas))
 
 (defun edraw-color-picker-areas-find-by-name (areas name)
   (seq-find (lambda (area)
-              (when (edraw-color-picker-area-type-p area)
+              (when (edraw-color-picker-area-or-derived-p area)
                 (equal (oref area name) name)))
             areas))
 
@@ -1205,6 +1206,8 @@ OVERLAY uses the display property to display the color PICKER."
 
 ;;;; Applications
 
+;;;;; Display in Current Buffer
+
 (defun edraw-color-picker-open-near-point (&optional initial-color options)
   (interactive)
 
@@ -1234,6 +1237,8 @@ OVERLAY uses the display property to display the color PICKER."
     (message "C-c C-c: OK, C-c C-k: Cancel")
     picker))
 
+;;;;; Insert Color
+
 (defun edraw-color-picker-insert-color (&optional initial-color options)
   "Insert a color selected by color picker."
   (interactive)
@@ -1249,6 +1254,8 @@ OVERLAY uses the display property to display the color PICKER."
                 (edraw-get-current-color picker)
                 options)))))
   t)
+
+;;;;; Replace Color
 
 (defun edraw-color-picker-replace-color-at-point (&optional options)
   "Replace the color at the point with the color selected by color picker."
@@ -1299,6 +1306,8 @@ OVERLAY uses the display property to display the color PICKER."
                       (cadr (nth format-index edraw-color-string-patterns)))
                 options)))))))))
   t)
+
+;;;;; Read Color from Minibuffer
 
 (defun edraw-color-picker-read-color (&optional
                                       prompt initial-color
