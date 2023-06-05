@@ -623,6 +623,25 @@ This function deletes all redo data."
 
 ;; Undo Group
 
+(cl-defmethod edraw-undo-block-begin ((editor edraw-editor))
+  (let ((undo-backup (list
+                      (oref editor undo-list)
+                      edraw-editor-inhibit-make-undo-data
+                      edraw-editor-inhibit-discarding-undo-data)))
+    (oset editor undo-list nil)
+    (setq edraw-editor-inhibit-make-undo-data nil) ;; Record undo data
+    (setq edraw-editor-inhibit-discarding-undo-data t) ;; Keep all undo data
+    (cl-incf edraw-editor-undo-group-level)
+    undo-backup))
+
+(cl-defmethod edraw-undo-block-end ((editor edraw-editor) undo-backup)
+  (let ((undo-data (edraw-combine-undo-list (oref editor undo-list))))
+    (cl-decf edraw-editor-undo-group-level)
+    (setq edraw-editor-inhibit-discarding-undo-data (nth 2 undo-backup))
+    (setq edraw-editor-inhibit-make-undo-data (nth 1 undo-backup))
+    (oset editor undo-list (nth 0 undo-backup))
+    undo-data))
+
 (defmacro edraw-make-undo-group (editor type &rest body)
   "Combine undo data pushed in BODY into one."
   (declare (indent 2))
@@ -2739,11 +2758,11 @@ For use with `edraw-editor-with-temp-undo-list',
 (cl-defmethod edraw-name ((shape edraw-property-proxy-shape))
   (oref shape name))
 
-(cl-defmethod edraw-last-undo-data ((_shape edraw-property-proxy-shape))
-  nil)
-
-(cl-defmethod edraw-undo ((_shape edraw-property-proxy-shape))
-  nil)
+(cl-defmethod edraw-undo-block-begin ((_shape edraw-property-proxy-shape)))
+(cl-defmethod edraw-undo-block-end ((_shape edraw-property-proxy-shape) _backup))
+(cl-defmethod edraw-undo-all ((_shape edraw-property-proxy-shape)))
+(cl-defmethod edraw-last-undo-data ((_shape edraw-property-proxy-shape)))
+(cl-defmethod edraw-undo ((_shape edraw-property-proxy-shape)))
 
 (cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
   (seq-remove
@@ -5357,6 +5376,15 @@ return it."
 
 ;;;;;; UNDO
 
+(cl-defmethod edraw-undo-block-begin ((shape edraw-shape))
+  (edraw-undo-block-begin (oref shape editor)))
+
+(cl-defmethod edraw-undo-block-end ((shape edraw-shape) backup)
+  (edraw-undo-block-end (oref shape editor) backup))
+
+(cl-defmethod edraw-undo-all ((shape edraw-shape))
+  (edraw-undo-all (oref shape editor)))
+
 (cl-defmethod edraw-last-undo-data ((shape edraw-shape))
   (edraw-last-undo-data (oref shape editor)))
 
@@ -7753,6 +7781,15 @@ possible. Because undoing invalidates all point objects."
 
 (cl-defmethod edraw-name ((obj edraw-multiple-shapes))
   (format (edraw-msg "%s shapes") (length (oref obj shapes))))
+
+(cl-defmethod edraw-undo-block-begin ((shape edraw-multiple-shapes))
+  (edraw-undo-block-begin (oref shape editor)))
+
+(cl-defmethod edraw-undo-block-end ((shape edraw-multiple-shapes) backup)
+  (edraw-undo-block-end (oref shape editor) backup))
+
+(cl-defmethod edraw-undo-all ((shape edraw-multiple-shapes))
+  (edraw-undo-all (oref shape editor)))
 
 (cl-defmethod edraw-last-undo-data ((obj edraw-multiple-shapes))
   (edraw-last-undo-data (oref obj editor)))

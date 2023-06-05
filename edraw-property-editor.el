@@ -46,6 +46,12 @@
 
 (cl-defmethod edraw-name
   ((_target edraw-property-editor-target)))
+(cl-defmethod edraw-undo-block-begin
+  ((_target edraw-property-editor-target)))
+(cl-defmethod edraw-undo-block-end
+  ((_target edraw-property-editor-target) _backup))
+(cl-defmethod edraw-undo-all
+  ((_target edraw-property-editor-target)))
 (cl-defmethod edraw-last-undo-data
   ((_target edraw-property-editor-target)))
 (cl-defmethod edraw-undo
@@ -693,12 +699,12 @@ once. widget-value-set updates the same property four times."
 (defun edraw-property-editor-read-property-paint-color (target
                                                         prop-name field-widget)
   (defvar edraw-editor-image-scaling-factor) ;;edraw.el
-  (let ((current-value (widget-value field-widget))
-        last-undo)
+  (let ((old-value (widget-value field-widget))
+        (undo-backup (edraw-undo-block-begin target)))
     (unwind-protect
         (edraw-color-picker-read-color
          (format "%s: " prop-name)
-         current-value
+         old-value
          '("" "none")
          `((:color-name-scheme . web)
            (:no-color . "none")
@@ -709,17 +715,10 @@ once. widget-value-set updates the same property four times."
                  (lambda (string color)
                    (when (or (member string '("" "none"))
                              color)
-                     (let ((undo-before-change (edraw-last-undo-data target)))
-                       ;; Undo previous change
-                       (when (and last-undo (eq undo-before-change last-undo))
-                         (edraw-undo target)
-                         (setq undo-before-change (edraw-last-undo-data target)))
-                       ;;@todo suppress modified flag change and notification
-                       (edraw-set-property target prop-name string)
-                       ;; Detect generation of undo data
-                       (let ((undo-after-change (edraw-last-undo-data target)))
-                         (unless (eq undo-after-change undo-before-change)
-                           (setq last-undo undo-after-change)))))))))
+                     ;; Undo previous change
+                     (edraw-undo-all target)
+                     ;;@todo suppress modified flag change and notification
+                     (edraw-set-property target prop-name string))))))
            ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                         edraw-editor-image-scaling-factor)
                (list
@@ -727,9 +726,11 @@ once. widget-value-set updates the same property four times."
            ,@(when (fboundp 'edraw-editor-recent-colors)
                (list
                 (cons :recent-colors (edraw-editor-recent-colors))))))
+      ;; Restore value for no undo support target
+      (edraw-set-property target prop-name old-value)
       ;; Undo previous change
-      (when last-undo
-        (edraw-undo target)))))
+      (edraw-undo-all target)
+      (edraw-undo-block-end target undo-backup))))
 
 ;;;;;; Increase/Decrease Value By Wheel
 
