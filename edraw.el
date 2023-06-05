@@ -2171,12 +2171,19 @@ For use with `edraw-editor-with-temp-undo-list',
       (setq selected-shapes (append selected-shapes (list shape)))
       (edraw-invalidate-ui-parts editor 'selection-ui)
 
-      (when (and (edraw-property-editor-tracking-selected-shape-p)
-                 shape ;;last selected shape
-                 (edraw-property-editor-buffer))
-        (edraw-edit-properties shape));;@todo create proxy shape and pass it
+      (edraw-update-property-editor-on-selection-change editor)
 
       (edraw-call-hook editor 'selection-change))))
+
+(cl-defmethod edraw-update-property-editor-on-selection-change ((editor edraw-editor))
+  (with-slots (selected-shapes) editor
+    (when (and (edraw-property-editor-tracking-selected-shape-p)
+               selected-shapes
+               (edraw-property-editor-buffer))
+      (edraw-edit-properties
+       (if (cdr selected-shapes)
+           (edraw-selected-multiple-shapes editor)
+         (car selected-shapes))))))
 
 (cl-defmethod edraw-remove-shape-selection ((editor edraw-editor) shape)
   (with-slots (selected-shapes selected-anchor selected-handle) editor
@@ -2460,9 +2467,7 @@ For use with `edraw-editor-with-temp-undo-list',
        selected-anchor
        (edraw-xy-add (edraw-get-xy-transformed selected-anchor) xy)))
      (selected-shapes
-      (edraw-make-undo-group editor 'selected-shapes-translate
-        (dolist (shape selected-shapes)
-          (edraw-translate shape xy)))))))
+      (edraw-translate (edraw-selected-multiple-shapes editor) xy)))))
 
 (edraw-editor-defcmd edraw-scale-selected ((editor edraw-editor)
                                            origin-xy sx sy)
@@ -2505,9 +2510,7 @@ For use with `edraw-editor-with-temp-undo-list',
                                     matrix
                                     (edraw-get-xy-transformed selected-anchor))))
        (selected-shapes
-        (edraw-make-undo-group editor 'selected-shapes-transform
-          (dolist (shape selected-shapes)
-            (edraw-transform shape matrix))))))))
+        (edraw-transform (edraw-selected-multiple-shapes editor) matrix))))))
 
 (edraw-editor-defcmd edraw-delete-selected ((editor edraw-editor))
   (with-slots (selected-shapes selected-anchor selected-handle) editor
@@ -3496,6 +3499,7 @@ position where the EVENT occurred."
              ;; Remove from selection and prevent dragging
              (progn
                (edraw-remove-shape-selection editor down-shape)
+               (edraw-update-property-editor-on-selection-change editor)
                (setq moving-shapes nil))
            ;; Add to selection
            (edraw-add-shape-selection editor down-shape)
@@ -7742,6 +7746,8 @@ possible. Because undoing invalidates all point objects."
    (change-hook :initform (edraw-hook-make))
    (prop-info-list-cache :initform nil)))
 
+;;;;; Multiple Shapes - Properties
+
 (cl-defmethod edraw-get-editor ((shape edraw-multiple-shapes))
   (oref shape editor))
 
@@ -7814,7 +7820,17 @@ possible. Because undoing invalidates all point objects."
 ;;(cl-defmethod edraw-property-editor-shape-p (_obj) nil)
 ;;(cl-defmethod edraw-set-all-properties-as-default ((obj edraw-multiple-shapes)))
 
+;;;;; Multiple Shapes - Transform
 
+(cl-defmethod edraw-translate ((obj edraw-multiple-shapes) xy)
+  (edraw-make-undo-group (oref obj editor) 'shapes-translate
+    (dolist (shape (oref obj shapes))
+      (edraw-translate shape xy))))
+
+(cl-defmethod edraw-transform ((obj edraw-multiple-shapes) matrix)
+  (edraw-make-undo-group (oref obj editor) 'shapes-transform
+    (dolist (shape (oref obj shapes))
+      (edraw-transform shape matrix))))
 
 
 ;;;; Utility

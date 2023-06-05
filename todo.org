@@ -1,8 +1,30 @@
 
 
 * Inbox
-** TODO Ctrl+クリックで選択図形を追加したときにedraw-multiple-shapesを使う
-edraw-add-shape-selectionのtodo部分を参照。
+** TODO 選択図形に対する操作はedraw-multiple-shapesを介すべき?
+「選択された図形」といった図形のリストはいったんedraw-multiple-shapesに保持させて、それを操作する方が良い。選択図形以外でも複数の図形を一度に操作したいことはあるはずなので。
+
+操作メソッドはlistを引数に取るよりはedraw-multiple-shapesを引数に取った方が方が明確になると思う。(list edraw-shape)のような限定ができないので。
+
+次のメソッドが対象。
+
+- [X] edraw-translate-selected
+- +edraw-scale-selected+
+- +edraw-rotate-selected+
+- [X] edraw-transform-selected
+- [ ] edraw-delete-selected
+- [ ] edraw-bring-selected-to-front
+- [ ] edraw-bring-selected-forward
+- [ ] edraw-send-selected-backward
+- [ ] edraw-send-selected-to-back
+- [ ] edraw-group-selected-shapes
+
+このうちいくつかは実行後に図形が削除されることに注意。
+
+ところで(shape list)を取るメソッドはundoをまとめなくて良いのだろうか。
+
+正直そこまで積極的に必要というわけでもないが……。
+
 ** TODO SVGのルート直下を直接編集できるようにする
 現在は ~<g id="edraw-body">~ 内に限定されている。<svg>直下を直接編集できるようになれば、他のツールで生成したSVGを手直しするのに使える場合もあるかもしれない。svgの中にsvgを入れることが出来るので、不可能では無いはず。
 
@@ -2023,3 +2045,6 @@ CLOSED: [2023-06-04 Sun 23:19]
 ** DONE 複数選択した図形に対してSetメニューを使えるようにする
 CLOSED: [2023-06-05 Mon 16:37]
 複数の図形に対して一括でSet=>FillやSet=>End Marker等を使いたい。
+** DONE Ctrl+クリックで選択図形を追加したときにedraw-multiple-shapesを使う
+CLOSED: [2023-06-05 Mon 17:04]
+edraw-add-shape-selectionのtodo部分を参照。
