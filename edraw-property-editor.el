@@ -37,8 +37,11 @@
 
 ;;;; Property Editor Target
 
+(defclass edraw-properties-holder ()
+  ()
+  :abstract t)
 
-(defclass edraw-property-editor-target ()
+(defclass edraw-property-editor-target (edraw-properties-holder)
  ())
 
 (cl-defmethod edraw-name

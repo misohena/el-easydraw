@@ -2300,7 +2300,11 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;; Editor - Manipulate Selected Shapes
 
 (cl-defmethod edraw-get-actions-for-selected-shapes ((editor edraw-editor))
-  (let ((selected-shapes (edraw-selected-shapes editor)))
+  (let* ((selected-shapes (edraw-selected-shapes editor))
+         (shapes (edraw-multiple-shapes
+                  :shapes selected-shapes :editor editor)))
+    ;; NOTE: Use edraw-editor-* commands instead of methods for
+    ;; edraw-multiple-shapes to show key bindings.
     `(((edraw-msg "Delete...") edraw-editor-delete-selected)
       ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
@@ -2321,6 +2325,32 @@ For use with `edraw-editor-with-temp-undo-list',
          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
         ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
+      ((edraw-msg "Set")
+       (((edraw-msg "Fill...") edraw-editor-edit-fill-selected
+         :visible ,(edraw-can-have-property-p shapes 'fill))
+        ((edraw-msg "Stroke...") edraw-editor-edit-stroke-selected
+         :visible ,(edraw-can-have-property-p shapes 'stroke))
+        ((edraw-msg "Href...") edraw-editor-edit-href-selected
+         :visible ,(edraw-can-have-property-p shapes 'href))
+        ((edraw-msg "Font Size...") edraw-editor-edit-font-size-selected
+         :visible ,(edraw-can-have-property-p shapes 'font-size))
+
+        ((edraw-msg "Start Marker")
+         (((edraw-msg "None") edraw-editor-set-marker-start-none-selected
+           :button (:toggle . ,(null (edraw-get-property shapes 'marker-start))))
+          ((edraw-msg "Arrow") edraw-editor-set-marker-start-arrow-selected
+           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-start) "arrow")))
+          ((edraw-msg "Circle") edraw-editor-set-marker-start-circle-selected
+           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-start) "circle"))))
+         :visible ,(edraw-can-have-property-p shapes 'marker-start))
+        ((edraw-msg "End Marker")
+         (((edraw-msg "None") edraw-editor-set-marker-end-none-selected
+           :button (:toggle . ,(null (edraw-get-property shapes 'marker-end))))
+          ((edraw-msg "Arrow") edraw-editor-set-marker-end-arrow-selected
+           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-end) "arrow")))
+          ((edraw-msg "Circle") edraw-editor-set-marker-end-circle-selected
+           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-end) "circle"))))
+         :visible ,(edraw-can-have-property-p shapes 'marker-end))))
       ((edraw-msg "Properties...") edraw-editor-edit-properties-of-selected-shapes))))
 
 (cl-defmethod edraw-get-summary-for-selected-shapes ((editor edraw-editor))
@@ -2543,14 +2573,48 @@ For use with `edraw-editor-with-temp-undo-list',
       (let ((group (edraw-create-shape editor (edraw-svg-body editor) 'g)))
         (edraw-shape-group-add-children group selected-shapes)))))
 
+(cl-defmethod edraw-selected-multiple-shapes ((editor edraw-editor))
+  (if-let ((selected-shapes (oref editor selected-shapes)))
+      (edraw-multiple-shapes :shapes selected-shapes :editor editor)
+    (error (edraw-msg "No shape selected"))))
+
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
-  (with-slots (selected-shapes) editor
-    (when (null selected-shapes)
-      (error (edraw-msg "No shape selected")))
-    (let ((shapes (edraw-multiple-shapes
-                   :shapes (copy-sequence selected-shapes)
-                   :editor editor)))
-      (edraw-property-editor-open shapes))))
+  (edraw-property-editor-open (edraw-selected-multiple-shapes editor)))
+
+(edraw-editor-defcmd edraw-edit-fill-selected ((editor edraw-editor))
+  (edraw-edit-fill (edraw-selected-multiple-shapes editor)))
+
+(edraw-editor-defcmd edraw-edit-stroke-selected ((editor edraw-editor))
+  (edraw-edit-stroke (edraw-selected-multiple-shapes editor)))
+
+(edraw-editor-defcmd edraw-edit-href-selected ((editor edraw-editor))
+  (edraw-edit-href (edraw-selected-multiple-shapes editor)))
+
+(edraw-editor-defcmd edraw-edit-font-size-selected ((editor edraw-editor))
+  (edraw-edit-font-size (edraw-selected-multiple-shapes editor)))
+
+(cl-defmethod edraw-set-property-selected ((editor edraw-editor)
+                                           prop-name value)
+  (edraw-set-property (edraw-selected-multiple-shapes editor) prop-name value))
+
+(edraw-editor-defcmd edraw-set-marker-start-none-selected ((editor edraw-editor))
+  (edraw-set-property-selected editor 'marker-start nil))
+
+(edraw-editor-defcmd edraw-set-marker-start-arrow-selected ((editor edraw-editor))
+  (edraw-set-property-selected editor 'marker-start "arrow"))
+
+(edraw-editor-defcmd edraw-set-marker-start-circle-selected ((editor edraw-editor))
+  (edraw-set-property-selected editor 'marker-start "circle"))
+
+(edraw-editor-defcmd edraw-set-marker-end-none-selected ((editor edraw-editor))
+  (edraw-set-property-selected editor 'marker-end nil))
+
+(edraw-editor-defcmd edraw-set-marker-end-arrow-selected ((editor edraw-editor))
+  (edraw-set-property-selected editor 'marker-end "arrow"))
+
+(edraw-editor-defcmd edraw-set-marker-end-circle-selected ((editor edraw-editor))
+  (edraw-set-property-selected editor 'marker-end "circle"))
+
 
 ;;;;; Editor - Copy & Paste
 
@@ -2660,11 +2724,14 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;; edraw-property-proxy-shape
 
-(defclass edraw-property-proxy-shape ()
+(defclass edraw-property-proxy-shape (edraw-properties-holder)
   ((tag :initarg :tag)
    (alist-head :initarg :alist-head) ;;('rect (prop . value) ...)
    (editor :initarg :editor)
    (name :initarg :name)))
+
+(cl-defmethod edraw-get-editor ((shape edraw-property-proxy-shape))
+  (oref shape editor))
 
 (cl-defmethod edraw-name ((shape edraw-property-proxy-shape))
   (oref shape name))
@@ -4575,6 +4642,65 @@ position where the EVENT occurred."
        (edraw-shape-aabb shapes)))))
 
 
+;;;; Properties Holder
+
+(cl-defmethod edraw-undo-to-data ((holder edraw-properties-holder) data)
+  (while (not (let ((last-data (edraw-last-undo-data holder)))
+                (or (null last-data)
+                    (eq last-data data))))
+    (edraw-undo holder)))
+
+(cl-defmethod edraw-edit-properties ((holder edraw-properties-holder))
+  (edraw-property-editor-open holder))
+
+(cl-defmethod edraw-edit-property-paint ((holder edraw-properties-holder)
+                                         prop-name)
+  (let* ((editor (edraw-get-editor holder))
+         (old-value (edraw-get-property holder prop-name))
+         (new-value
+          ;; undo all changes in preview in case edraw-set-property
+          ;; cannot revert property values to old-value.
+          ;; edraw-multiple-shapes may not be reverted by
+          ;; edraw-set-property (if multiple shapes have different
+          ;; values).
+          (edraw-editor-with-temp-modifications editor
+            (unwind-protect
+                (edraw-color-picker-read-color
+                 (format "%s: " prop-name)
+                 (or old-value "")
+                 '("" "none")
+                 `((:color-name-scheme . web)
+                   (:no-color . "none")
+                   (:on-input-change
+                    . ,(lambda (string color)
+                         (when (or (member string '("" "none"))
+                                   color)
+                           ;;@todo suppress modified flag change and notification
+                           (edraw-undo-all editor)
+                           (edraw-set-property holder prop-name string))))
+                   (:scale-direct . ,(oref editor image-scale))
+                   (:recent-colors . ,(edraw-editor-recent-colors))))
+              ;; Restore value directly for HOLDER that don't support UNDO.
+              ;; edraw-property-proxy-shape does not support UNDO.
+              (edraw-undo-all editor)
+              (edraw-set-property holder prop-name old-value)))))
+    (when (string-empty-p new-value)
+      (setq new-value nil))
+    (when (not (equal new-value old-value))
+      (edraw-set-property holder prop-name new-value))))
+
+(cl-defmethod edraw-edit-fill ((holder edraw-properties-holder))
+  (edraw-edit-property-paint holder 'fill))
+
+(cl-defmethod edraw-edit-stroke ((holder edraw-properties-holder))
+  (edraw-edit-property-paint holder 'stroke))
+
+(cl-defmethod edraw-can-have-property-p ((holder edraw-properties-holder)
+                                         prop-name)
+  (seq-some (lambda (prop-info)
+              (eq (plist-get prop-info :name) prop-name))
+            (edraw-get-property-info-list holder)))
+
 ;;;; Shape
 
 ;;;;; Shape Object Types & Creation
@@ -4709,7 +4835,7 @@ position where the EVENT occurred."
 
 ;;;;; Shape - Base Class
 
-(defclass edraw-shape ()
+(defclass edraw-shape (edraw-properties-holder)
   ((element :initarg :element)
    (editor :initarg :editor
            :type edraw-editor)
@@ -4728,6 +4854,9 @@ position where the EVENT occurred."
 
 (cl-defgeneric edraw-shape-type (shape) ;; Must be implement in derived classes
   "Return a symbol representing the type of SHAPE.")
+
+(cl-defmethod edraw-get-editor ((shape edraw-shape))
+  (oref shape editor))
 
 ;;;;;; Internal
 
@@ -5375,40 +5504,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            editor (edraw-svg-body editor)
            z-index
            shape-descriptor-list))))))
-
-(cl-defmethod edraw-edit-properties ((shape edraw-shape))
-  (edraw-property-editor-open shape))
-
-(cl-defmethod edraw-edit-property-paint ((shape edraw-shape) prop-name)
-  (let* ((curr-value (edraw-get-property shape prop-name))
-         (new-value
-          (edraw-editor-with-silent-modifications
-            (unwind-protect
-                (edraw-color-picker-read-color
-                 (format "%s: " prop-name)
-                 (or curr-value "")
-                 '("" "none")
-                 `((:color-name-scheme . web)
-                   (:no-color . "none")
-                   (:on-input-change
-                    . ,(lambda (string color)
-                         (when (or (member string '("" "none"))
-                                   color)
-                           ;;@todo suppress modified flag change and notification
-                           (edraw-set-property shape prop-name string))))
-                   (:scale-direct . ,(oref (oref shape editor) image-scale))
-                   (:recent-colors . ,(edraw-editor-recent-colors))))
-              (edraw-set-property shape prop-name curr-value)))))
-    (when (string-empty-p new-value)
-      (setq new-value nil))
-    (when (not (equal new-value curr-value))
-      (edraw-set-property shape prop-name new-value))))
-
-(cl-defmethod edraw-edit-fill ((shape edraw-shape))
-  (edraw-edit-property-paint shape 'fill))
-
-(cl-defmethod edraw-edit-stroke ((shape edraw-shape))
-  (edraw-edit-property-paint shape 'stroke))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape))
   `(((edraw-msg "Select") edraw-select)
@@ -7641,10 +7736,14 @@ possible. Because undoing invalidates all point objects."
 
 ;;;; Multiple Shapes
 
-(defclass edraw-multiple-shapes ()
+(defclass edraw-multiple-shapes (edraw-properties-holder)
   ((shapes :type list :initarg :shapes)
    (editor :type edraw-editor :initarg :editor)
-   (change-hook :initform (edraw-hook-make))))
+   (change-hook :initform (edraw-hook-make))
+   (prop-info-list-cache :initform nil)))
+
+(cl-defmethod edraw-get-editor ((shape edraw-multiple-shapes))
+  (oref shape editor))
 
 (cl-defmethod edraw-name ((obj edraw-multiple-shapes))
   (format (edraw-msg "%s shapes") (length (oref obj shapes))))
@@ -7656,9 +7755,16 @@ possible. Because undoing invalidates all point objects."
   (edraw-undo (oref obj editor)))
 
 (cl-defmethod edraw-get-property-info-list ((obj edraw-multiple-shapes))
-  (let ((info-list-list
-         (mapcar #'edraw-get-property-info-list (oref obj shapes))))
-    (seq-reduce #'seq-intersection (cdr info-list-list) (car info-list-list))))
+  (with-slots (prop-info-list-cache) obj
+    (unless prop-info-list-cache
+      (setq prop-info-list-cache
+            (list
+             (let ((info-list-list
+                    (mapcar #'edraw-get-property-info-list (oref obj shapes))))
+               (seq-reduce #'seq-intersection
+                           (cdr info-list-list)
+                           (car info-list-list))))))
+    (car prop-info-list-cache)))
 
 (cl-defmethod edraw-get-property ((obj edraw-multiple-shapes) prop-name)
   (with-slots (shapes) obj
