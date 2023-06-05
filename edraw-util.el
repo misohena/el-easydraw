@@ -168,8 +168,11 @@
                    (list id-symbol 'menu-item)
                    item))
                  ((listp (cadr item))
-                  (list id-symbol 'menu-item (car item)
-                        (edraw-make-menu-map nil (cadr item))))
+                  (append
+                   (list id-symbol 'menu-item (car item)
+                         (edraw-make-menu-map nil (cadr item)))
+                   ;; item-property-list
+                   (cddr item)))
                  (t (error "Unkonwn menu item format %s"
                            (prin1-to-string item)))))))))
 
