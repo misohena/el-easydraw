@@ -318,22 +318,6 @@ C-c C-c や C-c C-kが効かない。
 エディタやプロパティエディタ、シェイプピッカーから使う時はミニバッファに表示するのでフレーム化は難しい。モーダルでなければならない。
 カラーピッカー単体で使うコマンドはフレームにしてもよいのではないか。
 
-** TODO プロパティエディタやシェイプピッカーの最近使った色問題
-
-プロパティエディタやシェイプピッカーで次のような実装にしてしまったのは問題では無いか。
-
-#+begin_src elisp
-,@(when (fboundp 'edraw-editor-recent-colors)
-                (list
-                 (cons :recent-colors (edraw-editor-recent-colors))))
-#+end_src
-
-プロパティエディタやシェイプピッカーをエディタから独立して使えるようにしたいのであれば、エディタから使うときにだけ明示的に(edraw-editor-recent-colors)を使うようにエディタから指定すべき。
-
-edraw-editor-image-scaling-factorについても同じ事が言える。
-
-何かオプションを引き渡す仕組みが必要。
-
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO ORG/org-modeでODTへのエクスポートに対応する
@@ -2048,3 +2032,20 @@ CLOSED: [2023-06-05 Mon 16:37]
 ** DONE Ctrl+クリックで選択図形を追加したときにedraw-multiple-shapesを使う
 CLOSED: [2023-06-05 Mon 17:04]
 edraw-add-shape-selectionのtodo部分を参照。
+** DONE プロパティエディタやシェイプピッカーの最近使った色問題
+CLOSED: [2023-06-05 Mon 21:34]
+プロパティエディタやシェイプピッカーで次のような実装にしてしまったのは問題では無いか。
+
+#+begin_src elisp
+,@(when (fboundp 'edraw-editor-recent-colors)
+                (list
+                 (cons :recent-colors (edraw-editor-recent-colors))))
+#+end_src
+
+プロパティエディタやシェイプピッカーをエディタから独立して使えるようにしたいのであれば、エディタから使うときにだけ明示的に(edraw-editor-recent-colors)を使うようにエディタから指定すべき。
+
+edraw-editor-image-scaling-factorについても同じ事が言える。
+
+何かオプションを引き渡す仕組みが必要。
+
+とにかくedraw-editorへの依存を取り除くべき。

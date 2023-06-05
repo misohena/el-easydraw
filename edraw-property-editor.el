@@ -185,7 +185,8 @@ editor when the selected shape changes."
    (widgets)
    (update-timer :initform nil)
    (last-edit-undo-data :initform nil)
-   (last-edit-prop-name :initform nil)))
+   (last-edit-prop-name :initform nil)
+   (options :initarg :options)))
 
 (defvar-local edraw-property-editor--pedit nil)
 
@@ -198,11 +199,12 @@ editor when the selected shape changes."
       (when edraw-property-editor--pedit
         (edraw-close edraw-property-editor--pedit)))))
 
-(defun edraw-property-editor-open (target)
+(defun edraw-property-editor-open (target &optional options)
   (let* ((buffer (get-buffer-create edraw-property-editor-buffer-name))
          ;; Get property editor object
+         ;;@todo Update options if reuse pedit?
          (pedit (or (with-current-buffer buffer edraw-property-editor--pedit)
-                    (edraw-property-editor-create-object buffer))))
+                    (edraw-property-editor-create-object buffer options))))
     (unless (eq target (oref pedit target))
       (with-current-buffer buffer
         ;; Release current target
@@ -220,7 +222,7 @@ editor when the selected shape changes."
       ;; Open window or frame
       (edraw-display-buffer pedit))))
 
-(defun edraw-property-editor-create-object (buffer)
+(defun edraw-property-editor-create-object (buffer options)
   (edraw-property-editor
    :buffer buffer
    :display (edraw-buffer-display
@@ -240,7 +242,8 @@ editor when the selected shape changes."
              :save-function
              (lambda (_obj key value)
                (edraw-ui-state-set 'property-editor key value)
-               (edraw-ui-state-save)))))
+               (edraw-ui-state-save)))
+   :options options))
 
 (defun edraw-property-editor-target-shape-p (target)
   (and target
@@ -388,7 +391,7 @@ editor when the selected shape changes."
                   target prop-info
                   pedit))
          (widget (edraw-property-editor-prop-widget-create-widget
-                  target prop-info indent notify)))
+                  target prop-info indent notify (oref pedit options))))
     (edraw-property-editor-prop-widget
      :widget widget
      :prop-info prop-info)))
@@ -456,7 +459,8 @@ once. widget-value-set updates the same property four times."
 (defun edraw-property-editor-prop-widget-create-widget (target
                                                         prop-info
                                                         indent
-                                                        notify)
+                                                        notify
+                                                        options)
   (let* ((prop-name (plist-get prop-info :name))
          (prop-value (edraw-get-property target prop-name))
          (prop-type (plist-get prop-info :type))
@@ -470,7 +474,7 @@ once. widget-value-set updates the same property four times."
        indent prop-name prop-value prop-info notify))
      ((eq prop-type 'paint)
       (edraw-property-editor-create-paint-widget
-       indent prop-name prop-value prop-info notify target))
+       indent prop-name prop-value prop-info notify target options))
      (t
       (edraw-property-editor-create-text-field-widget
        indent prop-name prop-value prop-info notify)))))
@@ -673,7 +677,7 @@ once. widget-value-set updates the same property four times."
 ;;;;;; Paint Widget
 
 (defun edraw-property-editor-create-paint-widget
-    (indent prop-name prop-value prop-info notify target)
+    (indent prop-name prop-value prop-info notify target options)
   (widget-insert (make-string indent ? ))
   (let (field-widget)
     (widget-insert (symbol-name prop-name) ": ")
@@ -683,7 +687,8 @@ once. widget-value-set updates the same property four times."
        (edraw-property-editor-prop-widget-value-set
         field-widget
         (edraw-property-editor-read-property-paint-color target prop-name
-                                                         field-widget)))
+                                                         field-widget
+                                                         options)))
      (edraw-msg "Color"))
     ;;(widget-insert " ")
     (setq field-widget
@@ -697,8 +702,8 @@ once. widget-value-set updates the same property four times."
     field-widget))
 
 (defun edraw-property-editor-read-property-paint-color (target
-                                                        prop-name field-widget)
-  (defvar edraw-editor-image-scaling-factor) ;;edraw.el
+                                                        prop-name field-widget
+                                                        options)
   (let ((old-value (widget-value field-widget))
         (undo-backup (edraw-undo-block-begin target)))
     (unwind-protect
@@ -720,13 +725,12 @@ once. widget-value-set updates the same property four times."
                      (edraw-undo-all target)
                      ;;@todo suppress modified flag change and notification
                      (edraw-set-property target prop-name string))))))
-           ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
-                        edraw-editor-image-scaling-factor)
+           ,@(when-let ((image-scale (alist-get 'image-scale options)))
                (list
-                (cons :scale-direct edraw-editor-image-scaling-factor)))
-           ,@(when (fboundp 'edraw-editor-recent-colors)
+                (cons :scale-direct image-scale)))
+           ,@(when-let ((recent-colors (alist-get 'recent-colors options)))
                (list
-                (cons :recent-colors (edraw-editor-recent-colors))))))
+                (cons :recent-colors recent-colors)))))
       ;; Restore value for no undo support target
       (edraw-set-property target prop-name old-value)
       ;; Undo previous change

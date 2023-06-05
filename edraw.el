@@ -520,6 +520,14 @@ line-prefix and wrap-prefix are used in org-indent.")
            ,@rest
            )))))
 
+;;;;; Editor - Property Editor
+
+(defun edraw-editor-open-property-editor (target)
+  (edraw-property-editor-open
+   target
+   `((image-scale . ,edraw-editor-image-scaling-factor)
+     (recent-colors . ,(edraw-editor-recent-colors)))))
+
 ;;;;; Editor - Undo
 
 (defconst edraw-editor-undo-limit 30) ;;@todo To defcustom
@@ -2601,7 +2609,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (error (edraw-msg "No shape selected"))))
 
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
-  (edraw-property-editor-open (edraw-selected-multiple-shapes editor)))
+  (edraw-editor-open-property-editor (edraw-selected-multiple-shapes editor)))
 
 (edraw-editor-defcmd edraw-edit-fill-selected ((editor edraw-editor))
   (edraw-edit-fill (edraw-selected-multiple-shapes editor)))
@@ -2719,7 +2727,7 @@ For use with `edraw-editor-with-temp-undo-list',
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
   (with-slots (default-shape-properties) editor
     (when-let ((alist-head (assq tag default-shape-properties)))
-      (edraw-property-editor-open
+      (edraw-editor-open-property-editor
        (edraw-property-proxy-shape :tag tag :alist-head alist-head
                                    :editor editor
                                    :name (format "default %s" tag))))))
@@ -4674,7 +4682,7 @@ position where the EVENT occurred."
     (edraw-undo holder)))
 
 (cl-defmethod edraw-edit-properties ((holder edraw-properties-holder))
-  (edraw-property-editor-open holder))
+  (edraw-editor-open-property-editor holder))
 
 (cl-defmethod edraw-edit-property-paint ((holder edraw-properties-holder)
                                          prop-name)
