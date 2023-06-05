@@ -708,7 +708,8 @@ once. widget-value-set updates the same property four times."
          '("" "none")
          `((:color-name-scheme . web)
            (:no-color . "none")
-           ,@(when (edraw-property-editor-target-shape-p target)
+           ;; Preview
+           ,@(when t;;(edraw-property-editor-target-shape-p target)
                (list
                 (cons
                  :on-input-change
