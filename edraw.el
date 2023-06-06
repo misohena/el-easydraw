@@ -252,6 +252,9 @@ When nil, disable auto view enlargement."
     (define-key km (kbd "{") 'edraw-editor-send-selected-to-back)
     (define-key km (kbd "M-]") 'edraw-editor-select-next-shape)
     (define-key km (kbd "M-[") 'edraw-editor-select-previous-shape)
+    (define-key km (kbd "TAB") 'edraw-editor-select-next-shape)
+    (define-key km (kbd "S-TAB") 'edraw-editor-select-previous-shape)
+    (define-key km (kbd "<backtab>") 'edraw-editor-select-previous-shape)
     km))
 
 (defvar edraw-editor-disable-line-prefix t
