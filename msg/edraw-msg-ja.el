@@ -148,6 +148,7 @@
      "No editor here" "ここにエディタはありません"
      "No entries at point" "この場所に項目がありません"
      "No glue target" "接着先がありません"
+     "No group selected" "グループが選択されていません"
      "No link at point" "この場所にリンクがありません"
      "No need to convert" "変換の必要がありません"
      "No need to rotate" "回転の必要がありません"

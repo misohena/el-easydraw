@@ -1,6 +1,8 @@
 
 
 * Inbox
+** TODO 選択図形のプロパティエディタを開くキーを割り当てる
+Alt+Enterとしたいところだが、Emacs的ではない？
 ** TODO 選択図形に対する操作はedraw-multiple-shapesを介すべき?
 「選択された図形」といった図形のリストはいったんedraw-multiple-shapesに保持させて、それを操作する方が良い。選択図形以外でも複数の図形を一度に操作したいことはあるはずなので。
 
@@ -17,7 +19,8 @@
 - [ ] edraw-bring-selected-forward
 - [ ] edraw-send-selected-backward
 - [ ] edraw-send-selected-to-back
-- [ ] edraw-group-selected-shapes
+- [X] edraw-group-selected-shapes
+- [X] edraw-ungroup-selected-shapes
 
 このうちいくつかは実行後に図形が削除されることに注意。
 
@@ -2049,3 +2052,7 @@ edraw-editor-image-scaling-factorについても同じ事が言える。
 何かオプションを引き渡す仕組みが必要。
 
 とにかくedraw-editorへの依存を取り除くべき。
+** DONE 選択図形をグループ化するキーを割り当てる
+CLOSED: [2023-06-06 Tue 09:04]
+gでグループ化、Gでグループ化解除。
+選択図形のグループ化解除は新たに作る必要がある。

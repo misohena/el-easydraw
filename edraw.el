@@ -223,6 +223,8 @@ When nil, disable auto view enlargement."
     (define-key km "Tt" 'edraw-editor-translate-selected)
     (define-key km "Ts" 'edraw-editor-scale-selected)
     (define-key km "Tr" 'edraw-editor-rotate-selected)
+    (define-key km "g" 'edraw-editor-group-selected-shapes)
+    (define-key km "G" 'edraw-editor-ungroup-selected-shapes)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
     (define-key km (kbd "<right>") 'edraw-editor-move-selected-by-arrow-key)
@@ -2344,6 +2346,7 @@ For use with `edraw-editor-with-temp-undo-list',
       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
       ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes)
       ((edraw-msg "Group") edraw-editor-group-selected-shapes)
+      ((edraw-msg "Ungroup") edraw-editor-ungroup-selected-shapes)
       ((edraw-msg "Transform")
        (((edraw-msg "Translate...") edraw-editor-translate-selected)
         ((edraw-msg "Scale...") edraw-editor-scale-selected)
@@ -2599,9 +2602,13 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (selected-shapes) editor
     (when (null selected-shapes)
       (error (edraw-msg "No shape selected")))
-    (edraw-make-undo-group editor 'create-group
-      (let ((group (edraw-create-shape editor (edraw-svg-body editor) 'g)))
-        (edraw-shape-group-add-children group selected-shapes)))))
+    (edraw-group (edraw-selected-multiple-shapes editor))))
+
+(edraw-editor-defcmd edraw-ungroup-selected-shapes ((editor edraw-editor))
+  (with-slots (selected-shapes) editor
+    (when (null selected-shapes)
+      (error (edraw-msg "No shape selected")))
+    (edraw-ungroup-interactive (edraw-selected-multiple-shapes editor))))
 
 (cl-defmethod edraw-selected-multiple-shapes ((editor edraw-editor))
   (if-let ((selected-shapes (oref editor selected-shapes)))
@@ -7876,6 +7883,40 @@ possible. Because undoing invalidates all point objects."
   (edraw-make-undo-group (oref obj editor) 'shapes-transform
     (dolist (shape (oref obj shapes))
       (edraw-transform shape matrix))))
+
+;;;;; Multiple Shapes - Group
+
+(cl-defmethod edraw-group ((obj edraw-multiple-shapes))
+  (with-slots (editor shapes) obj
+    (when shapes ;; Requires one or more shapes
+      (edraw-make-undo-group editor 'shapes-group
+        (let ((group (edraw-create-shape
+                      editor
+                      ;; @todo Determined based on parent of shapes?
+                      (edraw-svg-body editor)
+                      'g)))
+          (edraw-shape-group-add-children group (oref obj shapes)))))))
+
+(cl-defmethod edraw-ungroup ((obj edraw-multiple-shapes)
+                             &optional apply-transform-p)
+  (edraw-make-undo-group (oref obj editor) 'shapes-ungroup
+    (dolist (shape (oref obj shapes))
+      (when (edraw-shape-group-p shape)
+        (edraw-ungroup shape apply-transform-p)))))
+
+(cl-defmethod edraw-ungroup-interactive ((obj edraw-multiple-shapes))
+  (let* ((groups (seq-filter #'edraw-shape-group-p (oref obj shapes)))
+         (apply-transform-p
+          (and (seq-some (lambda (g)
+                           (not (edraw-matrix-identity-p
+                                 (edraw-transform-prop-get-matrix g))))
+                         groups)
+               (y-or-n-p
+                (edraw-msg "Apply group's transform property to children?")))))
+    (unless groups
+      (error (edraw-msg "No group selected")))
+    (edraw-ungroup obj apply-transform-p)))
+
 
 
 ;;;; Utility
