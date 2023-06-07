@@ -3835,7 +3835,17 @@ position where the EVENT occurred."
   (with-slots (editor) tool
     (cond
      ;; Drag or click a shape
-     ((edraw-mouse-down-shape editor down-event)))))
+     ((edraw-mouse-down-shape editor down-event))
+
+     ;; Select by rectangle
+     ((let ((rect (edraw-read-rectangle editor down-event nil)))
+        (unless (edraw-rect-empty-p rect)
+          (dolist (shape (edraw-find-shapes-by-rect editor rect))
+            ;; Toggle selection state
+            (if (edraw-selected-p shape)
+                (edraw-remove-shape-selection editor shape)
+              (edraw-add-shape-selection editor shape)))
+          t))))))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-select)
                                        down-event)
