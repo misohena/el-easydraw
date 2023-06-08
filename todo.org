@@ -15,13 +15,16 @@
 - +edraw-scale-selected+
 - +edraw-rotate-selected+
 - [X] edraw-transform-selected
+- [X] edraw-group-selected-shapes
+- [X] edraw-ungroup-selected-shapes
 - [ ] edraw-delete-selected
 - [ ] edraw-bring-selected-to-front
 - [ ] edraw-bring-selected-forward
 - [ ] edraw-send-selected-backward
 - [ ] edraw-send-selected-to-back
-- [X] edraw-group-selected-shapes
-- [X] edraw-ungroup-selected-shapes
+- [ ] edraw-editor-copy-selected-shapes
+- [ ] edraw-editor-cut-selected-shapes
+- [ ] edraw-editor-duplicate-selected-shapes
 
 このうちいくつかは実行後に図形が削除されることに注意。
 
@@ -357,11 +360,6 @@ edraw-org-shape-picker-minor-modeが必要？
 - 色変更ボタン (迷うところ)
 - choiceボタン (1回の変更毎にUNDOデータを作るべき)
 ドラッグやホイールはlast-commandでチェックできるが、その他は難しい。
-
-** TODO プロパティエディタ/ボタン類の表示を改善する
-バッファの上の方に表示できないか。バーのようにすると良い？
-Prev, Nextを連続して押しづらい。
-見た目もあまりよろしくない。
 
 ** TODO プロパティエディタ/エラーチェックを強化する
 ** TODO DOMツリーの文字列化は変更のあったサブツリーのみに限定する
@@ -2069,3 +2067,11 @@ M-[やM-]に割り当てられているが覚えられないので。
 CLOSED: [2023-06-07 Wed 18:07]
 現状では選択ツールでCtrl+ドラッグ自体ができない。
 矩形と交差している図形は選択状態が反転する。
+** CANCELLED プロパティエディタ/ボタン類の表示を改善する
+CLOSED: [2023-06-08 Thu 20:42]
+バッファの上の方に表示できないか。バーのようにすると良い？
+Prev, Nextを連続して押しづらい。
+見た目もあまりよろしくない。
+
+[2023-06-08 Thu]一応以前ボタンの位置を上に移動したので、今はそれほど不満は無い。
+そもそもこのボタンで前後選択しないし。
