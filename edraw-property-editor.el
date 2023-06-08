@@ -186,7 +186,7 @@ editor when the selected shape changes."
    (update-timer :initform nil)
    (last-edit-undo-data :initform nil)
    (last-edit-prop-name :initform nil)
-   (options :initarg :options)))
+   (options :initform nil)))
 
 (defvar-local edraw-property-editor--pedit nil)
 
@@ -202,9 +202,11 @@ editor when the selected shape changes."
 (defun edraw-property-editor-open (target &optional options)
   (let* ((buffer (get-buffer-create edraw-property-editor-buffer-name))
          ;; Get property editor object
-         ;;@todo Update options if reuse pedit?
          (pedit (or (with-current-buffer buffer edraw-property-editor--pedit)
-                    (edraw-property-editor-create-object buffer options))))
+                    (edraw-property-editor-create-object buffer))))
+    ;; Update options
+    (oset pedit options options)
+
     (unless (eq target (oref pedit target))
       (with-current-buffer buffer
         ;; Release current target
@@ -222,7 +224,7 @@ editor when the selected shape changes."
       ;; Open window or frame
       (edraw-display-buffer pedit))))
 
-(defun edraw-property-editor-create-object (buffer options)
+(defun edraw-property-editor-create-object (buffer)
   (edraw-property-editor
    :buffer buffer
    :display (edraw-buffer-display
@@ -242,8 +244,7 @@ editor when the selected shape changes."
              :save-function
              (lambda (_obj key value)
                (edraw-ui-state-set 'property-editor key value)
-               (edraw-ui-state-save)))
-   :options options))
+               (edraw-ui-state-save)))))
 
 (defun edraw-property-editor-target-shape-p (target)
   (and target
@@ -367,8 +368,7 @@ editor when the selected shape changes."
           (let* ((indent (- max-name-width
                             (string-width
                              (symbol-name (plist-get prop-info :name))))))
-            (push (edraw-property-editor-prop-widget-create
-                   target prop-info indent pedit)
+            (push (edraw-create-prop-widget pedit prop-info indent)
                   widgets))))
       (setq widgets (nreverse widgets)))))
 
@@ -385,11 +385,10 @@ editor when the selected shape changes."
   ((widget :initarg :widget)
    (prop-info :initarg :prop-info)))
 
-(defun edraw-property-editor-prop-widget-create (target prop-info indent pedit)
-  ;;@todo Retrieve TARGET from PEDIT?
-  (let* ((notify (edraw-property-editor-prop-widget-create-updator
-                  target prop-info
-                  pedit))
+(cl-defmethod edraw-create-prop-widget ((pedit edraw-property-editor)
+                                        prop-info indent)
+  (let* ((target (oref pedit target))
+         (notify (edraw-create-prop-widget-updator pedit prop-info))
          (widget (edraw-property-editor-prop-widget-create-widget
                   target prop-info indent notify (oref pedit options))))
     (edraw-property-editor-prop-widget
@@ -424,37 +423,38 @@ once. widget-value-set updates the same property four times."
   (oset pedit last-edit-undo-data undo-data)
   (oset pedit last-edit-prop-name prop-name))
 
-(defun edraw-property-editor-prop-widget-create-updator (target prop-info pedit)
-  ;;@todo Retrieve TARGET from PEDIT?
-  (lambda (widget _changed-widget &optional _event)
-    ;; Called 4 times per widget-value-set call.
-    ;; 1. delete chars (event=(before-change BEG END))
-    ;; 2. delete chars (event=(after-change BEG END))
-    ;; 3. insert chars (event=(before-change BEG END))
-    ;; 4. insert chars (event=(after-change BEG END))
-    (when (and edraw-property-editor-apply-immediately
-               (not edraw-property-editor-prop-widget--notification-suppressed))
-      (let ((undo-before-change (edraw-last-undo-data target))
-            (prop-name (plist-get prop-info :name)))
-        ;; Consecutive change to the same target and same property?
-        (when (and (eq undo-before-change (edraw-last-edit-undo-data pedit))
-                   (eq prop-name (edraw-last-edit-prop-name pedit)))
-          (edraw-undo target)
-          (setq undo-before-change (edraw-last-undo-data target)))
-        ;; Change property
-        (edraw-set-property
-         target
-         prop-name
-         (edraw-property-editor-widget-value-to-prop-value
-          (widget-value widget)
-          prop-info))
-        ;; Record last change
-        (let ((undo-after-change (edraw-last-undo-data target)))
-          (if (eq undo-before-change undo-after-change)
-              ;; No undo data generated (Probably same values)
-              (edraw-set-last-edit pedit nil nil)
-            ;; New undo data generated
-            (edraw-set-last-edit pedit undo-after-change prop-name)))))))
+(cl-defmethod edraw-create-prop-widget-updator ((pedit edraw-property-editor)
+                                                prop-info)
+  (let ((target (oref pedit target)))
+    (lambda (widget _changed-widget &optional _event)
+      ;; Called 4 times per widget-value-set call.
+      ;; 1. delete chars (event=(before-change BEG END))
+      ;; 2. delete chars (event=(after-change BEG END))
+      ;; 3. insert chars (event=(before-change BEG END))
+      ;; 4. insert chars (event=(after-change BEG END))
+      (when (and edraw-property-editor-apply-immediately
+                 (not edraw-property-editor-prop-widget--notification-suppressed))
+        (let ((undo-before-change (edraw-last-undo-data target))
+              (prop-name (plist-get prop-info :name)))
+          ;; Consecutive change to the same target and same property?
+          (when (and (eq undo-before-change (edraw-last-edit-undo-data pedit))
+                     (eq prop-name (edraw-last-edit-prop-name pedit)))
+            (edraw-undo target)
+            (setq undo-before-change (edraw-last-undo-data target)))
+          ;; Change property
+          (edraw-set-property
+           target
+           prop-name
+           (edraw-property-editor-widget-value-to-prop-value
+            (widget-value widget)
+            prop-info))
+          ;; Record last change
+          (let ((undo-after-change (edraw-last-undo-data target)))
+            (if (eq undo-before-change undo-after-change)
+                ;; No undo data generated (Probably same values)
+                (edraw-set-last-edit pedit nil nil)
+              ;; New undo data generated
+              (edraw-set-last-edit pedit undo-after-change prop-name))))))))
 
 (defun edraw-property-editor-prop-widget-create-widget (target
                                                         prop-info
