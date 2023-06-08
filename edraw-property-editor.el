@@ -219,10 +219,10 @@ editor when the selected shape changes."
         (edraw-property-editor-mode)
 
         (setq-local edraw-property-editor--pedit pedit)
-        (edraw-observe-target pedit target))
+        (edraw-observe-target pedit target)))
 
-      ;; Open window or frame
-      (edraw-display-buffer pedit))))
+    ;; Open window or frame
+    (edraw-display-buffer pedit)))
 
 (defun edraw-property-editor-create-object (buffer)
   (edraw-property-editor
