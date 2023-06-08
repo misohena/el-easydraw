@@ -250,18 +250,10 @@
 
 ;;;; SVG Attributes
 
+;;;;; Conversion
 
-(defun edraw-svg-attr-number (element attr)
-  (edraw-svg-number-string-to-number (dom-attr element attr)))
-
-(defun edraw-svg-attr-coord (element attr)
-  ;; <coordinate> ::= <length>
-  (edraw-svg-attr-length element attr))
-
-(defun edraw-svg-attr-length (element attr)
-  (edraw-svg-length-string-to-number (dom-attr element attr)))
-
-(defun edraw-svg-length-string-to-number (value)
+(defun edraw-svg-attr-length-to-number (value)
+  "Convert length attribute value to number."
   ;; <length> ::=  number ("em"|"ex"|"px"|"in"|"cm"|"mm"|"pt"|"pc"|"%")?
   (cond
    ((null value)
@@ -275,7 +267,8 @@
    (t
     value)))
 
-(defun edraw-svg-number-string-to-number (value)
+(defun edraw-svg-attr-number-to-number (value)
+  "Convert number attribute value to number."
   (cond
    ((null value)
     value)
@@ -287,16 +280,40 @@
    (t
     value)))
 
-(defun edraw-svg-ensure-string-attr (attr-value)
+(defun edraw-svg-ensure-string-attr (value)
+  "Convert attribute value to string."
   (cond
-   ((null attr-value) "")
-   ((numberp attr-value) (edraw-to-string attr-value))
-   (t (format "%s" attr-value))))
+   ((null value) "")
+   ((numberp value) (edraw-to-string value))
+   (t (format "%s" value))))
+
+;;;;; Get Attribute
+
+(defun edraw-svg-attr-number (element attr)
+  "Return the number attribute ATTR from ELEMENT."
+  (edraw-svg-attr-number-to-number (dom-attr element attr)))
+
+(defun edraw-svg-attr-coord (element attr)
+  "Return the coordinate attribute ATTR from ELEMENT."
+  ;; <coordinate> ::= <length>
+  (edraw-svg-attr-length element attr))
+
+(defun edraw-svg-attr-length (element attr)
+  "Return the length attribute ATTR from ELEMENT."
+  (edraw-svg-attr-length-to-number (dom-attr element attr)))
+
+;;;;; Set Attribute
 
 (defun edraw-svg-set-attr-string (element attribute value)
+  "Set ATTRIBUTE in ELEMENT to string VALUE.
+VALUE is converted to a string for sure."
   (dom-set-attribute element attribute (edraw-svg-ensure-string-attr value)))
 
 (defun edraw-svg-set-attr-number (element attribute value)
+  "Set ATTRIBUTE in ELEMENT to number VALUE.
+To avoid numerical errors, VALUE is not converted to
+anything. Numeric values are set as numeric values and strings
+are set as strings."
   (dom-set-attribute element attribute value))
 
 
@@ -479,12 +496,6 @@
 ;;     (svg--append parent element) ;;Avoid duplicate ids
 ;;     element)) ;;Return element
 
-(defun edraw-svg-rect-set-range (element xy0 xy1)
-  (edraw-svg-set-attr-number element 'x (min (car xy0) (car xy1)))
-  (edraw-svg-set-attr-number element 'y (min (cdr xy0) (cdr xy1)))
-  (edraw-svg-set-attr-number element 'width (abs (- (car xy0) (car xy1))))
-  (edraw-svg-set-attr-number element 'height (abs (- (cdr xy0) (cdr xy1)))))
-
 ;; (defun edraw-svg-ellipse (parent xy0 xy1 &rest args)
 ;;   (let ((element (dom-node 'ellipse
 ;;                            `((cx . ,(* 0.5 (+ (car xy0) (car xy1))))
@@ -494,18 +505,6 @@
 ;;                              ,@(svg--arguments parent args)))))
 ;;     (svg--append parent element) ;;Avoid duplicate ids
 ;;     element)) ;;Return element
-
-(defun edraw-svg-ellipse-set-range (element xy0 xy1)
-  (edraw-svg-set-attr-number element 'cx (* 0.5 (+ (car xy0) (car xy1))))
-  (edraw-svg-set-attr-number element 'cy (* 0.5 (+ (cdr xy0) (cdr xy1))))
-  (edraw-svg-set-attr-number element 'rx (* 0.5 (abs (- (car xy0) (car xy1)))))
-  (edraw-svg-set-attr-number element 'ry (* 0.5 (abs (- (cdr xy0) (cdr xy1))))))
-
-(defun edraw-svg-image-set-range (element xy0 xy1)
-  (edraw-svg-set-attr-number element 'x (min (car xy0) (car xy1)))
-  (edraw-svg-set-attr-number element 'y (min (cdr xy0) (cdr xy1)))
-  (edraw-svg-set-attr-number element 'width (abs (- (car xy0) (car xy1))))
-  (edraw-svg-set-attr-number element 'height (abs (- (cdr xy0) (cdr xy1)))))
 
 ;; (defun edraw-svg-path (parent d &rest args)
 ;;   (let ((element (dom-node 'path
@@ -522,6 +521,28 @@
 ;;                            text)))
 ;;     (svg--append parent element) ;;Avoid duplicate ids
 ;;     element)) ;;Return element
+
+
+;;;; SVG Shape Rectangular Range Setting
+
+
+(defun edraw-svg-rect-set-range (element xy0 xy1)
+  (edraw-svg-set-attr-number element 'x (min (car xy0) (car xy1)))
+  (edraw-svg-set-attr-number element 'y (min (cdr xy0) (cdr xy1)))
+  (edraw-svg-set-attr-number element 'width (abs (- (car xy0) (car xy1))))
+  (edraw-svg-set-attr-number element 'height (abs (- (cdr xy0) (cdr xy1)))))
+
+(defun edraw-svg-ellipse-set-range (element xy0 xy1)
+  (edraw-svg-set-attr-number element 'cx (* 0.5 (+ (car xy0) (car xy1))))
+  (edraw-svg-set-attr-number element 'cy (* 0.5 (+ (cdr xy0) (cdr xy1))))
+  (edraw-svg-set-attr-number element 'rx (* 0.5 (abs (- (car xy0) (car xy1)))))
+  (edraw-svg-set-attr-number element 'ry (* 0.5 (abs (- (cdr xy0) (cdr xy1))))))
+
+(defun edraw-svg-image-set-range (element xy0 xy1)
+  (edraw-svg-set-attr-number element 'x (min (car xy0) (car xy1)))
+  (edraw-svg-set-attr-number element 'y (min (cdr xy0) (cdr xy1)))
+  (edraw-svg-set-attr-number element 'width (abs (- (car xy0) (car xy1))))
+  (edraw-svg-set-attr-number element 'height (abs (- (cdr xy0) (cdr xy1)))))
 
 
 ;;;; SVG Shape Summary
@@ -691,10 +712,10 @@
                     :from-string #'identity
                     :number-p (edraw-svg-elem-prop-number-p prop-def)
                     :to-number (pcase prop-type
-                                 ('coordinate #'edraw-svg-length-string-to-number)
-                                 ('length #'edraw-svg-length-string-to-number)
-                                 ('number #'edraw-svg-number-string-to-number)
-                                 ('opacity #'edraw-svg-number-string-to-number)
+                                 ('coordinate #'edraw-svg-attr-length-to-number)
+                                 ('length #'edraw-svg-attr-length-to-number)
+                                 ('number #'edraw-svg-attr-number-to-number)
+                                 ('opacity #'edraw-svg-attr-number-to-number)
                                  (_ nil))
                     )
               (edraw-svg-elem-prop-attrs prop-def)))))

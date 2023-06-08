@@ -4065,7 +4065,7 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-snap-text-to-back-shape-center ((tool edraw-editor-tool-text) xy)
   (with-slots (editor) tool
-    (when-let ((font-size (edraw-svg-length-string-to-number
+    (when-let ((font-size (edraw-svg-attr-length-to-number
                            (edraw-get-default-shape-property
                             editor 'text 'font-size)))
                (shape (car (edraw-find-shapes-by-xy editor xy))))
@@ -5461,7 +5461,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-get-property-as-length ((shape edraw-shape) prop-name
                                             &optional default-value)
-  (or (edraw-svg-length-string-to-number (edraw-get-property shape prop-name))
+  (or (edraw-svg-attr-length-to-number (edraw-get-property shape prop-name))
       (or default-value 0)))
 
 (cl-defmethod edraw-get-all-properties ((shape edraw-shape));;@todo generalize
