@@ -40,9 +40,10 @@
 
 (defun edraw-dom-do (node function &optional ancestors)
   (funcall function node ancestors)
-  (let ((ancestors (cons node ancestors)))
-    (dolist (child-node (dom-children node))
-      (edraw-dom-do child-node function ancestors))))
+  (when (edraw-dom-element-p node)
+    (let ((ancestors (cons node ancestors)))
+      (dolist (child-node (dom-children node))
+        (edraw-dom-do child-node function ancestors)))))
 
 (defun edraw-dom-get-by-id (parent id)
   (car (dom-by-id parent (concat "\\`" (regexp-quote id) "\\'"))))

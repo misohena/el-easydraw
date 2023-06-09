@@ -160,6 +160,7 @@ its own."
               (condition-case err
                   (edraw-save editor)
                 (error
+                 (message "Error=%s" (prin1-to-string err))
                  (yes-or-no-p
                   (format
                    (edraw-msg "Failed to save. %s. Discard changes?")
