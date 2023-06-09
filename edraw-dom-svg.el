@@ -38,6 +38,12 @@
        (not (null (car node)))
        (symbolp (car node))))
 
+(defun edraw-dom-do (node function &optional ancestors)
+  (funcall function node ancestors)
+  (let ((ancestors (cons node ancestors)))
+    (dolist (child-node (dom-children node))
+      (edraw-dom-do child-node function ancestors))))
+
 (defun edraw-dom-get-by-id (parent id)
   (car (dom-by-id parent (concat "\\`" (regexp-quote id) "\\'"))))
 
@@ -58,6 +64,9 @@
 
 (defun edraw-dom-remove-attr (node attr)
   (dom-set-attributes node (assq-delete-all attr (dom-attributes node))))
+
+(defun edraw-dom-remove-attr-if (node pred)
+  (dom-set-attributes node (cl-delete-if pred (dom-attributes node))))
 
 (defun edraw-dom-first-node-p (dom node)
   (if-let ((parent (dom-parent dom node)))

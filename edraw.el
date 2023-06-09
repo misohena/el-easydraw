@@ -890,18 +890,20 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-document-svg ((editor edraw-editor))
   (with-slots (svg svg-document-size svg-document-view-box) editor
-    (let ((doc-svg (edraw-editor-remove-ui-element-from-svg svg)))
+    (let ((doc-svg (copy-tree svg)))
+      (edraw-editor-remove-ui-elements-from-svg doc-svg)
+      (edraw-editor-remove-internal-attributes-from-svg doc-svg)
       (edraw-editor-remove-scroll-transform doc-svg)
       (edraw-editor-remove-root-transform doc-svg
                                           svg-document-size
                                           svg-document-view-box)
-      ;; Add xmlns
-      (edraw-svg-set-attr-string doc-svg 'xmlns "http://www.w3.org/2000/svg")
-      ;;(edraw-svg-set-attr-string doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
       ;; Remove empty defs
       (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
         (when (null (dom-children defs))
           (dom-remove-node doc-svg defs)))
+      ;; Add xmlns
+      (edraw-svg-set-attr-string doc-svg 'xmlns "http://www.w3.org/2000/svg")
+      ;;(edraw-svg-set-attr-string doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
       doc-svg)))
 
 (edraw-editor-defcmd edraw-export-to-buffer ((editor edraw-editor))
@@ -1592,15 +1594,21 @@ For use with `edraw-editor-with-temp-undo-list',
       (dom-remove-attribute svg 'viewBox)))
   svg)
 
-(defun edraw-editor-remove-ui-element-from-svg (svg)
-  ;;@todo remove :-edraw attributes
-  (let ((svg (copy-tree svg)))
-    (when-let ((body (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
-      (edraw-dom-remove-attr body 'transform))
+(defun edraw-editor-remove-ui-elements-from-svg (svg)
+  "Remove elements that starts with `#edraw-ui-'."
+  (dolist (elem (dom-by-id svg "\\`edraw-ui-"))
+    (dom-remove-node svg elem)))
 
-    (dolist (elem (dom-by-id svg "^edraw-ui-"))
-      (dom-remove-node svg elem))
-    svg))
+(defun edraw-editor-internal-attr-p (attribute)
+  (not (null (string-match-p "\\`:-edraw-" (symbol-name (car attribute))))))
+
+(defun edraw-editor-remove-internal-attributes-from-svg (svg)
+  "Remove attributes that starts with `:-edarw-'."
+  (edraw-dom-do
+   svg
+   (lambda (node _ancestors)
+     (when (edraw-dom-element-p node)
+       (edraw-dom-remove-attr-if node #'edraw-editor-internal-attr-p)))))
 
 ;;;;;; Editor - View - Transparent Background
 
