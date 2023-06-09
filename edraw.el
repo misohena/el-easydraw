@@ -5715,28 +5715,29 @@ Some classes have efficient implementations."
       dst-shape)))
 
 (cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((shape edraw-shape))
-  (edraw-glue-to
-   shape
-   ;; Determine the destination shape
-   (edraw-glue-destination-of-selected-or-overlapped-shape shape)))
+  (let ((dst-shape
+         ;; Determine the destination shape
+         (edraw-glue-destination-of-selected-or-overlapped-shape shape)))
+    (unless dst-shape
+      (error (edraw-msg "No glue target")))
+    (edraw-glue-to shape dst-shape)))
 
 (cl-defmethod edraw-glue-to ((shape edraw-shape) (dst-shape edraw-shape))
   ;; Determine the destination shape
-  (when dst-shape
-    (edraw-make-undo-group (oref shape editor) 'glue-shape-to-shape
-      (let ((conn (edraw-point-connection
-                   :src (edraw-point-connection-src-aabb
-                         :shape shape :x-ratio 0.5 :y-ratio 0.5)
-                   :dst (edraw-point-connection-dst-shape
-                         :shape dst-shape))))
-        ;; Update coordinates before adding CONN to SHAPE.
-        ;;(edraw-update conn)
-        ;; Add CONN to SHAPE.
-        (edraw-add-point-connection shape conn t)
-        ;; Do not update coordinates after adding CONN.
-        ;; When undoing, CONN must be removed before undoing XY move.
-        ;;(edraw-update-all-point-connections shape)
-        ))))
+  (edraw-make-undo-group (oref shape editor) 'glue-shape-to-shape
+    (let ((conn (edraw-point-connection
+                 :src (edraw-point-connection-src-aabb
+                       :shape shape :x-ratio 0.5 :y-ratio 0.5)
+                 :dst (edraw-point-connection-dst-shape
+                       :shape dst-shape))))
+      ;; Update coordinates before adding CONN to SHAPE.
+      ;;(edraw-update conn)
+      ;; Add CONN to SHAPE.
+      (edraw-add-point-connection shape conn t)
+      ;; Do not update coordinates after adding CONN.
+      ;; When undoing, CONN must be removed before undoing XY move.
+      ;;(edraw-update-all-point-connections shape)
+      )))
 
 (cl-defmethod edraw-unglue-all ((shape edraw-shape))
   (edraw-make-undo-group (oref shape editor) 'unglue-all
@@ -7183,16 +7184,17 @@ possible. Because undoing invalidates all point objects."
          (edraw-glue-destination-of-selected-or-overlapped-shape spt))))
 
 (cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((spt edraw-shape-point-path))
-  ;; Determine the destination shape
   (when (edraw-anchor-p spt)
-    (edraw-glue-to
-     spt
-     (edraw-glue-destination-of-selected-or-overlapped-shape spt))))
+    (let ((dst-shape
+           ;; Determine the destination shape
+           (edraw-glue-destination-of-selected-or-overlapped-shape spt)))
+      (unless dst-shape
+        (error (edraw-msg "No glue target")))
+      (edraw-glue-to spt dst-shape))))
 
 (cl-defmethod edraw-glue-to ((spt edraw-shape-point-path)
                              (dst-shape edraw-shape))
-  (when (and (edraw-anchor-p spt)
-             dst-shape)
+  (when (edraw-anchor-p spt)
     (let* ((src-shape (oref spt shape))
            (num-anchors (edraw-get-anchor-point-count src-shape))
            (anchor-index (edraw-anchor-index-in-path spt)))
