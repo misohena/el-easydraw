@@ -4,9 +4,6 @@
 ** TODO プロパティエディタ/即事反映でないときにカラーピッカーで色が変更できない
 edraw-property-editor-apply-immediatelyがnilのとき、カラーピッカーで色を指定してもフィールドの値が変わらない(OKすると元に戻ってしまう)。preview自体も出すべきではない？
 
-** TODO 一つの図形に対するedraw-editor-edit-properties-of-selected-shapes
-edraw-editor-edit-properties-of-selected-shapesは図形が一つの時はedraw-multiple-shapesを使わないようにする。
-
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
 
@@ -2127,3 +2124,6 @@ CLOSED: [2023-06-18 Sun 13:51]
   - 点接続のedraw-gap-distanceは新しいマーカー管理機構を使う。より一般化された(arrow決め打ちでは無い)はみ出し量計算ができる。
 - msg/edraw-msg-ja.el
   - 翻訳を追加。
+** DONE 一つの図形に対するedraw-editor-edit-properties-of-selected-shapes
+CLOSED: [2023-06-18 Sun 17:06]
+edraw-editor-edit-properties-of-selected-shapesは図形が一つの時はedraw-multiple-shapesを使わないようにする。

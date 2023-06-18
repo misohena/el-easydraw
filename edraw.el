@@ -2638,7 +2638,11 @@ For use with `edraw-editor-with-temp-undo-list',
     (error (edraw-msg "No shape selected"))))
 
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
-  (edraw-editor-open-property-editor (edraw-selected-multiple-shapes editor)))
+  (with-slots (selected-shapes) editor
+    (edraw-editor-open-property-editor
+     (if (cdr selected-shapes)
+         (edraw-selected-multiple-shapes editor)
+       (car selected-shapes)))))
 
 (edraw-editor-defcmd edraw-edit-fill-selected ((editor edraw-editor))
   (edraw-edit-fill (edraw-selected-multiple-shapes editor)))
