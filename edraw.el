@@ -1610,7 +1610,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (not (null (string-match-p "\\`:-edraw-" (symbol-name (car attribute))))))
 
 (defun edraw-editor-remove-internal-attributes-from-svg (svg)
-  "Remove attributes that starts with `:-edarw-'."
+  "Remove attributes that starts with `:-edraw-'."
   (edraw-dom-do
    svg
    (lambda (node _ancestors)
@@ -6674,7 +6674,7 @@ may be replaced by another mechanism."
   ;; Notify change
   (edraw-on-shape-changed group change-type))
 
-(cl-defmethod edarw-transform-internal ((group edraw-shape-group) matrix
+(cl-defmethod edraw-transform-internal ((group edraw-shape-group) matrix
                                         transform-function
                                         change-type
                                         change-type-undo)
@@ -6709,13 +6709,13 @@ may be replaced by another mechanism."
                     (edraw-undo-data-func-args (car undo-list)))))))))) ;;strip type
 
 (cl-defmethod edraw-transform-local ((group edraw-shape-group) matrix)
-  (edarw-transform-internal group matrix
+  (edraw-transform-internal group matrix
                             #'edraw-transform
                             'group-transform-local
                             'group-transform-local-undo))
 
 (cl-defmethod edraw-transform-anchor-points-local ((group edraw-shape-group) matrix)
-  (edarw-transform-internal group matrix
+  (edraw-transform-internal group matrix
                             #'edraw-transform-anchor-points
                             'group-transform-anchor-points-local
                             'group-transform-anchor-points-local-undo))
