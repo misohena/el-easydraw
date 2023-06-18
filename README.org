@@ -61,8 +61,8 @@ To edit the image, do one of the following on the link:
 - =C-c C-o=
 - Right click on image (The right-click menu also provides some other useful functions for links)
 
-** Export as HTML
-
+** Export
+*** As HTML
 Customization Variables:
 
 - edraw-org-export-html-data-tag :: HTML tag used to export data links. (svg or img)
@@ -78,6 +78,34 @@ Link Properties:
   #+begin_src org
   [[edraw:html-tag=img;data=<base64data>]]
   #+end_src
+
+*** As LaTeX
+I have a minimal implementation, but I don't use LaTeX usually, so there may be some problems.
+
+=[[edraw:data=]]= format creates a temporary file when exporting as LaTeX. Please let me know if there is a better way in LaTeX.
+
+** Regular File Link Support
+
+You can also edit regular file links inline.
+
+For example, create a link like this:
+
+#+begin_src org
+[​[file:example.edraw.svg]​]
+#+end_src
+
+Then do =M-x edraw-org-edit-regular-file-link= on this link and the drawing editor will appear in its place.
+
+Inline display after editing is possible with org-toggle-inline-images. You can also use [[https://github.com/misohena/org-inline-image-fix#automatic-image-update][org-flyimage]] if you want to display images automatically.
+
+The normal file link has the following drawbacks compared to the edraw link format.
+
+- No detailed settings for HTML export.
+- SVG data cannot be embedded inside org files.
+
+Data URI links are technically [[https://github.com/misohena/org-inline-image-fix#data-uri-supportorg-datauri-imageel][possible]], but inline editing of Data URI links is not implemented.
+
+On the other hand, regular file links have the advantage that they can be exported in many formats.
 
 * Edit a Single Edraw File - edraw-mode.el
 
