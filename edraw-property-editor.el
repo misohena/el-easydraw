@@ -321,11 +321,12 @@ editor when the selected shape changes."
     ;; Bottom
     (widget-insert (make-string 2 ? ))
     (when target
-      (widget-create 'push-button
-                     :notify 'edraw-property-editor--set-as-default
-                     :keymap edraw-property-editor-push-button-map
-                     (edraw-msg "Set as default"))
-      (widget-insert " ")
+      (when (edraw-property-editor-target-shape-p target)
+        (widget-create 'push-button
+                       :notify 'edraw-property-editor--set-as-default
+                       :keymap edraw-property-editor-push-button-map
+                       (edraw-msg "Set as default"))
+        (widget-insert " "))
 
       (unless edraw-property-editor-apply-immediately
         (widget-create 'push-button :notify 'edraw-property-editor--apply
