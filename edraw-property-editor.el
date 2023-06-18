@@ -31,15 +31,20 @@
 (require 'edraw-math)
 (require 'edraw-color-picker)
 (require 'edraw-editor-util)
+(require 'edraw-dom-svg)
 
 (declare-function edraw-node-position "edraw")
 (declare-function edraw-node-siblings-count "edraw")
 
 ;;;; Property Editor Target
 
+;;;;; Property Editor Target - Base
+
 (defclass edraw-properties-holder ()
   ()
   :abstract t)
+
+;;;;; Property Editor Target - Interface
 
 (defclass edraw-property-editor-target (edraw-properties-holder)
  ())
@@ -75,6 +80,79 @@
 (cl-defgeneric edraw-property-editor-shape-p
   (_target)
   nil)
+
+;;;;; Property Editor Target - Alist
+
+(defclass edraw-alist-properties-holder (edraw-properties-holder)
+  ((prop-info-list :initarg :prop-info-list)
+   (alist-head :initarg :alist-head) ;;(??? (prop . value) ...)
+   (editor :initarg :editor)
+   (name :initarg :name)
+   (change-hook :initform (edraw-hook-make))))
+
+(cl-defmethod edraw-set-alist-head ((holder edraw-alist-properties-holder)
+                                    alist-head)
+  (oset holder alist-head alist-head))
+
+(cl-defmethod edraw-set-prop-info-list ((holder edraw-alist-properties-holder)
+                                        prop-info-list)
+  (oset holder prop-info-list prop-info-list))
+
+(cl-defmethod edraw-get-editor ((holder edraw-alist-properties-holder))
+  (oref holder editor))
+
+(cl-defmethod edraw-name ((holder edraw-alist-properties-holder))
+  (oref holder name))
+
+(cl-defmethod edraw-undo-block-begin ((_holder edraw-alist-properties-holder)))
+(cl-defmethod edraw-undo-block-end ((_holder edraw-alist-properties-holder) _backup))
+(cl-defmethod edraw-undo-all ((_holder edraw-alist-properties-holder)))
+(cl-defmethod edraw-last-undo-data ((_holder edraw-alist-properties-holder)))
+(cl-defmethod edraw-undo ((_holder edraw-alist-properties-holder)))
+
+(cl-defmethod edraw-get-property-info-list ((holder edraw-alist-properties-holder))
+  (oref holder prop-info-list))
+
+(cl-defmethod edraw-get-property ((holder edraw-alist-properties-holder) prop-name)
+  (alist-get prop-name (cdr (oref holder alist-head))))
+
+(cl-defmethod edraw-set-properties ((holder edraw-alist-properties-holder) prop-list)
+  (let (changed)
+    (dolist (prop prop-list)
+      (let* ((prop-name (car prop))
+             (new-value (cdr prop))
+             (prev (let ((prev (oref holder alist-head)))
+                     (while (and (cdr prev)
+                                 (not (eq (caadr prev) prop-name)))
+                       (setq prev (cdr prev)))
+                     prev))
+             (old-value (cdadr prev)))
+        (unless (equal new-value old-value)
+          (cond
+           ;; Remove
+           ((null new-value)
+            (setcdr prev (cddr prev)))
+           ;; Add
+           ((null (cdr prev))
+            (setcdr prev (cons (cons prop-name new-value) nil)))
+           ;; Modify
+           (t
+            (setcdr (cadr prev) new-value)))
+          (setq changed t))))
+    (when changed
+      (edraw-hook-call (oref holder change-hook) holder 'alist-properties))
+    changed))
+
+(cl-defmethod edraw-set-property ((holder edraw-alist-properties-holder) prop-name value) ;;@todo generalize
+  (edraw-set-properties
+   holder
+   (list (cons prop-name value))))
+
+(cl-defmethod edraw-add-change-hook ((holder edraw-alist-properties-holder) function &rest args)
+  (apply 'edraw-hook-add (oref holder change-hook) function args))
+
+(cl-defmethod edraw-remove-change-hook ((holder edraw-alist-properties-holder) function &rest args)
+  (apply 'edraw-hook-remove (oref holder change-hook) function args))
 
 
 ;;;; Property Editor Variables
@@ -316,7 +394,7 @@ editor when the selected shape changes."
 
     ;; Properties
     (when target
-      (edraw-insert-property-widgets pedit))
+      (setq widgets (edraw-insert-property-widgets pedit target 0)))
 
     ;; Bottom
     (widget-insert (make-string 2 ? ))
@@ -353,25 +431,28 @@ editor when the selected shape changes."
     ;;          (edraw-msg "Close")))
     ))
 
-(cl-defmethod edraw-insert-property-widgets ((pedit edraw-property-editor))
-  (with-slots (target widgets) pedit
-    (let* ((prop-info-list (edraw-get-property-info-list target))
-           (max-name-width (when prop-info-list
-                             (apply #'max
-                                    (mapcar
-                                     (lambda (prop-info)
-                                       (string-width
-                                        (symbol-name
-                                         (plist-get prop-info :name))))
-                                     prop-info-list)))))
-      (dolist (prop-info prop-info-list)
-        (unless (plist-get prop-info :internal)
-          (let* ((indent (- max-name-width
-                            (string-width
-                             (symbol-name (plist-get prop-info :name))))))
-            (push (edraw-create-prop-widget pedit prop-info indent)
-                  widgets))))
-      (setq widgets (nreverse widgets)))))
+(cl-defmethod edraw-insert-property-widgets ((pedit edraw-property-editor)
+                                             target
+                                             margin-left)
+  (let* ((prop-info-list (edraw-get-property-info-list target))
+         (max-name-width (when prop-info-list
+                           (apply #'max
+                                  (mapcar
+                                   (lambda (prop-info)
+                                     (string-width
+                                      (symbol-name
+                                       (plist-get prop-info :name))))
+                                   prop-info-list))))
+         widgets)
+    (dolist (prop-info prop-info-list)
+      (unless (plist-get prop-info :internal)
+        (let* ((indent (- max-name-width
+                          (string-width
+                           (symbol-name (plist-get prop-info :name))))))
+          (push (edraw-create-prop-widget pedit target prop-info margin-left indent)
+                widgets))))
+    ;; Return widgets
+    (nreverse widgets)))
 
 ;;;;; Window/Frame
 
@@ -382,19 +463,26 @@ editor when the selected shape changes."
 
 ;;;;; Prop Widget
 
+(cl-defmethod edraw-create-prop-widget ((pedit edraw-property-editor)
+                                        target prop-info margin-left indent)
+  (let* ((notify (edraw-create-prop-widget-updator
+                  pedit target prop-info)))
+    (edraw-property-editor-prop-widget-create-widget
+     target prop-info margin-left indent notify pedit)))
+
+
 (defclass edraw-property-editor-prop-widget ()
   ((widget :initarg :widget)
+   (target :initarg :target)
    (prop-info :initarg :prop-info)))
 
-(cl-defmethod edraw-create-prop-widget ((pedit edraw-property-editor)
-                                        prop-info indent)
-  (let* ((target (oref pedit target))
-         (notify (edraw-create-prop-widget-updator pedit prop-info))
-         (widget (edraw-property-editor-prop-widget-create-widget
-                  target prop-info indent notify (oref pedit options))))
-    (edraw-property-editor-prop-widget
-     :widget widget
-     :prop-info prop-info)))
+(cl-defmethod edraw-get-target ((pw edraw-property-editor-prop-widget))
+  (oref pw target))
+
+(cl-defmethod edraw-widget-delete ((pw edraw-property-editor-prop-widget))
+  (widget-delete (oref pw widget)))
+
+;;;;;; Prop Widget - Update Property From Widget
 
 (defvar edraw-property-editor-prop-widget--notification-suppressed nil)
 
@@ -425,43 +513,72 @@ once. widget-value-set updates the same property four times."
   (oset pedit last-edit-prop-name prop-name))
 
 (cl-defmethod edraw-create-prop-widget-updator ((pedit edraw-property-editor)
+                                                target
                                                 prop-info)
-  (let ((target (oref pedit target)))
-    (lambda (widget _changed-widget &optional _event)
+  (let ((prop-name (plist-get prop-info :name)))
+    (lambda (widget _changed-widget &optional event)
+      ;;(message "on widget changed %s event=%s" (plist-get prop-info :name) event)
       ;; Called 4 times per widget-value-set call.
       ;; 1. delete chars (event=(before-change BEG END))
       ;; 2. delete chars (event=(after-change BEG END))
       ;; 3. insert chars (event=(before-change BEG END))
       ;; 4. insert chars (event=(after-change BEG END))
-      (when (and edraw-property-editor-apply-immediately
-                 (not edraw-property-editor-prop-widget--notification-suppressed))
-        (let ((undo-before-change (edraw-last-undo-data target))
-              (prop-name (plist-get prop-info :name)))
-          ;; Consecutive change to the same target and same property?
-          (when (and (eq undo-before-change (edraw-last-edit-undo-data pedit))
-                     (eq prop-name (edraw-last-edit-prop-name pedit)))
-            (edraw-undo target)
-            (setq undo-before-change (edraw-last-undo-data target)))
-          ;; Change property
+      (when (and
+             (not (eq (car-safe event) 'before-change)) ;;Ignore before-change
+             (not edraw-property-editor-prop-widget--notification-suppressed))
+        (if (eq target (oref pedit target))
+            ;; For top-level target
+            (when edraw-property-editor-apply-immediately
+              (progn
+                ;;(message "Set property toplevel value=%s" (widget-value widget))
+                (edraw-set-target-property-value
+                 pedit prop-name
+                 (edraw-property-editor-widget-value-to-prop-value
+                  (widget-value widget) prop-info))))
+          ;; For sub-level targets
+          ;;(message "Set property sublevel value=%s" (widget-value widget))
+
+          ;; NOTE: For sub-property, even if
+          ;; edraw-property-editor-apply-immediately is nil, it will
+          ;; be reflected immediately.
+          ;; Because the value must already be reflected in the widget
+          ;; when the Apply button is pressed.
           (edraw-set-property
-           target
-           prop-name
+           target prop-name
            (edraw-property-editor-widget-value-to-prop-value
-            (widget-value widget)
-            prop-info))
-          ;; Record last change
-          (let ((undo-after-change (edraw-last-undo-data target)))
-            (if (eq undo-before-change undo-after-change)
-                ;; No undo data generated (Probably same values)
-                (edraw-set-last-edit pedit nil nil)
-              ;; New undo data generated
-              (edraw-set-last-edit pedit undo-after-change prop-name))))))))
+            (widget-value widget) prop-info)))))))
+
+(cl-defmethod edraw-set-target-property-value ((pedit edraw-property-editor)
+                                               prop-name prop-value)
+  (when-let ((target (oref pedit target)))
+    (let ((undo-before-change (edraw-last-undo-data target)))
+      ;; Consecutive change to the same target and same property?
+      (when (and (eq undo-before-change (edraw-last-edit-undo-data pedit))
+                 (eq prop-name (edraw-last-edit-prop-name pedit)))
+        (edraw-undo target)
+        (setq undo-before-change (edraw-last-undo-data target)))
+      ;; Change property
+      ;;(message "Set property %s %s" prop-name prop-value)
+      (edraw-set-property
+       target
+       prop-name
+       prop-value)
+      ;; Record last change
+      (let ((undo-after-change (edraw-last-undo-data target)))
+        (if (eq undo-before-change undo-after-change)
+            ;; No undo data generated (Probably same values)
+            (edraw-set-last-edit pedit nil nil)
+          ;; New undo data generated
+          (edraw-set-last-edit pedit undo-after-change prop-name))))))
+
+;;;;;; Prop Widget - Create Widget
 
 (defun edraw-property-editor-prop-widget-create-widget (target
                                                         prop-info
+                                                        margin-left
                                                         indent
                                                         notify
-                                                        options)
+                                                        pedit)
   (let* ((prop-name (plist-get prop-info :name))
          (prop-value (edraw-get-property target prop-name))
          (prop-type (plist-get prop-info :type))
@@ -469,56 +586,73 @@ once. widget-value-set updates the same property four times."
     (cond
      (prop-number-p
       (edraw-property-editor-create-number-widget
-       indent prop-name prop-value prop-info notify))
+       (+ margin-left indent) target prop-name prop-value prop-info notify))
      ((eq (car-safe prop-type) 'or)
       (edraw-property-editor-create-menu-choice-widget
-       indent prop-name prop-value prop-info notify))
+       (+ margin-left indent) target prop-name prop-value prop-info notify))
      ((eq prop-type 'paint)
       (edraw-property-editor-create-paint-widget
-       indent prop-name prop-value prop-info notify target options))
+       (+ margin-left indent) target prop-name prop-value prop-info notify
+       (oref pedit options)))
+     ((eq prop-type 'marker)
+      (edraw-property-editor-create-marker-widget
+       margin-left indent target prop-name prop-value prop-info notify
+       pedit))
      (t
       (edraw-property-editor-create-text-field-widget
-       indent prop-name prop-value prop-info notify)))))
+       (+ margin-left indent) target prop-name prop-value prop-info notify)))))
 
 ;;;;;; Menu Choice Widget
 
-(defun edraw-property-editor-create-menu-choice-widget
-    (indent prop-name prop-value prop-info notify)
+(defun edraw-property-editor-create-menu-choice-widget (indent
+                                                        target
+                                                        prop-name prop-value
+                                                        prop-info notify)
   (widget-insert (make-string indent ? ))
   (let* ((prop-required (plist-get prop-info :required))
          (prop-type (plist-get prop-info :type))
          (types (if prop-required
                     (cdr prop-type) ;;skip (or)
                   ;; nullable
-                  (cons nil (cdr prop-type)))))
-    (apply
-     #'widget-create
-     `(menu-choice
-       :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
-       :value ,(edraw-property-editor-prop-value-to-widget-value
-                prop-value prop-info)
-       :notify ,notify
-       ,@(mapcar
-          (lambda (item)
-            (cond
-             ((null item) (list 'item :tag " " :value nil)) ;;If :tag="", show separator
-             ((stringp item) (list 'item :tag item :value item))
-             ;;((symbolp item) (list 'editable-field :tag (symbol-name item)))
-             ))
-          types)))))
+                  (cons nil (cdr prop-type))))
+         (widget
+          (apply
+           #'widget-create
+           `(menu-choice
+             :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
+             :value ,(edraw-property-editor-prop-value-to-widget-value
+                      prop-value prop-info)
+             :notify ,notify
+             ,@(mapcar
+                (lambda (item)
+                  (cond
+                   ((null item) (list 'item :tag " " :value nil)) ;;If :tag="", show separator
+                   ((stringp item) (list 'item :tag item :value item))
+                   ;;((symbolp item) (list 'editable-field :tag (symbol-name item)))
+                   ))
+                types)))))
+    (edraw-property-editor-prop-widget
+     :widget widget
+     :target target
+     :prop-info prop-info)))
 
 ;;;;;; Text Field Widget
 
-(defun edraw-property-editor-create-text-field-widget
-    (indent prop-name prop-value prop-info notify)
+(defun edraw-property-editor-create-text-field-widget (indent
+                                                       target
+                                                       prop-name prop-value
+                                                       prop-info notify)
   (widget-insert (make-string indent ? ))
-  (widget-create
-   'editable-field
-   :keymap edraw-property-editor-field-map
-   :format (format "%s: %%v" prop-name)
-   :value (edraw-property-editor-prop-value-to-widget-value
-           prop-value prop-info)
-   :notify notify))
+  (edraw-property-editor-prop-widget
+   :widget (widget-create
+            'editable-field
+            :keymap edraw-property-editor-field-map
+            :format (format "%s: %%v" prop-name)
+            :value (edraw-property-editor-prop-value-to-widget-value
+                    prop-value prop-info)
+            :notify notify)
+   :target target
+   :prop-info prop-info))
 
 ;;;;;; Number Widget
 
@@ -529,8 +663,10 @@ once. widget-value-set updates the same property four times."
     (define-key km [wheel-up] 'edraw-property-editor-field-wheel-increase)
     km))
 
-(defun edraw-property-editor-create-number-widget
-    (indent prop-name prop-value prop-info notify)
+(defun edraw-property-editor-create-number-widget (indent
+                                                   target
+                                                   prop-name prop-value
+                                                   prop-info notify)
   (let* ((line-begin (line-beginning-position))
          (name-begin (point))
          (name-end
@@ -554,7 +690,10 @@ once. widget-value-set updates the same property four times."
     (put-text-property name-begin (1- name-end)
                        'pointer 'hdrag)
     (put-text-property line-begin name-end 'edraw-field field)
-    widget))
+    (edraw-property-editor-prop-widget
+     :widget widget
+     :target target
+     :prop-info prop-info)))
 
 (defclass edraw-property-editor-number-field ()
   ((buffer :initarg :buffer)
@@ -677,8 +816,10 @@ once. widget-value-set updates the same property four times."
 
 ;;;;;; Paint Widget
 
-(defun edraw-property-editor-create-paint-widget
-    (indent prop-name prop-value prop-info notify target options)
+(defun edraw-property-editor-create-paint-widget (indent
+                                                  target
+                                                  prop-name prop-value
+                                                  prop-info notify options)
   (widget-insert (make-string indent ? ))
   (let (field-widget)
     (widget-insert (symbol-name prop-name) ": ")
@@ -700,7 +841,10 @@ once. widget-value-set updates the same property four times."
            :value (edraw-property-editor-prop-value-to-widget-value
                    prop-value prop-info)
            :notify notify))
-    field-widget))
+    (edraw-property-editor-prop-widget
+     :widget field-widget
+     :target target
+     :prop-info prop-info)))
 
 (defun edraw-property-editor-read-property-paint-color (target
                                                         prop-name field-widget
@@ -738,6 +882,244 @@ once. widget-value-set updates the same property four times."
       (edraw-undo-all target)
       (edraw-undo-block-end target undo-backup))))
 
+;;;;;; Marker Widget
+
+(defclass edraw-property-editor-marker-widget
+  (edraw-property-editor-prop-widget)
+  ((margin-left :initarg :margin-left)
+   (choice-widget :initarg :choice-widget)
+   (properties-button :initarg :properties-button)
+   (marker-prop-list :initarg :marker-prop-list)
+   (open-p :initform nil)
+   (subprops-marker-type :initform nil)
+   (subprops-widgets :initform nil)
+   (subprops-overlay :initform nil)
+   (buffer :initarg :buffer)
+   (pedit :initarg :pedit)))
+
+(cl-defmethod edraw-update-widget-value ((marker-widget
+                                          edraw-property-editor-marker-widget))
+  (with-slots (choice-widget) marker-widget
+    (let ((old-value (widget-value choice-widget)))
+      (cl-call-next-method)
+      ;; Make sure marker-prop-list points to widget-value.
+      ;; It is not enough to do it from the choice-widget's
+      ;; notify. Because notify is not called when changing between the
+      ;; same type using widget-value-set (because no text change event is
+      ;; fired).
+      (let ((new-value (widget-value choice-widget)))
+        (unless (equal new-value old-value)
+          (edraw-update-subprops marker-widget))))))
+
+(defun edraw-property-editor-create-marker-widget (margin-left
+                                                   indent
+                                                   target
+                                                   prop-name prop-value
+                                                   prop-info notify
+                                                   pedit)
+  (widget-insert (make-string (+ margin-left indent) ? ))
+
+  (let* (marker-widget
+
+         ;; Type Selector
+         (choice-widget
+          (apply
+           #'widget-create
+           `(menu-choice
+             :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
+             :value ,(cond
+                      ((stringp prop-value)
+                       (if (assoc prop-value edraw-svg-marker-types)
+                           (edraw-svg-marker prop-value nil)
+                         nil));; Unknown Type
+                      ((edraw-svg-marker-p prop-value)
+                       (edraw-property-editor-prop-value-to-widget-value
+                        prop-value prop-info)))
+             :notify ,(lambda (widget changed-widget &optional event)
+                        ;;(message "on choice-widget changed value=%s event=%s" (widget-value widget) event)
+                        (edraw-on-widget-change marker-widget)
+                        (funcall notify widget changed-widget event))
+             ,@(edraw-property-editor-default-marker-items
+                prop-info (oref pedit options)))))
+         ;; Space
+         (_ (insert " "))
+         ;; Properties Button
+         (properties-button
+          (widget-create
+           'push-button
+           :notify (lambda (&rest _args)
+                     (edraw-on-properties-button marker-widget))
+           :keymap edraw-property-editor-push-button-map
+           "..."))
+         ;; Line Break
+         (_ (insert "\n"))
+
+         (marker-prop-list (edraw-alist-properties-holder
+                            :prop-info-list nil
+                            :alist-head (cons nil nil)
+                            :editor nil
+                            :name "Marker")))
+
+    (edraw-add-change-hook
+     marker-prop-list
+     (lambda (&rest _ignore)
+       ;; Update UI
+       ;;(message "on marker propery changed prop-list=%s choice-widget-value=%s" (oref marker-prop-list alist-head) (widget-value choice-widget))
+       (widget-apply choice-widget :notify choice-widget nil)))
+
+    (setq marker-widget
+          (edraw-property-editor-marker-widget
+           :target target
+           :prop-info prop-info
+           :buffer (oref pedit buffer)
+           :widget choice-widget
+           :choice-widget choice-widget
+           :properties-button properties-button
+           :margin-left margin-left
+           :marker-prop-list marker-prop-list
+           :pedit pedit))
+    (edraw-update-subprops marker-widget)
+
+    marker-widget))
+
+(defun edraw-property-editor-default-marker-items (prop-info options)
+  (let* ((marker-types (nconc
+                        (mapcar #'car edraw-svg-marker-types)
+                        (unless (plist-get prop-info :required) ;;nullable?
+                          (list nil))))
+         (items (mapcar
+                 (lambda (type)
+                   (cond
+                    ((null type)
+                     (list 'item
+                           ;;If :tag="", show separator
+                           :tag "     " :value nil :format "%t"))
+                    ((stringp type)
+                     (list
+                      'item
+                      :tag type
+                      :format "%t"
+                      :value (edraw-svg-marker
+                              type
+                              (alist-get
+                               type
+                               (alist-get 'marker-defaults options)
+                               nil nil #'equal))
+                      :match (lambda (_widget value)
+                               (or
+                                (and (edraw-svg-marker-p value)
+                                     (equal (edraw-svg-marker-type value) type))
+                                (and (stringp value)
+                                     (string= value type))))))))
+                 marker-types)))
+    items))
+
+(cl-defmethod edraw-on-widget-change ((marker-widget
+                                       edraw-property-editor-marker-widget))
+  (edraw-update-subprops marker-widget))
+
+(cl-defmethod edraw-on-properties-button ((marker-widget
+                                           edraw-property-editor-marker-widget))
+  ;; Toggle
+  (oset marker-widget open-p (not (oref marker-widget open-p)))
+  ;; Update subprops
+  (edraw-update-subprops marker-widget))
+
+(cl-defmethod edraw-update-properties-button
+  ((marker-widget edraw-property-editor-marker-widget))
+  (widget-apply (oref marker-widget properties-button)
+                (if (edraw-svg-marker-prop-info-list
+                     (edraw-svg-marker-type
+                      (widget-value (oref marker-widget choice-widget))))
+                    :activate
+                  :deactivate)))
+
+(cl-defmethod edraw-update-subprops ((marker-widget
+                                      edraw-property-editor-marker-widget))
+  ;;(message "edraw-update-subprops")
+  (edraw-update-marker-prop-list marker-widget)
+  (edraw-update-properties-button marker-widget)
+  (with-slots (choice-widget subprops-marker-type open-p subprops-widgets) marker-widget
+    (if (not open-p)
+        ;; Closed
+        (progn
+          (edraw-remove-subprops marker-widget)
+          (setq subprops-marker-type nil))
+      ;; Open
+      (let* ((new-marker-value (widget-value choice-widget))
+             (new-marker-type (edraw-svg-marker-type new-marker-value)))
+        (if (equal new-marker-type subprops-marker-type)
+            ;; Same type
+            (dolist (pw subprops-widgets)
+              (edraw-update-widget-value pw))
+          ;; Different type
+          (edraw-remove-subprops marker-widget)
+          (edraw-insert-subprops marker-widget)
+          (setq subprops-marker-type new-marker-type)
+          )))))
+
+(cl-defmethod edraw-remove-subprops ((marker-widget
+                                      edraw-property-editor-marker-widget))
+  (with-slots (subprops-widgets subprops-overlay) marker-widget
+    ;; Delete widgets
+    (when subprops-widgets
+      (dolist (pw subprops-widgets)
+        (edraw-widget-delete pw))
+      (setq subprops-widgets nil))
+    ;; Delete region
+    (when subprops-overlay
+      (when (overlay-buffer subprops-overlay)
+        (with-current-buffer (overlay-buffer subprops-overlay)
+          (let ((inhibit-read-only t))
+            (delete-region
+             (overlay-start subprops-overlay)
+             (overlay-end subprops-overlay)))
+          (delete-overlay subprops-overlay)))
+      (setq subprops-overlay nil))))
+
+(cl-defmethod edraw-update-marker-prop-list
+  ((marker-widget edraw-property-editor-marker-widget))
+  (with-slots (marker-prop-list choice-widget) marker-widget
+    (let ((marker-value (widget-value choice-widget)))
+      (edraw-set-alist-head
+       marker-prop-list
+       (if marker-value
+           (edraw-svg-marker-props-head marker-value)
+         (cons nil nil)))
+      (edraw-set-prop-info-list
+       marker-prop-list
+       (if marker-value
+           (edraw-svg-marker-prop-info-list
+            (edraw-svg-marker-type marker-value))
+         nil)))))
+
+(cl-defmethod edraw-insert-subprops ((marker-widget
+                                      edraw-property-editor-marker-widget))
+  (with-slots (buffer
+               choice-widget marker-type marker-prop-list
+               margin-left
+               subprops-widgets subprops-overlay
+               pedit)
+      marker-widget
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (save-excursion
+          (goto-char (widget-get choice-widget :to))
+          (forward-line)
+          (let* ((beg (point))
+                 (widgets (prog1
+                              (edraw-insert-property-widgets
+                               pedit marker-prop-list (+ margin-left 12))
+                            (widget-setup)))
+                 (end (point))
+                 (ov (let ((ov (make-overlay beg end nil t nil)))
+                       (overlay-put ov 'evaporate t)
+                       ov)))
+            (setq subprops-widgets widgets
+                  subprops-overlay ov)))))))
+
+
+
 ;;;;;; Increase/Decrease Value By Wheel
 
 ;;@todo Add feature to change menu-choice-widget by mouse wheel
@@ -764,32 +1146,39 @@ once. widget-value-set updates the same property four times."
 
 ;;;;; Property Value To Widget Value
 
+(cl-defmethod edraw-update-widgets-value ((pedit edraw-property-editor))
+  (with-slots (widgets) pedit
+    (dolist (prop-widget widgets)
+      (edraw-update-widget-value prop-widget))))
+
+(cl-defmethod edraw-update-widget-value ((pw edraw-property-editor-prop-widget))
+  (with-slots (widget prop-info) pw
+    (let* ((old-w-value (widget-value widget))
+           (prop-name (plist-get prop-info :name))
+           (prop-value (edraw-get-property (edraw-get-target pw) prop-name))
+           (new-w-value (edraw-property-editor-prop-value-to-widget-value
+                         prop-value
+                         prop-info)))
+      (unless (edraw-property-editor-equal-widget-value old-w-value new-w-value
+                                                        prop-info)
+        ;;(message "update-widget-value: %s: %s to %s" prop-name old-w-value new-w-value)
+        ;; Prevent notification
+        (edraw-property-editor-prop-widget-value-set-without-notify
+         widget new-w-value)))))
+
 (defun edraw-property-editor-prop-value-to-widget-value (prop-value prop-info)
   (pcase (plist-get prop-info :type)
     (`(or . ,_)
      ;; string or nil
      prop-value)
+    ('marker
+     ;; marker descriptor
+     prop-value)
     (_
      ;; string only
      (funcall (plist-get prop-info :to-string) prop-value))))
 
-(cl-defmethod edraw-update-widget-value
-  ((prop-widget edraw-property-editor-prop-widget) target)
-  (with-slots (widget prop-info) prop-widget
-    (let* ((old-w-value (widget-value widget))
-           (prop-name (plist-get prop-info :name))
-           (prop-value (edraw-get-property target prop-name))
-           (new-w-value (edraw-property-editor-prop-value-to-widget-value
-                         prop-value
-                         prop-info)))
-      (unless (edraw-property-editor-equal-value old-w-value new-w-value
-                                                 prop-info)
-        ;;(message "target chagned: %s: %s to %s" prop-name old-w-value new-w-value)
-        ;; Prevent notification
-        (edraw-property-editor-prop-widget-value-set-without-notify
-         widget new-w-value)))))
-
-(defun edraw-property-editor-equal-value (wv1 wv2 prop-info)
+(defun edraw-property-editor-equal-widget-value (wv1 wv2 prop-info)
   (cond
    ((plist-get prop-info :number-p)
     (or
@@ -802,17 +1191,12 @@ once. widget-value-set updates the same property four times."
    (t
     (equal wv1 wv2))))
 
-(cl-defmethod edraw-update-widgets-value ((pedit edraw-property-editor))
-  (with-slots (widgets target) pedit
-    (dolist (prop-widget widgets)
-      (edraw-update-widget-value prop-widget target))))
-
 ;;;;; Widget Value to Property Value
 
-(cl-defmethod edraw-get-as-property-value
-  ((prop-widget edraw-property-editor-prop-widget))
-  "Returns the current PROP-WIDGET value as (property name . property value)."
-  (with-slots (widget prop-info) prop-widget
+(cl-defmethod edraw-get-as-property-value ((pw
+                                            edraw-property-editor-prop-widget))
+  "Returns the current PW value as (property name . property value)."
+  (with-slots (widget prop-info) pw
     (cons (plist-get prop-info :name)
           (edraw-property-editor-widget-value-to-prop-value
            (widget-value widget) prop-info))))
@@ -825,16 +1209,20 @@ once. widget-value-set updates the same property four times."
      (mapcar #'edraw-get-as-property-value widgets))))
 
 (defun edraw-property-editor-widget-value-to-prop-value (w-value prop-info)
-  (if (or (and (stringp w-value) (string-empty-p w-value))
-          (null w-value))
-      ;; w-value is an empty string or nil
-      ;; (if (not (plist-get prop-info :required))
-      ;;     nil ;;property is not required and
-      ;;   ;;@todo default value???
-      ;;   nil)
-      nil
+  (cond
+   ((eq (plist-get prop-info :type) 'marker)
+    w-value)
+   ((or (and (stringp w-value) (string-empty-p w-value))
+        (null w-value))
+    ;; w-value is an empty string or nil
+    ;; (if (not (plist-get prop-info :required))
+    ;;     nil ;;property is not required and
+    ;;   ;;@todo default value???
+    ;;   nil)
+    nil)
+   (t
     ;;@todo error check
-    (funcall (plist-get prop-info :from-string) w-value)))
+    (funcall (plist-get prop-info :from-string) w-value))))
 
 ;;;;; Bottom Buttons
 
@@ -1024,6 +1412,7 @@ once. widget-value-set updates the same property four times."
               (run-at-time 0.1 nil 'edraw-on-update-timer pedit)))))))
 
 (cl-defmethod edraw-on-update-timer ((pedit edraw-property-editor))
+  ;;(message "edraw-on-update-timer")
   (with-slots (update-timer buffer) pedit
     (setq update-timer nil)
     (when buffer

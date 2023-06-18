@@ -102,6 +102,11 @@
      (text-anchor . "middle")
      (fill . "#222"))))
 
+(defvar edraw-default-marker-properties
+  nil
+   ;; '(("arrow" (markerWidth . "20") (markerHeight . "10")))
+  )
+
 (defcustom edraw-editor-share-default-shape-properties nil
   "non-nil means that the editors change edraw-default-shape-properties directly."
   :group 'edraw-editor
@@ -535,7 +540,9 @@ line-prefix and wrap-prefix are used in org-indent.")
   (edraw-property-editor-open
    target
    `((image-scale . ,edraw-editor-image-scaling-factor)
-     (recent-colors . ,(edraw-editor-recent-colors)))))
+     (recent-colors . ,(edraw-editor-recent-colors))
+     (marker-defaults . ,edraw-default-marker-properties)
+     )))
 
 ;;;;; Editor - Undo
 
@@ -806,7 +813,7 @@ For use with `edraw-editor-with-temp-undo-list',
                        defs-element (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
       (setq defrefs (edraw-svg-defs-as-defrefs edraw-editor-svg-defs-id))
       (edraw-dom-insert-first svg
-                              (edraw-svg-defrefs-defs defrefs)))
+                              (edraw-svg-defrefs-defs-element defrefs)))
 
     ;; #edraw-body
     (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)
@@ -2391,17 +2398,17 @@ For use with `edraw-editor-with-temp-undo-list',
          (((edraw-msg "None") edraw-editor-set-marker-start-none-selected
            :button (:toggle . ,(null (edraw-get-property shapes 'marker-start))))
           ((edraw-msg "Arrow") edraw-editor-set-marker-start-arrow-selected
-           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-start) "arrow")))
+           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "arrow")))
           ((edraw-msg "Circle") edraw-editor-set-marker-start-circle-selected
-           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-start) "circle"))))
+           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "circle"))))
          :visible ,(edraw-can-have-property-p shapes 'marker-start))
         ((edraw-msg "End Marker")
          (((edraw-msg "None") edraw-editor-set-marker-end-none-selected
            :button (:toggle . ,(null (edraw-get-property shapes 'marker-end))))
           ((edraw-msg "Arrow") edraw-editor-set-marker-end-arrow-selected
-           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-end) "arrow")))
+           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "arrow")))
           ((edraw-msg "Circle") edraw-editor-set-marker-end-circle-selected
-           :button (:toggle . ,(equal (edraw-get-property shapes 'marker-end) "circle"))))
+           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "circle"))))
          :visible ,(edraw-can-have-property-p shapes 'marker-end))))
       ((edraw-msg "Properties...") edraw-editor-edit-properties-of-selected-shapes))))
 
@@ -2649,23 +2656,29 @@ For use with `edraw-editor-with-temp-undo-list',
                                            prop-name value)
   (edraw-set-property (edraw-selected-multiple-shapes editor) prop-name value))
 
+(cl-defmethod edraw-set-marker-selected ((editor edraw-editor)
+                                         prop-name marker-type)
+  (edraw-set-property-selected
+   editor prop-name
+   (edraw-get-default-marker-properties editor marker-type)))
+
 (edraw-editor-defcmd edraw-set-marker-start-none-selected ((editor edraw-editor))
   (edraw-set-property-selected editor 'marker-start nil))
 
 (edraw-editor-defcmd edraw-set-marker-start-arrow-selected ((editor edraw-editor))
-  (edraw-set-property-selected editor 'marker-start "arrow"))
+  (edraw-set-marker-selected editor 'marker-start "arrow"))
 
 (edraw-editor-defcmd edraw-set-marker-start-circle-selected ((editor edraw-editor))
-  (edraw-set-property-selected editor 'marker-start "circle"))
+  (edraw-set-marker-selected editor 'marker-start "circle"))
 
 (edraw-editor-defcmd edraw-set-marker-end-none-selected ((editor edraw-editor))
   (edraw-set-property-selected editor 'marker-end nil))
 
 (edraw-editor-defcmd edraw-set-marker-end-arrow-selected ((editor edraw-editor))
-  (edraw-set-property-selected editor 'marker-end "arrow"))
+  (edraw-set-marker-selected editor 'marker-end "arrow"))
 
 (edraw-editor-defcmd edraw-set-marker-end-circle-selected ((editor edraw-editor))
-  (edraw-set-property-selected editor 'marker-end "circle"))
+  (edraw-set-marker-selected editor 'marker-end "circle"))
 
 
 ;;;;; Editor - Copy & Paste
@@ -2750,9 +2763,15 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (default-shape-properties) editor
     (when-let ((alist-head (assq tag default-shape-properties)))
       (edraw-editor-open-property-editor
-       (edraw-property-proxy-shape :tag tag :alist-head alist-head
-                                   :editor editor
-                                   :name (format "default %s" tag))))))
+       (edraw-property-proxy-shape
+        :alist-head alist-head
+        :editor editor
+        :name (format "default %s" tag)
+        :prop-info-list
+        (seq-remove
+         (lambda (prop-info) (plist-get prop-info :required))
+         (edraw-svg-element-get-property-info-list-by-tag tag))
+        )))))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor tag)
   (let ((editor (or editor (edraw-current-editor))))
@@ -2776,55 +2795,52 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;; edraw-property-proxy-shape
 
-(defclass edraw-property-proxy-shape (edraw-properties-holder)
-  ((tag :initarg :tag)
-   (alist-head :initarg :alist-head) ;;('rect (prop . value) ...)
-   (editor :initarg :editor)
-   (name :initarg :name)))
+(defclass edraw-property-proxy-shape (edraw-alist-properties-holder)
+  ())
 
-(cl-defmethod edraw-get-editor ((shape edraw-property-proxy-shape))
-  (oref shape editor))
+(cl-defmethod edraw-set-properties ((shape edraw-property-proxy-shape) _prop-list)
+  (prog1 (cl-call-next-method)
+    ;;@todo Use change method?
+    ;; update toolbar (fill & stroke)
+    (edraw-update-toolbar (oref shape editor))))
 
-(cl-defmethod edraw-name ((shape edraw-property-proxy-shape))
-  (oref shape name))
+;;;;; Editor - Default Marker Properties
 
-(cl-defmethod edraw-undo-block-begin ((_shape edraw-property-proxy-shape)))
-(cl-defmethod edraw-undo-block-end ((_shape edraw-property-proxy-shape) _backup))
-(cl-defmethod edraw-undo-all ((_shape edraw-property-proxy-shape)))
-(cl-defmethod edraw-last-undo-data ((_shape edraw-property-proxy-shape)))
-(cl-defmethod edraw-undo ((_shape edraw-property-proxy-shape)))
+(cl-defmethod edraw-get-default-marker-properties ((_editor edraw-editor)
+                                                   marker-type)
+  ;; Related: edraw-property-editor-create-marker-widget
+  (when (stringp marker-type)
+    (edraw-svg-marker marker-type
+                      (alist-get marker-type edraw-default-marker-properties
+                                 nil nil #'equal))))
 
-(cl-defmethod edraw-get-property-info-list ((shape edraw-property-proxy-shape))
-  (seq-remove
-   (lambda (prop-info) (plist-get prop-info :required))
-   (edraw-svg-element-get-property-info-list-by-tag (oref shape tag))))
+(defun edraw-editor-edit-default-marker-arrow-props (&optional editor)
+  (interactive)
+  (edraw-editor-edit-default-marker-props editor "arrow"))
 
-(cl-defmethod edraw-get-property ((shape edraw-property-proxy-shape) prop-name)
-  (alist-get prop-name (cdr (oref shape alist-head))))
+(defun edraw-editor-edit-default-marker-circle-props (&optional editor)
+  (interactive)
+  (edraw-editor-edit-default-marker-props editor "circle"))
 
-(cl-defmethod edraw-set-properties ((shape edraw-property-proxy-shape) prop-list)
-  (dolist (prop prop-list)
-    (let ((prop-name (car prop))
-          (value (cdr prop)))
-      (if (null value)
-          (setf (alist-get prop-name (cdr (oref shape alist-head))
-                           nil 'remove)
-                nil)
-        (setf (alist-get prop-name (cdr (oref shape alist-head)))
-              value))))
-  ;; update toolbar (fill & stroke)
-  (edraw-update-toolbar (oref shape editor)))
+(defun edraw-editor-edit-default-marker-props (&optional editor marker-type)
+  (let ((editor (or editor (edraw-current-editor))))
+    (edraw-edit-default-marker-properties editor marker-type)))
 
-(cl-defmethod edraw-set-property ((shape edraw-property-proxy-shape) prop-name value) ;;@todo generalize
-  (edraw-set-properties
-   shape
-   (list (cons prop-name value))))
+(cl-defmethod edraw-edit-default-marker-properties ((editor edraw-editor)
+                                                    marker-type)
+  (when (stringp marker-type)
+    (let ((alist-head (assoc marker-type edraw-default-marker-properties)))
+      (unless alist-head
+        (push (list marker-type) edraw-default-marker-properties)
+        (setq alist-head (car edraw-default-marker-properties)))
+      (edraw-editor-open-property-editor
+       (edraw-alist-properties-holder
+        :alist-head alist-head
+        :editor editor
+        :name (format "default %s marker" marker-type)
+        :prop-info-list
+        (edraw-svg-marker-prop-info-list marker-type))))))
 
-(cl-defmethod edraw-add-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
-  )
-
-(cl-defmethod edraw-remove-change-hook ((_shape edraw-property-proxy-shape) _function &rest _args)
-  )
 
 ;;;;; Editor - Transform Method
 
@@ -2919,11 +2935,16 @@ For use with `edraw-editor-with-temp-undo-list',
              :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
           ((edraw-msg "Select Next Above") edraw-editor-select-next-shape)
           ((edraw-msg "Select Next Below") edraw-editor-select-previous-shape)))
-        ((edraw-msg "Shape's Defaults")
-         (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
-          ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
-          ((edraw-msg "Text") edraw-editor-edit-default-text-props)
-          ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
+        ((edraw-msg "Default Config")
+         (((edraw-msg "Shape")
+           (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
+            ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
+            ((edraw-msg "Text") edraw-editor-edit-default-text-props)
+            ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
+          ((edraw-msg "Marker")
+           (((edraw-msg "Arrow") edraw-editor-edit-default-marker-arrow-props)
+            ((edraw-msg "Circle") edraw-editor-edit-default-marker-circle-props))))
+         )
         ;;((edraw-msg "Search Object") edraw-editor-search-object)
         ((edraw-msg "Undo") edraw-editor-undo
          :enable ,(not (edraw-empty-undo-p editor)))
@@ -6301,16 +6322,16 @@ may be replaced by another mechanism."
                 (((edraw-msg "None") edraw-set-marker-start-none
                   :button (:toggle . ,(null (edraw-get-property shape 'marker-start))))
                  ((edraw-msg "Arrow") edraw-set-marker-start-arrow
-                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-start) "arrow")))
+                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-start)) "arrow")))
                  ((edraw-msg "Circle") edraw-set-marker-start-circle
-                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-start) "circle")))))
+                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-start)) "circle")))))
                ((edraw-msg "End Marker")
                 (((edraw-msg "None") edraw-set-marker-end-none
                   :button (:toggle . ,(null (edraw-get-property shape 'marker-end))))
                  ((edraw-msg "Arrow") edraw-set-marker-end-arrow
-                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-end) "arrow")))
+                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-end)) "arrow")))
                  ((edraw-msg "Circle") edraw-set-marker-end-circle
-                  :button (:toggle . ,(equal (edraw-get-property shape 'marker-end) "circle"))))))))
+                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-end)) "circle"))))))))
 
     (append
      items
@@ -6335,8 +6356,10 @@ may be replaced by another mechanism."
   (edraw-set-marker shape 'marker-end "arrow"))
 (cl-defmethod edraw-set-marker-end-circle ((shape edraw-shape-path))
   (edraw-set-marker shape 'marker-end "circle"))
-(cl-defmethod edraw-set-marker ((shape edraw-shape-path) prop-name type)
-  (edraw-set-properties shape (list (cons prop-name type))))
+(cl-defmethod edraw-set-marker ((shape edraw-shape-path) prop-name marker-type)
+  (edraw-set-property
+   shape prop-name
+   (edraw-get-default-marker-properties (edraw-get-editor shape) marker-type)))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
   (cond
@@ -7301,17 +7324,19 @@ possible. Because undoing invalidates all point objects."
   (with-slots (shape index) src
     (or
      (when (or (= index 0) (= index -1))
-       (let ((marker (edraw-get-property
-                      shape (if (= index 0) 'marker-start 'marker-end))))
-         (when (equal marker "arrow")
+       (let* ((prop-name (if (= index 0) 'marker-start 'marker-end))
+              ;;(marker (edraw-get-property shape prop-name))
+              (overhang (edraw-svg-marker-overhang (edraw-element shape)
+                                                   prop-name
+                                                   (edraw-get-defrefs shape))))
+         (when overhang
            (let ((src-stroke (edraw-get-property shape 'stroke))
                  (dst-stroke (edraw-get-property dst-shape 'stroke)))
              (+
               (if (not (or (null src-stroke)
                            (equal src-stroke "")
                            (equal src-stroke "none")))
-                  (* edraw-svg-marker-arrow-overhang
-                     (edraw-get-property-as-length shape 'stroke-width 0))
+                  overhang
                 0)
               (if (not (or (null dst-stroke)
                            (equal dst-stroke "")

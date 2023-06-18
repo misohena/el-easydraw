@@ -1,6 +1,12 @@
 
 
 * Inbox
+** TODO プロパティエディタ/即事反映でないときにカラーピッカーで色が変更できない
+edraw-property-editor-apply-immediatelyがnilのとき、カラーピッカーで色を指定してもフィールドの値が変わらない(OKすると元に戻ってしまう)。preview自体も出すべきではない？
+
+** TODO 一つの図形に対するedraw-editor-edit-properties-of-selected-shapes
+edraw-editor-edit-properties-of-selected-shapesは図形が一つの時はedraw-multiple-shapesを使わないようにする。
+
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
 
@@ -2087,3 +2093,37 @@ CLOSED: [2023-06-08 Thu 23:16]
 ** DONE プロパティエディタ/「Set as default」ボタンの条件非表示
 CLOSED: [2023-06-18 Sun 14:04]
 「Set as default」ボタンはshapeのときだけ出すようにする。
+** DONE マーカーをカスタマイズできるようにする
+CLOSED: [2023-06-18 Sun 13:51]
+- (プロパティエディタで)矢印のサイズを調整したい。
+- (将来的に)マーカーの種類を増やせるようにしたい。(最低限タイプ変数を用意する)
+
+変更:
+- edraw-dom-svg.el
+  - defs、marker要素管理機構の整理。
+  - edraw-svg-markerデータ構造を追加。(marker <type> <properties>)
+  - edraw-svg-marker-types変数を追加。
+    - marker要素作成・プロパティの反映
+    - プロパティの取得
+    - プロパティ情報の取得 (shapeと同じ形式にする)
+    - はみ出し量の計算
+  - marker型を追加。marker-start、marker-mid、marker-endに適用。edraw-svg-get-marker-propertyはedraw-svg-markerデータ構造を返す。edraw-svg-set-marker-propertyはedraw-svg-markerデータ構造を元にmarker要素を作成してdefsに加える。
+- edraw-property-editor.el
+  - edraw-alist-properties-holderを追加。alistをプロパティエディタで編集できるようにする。
+  - edraw-insert-property-widgetsがサブプロパティを扱えるようにする。
+    - prop-widgetリストを返す。
+    - targetやmargin-left引数をとる。
+  - edraw-property-editor-prop-widgetオブジェクトの作成はedraw-create-prop-widgetでは無く、各widgetタイプが行うようにする。派生クラスを作れるようにするため。
+  - edraw-create-prop-widget-updatorのサブプロパティ対応。サブプロパティの更新時はUNDOを操作しない。
+  - edraw-property-editor-prop-widget-create-widgetのmargin-left対応。
+  - marker-widget追加。
+    - edraw-property-editor-marker-widgetクラスを追加。
+    - edraw-property-editor-create-marker-widget関数を追加。
+- edraw.el
+  - edraw-default-marker-properties変数を追加。デフォルトのマーカープロパティ。edraw-property-editor-open呼び出し時にそれをオプションとして引き渡す。
+  - マーカー変更メニューは新しいマーカー管理機構を使う。
+  - edraw-property-proxy-shapeクラスはedraw-alist-properties-holderを継承する。
+  - 「Shape's Defaults」から「Default Config」へ変更。Shapeのデフォルトの他にMarkerのデフォルト設定を加える。
+  - 点接続のedraw-gap-distanceは新しいマーカー管理機構を使う。より一般化された(arrow決め打ちでは無い)はみ出し量計算ができる。
+- msg/edraw-msg-ja.el
+  - 翻訳を追加。
