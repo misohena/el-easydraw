@@ -2127,3 +2127,12 @@ CLOSED: [2023-06-18 Sun 13:51]
 ** DONE 一つの図形に対するedraw-editor-edit-properties-of-selected-shapes
 CLOSED: [2023-06-18 Sun 17:06]
 edraw-editor-edit-properties-of-selected-shapesは図形が一つの時はedraw-multiple-shapesを使わないようにする。
+** DONE 編集ツールを追加しやすくする
+CLOSED: [2023-06-18 Sun 21:07]
+現在はedraw-editor-tool-で始まることが前提になっている。サードパーティーの入る余地がない。
+edraw-editor-tool-listにはedraw-editor-tool-を含めたシンボルを指定するようにする。
+
+- edraw-editor-tool-*をtool-idとする。
+- tool-idをそのままオブジェクトのコンストラクタとする。
+- edraw-editor-tool-*--titleでタイトル取得。
+- edraw-editor-tool-*--iconでアイコン取得。
