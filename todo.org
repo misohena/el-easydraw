@@ -2136,3 +2136,7 @@ edraw-editor-tool-listにはedraw-editor-tool-を含めたシンボルを指定�
 - tool-idをそのままオブジェクトのコンストラクタとする。
 - edraw-editor-tool-*--titleでタイトル取得。
 - edraw-editor-tool-*--iconでアイコン取得。
+** DONE edraw-read-rectangleをC-gで中断すると矩形が残るのを修正する
+CLOSED: [2023-06-23 Fri 17:37]
+コードを読んでいてunwind-protectのUNWINDFORMSが無いことに気が付いた。
+一応全てのunwind-protectを調べたが、同じような所は無かった。

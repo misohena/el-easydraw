@@ -3668,9 +3668,9 @@ position where the EVENT occurred."
               ui-preview
               (edraw-scroll-transform-xy editor down-xy)
               (edraw-scroll-transform-xy editor move-xy))
-             (edraw-invalidate-image editor))))
-      (dom-remove-node ui-parent ui-preview)
-      (edraw-invalidate-image editor)
+             (edraw-invalidate-image editor)))
+        (dom-remove-node ui-parent ui-preview)
+        (edraw-invalidate-image editor))
       (edraw-aabb down-xy (or move-xy down-xy)))))
 
 
