@@ -1,9 +1,6 @@
 
 
 * Inbox
-** TODO プロパティエディタ/即事反映でないときにカラーピッカーで色が変更できない
-edraw-property-editor-apply-immediatelyがnilのとき、カラーピッカーで色を指定してもフィールドの値が変わらない(OKすると元に戻ってしまう)。preview自体も出すべきではない？
-
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
 
@@ -2140,3 +2137,8 @@ edraw-editor-tool-listにはedraw-editor-tool-を含めたシンボルを指定�
 CLOSED: [2023-06-23 Fri 17:37]
 コードを読んでいてunwind-protectのUNWINDFORMSが無いことに気が付いた。
 一応全てのunwind-protectを調べたが、同じような所は無かった。
+** DONE プロパティエディタ/即事反映でないときにカラーピッカーで色変更できない
+CLOSED: [2023-06-25 Sun 15:47]
+edraw-property-editor-apply-immediatelyがnilのとき、カラーピッカーで色を指定してもフィールドの値が変わらない(OKすると元に戻ってしまう)。preview自体も出すべきではない？
+原因はpreviewをキャンセルするためのedraw-set-propertyがwidgetの更新タイマーをセットしてしまうこと。widgetの値(文字列)だけ変更しても、その直後にタイマーで更新が走ってtargetの現在値がwidgetに反映され元に戻ってしまう。
+preview自体出さない方向で修正。

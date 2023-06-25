@@ -828,9 +828,11 @@ once. widget-value-set updates the same property four times."
      (lambda (&rest _ignore)
        (edraw-property-editor-prop-widget-value-set
         field-widget
-        (edraw-property-editor-read-property-paint-color target prop-name
-                                                         field-widget
-                                                         options)))
+        (if edraw-property-editor-apply-immediately ;;@todo or target cannot preview
+            (edraw-property-editor-read-property-paint-color-with-preview
+             target prop-name field-widget options)
+          (edraw-property-editor-read-property-paint-color-without-preview
+           prop-name field-widget options))))
      (edraw-msg "Color"))
     ;;(widget-insert " ")
     (setq field-widget
@@ -846,9 +848,24 @@ once. widget-value-set updates the same property four times."
      :target target
      :prop-info prop-info)))
 
-(defun edraw-property-editor-read-property-paint-color (target
-                                                        prop-name field-widget
-                                                        options)
+(defun edraw-property-editor-read-property-paint-color-without-preview
+    (prop-name field-widget options)
+  (let ((old-value (widget-value field-widget)))
+    (edraw-color-picker-read-color
+     (format "%s: " prop-name)
+     old-value
+     '("" "none")
+     `((:color-name-scheme . web)
+       (:no-color . "none")
+       ,@(when-let ((image-scale (alist-get 'image-scale options)))
+           (list
+            (cons :scale-direct image-scale)))
+       ,@(when-let ((recent-colors (alist-get 'recent-colors options)))
+           (list
+            (cons :recent-colors recent-colors)))))))
+
+(defun edraw-property-editor-read-property-paint-color-with-preview
+    (target prop-name field-widget options)
   (let ((old-value (widget-value field-widget))
         (undo-backup (edraw-undo-block-begin target)))
     (unwind-protect
@@ -859,17 +876,16 @@ once. widget-value-set updates the same property four times."
          `((:color-name-scheme . web)
            (:no-color . "none")
            ;; Preview
-           ,@(when t;;(edraw-property-editor-target-shape-p target)
-               (list
-                (cons
-                 :on-input-change
-                 (lambda (string color)
-                   (when (or (member string '("" "none"))
-                             color)
-                     ;; Undo previous change
-                     (edraw-undo-all target)
-                     ;;@todo suppress modified flag change and notification
-                     (edraw-set-property target prop-name string))))))
+           ,@(list
+              (cons
+               :on-input-change
+               (lambda (string color)
+                 (when (or (member string '("" "none"))
+                           color)
+                   ;; Undo previous change
+                   (edraw-undo-all target)
+                   ;;@todo suppress modified flag change and notification
+                   (edraw-set-property target prop-name string)))))
            ,@(when-let ((image-scale (alist-get 'image-scale options)))
                (list
                 (cons :scale-direct image-scale)))
