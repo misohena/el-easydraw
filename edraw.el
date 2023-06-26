@@ -1806,8 +1806,7 @@ For use with `edraw-editor-with-temp-undo-list',
             ))
       ;; Hide points
       (edraw-svg-ui-shape-points-remove-group
-       (edraw-ui-foreground-svg editor))))
-  (edraw-invalidate-image editor))
+       (edraw-ui-foreground-svg editor)))))
 
 (defun edraw-svg-ui-shape-points-remove-group (parent)
   (edraw-dom-remove-by-id parent "edraw-ui-shape-points"))
