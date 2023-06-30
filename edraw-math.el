@@ -191,6 +191,9 @@
   (- (* (car a) (cdr b))
      (* (cdr a) (car b))))
 
+(defun edraw-xy-atan (xy)
+  (atan (cdr xy) (car xy)))
+
 (defun edraw-xy-rot90 (xy)
   (cons (- (cdr xy)) (car xy)))
 
@@ -199,6 +202,25 @@
 
 (defun edraw-xy-rot270 (xy)
   (cons (cdr xy) (- (car xy))))
+
+(defun edraw-xy-rotate (xy deg)
+  ;; Specify the angle in units of degrees in order to perform
+  ;; rotation in units of 90 degrees without error.
+  (let ((d (mod deg 360)))
+    (cond
+     ((= d 0) (edraw-xy-clone xy))
+     ((= d 90) (edraw-xy-rot90 xy))
+     ((= d 180) (edraw-xy-rot180 xy))
+     ((= d 270) (edraw-xy-rot270 xy))
+     (t
+      (let* ((rad (degrees-to-radians deg))
+             (c (cos rad))
+             (s (sin rad))
+             (x (car xy))
+             (y (cdr xy)))
+        (edraw-xy
+         (- (* x c) (* y s))
+         (+ (* x s) (* y c))))))))
 
 (defun edraw-xy-interpolate (a b alpha)
   (let ((ra (- 1.0 alpha)))
@@ -318,6 +340,13 @@
         (edraw-rect-rb-xy rect)
         (edraw-rect-lb-xy rect)))
 
+(defun edraw-rect-set-ltrb (rect x0 y0 x1 y1)
+  (setf (caar rect) x0)
+  (setf (cdar rect) y0)
+  (setf (cadr rect) x1)
+  (setf (cddr rect) y1)
+  rect)
+
 (defsubst edraw-rect (x0 y0 x1 y1)
   (cons
    (cons x0 y0)
@@ -407,6 +436,16 @@
      (max (edraw-rect-right r1) (edraw-rect-right r2))
      (max (edraw-rect-bottom r1) (edraw-rect-bottom r2))))))
 
+(defun edraw-rect-scale (rect sx sy &optional ox oy)
+  (unless ox (setq ox 0))
+  (unless oy (setq oy 0))
+  (edraw-rect-set-ltrb
+   rect
+   (+ (* (- (edraw-rect-left rect) ox) sx) ox)
+   (+ (* (- (edraw-rect-top rect) oy) sy) oy)
+   (+ (* (- (edraw-rect-right rect) ox) sx) ox)
+   (+ (* (- (edraw-rect-bottom rect) oy) sy) oy)))
+
 ;;;; Matrix
 
 (defun edraw-matrix (&optional init)
@@ -451,6 +490,8 @@
 
 
 (defun edraw-matrix-rotate (deg)
+  ;; Specify the angle in units of degrees in order to perform
+  ;; rotation in units of 90 degrees without error.
   (let ((d (mod deg 360)))
     (cond
      ((= d 0) (edraw-matrix (vector 1 0 0 1 0 0)))
