@@ -32,6 +32,31 @@
 
 ;;;; DOM Utility
 
+(defun edraw-dom-attr-plist-to-alist (attr-plist &optional ignore-keys)
+  "Convert ATTR-PLIST to alist."
+  (cl-loop for (key value) on attr-plist by #'cddr
+           for key-symbol =
+           (cond
+            ((keywordp key) (intern (substring (symbol-name key) 1)))
+            ((symbolp key) key)
+            ((stringp key) (intern key)))
+           when (and key-symbol (not (memq key-symbol ignore-keys)))
+           collect (cons key-symbol value)))
+
+(defun edraw-dom-element (tag &rest attr-plist)
+  "Return a new DOM element with TAG and ATTR-PLIST."
+  (let* ((parent (plist-get attr-plist :parent))
+         (children (plist-get attr-plist :children))
+         (element (apply
+                   'dom-node
+                   tag
+                   (edraw-dom-attr-plist-to-alist attr-plist
+                                                  '(parent children))
+                   children)))
+    (when parent
+      (dom-append-child parent element))
+    element))
+
 (defun edraw-dom-element-p (node)
   (and node
        (listp node)
@@ -257,6 +282,28 @@
      (buffer-substring-no-properties (point-min) (point-max)))
    nil))
 
+
+;;;; SVG Primitive
+
+(defun edraw-svg-rect (x y width height &rest attr-plist)
+  (apply #'edraw-dom-element
+         'rect
+         `(x ,x y ,y width ,width height ,height ,@attr-plist)))
+
+(defun edraw-svg-circle (cx cy r &rest attr-plist)
+  (apply #'edraw-dom-element
+         'circle
+         `(cx ,cx cy ,cy r ,r ,@attr-plist)))
+
+(defun edraw-svg-ellipse (cx cy rx ry &rest attr-plist)
+  (apply #'edraw-dom-element
+         'ellipse
+         `(cx ,cx cy ,cy rx ,rx ry ,ry ,@attr-plist)))
+
+(defun edraw-svg-line (x1 y1 x2 y2 &rest attr-plist)
+  (apply #'edraw-dom-element
+         'line
+         `(x1 ,x1 y1 ,y1 x2 ,x2 y2 ,y2 ,@attr-plist)))
 
 ;;;; SVG Attributes
 
