@@ -1,6 +1,13 @@
 
 
 * Inbox
+** TODO UI用SVG図形の構築でedraw-dom-elementやedraw-svg-を使うようにする
+svg-circle、svg-rectangle、svg-line、svg-ellipse等は余計な処理が挟まっているのと親子関係の構築方法がイマイチなので。
+あちこちにあるので全部直すのは案外大変かもしれない。
+- アイコン
+- edraw-svg-ui-*
+
+** TODO ?キーでツールのヘルプを表示する
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
 
@@ -214,9 +221,21 @@ scaleが0のときを考慮に入れるべきだろうか。
 -1倍しても良いけど、簡単に反転できると良い。
 dtfh dtfvとか?
 要らないかも。
-** TODO 変形/GUIで変形できるようにする
-transform属性を変更できるようにする(図形オブジェクト全体の変形)
-edraw-read-rectangleのようにread-eventループに入ってしまうのも手かもしれない。
+** TODO 変形/skewに対応する
+interactive-transformにおいては、skew-h-angle, skew-v-angleを追加して対応する。
+hとvは対等。
+回転の前にskewする。
+指定出来るのは-90～90度。ただし、hとvの合計が90度になると直線状になる。
+
+** TODO 変形/GUI変形を一時キーマップか編集ツールにする
+read-eventループだとキー割り当てをカスタマイズできない。
+
+問題は変形中に他のコマンドから状態を変えられてしまうこと。
+対処方法案:
+- 防止する。
+- 検出し追従する。
+- 検出し中断する。
+
 ** TODO 座標を表示する機能を追加する
 何らかの方法で座標が知りたい場合がある。
 問題はEmacsではモーションイベントを積極的に使いづらい所。
@@ -2142,3 +2161,21 @@ CLOSED: [2023-06-25 Sun 15:47]
 edraw-property-editor-apply-immediatelyがnilのとき、カラーピッカーで色を指定してもフィールドの値が変わらない(OKすると元に戻ってしまう)。preview自体も出すべきではない？
 原因はpreviewをキャンセルするためのedraw-set-propertyがwidgetの更新タイマーをセットしてしまうこと。widgetの値(文字列)だけ変更しても、その直後にタイマーで更新が走ってtargetの現在値がwidgetに反映され元に戻ってしまう。
 preview自体出さない方向で修正。
+** DONE 変形/GUIで変形できるようにする
+CLOSED: [2023-06-30 Fri 20:20]
+transform属性を変更できるようにする(図形オブジェクト全体の変形)
+edraw-read-rectangleのようにread-eventループに入ってしまうのも手かもしれない。
+
+- edraw-interactive-scroll-and-zoom方式(つまりread-eventループ)でやる？　出来なくはないが、スクロールとかにも対応しなければならない。一時的なkeymapを使う方が楽では無いか？　まぁどちらでも良い。一時的なkeymapを実現する方法はいくつかありそう。エディタオーバーレイのキーマップを一時的に変えても良いし、set-transient-mapを使っても良い。transient-toolのような概念があっても面白いがやりすぎ？(PhotoshopではCtrl+tを押すとツール選択が一時的に解除されるので)　もしくはツールはスタック出来るべき？
+- edraw-update-imageにフックを追加できるようにするか？　read-rectangle方式であれば必ずしも必要ない。キーマップを使うならできた方がいいかもしれない。
+- 選択UIを非表示にする機能が必要。代わりに変形UIを表示するので。
+- 選択図形のAABBから変形UIを作成する。
+- キー操作: r回転 t平行移動 sスケーリング o原点指定 lローカル座標 gグローバル座標 RET確定 C-gキャンセル
+
+とりあえず作るべきは
+- edraw-interactive-transformコマンド
+- 選択図形から選択UI SVGを作成する関数
+- 変形モード中のマウスクリックハンドラ
+  - +図形+ AABBの中→移動
+  - +図形+ AABBの外→回転
+  - +図形+ AABBの角や辺→スケーリング

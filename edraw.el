@@ -225,9 +225,10 @@ When nil, disable auto view enlargement."
     ;; (define-key km (kbd "C-c C-x C-y") 'edraw-editor-paste-and-select)
     ;; (define-key km (kbd "C-c C-x C-w") 'edraw-editor-cut-selected-shapes)
     ;; (define-key km (kbd "C-c C-x M-w") 'edraw-editor-copy-selected-shapes)
-    (define-key km "Tt" 'edraw-editor-translate-selected)
-    (define-key km "Ts" 'edraw-editor-scale-selected)
-    (define-key km "Tr" 'edraw-editor-rotate-selected)
+    ;; (define-key km "Tt" 'edraw-editor-translate-selected)
+    ;; (define-key km "Ts" 'edraw-editor-scale-selected)
+    ;; (define-key km "Tr" 'edraw-editor-rotate-selected)
+    (define-key km "T" 'edraw-editor-transform-selected-interactive)
     (define-key km "g" 'edraw-editor-group-selected-shapes)
     (define-key km "G" 'edraw-editor-ungroup-selected-shapes)
     (define-key km "pf" 'edraw-editor-edit-fill-selected)
@@ -340,6 +341,7 @@ line-prefix and wrap-prefix are used in org-indent.")
                           edraw-editor-default-transparent-bg-visible)
                     (cons 'view-size-spec nil) ;;User specified view size
                     (cons 'transform-method 'auto)))
+   (selection-ui-visible :initform t)
    (extra-properties :initform nil)
    (default-shape-properties
      :initform (if edraw-editor-share-default-shape-properties
@@ -362,6 +364,8 @@ line-prefix and wrap-prefix are used in org-indent.")
 
   (edraw-editor-clear-undo-vars)
   (edraw-editor-clear-modified-vars)
+
+  (edraw-define-hook-type editor 'before-image-update)
 
   (with-slots (overlay) editor
     (when edraw-editor-disable-line-prefix ;;for Emacs's line-prefix bug
@@ -1237,14 +1241,14 @@ For use with `edraw-editor-with-temp-undo-list',
         `(("left" ,(edraw-rect-left aabb))
           ("center" ,(/ (+ (edraw-rect-left aabb) (edraw-rect-right aabb)) 2) t)
           ("right" ,(edraw-rect-right aabb))))
-     (read-number "Origin X: " 0))
+     (read-number (edraw-msg "Origin X: ") 0))
    (if aabb
        (edraw-read-origin-number
         "Y"
         `(("top" ,(edraw-rect-top aabb))
           ("center" ,(/ (+ (edraw-rect-top aabb) (edraw-rect-bottom aabb)) 2) t)
           ("bottom" ,(edraw-rect-bottom aabb))))
-     (read-number "Origin Y: " 0))))
+     (read-number (edraw-msg "Origin Y: ") 0))))
 
 (defun edraw-read-scale-params (aabb &optional origin-xy sx sy)
   (let* ((sx (or sx (read-number (edraw-msg "Scale X: ") 1.0)))
@@ -1422,6 +1426,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (overlay svg image) editor
     (edraw-update-image-timer-cancel editor)
     (edraw-update-ui-parts editor)
+    (edraw-call-hook editor 'before-image-update)
     (setq image (edraw-svg-to-image svg
                                     :scale 1.0)) ;;Cancel image-scale effect
     (overlay-put overlay 'display image)))
@@ -1575,6 +1580,11 @@ For use with `edraw-editor-with-temp-undo-list',
 .edraw-ui-read-rectangle {
   stroke: #f88; fill: none;
   stroke-dasharray: 2;
+}
+.edraw-ui-transform-origin,
+.edraw-ui-transform-handle,
+.edraw-ui-transform-boundary {
+  stroke: #88f; fill: none;
 }")
 
 (cl-defmethod edraw-update-ui-style-svg ((editor edraw-editor))
@@ -1766,8 +1776,13 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;;; Editor - View - Selection UI
 
 (cl-defmethod edraw-update-selection-ui ((editor edraw-editor))
-  (with-slots (selected-shapes selected-anchor selected-handle) editor
-    (if selected-shapes
+  (with-slots (selected-shapes
+               selected-anchor
+               selected-handle
+               selection-ui-visible)
+      editor
+    (if (and selected-shapes
+             selection-ui-visible)
         ;; Show points
         (let ((g (edraw-svg-ui-shape-points-create-group
                   (edraw-ui-foreground-svg editor))))
@@ -2235,9 +2250,7 @@ For use with `edraw-editor-with-temp-undo-list',
                selected-shapes
                (edraw-property-editor-buffer))
       (edraw-edit-properties
-       (if (cdr selected-shapes)
-           (edraw-selected-multiple-shapes editor)
-         (car selected-shapes))))))
+       (edraw-selected-multiple-shapes-or-shape editor)))))
 
 (cl-defmethod edraw-remove-shape-selection ((editor edraw-editor) shape)
   (with-slots (selected-shapes selected-anchor selected-handle) editor
@@ -2373,7 +2386,8 @@ For use with `edraw-editor-with-temp-undo-list',
       ((edraw-msg "Group") edraw-editor-group-selected-shapes)
       ((edraw-msg "Ungroup") edraw-editor-ungroup-selected-shapes)
       ((edraw-msg "Transform")
-       (((edraw-msg "Translate...") edraw-editor-translate-selected)
+       (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)
+        ((edraw-msg "Translate...") edraw-editor-translate-selected)
         ((edraw-msg "Scale...") edraw-editor-scale-selected)
         ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
         ,(edraw-transform-method-menu editor)))
@@ -2502,6 +2516,10 @@ For use with `edraw-editor-with-temp-undo-list',
                  (edraw-rect-bottom rect)
                  (edraw-rect-cx rect)
                  (edraw-rect-cy rect)))))))
+
+(edraw-editor-defcmd edraw-transform-selected-interactive ((editor edraw-editor))
+  (edraw-transform-interactive
+   (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-translate-selected ((editor edraw-editor) xy)
   (interactive
@@ -2640,12 +2658,16 @@ For use with `edraw-editor-with-temp-undo-list',
       (edraw-multiple-shapes :shapes selected-shapes :editor editor)
     (error (edraw-msg "No shape selected"))))
 
+(cl-defmethod edraw-selected-multiple-shapes-or-shape ((editor edraw-editor))
+  (if-let ((selected-shapes (oref editor selected-shapes)))
+      (if (cdr selected-shapes)
+          (edraw-multiple-shapes :shapes selected-shapes :editor editor)
+        (car selected-shapes))
+    (error (edraw-msg "No shape selected"))))
+
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
-  (with-slots (selected-shapes) editor
-    (edraw-editor-open-property-editor
-     (if (cdr selected-shapes)
-         (edraw-selected-multiple-shapes editor)
-       (car selected-shapes)))))
+  (edraw-editor-open-property-editor
+   (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-edit-fill-selected ((editor edraw-editor))
   (edraw-edit-fill (edraw-selected-multiple-shapes editor)))
@@ -2926,7 +2948,8 @@ For use with `edraw-editor-with-temp-undo-list',
            :enable ,(not (null selected-shapes)))
           ((edraw-msg "Group") edraw-editor-group-selected-shapes)
           ((edraw-msg "Transform")
-           (((edraw-msg "Translate...") edraw-editor-translate-selected)
+           (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)
+            ((edraw-msg "Translate...") edraw-editor-translate-selected)
             ((edraw-msg "Scale...") edraw-editor-scale-selected)
             ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
             ,(edraw-transform-method-menu editor)))
@@ -5633,7 +5656,8 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       ((edraw-msg "Font Size...") edraw-edit-font-size
        :visible ,(edraw-can-have-property-p shape 'font-size))))
     ((edraw-msg "Transform")
-     (((edraw-msg "Translate...") edraw-translate)
+     (((edraw-msg "Transform...") edraw-transform-interactive)
+      ((edraw-msg "Translate...") edraw-translate)
       ((edraw-msg "Scale...") edraw-scale)
       ((edraw-msg "Rotate...") edraw-rotate)
       ((edraw-msg "Apply transform property to anchors") edraw-apply-transform-prop-to-anchor-points
@@ -7946,6 +7970,11 @@ possible. Because undoing invalidates all point objects."
 ;;(cl-defmethod edraw-property-editor-shape-p (_obj) nil)
 ;;(cl-defmethod edraw-set-all-properties-as-default ((obj edraw-multiple-shapes)))
 
+;;;;; Multiple Shapes - AABB
+
+(cl-defmethod edraw-shape-aabb ((obj edraw-multiple-shapes))
+  (edraw-shape-aabb (oref obj shapes)))
+
 ;;;;; Multiple Shapes - Transform
 
 (cl-defmethod edraw-translate ((obj edraw-multiple-shapes) xy)
@@ -7990,6 +8019,655 @@ possible. Because undoing invalidates all point objects."
     (unless groups
       (error (edraw-msg "No group selected")))
     (edraw-ungroup obj apply-transform-p)))
+
+
+
+;;;; Interactive Transform
+
+(defclass edraw-shape-transformer ()
+  ((target :initarg :target)
+   (ui-svg) ;;SVG Element
+   (original-aabb) ;;edraw-rect
+   (scaled-aabb) ;;edraw-rect
+   (corner-points) ;;list of (ref-x . ref-y)
+   (side-points) ;;list of (ref-x . ref-y)
+   (scaling-points) ;;list of (ref-x . ref-y)
+   (origin-point) ;;(ref-x . ref-y)
+   (rotation-angle :type number :initform 0) ;;degrees
+   (translation-delta :initform (edraw-xy 0 0)) ;;edraw-xy
+   ))
+
+(defun edraw-shape-transformer-create (target)
+  "Create a new edraw-shape-transformer object."
+  (let ((transformer (edraw-shape-transformer :target target)))
+    (with-slots (ui-svg
+                 original-aabb scaled-aabb
+                 corner-points side-points scaling-points
+                 origin-point)
+        transformer
+      (setq original-aabb (edraw-shape-aabb target)
+            scaled-aabb (edraw-rect-clone original-aabb)
+            corner-points (list
+                           (cons (car scaled-aabb) (car scaled-aabb)) ;;L-T
+                           (cons (cdr scaled-aabb) (car scaled-aabb)) ;;R-T
+                           (cons (cdr scaled-aabb) (cdr scaled-aabb)) ;;R-B
+                           (cons (car scaled-aabb) (cdr scaled-aabb))) ;;L-B
+            side-points (list
+                         (cons (car scaled-aabb) (list 'center)) ;;Left
+                         (cons (cdr scaled-aabb) (list 'center)) ;;Right
+                         (cons (list 'center) (car scaled-aabb)) ;;Top
+                         (cons (list 'center) (cdr scaled-aabb))) ;;Bottom
+            scaling-points (append corner-points side-points)
+            origin-point (cons (cons 'ratio 0.5) (cons 'ratio 0.5))
+            ui-svg (edraw-dom-element
+                    'g
+                    :parent (edraw-ui-foreground-svg (edraw-get-editor target))
+                    :class "edraw-ui-transform"))
+      transformer)))
+
+(cl-defmethod edraw-get-editor ((transformer edraw-shape-transformer))
+  (edraw-get-editor (oref transformer target)))
+
+;;;;; Interactive Transform - Point Reference
+
+(cl-defmethod edraw-ref-xy ((transformer edraw-shape-transformer) ref)
+  "Return coordinates referenced by REF."
+  (with-slots (scaled-aabb) transformer
+    (let ((ref-x (car ref))
+          (ref-y (cdr ref)))
+      (edraw-xy
+       (pcase ref-x
+         (`(center) (edraw-rect-cx scaled-aabb))
+         (`(ratio . ,ratio) (+ (edraw-rect-left scaled-aabb)
+                               (* ratio (edraw-rect-width scaled-aabb))))
+         (`(global . ,xy)
+          (edraw-x
+           (edraw-matrix-mul-mat-xy
+            (edraw-get-inverse-transform-matrix-without-scaling transformer)
+            xy)))
+         (_ (edraw-x ref-x)))
+       (pcase ref-y
+         (`(center) (edraw-rect-cy scaled-aabb))
+         (`(ratio . ,ratio) (+ (edraw-rect-top scaled-aabb)
+                               (* ratio (edraw-rect-height scaled-aabb))))
+         (`(global . ,xy)
+          (edraw-y
+           (edraw-matrix-mul-mat-xy
+            (edraw-get-inverse-transform-matrix-without-scaling transformer)
+            xy)))
+         (_ (edraw-y ref-y)))))))
+
+(cl-defmethod edraw-ref-xy-set ((transformer edraw-shape-transformer)
+                                ref
+                                scaled-xy
+                                global-xy)
+  "Set coordinates referenced by REF to XY."
+  (with-slots (scaled-aabb) transformer
+    (let ((ref-x (car ref))
+          (ref-y (cdr ref)))
+      (pcase (car-safe ref-x)
+        ('center) ;;Do not change
+        ('ratio (setf (cdr ref-x) (if (/= (edraw-rect-width scaled-aabb) 0)
+                                      (/ (- (edraw-x scaled-xy)
+                                            (edraw-rect-left scaled-aabb))
+                                         (edraw-rect-width scaled-aabb))
+                                    0.5)))
+        ('global (setf (cdr ref-x) (edraw-x global-xy)))
+        (_ (setf (edraw-x ref-x) (edraw-x scaled-xy))))
+      (pcase (car-safe ref-y)
+        ('center) ;;Do not change
+        ('ratio (setf (cdr ref-y) (if (/= (edraw-rect-height scaled-aabb) 0)
+                                      (/ (- (edraw-y scaled-xy)
+                                            (edraw-rect-top scaled-aabb))
+                                         (edraw-rect-height scaled-aabb))
+                                    0.5)))
+        ('global (setf (cdr ref-y) (edraw-y global-xy)))
+        (_ (setf (edraw-y ref-y) (edraw-y scaled-xy)))))))
+
+(cl-defmethod edraw-ref-xy-transformed ((transformer edraw-shape-transformer)
+                                        ref matrix)
+  "Return coordinates referenced by REF converted by MATRIX."
+  (edraw-matrix-mul-mat-xy
+   matrix
+   (edraw-ref-xy transformer ref)))
+
+(cl-defmethod edraw-ref-xy-on-scaled ((transformer edraw-shape-transformer) ref)
+  (edraw-ref-xy transformer ref))
+
+(cl-defmethod edraw-ref-xy-on-global ((transformer edraw-shape-transformer) ref)
+  (edraw-ref-xy-transformed
+   transformer
+   ref
+   (edraw-get-transform-matrix-without-scaling transformer)))
+
+(cl-defmethod edraw-ref-xy-on-view ((transformer edraw-shape-transformer) ref)
+  (edraw-ref-xy-transformed
+   transformer
+   ref
+   (edraw-get-view-matrix-without-scaling transformer)))
+
+;;;;; Interactive Transform - Transform Matrix
+
+;; Transform Order:
+;; original-aabb
+;; => scale (and translate) => scaled-aabb, corner-points, side-points
+;; => rotate (rotation-angle)
+;; => translate (translation-delta)
+;; => view (scroll and zoom) transform
+
+(cl-defmethod edraw-get-transform-matrix-without-scaling ((transformer edraw-shape-transformer))
+  (with-slots (rotation-angle translation-delta) transformer
+    (edraw-matrix-mul-mat-mat
+     (edraw-matrix-translate-xy translation-delta)
+     (edraw-matrix-rotate rotation-angle))))
+
+(cl-defmethod edraw-get-transform-matrix ((transformer edraw-shape-transformer))
+  (with-slots (original-aabb scaled-aabb) transformer
+    (edraw-matrix-mul-mat-mat
+     (edraw-get-transform-matrix-without-scaling transformer)
+     (edraw-matrix-fit-rect-to-rect original-aabb scaled-aabb))))
+
+(cl-defmethod edraw-get-view-matrix-without-scaling ((transformer edraw-shape-transformer))
+  (edraw-matrix-mul-mat-mat
+   (edraw-scroll-transform-matrix (edraw-get-editor transformer))
+   (edraw-get-transform-matrix-without-scaling transformer)))
+
+(cl-defmethod edraw-get-view-matrix ((transformer edraw-shape-transformer))
+  (edraw-matrix-mul-mat-mat
+   (edraw-scroll-transform-matrix (edraw-get-editor transformer))
+   (edraw-get-transform-matrix transformer)))
+
+(cl-defmethod edraw-get-inverse-transform-matrix-without-scaling ((transformer edraw-shape-transformer))
+  (edraw-matrix-inverse
+   (edraw-get-transform-matrix-without-scaling transformer)))
+
+;;;;; Interactive Transform - UI SVG
+
+(defconst edraw-transform-origin-radius 5)
+(defconst edraw-transform-origin-input-radius 8)
+(defconst edraw-transform-origin-outer-radius 10)
+
+(defun edraw-svg-ui-transform-origin (parent xy)
+  (let* ((ox (edraw-x xy))
+         (oy (edraw-y xy))
+         (or edraw-transform-origin-outer-radius))
+    (edraw-dom-element
+     'g
+     :parent parent
+     :class "edraw-ui-transform-origin"
+     :children
+     (list
+      (edraw-svg-circle ox oy edraw-transform-origin-radius)
+      (edraw-svg-line (- ox or) oy (+ ox or) oy)
+      (edraw-svg-line ox (- oy or) ox (+ oy or))))))
+
+(defconst edraw-transform-handle-radius edraw-anchor-point-radius)
+(defconst edraw-transform-handle-input-radius (+ 3 edraw-transform-handle-radius))
+
+(defun edraw-svg-ui-transform-handle (parent xy)
+  (let ((r edraw-transform-handle-radius))
+    (edraw-svg-rect (- (car xy) r) (- (cdr xy) r) (* 2 r) (* 2 r)
+                    :parent parent
+                    :class "edraw-ui-transform-handle")))
+
+(cl-defmethod edraw-update-ui-svg ((transformer edraw-shape-transformer))
+  (with-slots (ui-svg corner-points scaling-points origin-point) transformer
+    (edraw-dom-remove-all-children ui-svg)
+
+    ;; Origin
+    (edraw-svg-ui-transform-origin
+     ui-svg
+     (edraw-ref-xy-on-view transformer origin-point))
+
+    ;; Corners and midpoint of sides
+    (dolist (ref scaling-points)
+      (let ((xy (edraw-ref-xy-on-view transformer ref)))
+        (edraw-svg-ui-transform-handle ui-svg xy)))
+
+    ;; Boundary Box
+    (svg-polygon ui-svg
+                 (mapcar
+                  (lambda (ref)
+                    (edraw-ref-xy-on-view transformer ref))
+                  corner-points)
+                 :class "edraw-ui-transform-boundary")))
+
+(cl-defmethod edraw-remove-ui-svg ((transformer edraw-shape-transformer))
+  (with-slots (ui-svg) transformer
+    (dom-remove-node (edraw-ui-foreground-svg (edraw-get-editor transformer))
+                     ui-svg)))
+
+;;;;; Interactive Transform - Get Transform Parameters
+
+(cl-defmethod edraw-scale-x ((transformer edraw-shape-transformer))
+  (let ((dst-size (edraw-rect-width (oref transformer scaled-aabb)))
+        (src-size (edraw-rect-width (oref transformer original-aabb))))
+    (if (= src-size 0)
+        1.0
+      (/ dst-size src-size))))
+
+(cl-defmethod edraw-scale-y ((transformer edraw-shape-transformer))
+  (let ((dst-size (edraw-rect-height (oref transformer scaled-aabb)))
+        (src-size (edraw-rect-height (oref transformer original-aabb))))
+    (if (= src-size 0)
+        1.0
+      (/ dst-size src-size))))
+
+(cl-defmethod edraw-rotation-angle ((transformer edraw-shape-transformer))
+  (oref transformer rotation-angle))
+
+(cl-defmethod edraw-origin-x-string ((transformer edraw-shape-transformer))
+  (let ((ref-x (car (oref transformer origin-point))))
+    (pcase (car-safe ref-x)
+      ('global (format "%.2f" (car (cdr ref-x))))
+      ('ratio (format "%.2f%%" (* 100 (cdr ref-x))))
+      ('center "center")
+      (_ (format "(%.2f)" (car ref-x))))))
+
+(cl-defmethod edraw-origin-y-string ((transformer edraw-shape-transformer))
+  (let ((ref-y (car (oref transformer origin-point))))
+    (pcase (car-safe ref-y)
+      ('global (format "%.2f" (cdr (cdr ref-y))))
+      ('ratio (format "%.2f%%" (* 100 (cdr ref-y))))
+      ('center "center")
+      (_ (format "(%.2f)" (cdr ref-y))))))
+
+;;;;; Interactive Transform - Set Transform Parameters
+
+(cl-defmethod edraw-on-transform-change ((transformer edraw-shape-transformer))
+  (edraw-invalidate-image (edraw-get-editor transformer))
+  (edraw-undo-all (edraw-get-editor transformer)) ;; Cancel previous changes
+  (edraw-transform (oref transformer target)
+                   (edraw-get-transform-matrix transformer)))
+
+(cl-defmethod edraw-scale-interactive ((transformer edraw-shape-transformer))
+  (let* ((sx (read-number (edraw-msg "Scale X: ") 1.0))
+         (sy (read-number (edraw-msg "Scale Y: ") sx)))
+    (edraw-scale transformer nil sx sy)))
+
+(cl-defmethod edraw-scale ((transformer edraw-shape-transformer)
+                           &optional origin-xy sx sy)
+  (with-slots (scaled-aabb origin-point) transformer
+    (unless origin-xy
+      (setq origin-xy (edraw-ref-xy-on-scaled transformer origin-point)))
+    (unless sx (setq sx 1))
+    (unless sy (setq sy 1))
+
+    (edraw-rect-scale scaled-aabb sx sy (edraw-x origin-xy) (edraw-y origin-xy))
+    (edraw-on-transform-change transformer)))
+
+(cl-defmethod edraw-set-scale-interactive ((transformer edraw-shape-transformer))
+  (let* ((sx (read-number (edraw-msg "Scale X: ") (edraw-scale-x transformer)))
+         (sy (read-number (edraw-msg "Scale Y: ") (edraw-scale-y transformer))))
+    (edraw-set-scale transformer nil sx sy)))
+
+(cl-defmethod edraw-set-scale ((transformer edraw-shape-transformer)
+                               &optional origin-xy sx sy)
+  (with-slots (original-aabb scaled-aabb origin-point) transformer
+    (unless origin-xy
+      (setq origin-xy (edraw-ref-xy-on-scaled transformer origin-point)))
+    (unless sx (setq sx 1))
+    (unless sy (setq sy 1))
+
+    (setq sx (/ sx (edraw-scale-x transformer)))
+    (setq sy (/ sy (edraw-scale-y transformer)))
+
+    (edraw-rect-scale scaled-aabb sx sy (edraw-x origin-xy) (edraw-y origin-xy))
+    (edraw-on-transform-change transformer)))
+
+(cl-defmethod edraw-rotate-interactive ((transformer edraw-shape-transformer))
+  (edraw-rotate transformer
+                nil
+                (read-number (edraw-msg "Angle: ") 0)))
+
+(cl-defmethod edraw-rotate ((transformer edraw-shape-transformer)
+                            &optional origin-xy angle)
+  (unless origin-xy
+    (setq origin-xy
+          (edraw-ref-xy-on-global transformer (oref transformer origin-point))))
+  (unless angle
+    (setq angle 0))
+
+  (let ((old-rotation-angle (oref transformer rotation-angle))
+        (old-translation-delta (oref transformer translation-delta)))
+    (oset transformer rotation-angle
+          (+ old-rotation-angle
+             angle))
+    (oset transformer translation-delta
+          (edraw-xy-add origin-xy
+                        (edraw-xy-rotate (edraw-xy-add (edraw-xy-neg
+                                                        origin-xy)
+                                                       old-translation-delta)
+                                         angle))))
+  (edraw-on-transform-change transformer))
+
+(cl-defmethod edraw-set-rotation-angle-interactive ((transformer edraw-shape-transformer))
+  (edraw-set-rotation-angle transformer
+                            nil
+                            (read-number (edraw-msg "Angle: ")
+                                         (edraw-rotation-angle transformer))))
+
+(cl-defmethod edraw-set-rotation-angle ((transformer edraw-shape-transformer)
+                                        &optional origin-xy angle)
+  (unless origin-xy
+    (setq origin-xy
+          (edraw-ref-xy-on-global transformer (oref transformer origin-point))))
+  (unless angle
+    (setq angle 0))
+
+  (let* ((old-rotation-angle (oref transformer rotation-angle))
+         (old-translation-delta (oref transformer translation-delta))
+         (angle-delta (- angle old-rotation-angle)))
+    (oset transformer rotation-angle angle)
+    (oset transformer translation-delta
+          (edraw-xy-add origin-xy
+                        (edraw-xy-rotate (edraw-xy-add (edraw-xy-neg
+                                                        origin-xy)
+                                                       old-translation-delta)
+                                         angle-delta))))
+  (edraw-on-transform-change transformer))
+
+(cl-defmethod edraw-translate-interactive ((transformer
+                                            edraw-shape-transformer))
+  (edraw-translate transformer
+                   (edraw-xy
+                    (read-number (edraw-msg "Delta X: ") 0)
+                    (read-number (edraw-msg "Delta Y: ") 0))))
+
+(cl-defmethod edraw-translate ((transformer edraw-shape-transformer) xy)
+  (with-slots (translation-delta) transformer
+    (setq translation-delta
+          (edraw-xy-add translation-delta xy)))
+  (edraw-on-transform-change transformer))
+
+(cl-defmethod edraw-set-transform-origin-interactive ((transformer
+                                                       edraw-shape-transformer))
+  (let (ox oy)
+    (while (null ox)
+      (let ((input (read-string (edraw-msg "Origin X(left, center, right, <percentage>%, or <coordinate>): "))))
+        (setq ox
+              (cond
+               ((string= input "left") (list 0.0))
+               ((string= input "center") (list 0.5))
+               ((string= input "right") (list 1.0))
+               ((string-match "\\`\\s-*\\([-+]?[0-9]+\\(?:\\.[0-9]*\\)?\\)\\(%?\\)\\s-*\\'" input)
+                (if (equal (match-string 2 input) "%")
+                    (list (/ (string-to-number (match-string 1 input)) 100.0))
+                  (string-to-number (match-string 1 input))))))))
+    (while (null oy)
+      (let ((input (read-string (edraw-msg "Origin Y(top, center, bottom, <percentage>%, or <coordinate>): "))))
+        (setq oy
+              (cond
+               ((string= input "top") (list 0.0))
+               ((string= input "center") (list 0.5))
+               ((string= input "bottom") (list 1.0))
+               ((string-match "\\`\\s-*\\([-+]?[0-9]+\\(?:\\.[0-9]*\\)?\\)\\(%?\\)\\s-*\\'" input)
+                (if (equal (match-string 2 input) "%")
+                    (list (/ (string-to-number (match-string 1 input))
+                             100.0))
+                  (string-to-number (match-string 1 input))))))))
+    (edraw-set-transform-origin transformer ox oy)))
+
+(cl-defmethod edraw-set-transform-origin ((transformer edraw-shape-transformer)
+                                          ox oy)
+  (with-slots (origin-point scaled-aabb) transformer
+    (let ((oxy (edraw-xy (if (numberp ox) ox 0) (if (numberp oy) oy 0))))
+      (setcar origin-point
+              (if (numberp ox) (cons 'global oxy)
+                (cons 'ratio (car ox))))
+      (setcdr origin-point
+              (if (numberp oy) (cons 'global oxy)
+                (cons 'ratio (car oy)))))
+    (edraw-invalidate-image (edraw-get-editor transformer))))
+
+;;;;; Interactive Transform - Mouse Event Handler
+
+(cl-defmethod edraw-on-mouse-down ((transformer edraw-shape-transformer)
+                                   down-event)
+  (or
+   (edraw-set-transform-origin-by-dragging transformer down-event)
+   (edraw-scale-by-dragging transformer down-event)
+   (edraw-translate-by-dragging transformer down-event)
+   (edraw-rotate-by-dragging transformer down-event)))
+
+(cl-defmethod edraw-scale-by-dragging ((transformer edraw-shape-transformer)
+                                       down-event)
+  (let* ((editor (edraw-get-editor transformer))
+         (down-xy (edraw-mouse-event-to-xy-raw editor down-event))
+         (input-radius (/ edraw-transform-handle-input-radius
+                          (float (edraw-scroll-scale editor))))
+         (ref (seq-find (lambda (ref)
+                          (<=
+                           (edraw-xy-distance-l-inf ;;square
+                            (edraw-ref-xy-on-global transformer ref)
+                            down-xy)
+                           input-radius))
+                        (oref transformer scaling-points))))
+    (when ref
+      (let ((old-xy (edraw-ref-xy-on-scaled transformer ref))
+            (matrix-inv (edraw-get-inverse-transform-matrix-without-scaling transformer))
+            (shift-p (memq 'shift (event-modifiers down-event))))
+        (edraw-track-dragging
+         down-event
+         (lambda (move-event)
+           (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
+             (when shift-p
+               (setq move-xy (edraw-xy-snap-to-45deg move-xy old-xy)));;@todo keep aspect ratio?
+             (edraw-ref-xy-set
+              transformer
+              ref
+              (edraw-matrix-mul-mat-xy matrix-inv move-xy)
+              move-xy)
+             (edraw-on-transform-change transformer)
+             (message (edraw-msg "Scale %.2f%% %.2f%%")
+                      (* 100.0 (edraw-scale-x transformer))
+                      (* 100.0 (edraw-scale-y transformer)))
+             ))))
+      t)))
+
+(cl-defmethod edraw-set-transform-origin-by-dragging ((transformer edraw-shape-transformer)
+                                                      down-event)
+  (let* ((editor (edraw-get-editor transformer))
+         (down-xy (edraw-mouse-event-to-xy-raw editor down-event))
+         (origin-point (oref transformer origin-point))
+         (input-radius (/ edraw-transform-origin-input-radius
+                          (float (edraw-scroll-scale editor))))
+         (ref (if (<= (edraw-xy-distance
+                       (edraw-ref-xy-on-global transformer origin-point)
+                       down-xy)
+                      input-radius)
+                  origin-point)))
+    (when ref
+      (let ((old-xy (edraw-ref-xy-on-scaled transformer ref))
+            (shift-p (memq 'shift (event-modifiers down-event))))
+        (edraw-track-dragging
+         down-event
+         (lambda (move-event)
+           (let ((move-xy (edraw-mouse-event-to-xy-raw editor move-event)))
+             (when shift-p
+               (setq move-xy (edraw-xy-snap-to-45deg move-xy old-xy)))
+
+             (if-let ((ratio-xy
+                       (seq-find (lambda (ratio-xy)
+                                   (< (edraw-xy-distance
+                                       (edraw-ref-xy-on-global
+                                        transformer
+                                        (cons (cons 'ratio (car ratio-xy))
+                                              (cons 'ratio (cdr ratio-xy))))
+                                       move-xy)
+                                      8)) ;;Max snap distance
+                                 '((0.0 . 0.0) (0.5 . 0.0) (1.0 . 0.0)
+                                   (0.0 . 0.5) (0.5 . 0.5) (1.0 . 0.5)
+                                   (0.0 . 1.0) (0.5 . 1.0) (1.0 . 1.0)))))
+                 ;; Relative
+                 (edraw-set-transform-origin transformer
+                                             (list (car ratio-xy))
+                                             (list (cdr ratio-xy)))
+               ;; Absolute
+               (let ((move-xy-snapped (edraw-snap-xy editor move-xy)))
+                 (edraw-set-transform-origin transformer
+                                             (edraw-x move-xy-snapped)
+                                             (edraw-y move-xy-snapped)))))))
+        t))))
+
+(cl-defmethod edraw-contains-point-p ((transformer edraw-shape-transformer)
+                                      down-xy)
+  (edraw-rect-contains-point-p
+   (oref transformer scaled-aabb)
+   (edraw-matrix-mul-mat-xy
+    (edraw-get-inverse-transform-matrix-without-scaling transformer)
+    down-xy)))
+
+(cl-defmethod edraw-translate-by-dragging ((transformer edraw-shape-transformer)
+                                           down-event)
+  (let* ((editor (edraw-get-editor transformer))
+         (down-xy (edraw-mouse-event-to-xy-raw editor down-event)))
+    (when (edraw-contains-point-p transformer down-xy)
+      (let ((down-xy-snapped (edraw-snap-xy editor down-xy))
+            (old-translation-delta (oref transformer translation-delta))
+            (shift-p (memq 'shift (event-modifiers down-event))))
+        (edraw-track-dragging
+         down-event
+         (lambda (move-event)
+           (let* ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
+             (when shift-p
+               (setq move-xy (edraw-xy-snap-to-45deg move-xy down-xy-snapped)))
+             (oset transformer translation-delta
+                   (edraw-xy-add old-translation-delta
+                                 (edraw-xy-sub move-xy down-xy-snapped)))
+             (edraw-on-transform-change transformer)))))
+      t)))
+
+(cl-defmethod edraw-rotate-by-dragging ((transformer edraw-shape-transformer)
+                                        down-event)
+  (let* ((editor (edraw-get-editor transformer))
+         (down-xy (edraw-mouse-event-to-xy-raw editor down-event))
+         (origin-xy (edraw-ref-xy-on-global transformer
+                                            (oref transformer origin-point)))
+         (down-angle (radians-to-degrees
+                      (edraw-xy-atan (edraw-xy-sub down-xy origin-xy))))
+         (old-rotation-angle (oref transformer rotation-angle))
+         (old-translation-delta (oref transformer translation-delta))
+         (shift-p (memq 'shift (event-modifiers down-event))))
+    (edraw-track-dragging
+     down-event
+     (lambda (move-event)
+       (let* ((move-xy (edraw-mouse-event-to-xy-raw editor move-event))
+              (move-angle (radians-to-degrees
+                           (edraw-xy-atan (edraw-xy-sub move-xy origin-xy))))
+              (angle-delta (- move-angle down-angle))
+              ;; If shift is pressed, rotate by 15 degree increments.
+              (angle-delta (if shift-p
+                               (edraw-grid-round angle-delta 15)
+                             angle-delta))
+              (new-rotation-angle (+ old-rotation-angle angle-delta)))
+         (message (edraw-msg "Rotate %.2fdeg") new-rotation-angle)
+         (oset transformer rotation-angle new-rotation-angle)
+         (oset transformer translation-delta
+               (edraw-xy-add origin-xy
+                             (edraw-xy-rotate (edraw-xy-add (edraw-xy-neg
+                                                             origin-xy)
+                                                            old-translation-delta)
+                                              angle-delta)))
+         (edraw-on-transform-change transformer))))
+    t))
+
+;;;;; Interactive Transform - Command
+
+(defun edraw-transform-interactive (target)
+  (let* ((transformer (edraw-shape-transformer-create target))
+         (editor (edraw-get-editor target))
+         result)
+
+    ;; Hide selection UI and show transformation UI
+    (oset editor selection-ui-visible nil)
+    (edraw-invalidate-ui-parts editor 'selection-ui)
+    (edraw-add-hook editor 'before-image-update
+                    'edraw-update-ui-svg transformer)
+    (edraw-invalidate-image editor)
+
+    ;;@todo Implement using transient keymap or editing tool. However,
+    ;;it is bad if it is transformed from another command before
+    ;;committing the transformation.
+    (edraw-editor-with-temp-modifications editor
+      (unwind-protect
+          (while (null result)
+            (let ((event (read-event
+                          (format (edraw-msg "q/R-Click:Cancel, RET/Dbl-Click:Commit,\ns:Scale(%.2f%% %.2f%%), r:Rotate(%.2fdeg), t:Translate,\no:Origin(%s %s), m:Transform Method(%s)")
+                                  (* 100 (edraw-scale-x transformer))
+                                  (* 100 (edraw-scale-y transformer))
+                                  (edraw-rotation-angle transformer)
+                                  (edraw-origin-x-string transformer)
+                                  (edraw-origin-y-string transformer)
+                                  (edraw-get-transform-method editor)
+                                  ))))
+              (cond
+               ;; Prefix C-c
+               ((eq event ?\C-c)
+                (pcase (read-event "C-c-")
+                  ;; Cancel
+                  (?\C-k (setq result 'cancel))
+                  ;; Commit
+                  (?\C-c (setq result 'ok))))
+               ;; Mouse Down
+               ((memq (car-safe event) '(S-down-mouse-1 down-mouse-1))
+                (edraw-on-mouse-down transformer event))
+               ;; Cancel
+               ((or (eq (car-safe event) 'mouse-3)
+                    (eq event ?q))
+                (setq result 'cancel))
+               ;; Commit
+               ((or (eq (car-safe event) 'double-down-mouse-1)
+                    (eq event ?\C-m)
+                    (eq event ?\C-j)
+                    (eq event 'return))
+                (setq result 'ok))
+               ;; Set Transform Parameters
+               ((eq event ?s)
+                (edraw-set-scale-interactive transformer))
+               ((eq event ?S)
+                (edraw-scale-interactive transformer))
+               ((eq event ?r)
+                (edraw-set-rotation-angle-interactive transformer))
+               ((eq event ?R)
+                (edraw-rotate-interactive transformer))
+               ((eq event ?t)
+                (edraw-translate-interactive transformer))
+               ((eq event ?o)
+                (edraw-set-transform-origin-interactive transformer))
+               ((eq event ?m)
+                (when-let ((method
+                            (pcase (read-char (edraw-msg "a:auto  t:transform property  p:anchor points"))
+                              (?a 'auto)
+                              (?t 'transform-property)
+                              (?p 'anchor-points))))
+                  (edraw-set-transform-method editor method)))
+               ;; ((memq (event-basic-type event) '(left up right down))
+               ;;  @todo translate by key
+               ;;  )
+               ;; Scroll
+               ((eq (car-safe event) 'down-mouse-2)
+                (edraw-editor-scroll-by-dragging event))
+               ((or (eq (car-safe event) mouse-wheel-down-event)
+                    (eq (car-safe event) (intern (concat "C-" (symbol-name mouse-wheel-down-event)))))
+                (edraw-zoom-in editor))
+               ((or (eq (car-safe event) mouse-wheel-up-event)
+                    (eq (car-safe event) (intern (concat "C-" (symbol-name mouse-wheel-up-event)))))
+                (edraw-zoom-out editor))
+               ((eq event ?0)
+                (edraw-reset-scroll-and-zoom editor))
+               ((eq event ?#)
+                (edraw-toggle-grid-visible editor))
+               )))
+        ;; Hide transformation UI and show selection UI
+        (edraw-remove-hook editor 'before-image-update
+                           'edraw-update-ui-svg transformer)
+        (edraw-remove-ui-svg transformer)
+        (edraw-invalidate-image editor)
+        (oset editor selection-ui-visible t)
+        (edraw-invalidate-ui-parts editor 'selection-ui)))
+    (when (eq result 'ok)
+      (edraw-transform target (edraw-get-transform-matrix transformer)))))
 
 
 
