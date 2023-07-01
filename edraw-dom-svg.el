@@ -32,30 +32,62 @@
 
 ;;;; DOM Utility
 
-(defun edraw-dom-attr-plist-to-alist (attr-plist &optional ignore-keys)
-  "Convert ATTR-PLIST to alist."
-  (cl-loop for (key value) on attr-plist by #'cddr
-           for key-symbol =
-           (cond
-            ((keywordp key) (intern (substring (symbol-name key) 1)))
-            ((symbolp key) key)
-            ((stringp key) (intern key)))
-           when (and key-symbol (not (memq key-symbol ignore-keys)))
-           collect (cons key-symbol value)))
+(defun edraw-dom-element (tag &rest attr-plist-and-children)
+  "Return a new DOM element with TAG and ATTR-PLIST-AND-CHILDREN.
 
-(defun edraw-dom-element (tag &rest attr-plist)
-  "Return a new DOM element with TAG and ATTR-PLIST."
-  (let* ((parent (plist-get attr-plist :parent))
-         (children (plist-get attr-plist :children))
-         (element (apply
-                   'dom-node
-                   tag
-                   (edraw-dom-attr-plist-to-alist attr-plist
-                                                  '(parent children))
-                   children)))
-    (when parent
-      (dom-append-child parent element))
-    element))
+ATTR-PLIST-AND-CHILDREN specifies the attributes and children of
+the new element. For example:
+
+(edraw-dom-element
+  \\='div
+  :class \"some-div\"
+  (edraw-dom-element \\='p \"Paragraph 1.\")
+  (edraw-dom-element \\='p \"Paragraph 2.\"))
+
+Attributes are specified in a property list starting at the
+beginning of ATTR-PLIST-AND-CHILDREN. A property list key must be
+a symbol. If the symbol is a keyword, the leading colon is
+ignored (i.e. :x and 'x are the same).
+
+If a non-symbol appears at the position where the key symbol of
+the property list should appear, the subsequent elements are
+treated as children.
+
+The following special properties can be specified.
+
+:parent    Parent DOM element.
+:children  A list of child DOM nodes.
+
+This function was intended to make it easier to express the
+structure of the DOM directly in the source code. If the
+attribute already exists in alist form, use dom-node."
+  (let ((children attr-plist-and-children)
+        attr-alist)
+    ;; Split ATTR-PLIST-AND-CHILDREN into ATTR-ALIST and CHILDREN.
+    (while (and children (symbolp (car children)))
+      (let* ((key (car children))
+             (value (cadr children))
+             (key-symbol
+              (cond
+               ((keywordp key) (intern (substring (symbol-name key) 1)))
+               ((symbolp key) key))))
+        (when (and key-symbol
+                   ;; Ignore :parent and :children
+                   (not (memq key-symbol '(parent children))))
+          (push (cons key-symbol value) attr-alist))
+        (setq children (cddr children))))
+    (setq attr-alist (nreverse attr-alist))
+
+    ;; :Support :children (list ...) notation.
+    (when-let ((attr-children (plist-get attr-plist-and-children :children)))
+      (setq children (nconc children attr-children)))
+
+    ;; Create an element
+    (let ((element (apply 'dom-node tag attr-alist children)))
+      ;; Append the element to parent
+      (when-let ((parent (plist-get attr-plist-and-children :parent)))
+        (dom-append-child parent element))
+      element)))
 
 (defun edraw-dom-element-p (node)
   (and node
@@ -282,28 +314,6 @@
      (buffer-substring-no-properties (point-min) (point-max)))
    nil))
 
-
-;;;; SVG Primitive
-
-(defun edraw-svg-rect (x y width height &rest attr-plist)
-  (apply #'edraw-dom-element
-         'rect
-         `(x ,x y ,y width ,width height ,height ,@attr-plist)))
-
-(defun edraw-svg-circle (cx cy r &rest attr-plist)
-  (apply #'edraw-dom-element
-         'circle
-         `(cx ,cx cy ,cy r ,r ,@attr-plist)))
-
-(defun edraw-svg-ellipse (cx cy rx ry &rest attr-plist)
-  (apply #'edraw-dom-element
-         'ellipse
-         `(cx ,cx cy ,cy rx ,rx ry ,ry ,@attr-plist)))
-
-(defun edraw-svg-line (x1 y1 x2 y2 &rest attr-plist)
-  (apply #'edraw-dom-element
-         'line
-         `(x1 ,x1 y1 ,y1 x2 ,x2 y2 ,y2 ,@attr-plist)))
 
 ;;;; SVG Attributes
 
@@ -539,45 +549,100 @@ are set as strings."
       (edraw-svg-element-transform-set element transform))))
 
 
+;;;; SVG Element Creation
 
-;;;; SVG Shape Creation
 
+(defun edraw-svg-rect (x y width height &rest attr-plist)
+  "Create a `rect' element.
+Attributes are specified by X, Y, WIDTH, HEIGHT, and ATTR-PLIST.
 
-;; (defun edraw-svg-rect (parent xy0 xy1 &rest args)
-;;   (let ((element (dom-node 'rect
-;;                            `((wwidth . ,(abs (- (car xy0) (car xy1))))
-;;                              (height . ,(abs (- (cdr xy0) (cdr xy1))))
-;;                              (x . ,(min (car xy0) (car xy1)))
-;;                              (y . ,(min (cdr xy0) (cdr xy1)))
-;;                              ,@(svg--arguments parent args)))))
-;;     (svg--append parent element) ;;Avoid duplicate ids
-;;     element)) ;;Return element
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'rect
+         `(x ,x y ,y width ,width height ,height ,@attr-plist)))
 
-;; (defun edraw-svg-ellipse (parent xy0 xy1 &rest args)
-;;   (let ((element (dom-node 'ellipse
-;;                            `((cx . ,(* 0.5 (+ (car xy0) (car xy1))))
-;;                              (cy . ,(* 0.5 (+ (cdr xy0) (cdr xy1))))
-;;                              (rx . ,(* 0.5 (abs (- (car xy0) (car xy1)))))
-;;                              (ry . ,(* 0.5 (abs (- (cdr xy0) (cdr xy1)))))
-;;                              ,@(svg--arguments parent args)))))
-;;     (svg--append parent element) ;;Avoid duplicate ids
-;;     element)) ;;Return element
+(defun edraw-svg-circle (cx cy r &rest attr-plist)
+  "Create a `circle' element.
+Attributes are specified by CX, CY, R, and ATTR-PLIST.
 
-;; (defun edraw-svg-path (parent d &rest args)
-;;   (let ((element (dom-node 'path
-;;                            `((d . ,d)
-;;                              ,@(svg--arguments parent args)))))
-;;     (svg--append parent element) ;;Avoid duplicate ids
-;;     element)) ;;Return element
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'circle
+         `(cx ,cx cy ,cy r ,r ,@attr-plist)))
 
-;; (defun edraw-svg-text (parent text xy &rest args)
-;;   (let ((element (dom-node 'text
-;;                            `((x . ,(car xy))
-;;                              (y . ,(cdr xy))
-;;                              ,@(svg--arguments parent args))
-;;                            text)))
-;;     (svg--append parent element) ;;Avoid duplicate ids
-;;     element)) ;;Return element
+(defun edraw-svg-ellipse (cx cy rx ry &rest attr-plist)
+  "Create an `ellipse' element.
+Attributes are specified by CX, CY, RX, RY, and ATTR-PLIST.
+
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'ellipse
+         `(cx ,cx cy ,cy rx ,rx ry ,ry ,@attr-plist)))
+
+(defun edraw-svg-line (x1 y1 x2 y2 &rest attr-plist)
+  "Create a `line' element.
+Attributes are specified by X1, Y1, X2, Y2, and ATTR-PLIST.
+
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'line
+         `(x1 ,x1 y1 ,y1 x2 ,x2 y2 ,y2 ,@attr-plist)))
+
+(defun edraw-svg-path (d &rest attr-plist)
+  "Create a `path' element.
+Attributes are specified by D, and ATTR-PLIST.
+
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'path
+         `(d ,d ,@attr-plist)))
+
+(defun edraw-svg-polygon (points &rest attr-plist)
+  "Create a `polygon' element.
+Attributes are specified by POINTS, and ATTR-PLIST.
+
+POINTS is a string or a list of cons cell representing coordinates.
+
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'polygon
+         `(points
+           ,(if (stringp points)
+                points
+              (mapconcat (lambda (xy) (format "%s %s" (car xy) (cdr xy)))
+                         points " "))
+           ,@attr-plist)))
+
+(defun edraw-svg-polyline (points &rest attr-plist)
+  "Create a `polyline' element.
+Attributes are specified by POINTS, and ATTR-PLIST.
+
+POINTS is a string or a list of cons cell representing coordinates.
+
+See `edraw-dom-element' for more information about ATTR-PLIST."
+  (apply #'edraw-dom-element
+         'polyline
+         `(points
+           ,(if (stringp points)
+                points
+              (mapconcat (lambda (xy) (format "%s %s" (car xy) (cdr xy)))
+                         points " "))
+           ,@attr-plist)))
+
+(defun edraw-svg-group (&rest attr-plist-and-children)
+  "Create a `g' element.
+Attributes and children are specified by ATTR-PLIST-AND-CHILDREN.
+
+For example:
+(edraw-svg-group
+  :class \"red-cross\"
+  :stroke \"red\"
+  :stroke-width 10
+  (edraw-svg-line 0 -100 0 100)
+  (edraw-svg-line -100 0 100 0))
+
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
+  (apply #'edraw-dom-element 'g attr-plist-and-children))
 
 
 ;;;; SVG Shape Rectangular Range Setting

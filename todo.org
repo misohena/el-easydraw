@@ -1,12 +1,6 @@
 
 
 * Inbox
-** TODO UI用SVG図形の構築でedraw-dom-elementやedraw-svg-を使うようにする
-svg-circle、svg-rectangle、svg-line、svg-ellipse等は余計な処理が挟まっているのと親子関係の構築方法がイマイチなので。
-あちこちにあるので全部直すのは案外大変かもしれない。
-- アイコン
-- edraw-svg-ui-*
-
 ** TODO ?キーでツールのヘルプを表示する
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
@@ -2179,3 +2173,12 @@ edraw-read-rectangleのようにread-eventループに入ってしまうのも�
   - +図形+ AABBの中→移動
   - +図形+ AABBの外→回転
   - +図形+ AABBの角や辺→スケーリング
+** DONE UI用SVG図形の構築でedraw-dom-elementやedraw-svg-を使うようにする
+CLOSED: [2023-07-01 Sat 13:45]
+svg-circle、svg-rectangle、svg-line、svg-ellipse等は余計な処理が挟まっているのと親子関係の構築方法がイマイチなので。
+あちこちにあるので全部直すのは案外大変かもしれない。
+- アイコン
+- edraw-svg-ui-*
+- ツールバーまわり
+- ドキュメントの背景
+- その他

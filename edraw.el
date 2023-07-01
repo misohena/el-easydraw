@@ -843,10 +843,11 @@ For use with `edraw-editor-with-temp-undo-list',
          (background (or background (alist-get 'background edraw-default-document-properties)))
          (svg (svg-create width height)))
     (when (and background (not (equal background "none")))
-      (svg-rectangle svg 0 0 width height
-                     :id edraw-editor-svg-background-id
-                     :stroke "none"
-                     :fill background))
+      (edraw-svg-rect 0 0 width height
+                      :parent svg
+                      :id edraw-editor-svg-background-id
+                      :stroke "none"
+                      :fill background))
 
     ;; #edraw-body
     ;; If children='(nil), create #edraw-body only.
@@ -1156,8 +1157,7 @@ For use with `edraw-editor-with-temp-undo-list',
         ;; add background
         (dom-add-child-before
          svg
-         (dom-node 'rect (list (cons 'fill fill)
-                               (cons 'id edraw-editor-svg-background-id)))
+         (edraw-svg-rect 0 0 0 0 :fill fill :id edraw-editor-svg-background-id)
          (edraw-svg-body editor))
         (edraw-update-background editor)
         (edraw-invalidate-ui-parts editor 'scroll-transform) ;;update <rect transform=>
@@ -1530,14 +1530,14 @@ For use with `edraw-editor-with-temp-undo-list',
 (cl-defmethod edraw-ui-defs-svg ((editor edraw-editor))
   (with-slots (svg) editor
     (or (edraw-dom-get-by-id svg "edraw-ui-defs")
-        (let ((defs (dom-node 'defs (list (cons 'id "edraw-ui-defs")))))
+        (let ((defs (edraw-dom-element 'defs :id "edraw-ui-defs")))
           (edraw-dom-insert-first svg defs)
           defs))))
 
 (cl-defmethod edraw-ui-background-svg ((editor edraw-editor))
   (with-slots (svg) editor
     (or (edraw-dom-get-by-id svg "edraw-ui-background")
-        (let ((g (dom-node 'g (list (cons 'id "edraw-ui-background")))))
+        (let ((g (edraw-svg-group :id "edraw-ui-background")))
           (edraw-dom-insert-first svg g)
           g))))
 
@@ -1674,39 +1674,37 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (defun edraw-svg-ui-transparent-bg (width height)
   "Create a svg element of transparent background."
-  (dom-node 'g '((id . "edraw-ui-transparent-bg"))
-            (dom-node 'rect
-                      `((x . 0) (y . 0) (width . ,width) (height . ,height)
-                        (fill . ,edraw-editor-transparent-bg-color1)
-                        (stroke . "none")))
-            (dom-node 'rect
-                      `((x . 0) (y . 0) (width . ,width) (height . ,height)
-                        (fill . "url(#edraw-ui-pattern-transparent-bg)")
-                        (stroke . "none")))))
+  (edraw-svg-group
+   :id "edraw-ui-transparent-bg"
+   (edraw-svg-rect 0 0 width height
+                   :fill edraw-editor-transparent-bg-color1
+                   :stroke "none")
+   (edraw-svg-rect 0 0 width height
+                   :fill "url(#edraw-ui-pattern-transparent-bg)"
+                   :stroke "none")))
 
 (defun edraw-svg-ui-transparent-bg-pattern ()
   "Create a svg pattern of transparent background."
-  (dom-node 'pattern
-            `((id . "edraw-ui-pattern-transparent-bg")
-              (x . 0)
-              (y . 0)
-              (width . ,(* 2 edraw-editor-transparent-bg-grid-size))
-              (height . ,(* 2 edraw-editor-transparent-bg-grid-size))
-              (patternUnits . "userSpaceOnUse"))
-            (dom-node 'rect
-                      `((x . ,edraw-editor-transparent-bg-grid-size)
-                        (y . 0)
-                        (width . ,edraw-editor-transparent-bg-grid-size)
-                        (height . ,edraw-editor-transparent-bg-grid-size)
-                        (fill . ,edraw-editor-transparent-bg-color2)
-                        (stroke . "none")))
-            (dom-node 'rect
-                      `((x . 0)
-                        (y . ,edraw-editor-transparent-bg-grid-size)
-                        (width . ,edraw-editor-transparent-bg-grid-size)
-                        (height . ,edraw-editor-transparent-bg-grid-size)
-                        (fill . ,edraw-editor-transparent-bg-color2)
-                        (stroke . "none")))))
+  (edraw-dom-element
+   'pattern
+   :id "edraw-ui-pattern-transparent-bg"
+   :x 0
+   :y 0
+   :width (* 2 edraw-editor-transparent-bg-grid-size)
+   :height (* 2 edraw-editor-transparent-bg-grid-size)
+   :patternUnits "userSpaceOnUse"
+   (edraw-svg-rect edraw-editor-transparent-bg-grid-size
+                   0
+                   edraw-editor-transparent-bg-grid-size
+                   edraw-editor-transparent-bg-grid-size
+                   :fill edraw-editor-transparent-bg-color2
+                   :stroke "none")
+   (edraw-svg-rect 0
+                   edraw-editor-transparent-bg-grid-size
+                   edraw-editor-transparent-bg-grid-size
+                   edraw-editor-transparent-bg-grid-size
+                   :fill edraw-editor-transparent-bg-color2
+                   :stroke "none")))
 
 ;;;;;; Editor - View - Grid
 
@@ -1737,19 +1735,18 @@ For use with `edraw-editor-with-temp-undo-list',
                (view-y-max (edraw-scroll-view-height editor)))
           (cl-loop for x from x0 to x1 by step-interval
                    for xv = (edraw-scroll-transform-x editor x)
-                   do (svg-line g xv view-y-min xv view-y-max
-                                :class (if (= x 0)
-                                           "edraw-ui-axis-line"
-                                         "edraw-ui-grid-line")))
+                   do (edraw-svg-line xv view-y-min xv view-y-max
+                                      :parent g
+                                      :class (if (= x 0)
+                                                 "edraw-ui-axis-line"
+                                               "edraw-ui-grid-line")))
           (cl-loop for y from y0 to y1 by step-interval
                    for yv = (edraw-scroll-transform-y editor y)
-                   do (svg-line g view-x-min yv view-x-max yv
-                                :class (if (= y 0)
-                                           "edraw-ui-axis-line"
-                                         "edraw-ui-grid-line"))))
-
-        ;;(edraw-dom-invalidate g)
-        ))))
+                   do (edraw-svg-line view-x-min yv view-x-max yv
+                                      :parent g
+                                      :class (if (= y 0)
+                                                 "edraw-ui-axis-line"
+                                               "edraw-ui-grid-line"))))))))
 
 (cl-defmethod edraw-set-grid-visible ((editor edraw-editor) visible)
   (edraw-set-setting editor 'grid-visible visible)
@@ -1803,19 +1800,20 @@ For use with `edraw-editor-with-temp-undo-list',
                                   (lambda (xy)
                                     (edraw-matrix-mul-mat-xy matrix xy))
                                   (edraw-rect-corner-points aabb))))
-                    (svg-polygon g points
-                                 :class
-                                 "edraw-ui-shape-boundary")))))
+                    (edraw-svg-polygon points
+                                       :parent g
+                                       :class "edraw-ui-shape-boundary")))))
             ;; ;; Global AABB
             ;; (when (memq (edraw-shape-type shape) '(text image g))
             ;;   (let ((aabb (edraw-scroll-transform-rect
             ;;                editor (edraw-shape-aabb shape))))
             ;;     (unless (edraw-rect-empty-p aabb)
-            ;;       (svg-rectangle g
+            ;;       (edraw-svg-rect
             ;;                      (edraw-rect-left aabb)
             ;;                      (edraw-rect-top aabb)
             ;;                      (edraw-rect-width aabb)
             ;;                      (edraw-rect-height aabb)
+            ;;                      :parent g
             ;;                      :class
             ;;                      "edraw-ui-shape-boundary"))))
             ))
@@ -1831,9 +1829,7 @@ For use with `edraw-editor-with-temp-undo-list',
       (progn
         (edraw-dom-remove-all-children g)
         g)
-    (let ((g (dom-node 'g `((id . "edraw-ui-shape-points")))))
-      (dom-append-child parent g)
-      g)))
+    (edraw-svg-group :id "edraw-ui-shape-points" :parent parent)))
 
 (defun edraw-svg-ui-shape-points (parent
                                   editor
@@ -1869,23 +1865,24 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (defun edraw-svg-ui-anchor-point (parent xy &optional selected)
   (let ((r edraw-anchor-point-radius))
-    (svg-rectangle parent (- (car xy) r) (- (cdr xy) r) (* 2 r) (* 2 r)
-                   :class (if selected
-                              "edraw-ui-anchor-point-selected"
-                            "edraw-ui-anchor-point"))))
+    (edraw-svg-rect (- (car xy) r) (- (cdr xy) r) (* 2 r) (* 2 r)
+                    :parent parent
+                    :class (if selected
+                               "edraw-ui-anchor-point-selected"
+                             "edraw-ui-anchor-point"))))
 
 (defun edraw-svg-ui-handle-point (parent handle-xy anchor-xy
                                          &optional selected)
-  (svg-line parent
-            (car handle-xy) (cdr handle-xy)
-            (car anchor-xy) (cdr anchor-xy)
-            :class "edraw-ui-handle-line")
-  (svg-circle parent
-              (car handle-xy) (cdr handle-xy)
-              edraw-handle-point-radius
-              :class (if selected
-                         "edraw-ui-handle-point-selected"
-                       "edraw-ui-handle-point")))
+  (edraw-svg-line (car handle-xy) (cdr handle-xy)
+                  (car anchor-xy) (cdr anchor-xy)
+                  :parent parent
+                  :class "edraw-ui-handle-line")
+  (edraw-svg-circle (car handle-xy) (cdr handle-xy)
+                    edraw-handle-point-radius
+                    :parent parent
+                    :class (if selected
+                               "edraw-ui-handle-point-selected"
+                             "edraw-ui-handle-point")))
 
 ;;;;;; Editor - View - Scroll and Zoom
 
@@ -3117,7 +3114,7 @@ position where the EVENT occurred."
     (let* (;; Put components
            (icon-w edraw-editor-toolbar-button-w)
            (icon-h edraw-editor-toolbar-button-h)
-           (components-g (dom-node 'g))
+           (components-g (edraw-svg-group))
            (current-tool-class-name
             (and current-tool (eieio-object-class-name current-tool)))
            (padding 4)
@@ -3194,19 +3191,14 @@ position where the EVENT occurred."
                                 '((0 . "rgba(255,255,255,0.5)")
                                   (100 . "rgba(255,255,255,0.0)")))
                   (dom-append-child
-                   svg
-                   (dom-node
-                    'defs nil
-                    (edraw-svg-ui-transparent-bg-pattern)))
-                  (let ((root-g
-                         (dom-node
-                          'g
-                          (list (cons 'transform
-                                      (format "scale(%s)" image-scale))))))
-                    (dom-append-child svg root-g)
-                    (svg-rectangle root-g 0 0 bar-w bar-h :fill "#888")
-                    (dom-append-child root-g components-g)
-                    svg)))
+                   (dom-by-tag svg 'defs)
+                   (edraw-svg-ui-transparent-bg-pattern))
+                  (edraw-svg-group ;;root-g
+                   :parent svg
+                   :transform (format "scale(%s)" image-scale)
+                   (edraw-svg-rect 0 0 bar-w bar-h :fill "#888")
+                   components-g)
+                  svg))
            ;; Create image
            (image (edraw-svg-to-image svg
                                       :scale 1.0 ;;Cancel image-scale effect
@@ -3233,12 +3225,9 @@ position where the EVENT occurred."
          (y0 (floor y))
          (x1 (ceiling (+ x w)))
          (y1 (ceiling (+ y h))))
-    (svg-rectangle parent
-                   x0
-                   y0
-                   (- x1 x0)
-                   (- y1 y0)
-                   :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
+    (edraw-svg-rect x0 y0 (- x1 x0) (- y1 y0)
+                    :parent parent
+                    :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
     (edraw-svg-set-attr-string icon 'transform (format "translate(%s %s)" x0 y0))
     (dom-append-child parent icon)
 
@@ -3329,27 +3318,25 @@ position where the EVENT occurred."
 ;; Icon 30x24
 
 (defun edraw-editor-make-icon (icon-id)
-  (let ((g (dom-node 'g)))
-    (funcall (intern (format "edraw-icon-%s" icon-id)) g)
-    g))
+  (funcall (intern (format "edraw-icon-%s" icon-id))))
 
-(defun edraw-icon-main-menu (g)
-  (svg-rectangle g 3 4 24 2 :stroke-width 1 :stroke "none" :fill "#eee")
-  (svg-rectangle g 3 11 24 2 :stroke-width 1 :stroke "none" :fill "#eee")
-  (svg-rectangle g 3 18 24 2 :stroke-width 1 :stroke "none" :fill "#eee"))
+(defun edraw-icon-main-menu ()
+  (edraw-svg-group
+   (edraw-svg-rect 3 4 24 2 :stroke-width 1 :stroke "none" :fill "#eee")
+   (edraw-svg-rect 3 11 24 2 :stroke-width 1 :stroke "none" :fill "#eee")
+   (edraw-svg-rect 3 18 24 2 :stroke-width 1 :stroke "none" :fill "#eee")))
 
-(defun edraw-icon-edit-tool-properties (g)
-  (svg-rectangle g  3  4  3 3 :stroke "none" :fill "#ccc")
-  (svg-rectangle g  9  4 18 3 :stroke "none" :fill "#ccc")
-  (svg-rectangle g  3 10  3 3 :stroke "none" :fill "#ccc")
-  (svg-rectangle g  9 10 18 3 :stroke "none" :fill "#ccc")
-  (svg-rectangle g  3 16  3 3 :stroke "none" :fill "#ccc")
-  (svg-rectangle g  9 16 18 3 :stroke "none" :fill "#ccc"))
+(defun edraw-icon-edit-tool-properties ()
+  (edraw-svg-group
+   (edraw-svg-rect 3  4  3 3 :stroke "none" :fill "#ccc")
+   (edraw-svg-rect 9  4 18 3 :stroke "none" :fill "#ccc")
+   (edraw-svg-rect 3 10  3 3 :stroke "none" :fill "#ccc")
+   (edraw-svg-rect 9 10 18 3 :stroke "none" :fill "#ccc")
+   (edraw-svg-rect 3 16  3 3 :stroke "none" :fill "#ccc")
+   (edraw-svg-rect 9 16 18 3 :stroke "none" :fill "#ccc")))
 
 (defun edraw-editor-make-tool-icon (tool-id)
-  (let ((g (dom-node 'g)))
-    (funcall (intern (format "%s--icon" tool-id)) g)
-    g))
+  (funcall (intern (format "%s--icon" tool-id))))
 
 ;; (defun edraw-preview-icon (name)
 ;;   (interactive "sIcon Name(e.g.tool-text): ")
@@ -3377,39 +3364,39 @@ position where the EVENT occurred."
            (tag-value (edraw-get-selected-tool-default-shape-property
                        editor prop-name)))
       (if (null tag-value)
-          (svg-rectangle parent ix iy iw ih :fill "none" :stroke "#666" :stroke-width "1")
+          (edraw-svg-rect ix iy iw ih
+                          :parent parent
+                          :fill "none" :stroke "#666" :stroke-width "1")
         (let* ((value (cdr tag-value))
                (none-p (or (null value) (string= value "none")))
-               (icon (let ((g (dom-node 'g)))
-                       (cond
-                        (none-p
-                         (svg-rectangle
-                          g ix iy iw ih
-                          :fill "none" :stroke "#666" :stroke-width "1")
-                         (dom-append-child
-                          g
-                          (dom-node
-                           'path
-                           `((d . ,(concat
-                                    "M"
-                                    (mapconcat #'number-to-string
-                                               (list ix iy
-                                                     (+ ix 2) iy
-                                                     (+ ix iw) (+ iy ih -2)
-                                                     (+ ix iw) (+ iy ih)
-                                                     (+ ix iw -2) (+ iy ih)
-                                                     ix (+ iy 2)) " ")
-                                    "Z"))
-                             (fill . "#f003")))))
-                        (t
-                         (svg-rectangle g ix iy iw ih
+               (icon (cond
+                      (none-p
+                       (edraw-svg-group
+                        (edraw-svg-rect
+                         ix iy iw ih
+                         :fill "none" :stroke "#666" :stroke-width "1")
+                        (edraw-svg-path
+                         (concat
+                          "M"
+                          (mapconcat #'number-to-string
+                                     (list ix iy
+                                           (+ ix 2) iy
+                                           (+ ix iw) (+ iy ih -2)
+                                           (+ ix iw) (+ iy ih)
+                                           (+ ix iw -2) (+ iy ih)
+                                           ix (+ iy 2))
+                                     " ")
+                          "Z")
+                         :fill "#f003")))
+                      (t
+                       (edraw-svg-group
+                        (edraw-svg-rect ix iy iw ih
                                         :fill "#fff" :stroke "#444"
                                         :stroke-width "1")
-                         (svg-rectangle g ix iy iw ih
+                        (edraw-svg-rect ix iy iw ih
                                         :fill
                                         "url(#edraw-ui-pattern-transparent-bg")
-                         (svg-rectangle g ix iy iw ih :fill value)))
-                       g))
+                        (edraw-svg-rect ix iy iw ih :fill value)))))
                (key-id (intern (format "edraw-editor-edit-tool-default-%s"
                                        prop-name))))
           (edraw-editor-make-toolbar-button
@@ -3667,13 +3654,12 @@ position where the EVENT occurred."
         (shift-p (memq 'shift (event-modifiers down-event))))
     (edraw-ui-foreground-svg editor)
     (let ((ui-parent (edraw-ui-foreground-svg editor))
-          (ui-preview (dom-node 'rect `((class . "edraw-ui-read-rectangle")
-                                        (x . ,(edraw-scroll-transform-x
-                                               editor (car down-xy)))
-                                        (y . ,(edraw-scroll-transform-x
-                                               editor (cdr down-xy)))
-                                        (width . 1)
-                                        (height . 1))))
+          (ui-preview (edraw-svg-rect
+                       (edraw-scroll-transform-x editor (car down-xy))
+                       (edraw-scroll-transform-x editor (cdr down-xy))
+                       1
+                       1
+                       :class "edraw-ui-read-rectangle"))
           move-xy)
       (dom-append-child ui-parent ui-preview)
       (unwind-protect
@@ -3826,14 +3812,12 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-select--title () (edraw-msg "Select Tool"))
 
-(defun edraw-editor-tool-select--icon (g)
-  (dom-append-child
-   g
-   (dom-node 'path
-             '((d . "M 6 3 L 21 10 17 12 23 18 21 20 15 14 13 18 z")
-               (stroke . "#ccc")
-               (stroke-width . 1)
-               (fill . "url(#icon-fg-gradient)")))))
+(defun edraw-editor-tool-select--icon ()
+  (edraw-svg-group
+   (edraw-svg-path "M 6 3 L 21 10 17 12 23 18 21 20 15 14 13 18 z"
+                   :stroke "#ccc"
+                   :stroke-width 1
+                   :fill "url(#icon-fg-gradient)")))
 
 (defclass edraw-editor-tool-select (edraw-editor-tool)
   ())
@@ -3912,9 +3896,11 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-rect--title () (edraw-msg "Rect Tool"))
 
-(defun edraw-editor-tool-rect--icon (g)
-  (svg-rectangle
-   g 6.5 6.5 18 12 :stroke-width 1 :stroke "#ccc" :gradient "icon-fg-gradient"))
+(defun edraw-editor-tool-rect--icon ()
+  (edraw-svg-group
+   (edraw-svg-rect
+    6.5 6.5 18 12
+    :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
 
 (defclass edraw-editor-tool-rect (edraw-editor-tool)
   ()
@@ -3979,9 +3965,11 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-ellipse--title () (edraw-msg "Ellipse Tool"))
 
-(defun edraw-editor-tool-ellipse--icon (g)
-  (svg-ellipse
-   g 15 12 9 6 :stroke-width 1 :stroke "#ccc" :gradient "icon-fg-gradient"))
+(defun edraw-editor-tool-ellipse--icon ()
+  (edraw-svg-group
+   (edraw-svg-ellipse
+    15 12 9 6
+    :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
 
 (defclass edraw-editor-tool-ellipse (edraw-editor-tool)
   ()
@@ -4045,20 +4033,17 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-text--title () (edraw-msg "Text Tool"))
 
-(defun edraw-editor-tool-text--icon (g)
-  (dom-append-child
-   g
-   (dom-node 'path
-             ;;     8 9 11  14 15 16  19 21 22
-             ;; 4.5 +----      +---        -+
-             ;;   5 |   +     + +       +   |
-             ;;   7 + +       | |         + +
-             ;;             + + + +
-             ;;   18        +-----+
-             '((d . "M 8 4.5 L 22 4.5 L 22 7 L 21 7 Q 21 5 19 5 L 16 5 L 16 17.5 L18 17.5 L 18 18 L 12 18 L 12 17.5 L 14 17.5 L 14 5 L 11 5 Q 9 5 9 7 L 8 7 z")
-               (stroke . "#ccc")
-               (stroke-width . 1)
-               (fill . "url(#icon-fg-gradient)")))))
+(defun edraw-editor-tool-text--icon ()
+  (edraw-svg-group
+   (edraw-svg-path
+    ;;     8 9 11  14 15 16  19 21 22
+    ;; 4.5 +----      +---        -+
+    ;;   5 |   +     + +       +   |
+    ;;   7 + +       | |         + +
+    ;;             + + + +
+    ;;   18        +-----+
+    "M 8 4.5 L 22 4.5 L 22 7 L 21 7 Q 21 5 19 5 L 16 5 L 16 17.5 L18 17.5 L 18 18 L 12 18 L 12 17.5 L 14 17.5 L 14 5 L 11 5 Q 9 5 9 7 L 8 7 z"
+    :stroke "#ccc" :stroke-width 1 :fill "url(#icon-fg-gradient)")))
 
 (defclass edraw-editor-tool-text (edraw-editor-tool)
   ()
@@ -4129,13 +4114,15 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-image--title () (edraw-msg "Image Tool"))
 
-(defun edraw-editor-tool-image--icon (g)
-  (svg-rectangle
-   g 4.5 4.5 22 15 :stroke-width 1 :stroke "#ccc" :gradient "icon-fg-gradient")
-  (svg-ellipse
-   g 11 9 2.5 2.5 :fill "#888")
-  (svg-node
-   g 'path :d "M10 13 14 15 20 10 26 16 26 18 5 18 10 13Z" :fill "#666"))
+(defun edraw-editor-tool-image--icon ()
+  (edraw-svg-group
+   (edraw-svg-rect
+    4.5 4.5 22 15
+    :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")
+   (edraw-svg-ellipse
+    11 9 2.5 2.5 :fill "#888")
+   (edraw-svg-path
+    "M10 13 14 15 20 10 26 16 26 18 5 18 10 13Z" :fill "#666")))
 
 (defclass edraw-editor-tool-image (edraw-editor-tool)
   ()
@@ -4183,14 +4170,14 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-path--title () (edraw-msg "Path Tool"))
 
-(defun edraw-editor-tool-path--icon (g)
-  (svg-node
-   g 'path :d "M 4 18 Q 10 6 16 6 Q 22 6 28 18"
-   :stroke-width 1 :stroke "#ccc" :fill "none")
-  (svg-rectangle g 14 4 4 4 :stroke "none" :gradient "icon-fg-gradient")
-  (svg-line g 7 6 25 6 :stroke-width 0.5 :stroke "#ccc")
-  (svg-circle g 7 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none")
-  (svg-circle g 25 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none"))
+(defun edraw-editor-tool-path--icon ()
+  (edraw-svg-group
+   (edraw-svg-path "M 4 18 Q 10 6 16 6 Q 22 6 28 18"
+                   :stroke-width 1 :stroke "#ccc" :fill "none")
+   (edraw-svg-rect 14 4 4 4 :stroke "none" :fill "url(#icon-fg-gradient)")
+   (edraw-svg-line 7 6 25 6 :stroke-width 0.5 :stroke "#ccc")
+   (edraw-svg-circle 7 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none")
+   (edraw-svg-circle 25 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none")))
 
 (defclass edraw-editor-tool-path (edraw-editor-tool)
   ((editing-path
@@ -4486,10 +4473,11 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-freehand--title () (edraw-msg "Freehand Tool"))
 
-(defun edraw-editor-tool-freehand--icon (g)
-  (svg-node
-   g 'path :d "M 4 19 C 15 -3 14 31 27 5"
-   :stroke-width 1 :stroke "#ccc" :fill "none"))
+(defun edraw-editor-tool-freehand--icon ()
+  (edraw-svg-group
+   (edraw-svg-path
+    "M 4 19 C 15 -3 14 31 27 5"
+    :stroke-width 1 :stroke "#ccc" :fill "none")))
 
 (defclass edraw-editor-tool-freehand (edraw-editor-tool)
   ())
@@ -4561,10 +4549,11 @@ position where the EVENT occurred."
 
 (defun edraw-editor-tool-custom-shape--title () (edraw-msg "Custom Shape Tool"))
 
-(defun edraw-editor-tool-custom-shape--icon (g)
-  (svg-node
-   g 'path :d "M14,4C16,2 18,0 20,2C22,4 18,6 20,8C22,10 26,8 26,12C26,14 22,12 20,14C18,16 24,20 20,22C16,24 16,16 12,16C8,16 4,20 4,16C4,14 6,12 8,10C10,8 4,6 6,4C8,2 12,6 14,4Z"
-   :stroke-width 1 :stroke "#ccc" :gradient "icon-fg-gradient"))
+(defun edraw-editor-tool-custom-shape--icon ()
+  (edraw-svg-group
+   (edraw-svg-path
+    "M14,4C16,2 18,0 20,2C22,4 18,6 20,8C22,10 26,8 26,12C26,14 22,12 20,14C18,16 24,20 20,22C16,24 16,16 12,16C8,16 4,20 4,16C4,14 6,12 8,10C10,8 4,6 6,4C8,2 12,6 14,4Z"
+    :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
 
 (defclass edraw-editor-tool-custom-shape (edraw-editor-tool)
   ((on-picker-notify :initform nil)
@@ -8225,12 +8214,12 @@ possible. Because undoing invalidates all point objects."
         (edraw-svg-ui-transform-handle ui-svg xy)))
 
     ;; Boundary Box
-    (svg-polygon ui-svg
-                 (mapcar
-                  (lambda (ref)
-                    (edraw-ref-xy-on-view transformer ref))
-                  corner-points)
-                 :class "edraw-ui-transform-boundary")))
+    (edraw-svg-polygon (mapcar
+                        (lambda (ref)
+                          (edraw-ref-xy-on-view transformer ref))
+                        corner-points)
+                       :parent ui-svg
+                       :class "edraw-ui-transform-boundary")))
 
 (cl-defmethod edraw-remove-ui-svg ((transformer edraw-shape-transformer))
   (with-slots (ui-svg) transformer
