@@ -2182,3 +2182,7 @@ svg-circle、svg-rectangle、svg-line、svg-ellipse等は余計な処理が挟�
 - ツールバーまわり
 - ドキュメントの背景
 - その他
+** DONE ORG/インライン画像の最大表示サイズを指定出来るようにする
+CLOSED: [2023-07-01 Sat 20:18]
+機能的には[[https://github.com/misohena/org-inline-image-fix#limit-inline-image-sizeorg-limit-image-sizeel][misohena/org-inline-image-fix]]と同じでよい。
+edraw-org-link-image-max-size変数を追加する。

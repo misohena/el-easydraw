@@ -85,6 +85,24 @@ is expanded. Since the cause is not clear, it is expanded by default."
   :group 'edraw-org
   :type '(boolean))
 
+(defcustom edraw-org-link-image-max-size '(0.92 . 0.92)
+  "Maximum size of inline images."
+  :group 'edraw-org
+  :type
+  '(choice
+    (const :tag "No limit" nil)
+    (integer :tag "Number of pixels")
+    (float :tag "Ratio to frame size")
+    (cons :tag "Width and Height"
+          (choice :tag "Width"
+                  (const :tag "No limit" nil)
+                  (integer :tag "Number of pixels")
+                  (float :tag "Ratio to frame width")
+                  )
+          (choice :tag "Height"
+                  (const :tag "No limit" nil)
+                  (integer :tag "Number of pixels")
+                  (float :tag "Ratio to frame height")))))
 
 
 ;;;; Link Type
@@ -574,7 +592,30 @@ Allowed values for TARGET-TYPE are:
 (defun edraw-org-link-image-create (link-props)
   (let ((file-or-data (edraw-org-link-props-image-data-or-file link-props)))
     (when file-or-data
-      (create-image (car file-or-data) 'svg (cdr file-or-data)))))
+      (let (image-props)
+        (when-let ((max-width (edraw-org-link-image-max-size t)))
+          (setq image-props `(:max-width ,max-width ,@image-props)))
+        (when-let ((max-height (edraw-org-link-image-max-size nil)))
+          (setq image-props `(:max-height ,max-height ,@image-props)))
+        (apply #'create-image
+               (car file-or-data) ;; FILE-OR-DATA
+               'svg ;;TYPE
+               (cdr file-or-data) ;;DATA-P
+               image-props))))) ;;PROPS
+
+(defun edraw-org-link-image-max-size (width-p)
+  "Return the maximum size of the image in pixels.
+If WIDTH-P is non-nil, return width, otherwise return height."
+  (let ((max-size
+         (if (consp edraw-org-link-image-max-size)
+             (if width-p
+                 (car edraw-org-link-image-max-size)
+               (cdr edraw-org-link-image-max-size))
+           edraw-org-link-image-max-size)))
+    (if (floatp max-size)
+        (ceiling (* max-size
+                    (if width-p (frame-text-width) (frame-text-height))))
+      max-size)))
 
 (defun edraw-org-link-image-remove-all ()
   ;;(edraw-org-link-image-remove-region (point-min) (point-max))
