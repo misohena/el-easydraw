@@ -383,12 +383,7 @@ line-prefix and wrap-prefix are used in org-indent.")
   (edraw-update-image editor)
 
   (edraw-update-toolbar editor)
-  (defvar edraw-editor-tool-list)
-  (defvar edraw-editor-default-tool) ;;defcustom
-  (edraw-select-tool editor (edraw-editor-make-tool
-                             (if (fboundp edraw-editor-default-tool)
-                                 edraw-editor-default-tool
-                               (car edraw-editor-tool-list))))
+  (edraw-select-tool-default editor)
   ;; Return editor
   editor)
 
@@ -985,7 +980,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (edraw-on-document-changed editor 'document-initialized)
   ;;(edraw-set-modified-p editor nil) ?
 
-  (edraw-select-tool editor (edraw-editor-make-tool 'rect)))
+  (edraw-select-tool-default editor))
 
 ;;;;;; Editor - Document - Size
 
@@ -3685,6 +3680,15 @@ position where the EVENT occurred."
 
 ;;;;; Editor - Editing Tools
 
+(cl-defmethod edraw-select-tool-default ((editor edraw-editor))
+  (defvar edraw-editor-tool-list)
+  (defvar edraw-editor-default-tool) ;;defcustom
+  (edraw-select-tool editor (edraw-editor-make-tool
+                             (if (and (fboundp edraw-editor-default-tool)
+                                      edraw-editor-default-tool)
+                                 edraw-editor-default-tool
+                               (car edraw-editor-tool-list)))))
+
 (cl-defmethod edraw-select-tool ((editor edraw-editor)
                                  new-tool) ;;edraw-editor-tool
   (when (and (symbolp new-tool) (not (null new-tool)))
@@ -5598,7 +5602,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
     (unless (let ((current-tool (edraw-selected-tool editor)))
               (and current-tool
                    (eq (edraw-tool-type current-tool) 'select)))
-      (edraw-select-tool editor 'select))
+      (edraw-select-tool editor 'edraw-editor-tool-select))
     (edraw-select-shape editor shape)))
 
 (cl-defmethod edraw-selected-p ((shape edraw-shape))
