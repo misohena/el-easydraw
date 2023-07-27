@@ -1607,7 +1607,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-svg-set-attr-number svg 'height (cdr svg-document-size))
     (if svg-document-view-box
         (edraw-svg-set-attr-string svg 'viewBox svg-document-view-box)
-      (dom-remove-attribute svg 'viewBox)))
+      (edraw-dom-remove-attr svg 'viewBox)))
   svg)
 
 (defun edraw-editor-remove-ui-elements-from-svg (svg)
