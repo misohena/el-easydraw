@@ -283,7 +283,14 @@ attribute already exists in alist form, use dom-node."
   (with-temp-buffer
     (insert data)
     (edraw-decode-buffer base64-p)
-    (libxml-parse-xml-region (point-min) (point-max))))
+    (let ((svg (libxml-parse-xml-region (point-min) (point-max))))
+      ;; Recover missing xmlns.
+      ;; libxml-parse-xml-region drops the xmlns= attribute.
+      (when (and svg
+                 (eq (dom-tag svg) 'svg)
+                 (null (dom-attr svg 'xmlns)))
+        (dom-set-attribute svg 'xmlns "http://www.w3.org/2000/svg"))
+      svg)))
 
 (defun edraw-svg-encode (svg base64-p gzip-p)
   (with-temp-buffer
