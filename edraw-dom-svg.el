@@ -287,9 +287,11 @@ attribute already exists in alist form, use dom-node."
       ;; Recover missing xmlns.
       ;; libxml-parse-xml-region drops the xmlns= attribute.
       (when (and svg
-                 (eq (dom-tag svg) 'svg)
-                 (null (dom-attr svg 'xmlns)))
-        (dom-set-attribute svg 'xmlns "http://www.w3.org/2000/svg"))
+                 (eq (dom-tag svg) 'svg))
+        (unless (dom-attr svg 'xmlns)
+          (dom-set-attribute svg 'xmlns "http://www.w3.org/2000/svg"))
+        (unless (dom-attr svg 'xmlns:xlink)
+          (dom-set-attribute svg 'xmlns:xlink "http://www.w3.org/1999/xlink")))
       svg)))
 
 (defun edraw-svg-encode (svg base64-p gzip-p)
@@ -723,7 +725,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
           (dom-attr element 'width)
           (dom-attr element 'height)
           (truncate-string-to-width
-           (or (dom-attr element 'href) "")
+           (or (dom-attr element 'xlink:href) "")
            20 nil nil "...")))
 
 (defun edraw-svg-group-summary (element)
@@ -808,7 +810,8 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      (y attr coordinate t)
      (width attr length t)
      (height attr length t)
-     (href attr string t)
+     (xlink:href attr string t) ;;should mainly use
+     (href attr string nil) ;;for compatibility
      (preserveAspectRatio attr string nil)
      (opacity attr opacity nil)
      (style attr string nil)

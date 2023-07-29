@@ -913,8 +913,8 @@ For use with `edraw-editor-with-temp-undo-list',
         (when (null (dom-children defs))
           (dom-remove-node doc-svg defs)))
       ;; Add xmlns
-      (edraw-svg-set-attr-string doc-svg 'xmlns "http://www.w3.org/2000/svg")
-      ;;(edraw-svg-set-attr-string doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
+      (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
+      (dom-set-attribute doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
       doc-svg)))
 
 (edraw-editor-defcmd edraw-export-to-buffer ((editor edraw-editor))
@@ -2378,7 +2378,7 @@ For use with `edraw-editor-with-temp-undo-list',
         ((edraw-msg "Stroke...") edraw-editor-edit-stroke-selected
          :visible ,(edraw-can-have-property-p shapes 'stroke))
         ((edraw-msg "Href...") edraw-editor-edit-href-selected
-         :visible ,(edraw-can-have-property-p shapes 'href))
+         :visible ,(edraw-can-have-property-p shapes 'xlink:href))
         ((edraw-msg "Font Size...") edraw-editor-edit-font-size-selected
          :visible ,(edraw-can-have-property-p shapes 'font-size))
 
@@ -4165,7 +4165,7 @@ position where the EVENT occurred."
                     'y (edraw-rect-top rect)
                     'width (edraw-rect-width rect)
                     'height (edraw-rect-height rect)
-                    'href (file-relative-name file))))
+                    'xlink:href (file-relative-name file))))
         (edraw-select-shape editor shape)))))
 
 
@@ -5645,7 +5645,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       ((edraw-msg "Stroke...") edraw-edit-stroke
        :visible ,(edraw-can-have-property-p shape 'stroke))
       ((edraw-msg "Href...") edraw-edit-href
-       :visible ,(edraw-can-have-property-p shape 'href))
+       :visible ,(edraw-can-have-property-p shape 'xlink:href))
       ((edraw-msg "Font Size...") edraw-edit-font-size
        :visible ,(edraw-can-have-property-p shape 'font-size))))
     ((edraw-msg "Transform")
@@ -6302,9 +6302,9 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-edit-href ((shape edraw-shape-image))
   (let ((filename (read-file-name (edraw-msg "Image File: ")
                                   nil
-                                  (edraw-get-property shape 'href)
+                                  (edraw-get-property shape 'xlink:href)
                                   t)))
-    (edraw-set-property shape 'href (file-relative-name filename))))
+    (edraw-set-property shape 'xlink:href (file-relative-name filename))))
 
 
 ;;;;; Shape - Path
