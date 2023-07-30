@@ -193,6 +193,7 @@ When nil, disable auto view enlargement."
     (define-key km "a" 'edraw-editor-select-tool-path)
     (define-key km "f" 'edraw-editor-select-tool-freehand)
     (define-key km "t" 'edraw-editor-select-tool-text)
+    (define-key km "i" 'edraw-editor-select-tool-image)
     (define-key km "u" 'edraw-editor-select-tool-custom-shape)
     (define-key km "F" 'edraw-editor-edit-tool-default-fill)
     (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
