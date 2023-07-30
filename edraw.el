@@ -4146,7 +4146,7 @@ position where the EVENT occurred."
                                      down-event)
   (with-slots (editor) tool
     (when-let ((rect (edraw-read-rectangle editor down-event t))
-               (file (read-file-name (edraw-msg "Image File: "))))
+               (file (read-file-name (edraw-msg "Image File: ") nil nil t)))
 
       (when (edraw-rect-empty-p rect)
         (let* ((image-spec (create-image (expand-file-name file) nil nil :scale 1))
