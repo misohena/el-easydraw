@@ -4146,10 +4146,21 @@ position where the EVENT occurred."
                                      down-event)
   (with-slots (editor) tool
     (when-let ((rect (edraw-read-rectangle editor down-event t))
-               (file (read-file-name (edraw-msg "Image File: ") nil nil t)))
+               (image-file
+                (expand-file-name
+                 (read-file-name (edraw-msg "Image File: ") nil nil t))))
 
+      ;; Warn that images in different directories cannot be displayed
+      ;; for security reasons.
+      ;; @todo Should it error? Or copy to base-dir? Or embed base64 data?
+      (let ((base-dir (expand-file-name default-directory))
+            (image-dir (file-name-directory image-file)))
+        (unless (string-prefix-p base-dir image-dir)
+          (message (edraw-msg "WARNING: Images in other directories cannot be displayed for security reasons"))))
+
+      ;; Get image size
       (when (edraw-rect-empty-p rect)
-        (let* ((image-spec (create-image (expand-file-name file) nil nil :scale 1))
+        (let* ((image-spec (create-image image-file nil nil :scale 1))
                (image-size (ignore-errors
                              (progn
                                (image-flush image-spec)
@@ -4169,7 +4180,7 @@ position where the EVENT occurred."
                     'y (edraw-rect-top rect)
                     'width (edraw-rect-width rect)
                     'height (edraw-rect-height rect)
-                    'xlink:href (file-relative-name file))))
+                    'xlink:href (file-relative-name image-file))))
         (edraw-select-shape editor shape)))))
 
 

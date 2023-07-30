@@ -256,6 +256,7 @@
      "View Height: " "表示高さ: "
      "View Width(or Empty): " "表示幅(空=指定解除): "
      "View" "表示"
+     "WARNING: Images in other directories cannot be displayed for security reasons" "警告: 他のディレクトリにある画像はセキュリティ上の理由で表示できません"
      "Write edraw file: " "出力edrawファイル: "
      "X: " "X: "
      "Yes" "はい"
