@@ -103,6 +103,7 @@
      "Export to File" "ファイルへ書き出し"
      "Failed to delete entry" "項目の削除に失敗しました"
      "Failed to find insertion point" "挿入場所の特定に失敗しました"
+     "Failed to get image size" "画像サイズの取得に失敗しました"
      "Failed to save. %s. Discard changes?" "保存に失敗しました。変更を破棄しますか?"
      "File `%s' exists; overwrite? " "ファイル `%s' はすでに存在します。上書きしますか?"
      "File does not exist" "ファイルが存在しません"

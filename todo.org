@@ -1,6 +1,11 @@
 
 
 * Inbox
+** TODO 二つの画像を選択して右クリックからHrefを変更しようとするとエラー
+edraw-multiple-shapesに対するedraw-edit-hrefが実装されていないから。
+しかし、fillとかと同じようにedraw-properties-holderに対して実装すべき？
+いや、edraw-properties-holderに対してedraw-edit-fillがあること自体がおかしいような気もするけど。
+
 ** TODO ?キーでツールのヘルプを表示する
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
@@ -2186,3 +2191,18 @@ svg-circle、svg-rectangle、svg-line、svg-ellipse等は余計な処理が挟�
 CLOSED: [2023-07-01 Sat 20:18]
 機能的には[[https://github.com/misohena/org-inline-image-fix#limit-inline-image-sizeorg-limit-image-sizeel][misohena/org-inline-image-fix]]と同じでよい。
 edraw-org-link-image-max-size変数を追加する。
+** DONE 図の再編集時にエディタが表示されない問題を修正する
+CLOSED: [2023-07-30 Sun 10:56]
+xmlns属性を必ず指定するようにしたら直った。
+librsvgのバージョンによって動作が変わっているのかもしれない。
+** DONE 画像の参照にはhrefではなくxlink:hrefを使う
+CLOSED: [2023-07-30 Sun 10:56]
+xmlns:xlink属性も指定する。
+** DONE 画像ツールでクリック時にエラーが出る問題を修正する
+CLOSED: [2023-07-30 Sun 10:53]
+create-imageには絶対パスを渡さなければならない。
+
+さらに、image-flushやimage-size等が失敗することがあるらしい。
+「Invalid image specification」というエラーが出る。
+画像ファイルでは無いファイルを指定すると必ず起きる。
+念のためサイズを取得できなかった場合はその旨を報告して、100x100として扱う。

@@ -4149,10 +4149,14 @@ position where the EVENT occurred."
                (file (read-file-name (edraw-msg "Image File: "))))
 
       (when (edraw-rect-empty-p rect)
-        (let* ((image-spec (create-image file nil nil :scale 1))
-               (image-size (progn
-                             (image-flush image-spec)
-                             (image-size image-spec t))))
+        (let* ((image-spec (create-image (expand-file-name file) nil nil :scale 1))
+               (image-size (ignore-errors
+                             (progn
+                               (image-flush image-spec)
+                               (image-size image-spec t)))))
+          (unless image-size
+            (message (edraw-msg "Failed to get image size"))
+            (setq image-size (edraw-xy 100 100)))
           (edraw-xy-assign (edraw-rect-xy1 rect)
                            (edraw-xy-add (edraw-rect-xy1 rect) image-size))))
 
