@@ -1039,7 +1039,7 @@ One M command may correspond to multiple Z commands (see: https://www.w3.org/TR/
 Return nil if include-closing-segment-p is nil and CMD is a closing segment.
 
 Specify t for include-closing-segment-p if you want the index of
-the anchor of closing segment, or specify 'fast if you know CMD
+the anchor of closing segment, or specify \\='fast if you know CMD
 is not a closing segment and do not need checking."
   (pcase (edraw-path-cmd-type cmd)
     ('M 0)

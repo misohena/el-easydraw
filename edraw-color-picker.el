@@ -1192,7 +1192,7 @@ arguments to make-overlay. The rest is a plist to pass to
 overlay-put.
 
 TARGET-PROPERTY : Overlay property to set the color-picker image.
-Specify one of 'display, 'before-string, or 'after-string."
+Specify one of \\='display, \\='before-string, or \\='after-string."
 
   (let* ((display (edraw-color-picker-display-overlay
                    :overlay (edraw-color-picker-make-overlay
@@ -1638,7 +1638,7 @@ of input changes."
 
 Valid OPTIONS are:
 (:color-float-format . num-digits or format-string or format-function)
-(:color-format . nil or 'hex or 'rgb)
+(:color-format . nil or \\='hex or \\='rgb)
 (:enable-opacity . nil or t)
 "
   (let ((edraw-color-string-float-format

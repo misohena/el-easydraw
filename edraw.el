@@ -629,7 +629,7 @@ DATA is a list in the form (FUNCTION ARGUMENTS...).
 Undo is performed by applying FUNCTION to ARGUMENTS.
  (apply FUNCTION ARGUMENTS)
 
-To call multiple functions at once, specify #'edraw-call-each-args as FUNCTION.
+To call multiple functions at once, specify #\\='edraw-call-each-args as FUNCTION.
 
 This function deletes all redo data."
   (with-slots (undo-list redo-list) editor

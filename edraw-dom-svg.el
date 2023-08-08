@@ -47,7 +47,7 @@ the new element. For example:
 Attributes are specified in a property list starting at the
 beginning of ATTR-PLIST-AND-CHILDREN. A property list key must be
 a symbol. If the symbol is a keyword, the leading colon is
-ignored (i.e. :x and 'x are the same).
+ignored (i.e. :x and \\='x are the same).
 
 If a non-symbol appears at the position where the key symbol of
 the property list should appear, the subsequent elements are
