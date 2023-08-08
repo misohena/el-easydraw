@@ -123,7 +123,7 @@ its own."
               (progn
                 (edraw-svg-write-to-file svg file-path file-gzip-p) ;;signal an error
                 ;; Update inline image
-                (image-refresh (edraw-org-link-image-create link-props)) ;;update image if overlay already exists
+                (image-flush (edraw-org-link-image-create link-props)) ;;update image if overlay already exists
                 (edraw-org-link-image-update link-begin link-end link-element) ;;create a new overlay if not exists
                 t)
             ;;data
