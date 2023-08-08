@@ -258,12 +258,12 @@
         (code 0))
     (cl-loop for m in modifiers
              for pos = (seq-position modifier-symbols m #'eq)
-             when pos do (setq code (logior code (lsh 1 pos))))
+             when pos do (setq code (logior code (ash 1 pos))))
     (when (/= code 0)
       (intern
        (cl-loop with str = nil
                 for s in modifier-strings
-                for bit = 1 then (lsh bit 1)
+                for bit = 1 then (ash bit 1)
                 when (/= (logand code bit) 0)
                 if str do (setq str (concat str "-" s)) else do (setq str s)
                 finally return str)))))
