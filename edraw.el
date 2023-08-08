@@ -5836,7 +5836,7 @@ may be replaced by another mechanism."
    (p0p1)) ;;Note that p0(car p0p1) is not always in the upper left
   :abstract t)
 
-(cl-defgeneric edraw-get-rect-local ((shape edraw-shape-with-rect-boundary)))
+;;(cl-defmethod edraw-get-rect-local ((shape edraw-shape-with-rect-boundary)))
 
 (cl-defmethod edraw-make-anchor-points-from-element
   ((shape edraw-shape-with-rect-boundary))
