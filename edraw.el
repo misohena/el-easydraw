@@ -203,6 +203,7 @@ When nil, disable auto view enlargement."
     (define-key km "db" 'edraw-editor-set-background)
     (define-key km "dr" 'edraw-editor-set-size)
     (define-key km "dc" 'edraw-editor-crop)
+    (define-key km "dvb" 'edraw-editor-set-view-box)
     (define-key km "dtt" 'edraw-editor-translate-all-shapes)
     (define-key km "dts" 'edraw-editor-scale-all-shapes)
     (define-key km "dtr" 'edraw-editor-rotate-all-shapes)
