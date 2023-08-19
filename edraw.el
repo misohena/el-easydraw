@@ -231,6 +231,7 @@ When nil, disable auto view enlargement."
     ;; (define-key km "Ts" 'edraw-editor-scale-selected)
     ;; (define-key km "Tr" 'edraw-editor-rotate-selected)
     (define-key km "T" 'edraw-editor-transform-selected-interactive)
+    (define-key km (kbd "C-t") 'edraw-editor-transform-selected-interactive)
     (define-key km "g" 'edraw-editor-group-selected-shapes)
     (define-key km "G" 'edraw-editor-ungroup-selected-shapes)
     (define-key km "pf" 'edraw-editor-edit-fill-selected)
