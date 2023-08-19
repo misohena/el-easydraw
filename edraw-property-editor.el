@@ -788,7 +788,7 @@ once. widget-value-set updates the same property four times."
                      (edraw-property-editor-number-dragging-image-update
                       ov window move-x min-x max-x))
                    ))
-               nil nil 'window t))
+               nil nil 'window))
           (when ov
             (delete-overlay ov)))))))
 

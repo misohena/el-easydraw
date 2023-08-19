@@ -185,7 +185,7 @@
 
 (defun edraw-track-dragging (down-event on-move
                                         &optional on-up on-leave target
-                                        keep-pointer-shape-p)
+                                        allow-pointer-shape-change-p)
   (if (not (memq 'down (event-modifiers down-event)))
       (error "down-event is not down event. %s" (event-modifiers down-event)))
   (let* ((down-basic-type (event-basic-type down-event))
@@ -195,7 +195,7 @@
          (target-object (posn-object down-position)))
 
     (track-mouse
-      (when keep-pointer-shape-p
+      (unless allow-pointer-shape-change-p
         (setq track-mouse 'dragging))
       (let (result)
         (while (null result)

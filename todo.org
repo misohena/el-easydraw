@@ -2280,3 +2280,11 @@ mouse-faceがあるとなぜかpointerが一瞬handマークになる。
 org-modeのインライン画像を編集中に非表示にしているように、編集中はmouse-faceプロパティを消去すれば良い。
 
 [[elisp-function:edraw-org-link-remove-mouse-face]]と[[elisp-function:edraw-org-link-recover-mouse-face]]を追加した。
+** DONE ドラッグ時にマウスカーソルがチラつくのを修正する。
+CLOSED: [2023-08-19 Sat 16:49]
+ドラッグでマウスが移動すると一瞬だけマウスカーソル(pointer)がIマークになる。
+特殊なイベントループ中なので何かdrag-mouse-1に割り当てられたコマンドが呼ばれるということはないはず。
+原因が分からない。
+track-mouse変数を'draggingにするとarrowのまま変わらなくなるので、とりあえずそのようにして回避した。
+[[elisp-function:edraw-track-dragging]]のkeep-pointer-shape-change-pをallow-pointer-shape-change-pに変更してデフォルトはpointerの形状が変わらないようにした。
+ドラッグ中にポインタの形を変える必要がある場所は今のところ存在しない。
