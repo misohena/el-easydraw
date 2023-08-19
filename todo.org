@@ -2238,9 +2238,3 @@ dvbで。dv～は他にも使えそうだからとっておく。
 CLOSED: [2023-08-19 Sat 11:32]
 何度も間違えるので、もうそれでいいや。
 どのみちC-t (transpose-chars)はedrawエディタ上では使えない(エラーになる)ので。
-** DONE マウスカーソルがチラつくのを修正する
-CLOSED: [2023-08-19 Sat 11:30]
-Emacs 29.1(Windows版)に移行してから妙にマウスカーソルがチラつくようになった。
-Org-modeのedrawリンク部分を編集する時だけチラつくので、背後のfaceの問題と推測。
-調査の結果、mouse-faceプロパティが原因と判明した。
-Org-mode以外でもあり得るので、edraw-initializeでmouse-faceをnilにする。

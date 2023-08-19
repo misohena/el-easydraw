@@ -380,11 +380,7 @@ line-prefix and wrap-prefix are used in org-indent.")
     (overlay-put overlay 'pointer 'arrow)
     (overlay-put overlay 'help-echo
                  (lambda (_window _object _pos) nil)) ;;Suppress org link's echo
-    ;; Suppress org link's underline.
-    (overlay-put overlay 'face 'default)
-    ;; Suppress mouse cursor flickering.
-    ;; Override mouse-face of org link (default face is 'highlight).
-    (overlay-put overlay 'mouse-face nil))
+    (overlay-put overlay 'face 'default)) ;;Suppress org link's underline
 
   (edraw-initialize-svg editor)
   (edraw-update-image editor)
