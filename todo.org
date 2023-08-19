@@ -2238,3 +2238,45 @@ dvbで。dv～は他にも使えそうだからとっておく。
 CLOSED: [2023-08-19 Sat 11:32]
 何度も間違えるので、もうそれでいいや。
 どのみちC-t (transpose-chars)はedrawエディタ上では使えない(エラーになる)ので。
+** DONE マウスカーソルがチラつくのを修正する
+CLOSED: [2023-08-19 Sat 11:30]
+Emacs 29.1(Windows版)に移行してから妙にマウスカーソルがチラつくようになった。
+Org-modeのedrawリンク部分を編集する時 +だけ+ によりチラつくので、背後のfaceの問題と推測。
+
+調査の結果、mouse-faceプロパティが原因と判明した。
+mouse-faceがあるとなぜかpointerが一瞬handマークになる。
+オーバーレイにpointer arrowが指定されているのですぐにarrowになる。
+
++Org-mode以外でもあり得るので、edraw-initializeでmouse-faceをnilにする。+
+オーバーレイのmouse-faceをnilにしてもテキストプロパティのmouse-faceの効果は消えないので無意味。
+再現コード。
+
+#+begin_src elisp
+(let ((beg (point))
+      (_ (insert "[THIS-IS-A-LINK]"))
+      (end (point)))
+  (put-text-property beg end 'mouse-face 'highlight)
+;;  (put-text-property beg end 'pointer 'arrow)
+
+  (let ((ov (make-overlay beg end)))
+    (overlay-put ov 'evaporate t)
+    ;;(overlay-put ov 'display "display")
+    (overlay-put ov 'mouse-face nil)
+    (overlay-put ov 'pointer 'arrow)
+    ))
+#+end_src
+
+オーバーレイでmouse-faceをdefaultにしても意味が無い。見た目はハイライトでは無くなるが、やはりpointerがhandになる効果は同じだからだ。
+
+ちらつきはポイントがリンクの中にあるときだけ起こるというのが興味深い。
+あ、カーソルの点滅時にマウスカーソルもチラついている。
+
+テキストプロパティにpointer arrowを指定すると改善する気がする。これは note_mouse_highlight 関数がpointerが指定されていないときだけQhandを使うからかもしれない。しかし完全には無くならない。
+
+~(setq mouse-highlight nil)~ するとちらつきは完全に無くなる。しかしさすがにそうするわけにもいかない。
+
+一番良さそうなのは、mouse-faceテキストプロパティを完全に消してしまうこと。
+
+org-modeのインライン画像を編集中に非表示にしているように、編集中はmouse-faceプロパティを消去すれば良い。
+
+[[elisp-function:edraw-org-link-remove-mouse-face]]と[[elisp-function:edraw-org-link-recover-mouse-face]]を追加した。

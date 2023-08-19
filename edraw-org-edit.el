@@ -61,6 +61,9 @@ its own."
       (when-let ((image-overlay (edraw-org-link-image-overlay-at link-begin)))
         (edraw-org-link-image-set-visible image-overlay nil))
 
+      ;; Remove mouse-face text property
+      (edraw-org-link-remove-mouse-face link-begin link-end)
+
       ;; Create editor
       (let* ((editor-overlay (make-overlay link-begin link-end nil t nil))
              (editor (edraw-editor
@@ -180,11 +183,38 @@ its own."
              (buffer (overlay-buffer editor-overlay)))
     (with-current-buffer buffer
       (save-excursion
+        ;; Recover inline image
         (when-let ((image-overlay (edraw-org-link-image-overlay-at
                                    (overlay-start editor-overlay))))
-          (edraw-org-link-image-set-visible image-overlay t)))))
+          (edraw-org-link-image-set-visible image-overlay t))
+        ;; Recover mouse-face
+        (edraw-org-link-recover-mouse-face (overlay-start editor-overlay)
+                                           (overlay-end editor-overlay)))))
   ;; delete editor overlay
   (edraw-close editor))
+
+(defun edraw-org-link-remove-mouse-face (beg end)
+  "Remove mouse-face property while editing.
+
+This is to suppress the flickering of the mouse cursor (pointer).
+
+If the mouse-face text property is set for the link, the hand
+shape will be displayed for a moment even if the arrow is
+specified for the overlay property pointer. This may be an Emacs
+bug. I started to worry about flickering after Emacs 29 (on
+Windows)"
+  (when-let ((mouse-face (get-text-property beg 'mouse-face)))
+    (with-silent-modifications
+      (remove-text-properties beg end '(mouse-face nil))
+      (put-text-property beg end 'edraw-org-mouse-face-backup mouse-face))))
+
+(defun edraw-org-link-recover-mouse-face (beg end)
+  "Recover mouse-face property."
+  (when-let ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
+    (with-silent-modifications
+      (put-text-property beg end 'mouse-face mouse-face)
+      (remove-text-properties beg end '(edraw-org-mouse-face-backup nil)))))
+
 
 
 ;;;; Edit regular file link inline
