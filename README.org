@@ -213,3 +213,13 @@ The core class of the color picker:
 
 #+CAPTION: Show color picker inline
 [[file:./screenshot/color-picker-inline.png]]
+
+* License
+
+This software is licensed under GPLv3. You are free to use, modify and distribute this software.
+
+If you wish to register this software in any package archive, please fork this repository, make the necessary modifications to fit the package archive's requirements, and submit the registration on your own. Also continue with the necessary maintenance. You don't need my permission.
+
+I also welcome you to publish your improved version. If that works better than mine, I might start using it too. I may suddenly be unable to develop, and I cannot guarantee any continued development. This software is the result of what I want, so please add what you want yourself.
+
+I am not proficient in English, so please do not expect continuous communication in English. I have spent a long time using translation software to write this text, but I am not confident that the intended meaning is accurately conveyed. I don't think it has ended up with the opposite meaning, but subtle nuances may be missing.
