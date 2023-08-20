@@ -1,12 +1,8 @@
 
 
 * Inbox
-** TODO マウスカーソルのちらつきを抑えるためにmouse-faceを抑制する
-orgのリンクにmouse-faceが設定されているせいで、マウスカーソルがチラつくことがある。
-現在はedraw-org-link-remove-mouse-faceとedraw-org-link-recover-mouse-faceで制御しているつもりになっている。
-しかし、エディタと同じ行をテキスト編集するとすぐに復活してしまう。
-リンクパラメータの:mouse-faceをnilにすれば抑制できないか。org-activate-linksを見る限り、結果がnilならhighlightを設定してしまうので抑制できない。
-リンクパラメータの:activate-funcで編集中ならmouse-faceを消すことはできそう。
+** TODO マウスカーソルのちらつきを抑えるためにmouse-faceをもっと抑制する
+org-fold-core-styleが'overlaysのときに対応していない。必要？
 
 ** TODO エディタ全体を一つのSVGで描いた方がいいのではないか
 現在はツールバーをbefore-stringで表示しているが、全てを一つのSVG、一つのdisplayプロパティで表示した方がいいのではないか。
@@ -2381,3 +2377,10 @@ edraw-set-view-size-specコマンドはinteractiveでリセットを指定出来
 「自動」という状態があることに気が付きにくいところが一番の問題だが、まぁ、しかたない。
 
 ついでに、サイズは1からmax-image-sizeに限定する。
+** DONE マウスカーソルのちらつきを抑えるためにmouse-faceをより抑制する
+CLOSED: [2023-08-20 Sun 11:59]
+orgのリンクにmouse-faceが設定されているせいで、マウスカーソルがチラつくことがある。
+現在はedraw-org-link-remove-mouse-faceとedraw-org-link-recover-mouse-faceで制御しているつもりになっている。
+しかし、エディタと同じ行をテキスト編集するとすぐに復活してしまう。
+リンクパラメータの:mouse-faceをnilにすれば抑制できないか。org-activate-linksを見る限り、結果がnilならhighlightを設定してしまうので抑制できない。
+リンクパラメータの:activate-funcで編集中を検出してmouse-faceを消すことはできそう。

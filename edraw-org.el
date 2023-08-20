@@ -129,7 +129,8 @@ is expanded. Since the cause is not clear, it is expanded by default."
    edraw-org-link-type
    :follow 'edraw-org-edit-link
    :export 'edraw-org-link-export
-   :help-echo 'edraw-org-link-help-echo))
+   :help-echo 'edraw-org-link-help-echo
+   :activate-func 'edraw-org-link-activate-func))
 
 (with-eval-after-load 'org
   ;; Registering the link type is necessary for org-element-context to
@@ -148,6 +149,10 @@ is expanded. Since the cause is not clear, it is expanded by default."
               (format "edraw:file=%s" file)
             (if-let ((data (edraw-org-link-prop-data link-props)))
                 (format "edraw:data=(%s chars)" (length data)))))))))
+
+(defun edraw-org-link-activate-func (link-beg link-end _path _has-brackets-p
+                                              &rest _future-add)
+  (edraw-org-link-update-mouse-face link-beg link-end))
 
 ;;;;; Link Properties
 
@@ -303,6 +308,50 @@ If NOERROR is nil, signals an error."
               nil
               edraw-org-link-type)))))))
 
+;;;;; mouse-face Control
+
+;; The following functions are for removing and restoring the
+;; mouse-face property set on the link part as needed. If the
+;; mouse-face property is present where the drawing editor is
+;; displayed, the mouse cursor (pointer) will be hand-shaped. Even if
+;; the pointer property of the overlay is set to arrow, the arrow will
+;; be displayed after the hand is displayed for a moment each time the
+;; screen is updated. I don't know the cause, but it may be an Emacs
+;; bug. It's annoying because the mouse cursor looks so
+;; flickering. This is a workaround to suppress it.
+;; (Confirmed the phenomenon with Emacs 29.1 for MS-Windows)
+
+;;@todo Support the case of org-fold-core-style is 'overlays ?
+
+(defun edraw-org-link-remove-mouse-face (beg end)
+  "Remove mouse-face property while editing.
+
+This is to suppress the flickering of the mouse cursor (pointer).
+
+If the mouse-face text property is set for the link, the hand
+shape will be displayed for a moment even if the arrow is
+specified for the overlay property pointer. This may be an Emacs
+bug. I started to worry about flickering after Emacs 29 (on
+Windows)"
+  (when-let ((mouse-face (get-text-property beg 'mouse-face)))
+    (with-silent-modifications
+      (remove-text-properties beg end '(mouse-face nil))
+      (put-text-property beg end 'edraw-org-mouse-face-backup mouse-face))))
+
+(defun edraw-org-link-recover-mouse-face (beg end)
+  "Recover mouse-face property."
+  (when-let ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
+    (with-silent-modifications
+      (put-text-property beg end 'mouse-face mouse-face)
+      (remove-text-properties beg end '(edraw-org-mouse-face-backup nil)))))
+
+(defun edraw-org-link-update-mouse-face (beg end)
+  "Keeps a state where the mouse-face property is not present
+between the time `edraw-org-link-remove-mouse-face' is called and
+the time `edraw-org-link-recover-mouse-face' is called."
+  (when-let ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
+    (with-silent-modifications
+      (remove-text-properties beg end '(mouse-face nil)))))
 
 ;;;; Inline Link Image
 
