@@ -2247,13 +2247,22 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (edraw-editor-defcmd edraw-set-view-size-spec ((editor edraw-editor) wh)
   (interactive
-   (let* ((editor (edraw-current-editor))
-          (w (edraw-read-integer-or-nil
-              (edraw-msg "View Width(or Empty): ") (edraw-scroll-view-width editor)))
-          (h (when w
-               (edraw-read-integer
-                (edraw-msg "View Height: ") (edraw-scroll-view-height editor)))))
-     (list editor (if (and w h) (cons w h)))))
+   (if current-prefix-arg ;;C-u => reset view
+       (list (edraw-current-editor) nil)
+     (let* ((editor (edraw-current-editor))
+            (w (round (read-number (edraw-msg "View Width: ")
+                                   (edraw-scroll-view-width editor))))
+            (h (round (read-number (edraw-msg "View Height: ")
+                                   (edraw-scroll-view-height editor)))))
+       (list editor (cons w h)))))
+
+  (unless (or (null wh)
+              (and (consp wh)
+                   (>= (car wh) 1)
+                   (<= (car wh) (edraw-max-image-width))
+                   (>= (cdr wh) 1)
+                   (<= (cdr wh) (edraw-max-image-height))))
+    (error (edraw-msg "Invalid view size")))
 
   (edraw-set-setting editor 'view-size-spec wh) ;;nil or (w . h)
   (setf (oref editor view-size) wh)
