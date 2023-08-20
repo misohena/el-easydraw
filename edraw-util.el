@@ -227,8 +227,8 @@
   (and (eq (posn-window pos1)
            (posn-window pos2))
        (if (memq target '(point object nil))
-           (= (posn-point pos1)
-              (posn-point pos2))
+           (equal (posn-point pos1)
+                  (posn-point pos2))
          t)
        (if (memq target '(object nil))
            (eq (car (posn-object pos1)) ;;ex: 'image
