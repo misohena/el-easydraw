@@ -1,6 +1,13 @@
 
 
 * Inbox
+** TODO 手書きツール/ドラッグ中に外に出た場合の挙動を改善する
+外に出ても続いている方がいいのではないか？
+外に出た場合にどうする？
+- 打ち切る
+- ビューの外に線を描く
+- ビュー内に線を描く(ビューの境界に沿って直線を描く)
+
 ** TODO マウスカーソルのちらつきを抑えるためにmouse-faceをもっと抑制する
 org-fold-core-styleが'overlaysのときに対応していない。必要？
 
@@ -73,6 +80,11 @@ SVG読み込み時にルート直下のdefs以外を#edraw-bodyへ移動して�
 
 ** TODO shape毎に変形モードを持たせられるようにする
 shape毎にどのような方式で変形するかを決められるように出来たら便利かもしれない。パスやグループ内の座標を維持したい場合は、そのshapeだけtransformプロパティを使うように設定できる。SVG内では ~edraw-data-transform-method=~ のような属性で記録すれば良い。
+
+** TODO 図形にidプロパティを追加する
+作成したSVGを他から利用するときに明示的なidが決められると便利だから。
+複製するときは削除しなければならない。プロパティとすべきか分からない。
+edrawが必要とするidはdata-edraw-idとして既に存在していて、これはユーザーが関与できないエディタ専用のIDという位置づけ。
 
 ** TODO グループの子孫を直接編集できるようにする
 モード切替等で、#edraw-body直下よりも下の階層にあるshapeを直接選択、操作出来るようにする。
@@ -194,6 +206,8 @@ Dとか？
 とは言えやはりtextは同一視できないんじゃない？
 カスタムシェイプにtextなんて入れることがある？
 
+** TODO 変形/GUI変形時にマウスの位置に操作種類記号を表示する
+拡大、回転、平行移動等
 ** TODO 変形/ローカル座標系変形機能を追加する
 図形のtransformプロパティ適用前の座標系で、平行移動、伸縮、回転できるようにする。
 transform-methodのような設定を追加すべきか、あるいは、コマンドを追加したり、コマンド内でのオプションにするか。
@@ -240,6 +254,17 @@ read-eventループだとキー割り当てをカスタマイズできない。
 - 検出し追従する。
 - 検出し中断する。
 
+mouse.el内のmouse-drag-lineではset-transient-mapを使っている。一時マップが終わるときにtrack-mouseを戻している。
+
+** TODO 変形/matrix以外のtransformプロパティを正しく保持する
+現在は何でもmatrixに変換してしまうので、指定しづらかったり精度が失われてしまう。
+
+また、プロパティエディタのUIも、markerのようにサブ項目が操作できればなお良い。
+横の拡大率だけ入力したいのに、現状だとそれは行列の意味を知っていないと難しい。
+
+** TODO 変形/接着されている図形のGUI変形で枠線が図とずれる
+接着されている図形の変形を禁止しても良いが、枠線を接着された位置に合わせても良い。
+
 ** TODO 座標を表示する機能を追加する
 何らかの方法で座標が知りたい場合がある。
 問題はEmacsではモーションイベントを積極的に使いづらい所。
@@ -249,6 +274,27 @@ read-eventループだとキー割り当てをカスタマイズできない。
 
 ** TODO アンカーポイントの複数選択・移動機能を追加する
 図形を調整するときに無いと不便。
+
+** TODO テキスト/行間を広げたい
+その他テキストに関する設定がもっと欲しい。
+** TODO テキスト/より良いテキストサイズの推測
+Emacsの window-text-pixel-size で比率を求めてはどうか。
+
+#+begin_src elisp
+(let ((string (propertize "abcdefghijklmnopqrstuvwxyz"
+                          'face
+                          '(:family "Arial" :width "normal" :height 100))))
+  ;; From string-pixel-width implementation
+  (with-current-buffer (get-buffer-create " *string-pixel-width*")
+    ;; `display-line-numbers-mode' is enabled in internal buffers
+    ;; that breaks width calculation, so need to disable (bug#59311)
+    (when (bound-and-true-p display-line-numbers-mode)
+      (display-line-numbers-mode -1))
+    (setq-local line-spacing 0)
+    (delete-region (point-min) (point-max))
+    (insert string)
+    (buffer-text-pixel-size nil nil t)))
+#+end_src
 
 ** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
 「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
@@ -349,12 +395,15 @@ C-c C-c や C-c C-kが効かない。
 ** TODO 色/カラーピッカーに固定のカラーパレットが欲しいかも？
 特定の色集合を保持し続けられるようなやつ。
 ファイルとの読み書きも出来ると良い。
+どうやって変更する？　右クリックしてメニューを出して「変更」とか？
 ** TODO 色/カラーピッカーを必要に応じてフレーム化する
 エディタやプロパティエディタ、シェイプピッカーから使う時はミニバッファに表示するのでフレーム化は難しい。モーダルでなければならない。
 カラーピッカー単体で使うコマンドはフレームにしてもよいのではないか。
-
+** TODO 色/HSL等の別の表色系に対応する
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
+** TODO ソース/defgenericをどうするか
+defgenericは全部に必要？ どこに書くべき？
 ** TODO ORG/org-modeでODTへのエクスポートに対応する
 ** TODO ORG/個別のedrawリンクにHTML属性値を指定出来るようにする
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
@@ -369,6 +418,15 @@ C-c C-c や C-c C-kが効かない。
 問題はUI。ツールオプションを指定するGUIは可能か？
 ドラッグで大きさが変えられるようになったので必要性が薄くなってはいる。
 
+** TODO カスタムシェイプ/図形の一部の寸法を維持したい
+例えば次の図形を登録したとして、左の二点、中央の三点、右の二点はその形を維持したい。
+
+[[edraw:data=H4sIAB3X3mQAA3VQwZKDIAz9FSa9bgWt42hHvHjej3ArIqOFDrLF/v1G1K2H3QN5vORB8lJOT0m8al3P4ZIwIL1Qsncc4oU8hZ2U0ciiGMh8H/XEoXfucaXUex/5S2SspAljjOJHm+Q6j0oPfwnjoihoqEJVWnFzZOaAfV4h/juGajmI1jb+/NXcBmnNt26BTM6aQXDQRgsgnRpHDqeu64DQqpTHR6Z9Yb9H43qCyc+UfeSsxpgxkr1jvd6xY4BQr+MtiZDuUB/YUsuDEpewsCQ7QL2z/Bdyts+6zr26OG/e07etE+4qWKESD263+gFOZ/yNrAEAAA==]]
+
+ラベルの折り返し部分や二重線も同じような問題がある。
+何か拘束条件を設定できればいいのだけど。
+いっそのこと図形を生成する関数を設定してしまうというのも手だけど。
+
 ** TODO シェイプピッカー/ドラッグ&ドロップできるようにする
 範囲選択したentryをドラッグして別の場所へ移動できるようにする。
 
@@ -380,6 +438,12 @@ edraw-shape-descriptor-to-svg-element にダミーのdefrefsを使っている�
 ** TODO シェイプピッカー/org-modeファイルをピッカーに出来るようにする
 edraw-org-shape-picker-minor-modeが必要？
 
+** TODO シェイプピッカー/開閉状態を維持する
+最低限エディタ使用中はバッファをkillしないようにするだけでも違う。
+理想的には開閉状態を保存・復帰すべき。
+** TODO シェイプピッカー/シェイプはセクションの先頭部分にだけにする
+現在はセクションの下にシェイプとセクションが好きな順番に配置できる。
+しかし、セクションの後にシェイプを配置するとそのシェイプがセクションの中にあるのか外にあるのか分かりづらい。org-modeやoutline-modeのように、子セクションとエントリーの中身を完全に分離すべき。
 ** TODO プロパティエディタ/ウィンドウの高さを設定できるようにする
 高さが低いフレームで使っている場合、プロパティエディタが邪魔で作図に支障がある。
 自動でやるなら、ウィンドウの高さから画像の高さを差し引いて、残りをプロパティエディタの高さにすべき。もちろん小さくなりすぎないように何行かは確実に残す。
