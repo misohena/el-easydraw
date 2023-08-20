@@ -2384,3 +2384,67 @@ orgのリンクにmouse-faceが設定されているせいで、マウスカー�
 しかし、エディタと同じ行をテキスト編集するとすぐに復活してしまう。
 リンクパラメータの:mouse-faceをnilにすれば抑制できないか。org-activate-linksを見る限り、結果がnilならhighlightを設定してしまうので抑制できない。
 リンクパラメータの:activate-funcで編集中を検出してmouse-faceを消すことはできそう。
+** DONE 色/カラーピッカーのドラッグ中に左や上に外れて困るのを何とかする
+CLOSED: [2023-08-20 Sun 16:38]
+:PROPERTIES:
+:CREATED: [2023-08-19 Sat 14:51]
+:END:
+左のフリンジや上のテキスト領域に差し掛かると色の選択が終わってしまうので、操作しづらい。
+左や上のマージンを広げた方が極端な色を指定しやすい。
+
+いや、それよりもドラッグ中に外に出ても継続される方がいい。出来る？
+
+例えばエディタの右側からドラッグしてフレームの右外へ移動したときのイベント:
+
+(mouse-fine-grained-trackingを使用している。使用しないと
+fringeやscroll-barの中に入るとイベントが1回しか発生しない)
+
+上下に分割にして下のウィンドウから右外へ出してみる。
+
+: move          event=(mouse-movement (#<window 205 on todo.org<org>> 3521 (597 . 140) 606046812 nil 3521 (1 . 0) (image :type svg :data ...) (559 . 140) (560 . 420)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> 3531 (598 . 140) 606046875 nil 3531 (2 . 0) nil (0 . 140) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> 3531 (599 . 140) 606047062 nil 3531 (2 . 0) nil (1 . 140) (8 . 424)))
+: 略
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> 3531 (637 . 146) 606048765 nil 3531 (6 . 0) nil (39 . 146) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> 3531 (638 . 146) 606048968 nil 3531 (7 . 0) nil (40 . 146) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> 3531 (639 . 147) 606049062 nil 3531 (7 . 0) nil (41 . 147) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> right-fringe (648 . 147) 606049125 nil 3531 (0 . 0) nil (8 . 147) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> right-fringe (649 . 147) 606049609 nil 3531 (0 . 0) nil (9 . 147) (8 . 424)))
+: 略
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> right-fringe (654 . 148) 606050281 nil 3531 (0 . 0) nil (14 . 148) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> right-fringe (655 . 148) 606050375 nil 3531 (0 . 0) nil (15 . 148) (8 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> vertical-scroll-bar (656 . 148) 606050406 nil 3531 (8 . 0) nil (656 . 148) (17 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> vertical-scroll-bar (657 . 148) 606050531 nil 3531 (8 . 0) nil (657 . 148) (17 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> vertical-scroll-bar (658 . 148) 606050640 nil 3531 (8 . 0) nil (658 . 148) (17 . 424)))
+: 略
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> vertical-scroll-bar (670 . 150) 606051578 nil 3531 (10 . 0) nil (670 . 150) (17 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> vertical-scroll-bar (671 . 150) 606051812 nil 3531 (10 . 0) nil (671 . 150) (17 . 424)))
+: out of target event=(mouse-movement (#<window 205 on todo.org<org>> vertical-scroll-bar (672 . 150) 606051859 nil 3531 (10 . 0) nil (672 . 150) (17 . 424)))
+: out of target event=(mouse-movement (#<frame todo.org<org> - GNU Emacs at YAMABUKI 000001db2c5c1560> nil (673 . 646) 606051968))
+: out of target event=(mouse-movement (#<frame todo.org<org> - GNU Emacs at YAMABUKI 000001db2c5c1560> nil (673 . 647) 606052125))
+
+- ドラッグ中はボタンを離すまでフレームの外でもモーションイベントが来る。
+- ドラッグ中は他のフレームの上に来ても元のフレームからの座標が来る。
+- fringeに出るところで明確なギャップが見られる。
+- fringeとscroll-barでは同一系のように見える。
+- frameに出るとyが大きく変わる。ウィンドウ左上基準がフレーム左上基準に変わるから。xは連続しているように見える。fringeやscroll-barの基準点はフレーム左端とほぼ同じだと推測できる。
+
+座標の意味についてはマニュアル参照:
+- [[https://ayatakesi.github.io/emacs/24.5/elisp_html/Click-Events.html#Click-Events][Click Events (GNU Emacs Lisp Reference Manual)]]
+- [[https://ayatakesi.github.io/emacs/24.5/elisp_html/Coordinates-and-Windows.html#Coordinates-and-Windows][Coordinates and Windows (GNU Emacs Lisp Reference Manual)]]
+
+pos-or-areaによってx,yの解釈が変わる。pos-or-areaが:
+- point(integer) ::
+  x,yはテキスト領域左上からの座標
+- mode-line, header-line, tab-line, horizontal-scroll-bar ::
+  ウィンドウ左上からの座標
+- vertical-line, left-margin, right-margin, left-fringe, right-fringe, vertical-scroll-bar ::
+  (ウィンドウ左, テキスト領域上)からの座標
+
+マニュアルではvertical-line等の時はxは無意味と書かれているが、少なくともWindows実装ではウィンドウ左からの座標になっている。実際の所、画面外なので多少ずれていても構わない。最悪ウィンドウ左右端の座標で止めても構わない。
+
+出来そうだ。
+
+1. まずイベントを一律フレーム座標系へ変換する関数を書く。
+2. 最初にdownしたときのフレーム座標から対象内座標への差を取っておく。
+3. 対象から出たときは、フレーム座標にその差を適用することで対象内座標を割り出して、move関数をコールする。

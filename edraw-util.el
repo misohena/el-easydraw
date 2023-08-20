@@ -185,14 +185,12 @@
 
 (defun edraw-track-dragging (down-event on-move
                                         &optional on-up on-leave target
-                                        allow-pointer-shape-change-p)
+                                        allow-pointer-shape-change-p
+                                        allow-out-of-target-p)
   (if (not (memq 'down (event-modifiers down-event)))
       (error "down-event is not down event. %s" (event-modifiers down-event)))
   (let* ((down-basic-type (event-basic-type down-event))
-         (down-position (event-start down-event))
-         (target-window (posn-window down-position))
-         (target-point (posn-point down-position))
-         (target-object (posn-object down-position)))
+         (down-position (event-start down-event)))
 
     (track-mouse
       (unless allow-pointer-shape-change-p
@@ -204,16 +202,10 @@
              ;; mouse move
              ((mouse-movement-p event)
               ;; check same object
-              (if (and (eq (posn-window (event-start event))
-                           target-window)
-                       (if (memq target '(point object nil))
-                           (= (posn-point (event-start event))
-                              target-point)
-                         t)
-                       (if (memq target '(object nil))
-                           (eq (car (posn-object (event-start event))) ;;ex: 'image
-                               (car target-object)) ;;ex: 'image
-                         t))
+              (if (or allow-out-of-target-p
+                      (edraw-posn-same-object-p (event-start event)
+                                                down-position
+                                                target))
                   (if on-move (funcall on-move event))
                 ;; out of target
                 (if on-up (funcall on-leave event))
@@ -231,7 +223,77 @@
               (push (cons t event) unread-command-events)))))
         result))))
 
-;;;; Input Event
+(defun edraw-posn-same-object-p (pos1 pos2 &optional target)
+  (and (eq (posn-window pos1)
+           (posn-window pos2))
+       (if (memq target '(point object nil))
+           (= (posn-point pos1)
+              (posn-point pos2))
+         t)
+       (if (memq target '(object nil))
+           (eq (car (posn-object pos1)) ;;ex: 'image
+               (car (posn-object pos2))) ;;ex: 'image
+         t)))
+
+;;;; Input Event Coordinates
+
+(defun edraw-posn-x-y-on-frame (position)
+  "Convert POSITION to frame coordinates.
+
+POSITION should be a list of the form returned by `event-start'
+and `event-end'."
+  (let* ((window-or-frame (posn-window position))
+         (window (and (windowp window-or-frame) window-or-frame))
+         (area (posn-area position))
+         (xy (posn-x-y position))
+         (x (car xy))
+         (y (cdr xy)))
+    (cond
+     (window
+      (let ((edges (cond
+                    ((null area)
+                     (window-inside-pixel-edges window))
+                    ((memq area '(horizontal-scroll-bar
+                                  mode-line header-line tab-line))
+                     (window-pixel-edges window))
+                    ((memq area '(left-margin
+                                  left-fringe
+                                  ;; Right
+                                  right-fringe
+                                  right-margin
+                                  vertical-line
+                                  vertical-scroll-bar))
+                     (let ((win (window-pixel-edges window))
+                           (ins (window-inside-pixel-edges window)))
+                       ;; Just to make sure, do the processing when
+                       ;; x is not a number.
+                       (unless (numberp x)
+                         (setq x (if (memq area '(left-margin left-fringe))
+                                     (nth 0 ins)
+                                   (nth 2 ins))))
+                       ;; x=win, y=ins
+                       ;; NOTE: Elisp manual says "x does not have
+                       ;; meaningful data" But at least in
+                       ;; MS-Windows x means the coordinate from the
+                       ;; left edge of the window.
+                       (list (nth 0 win) (nth 1 ins)
+                             (nth 2 win) (nth 3 ins)))))))
+        (when edges
+          (cons (+ x (car edges))
+                (+ y (cadr edges))))))
+     ((framep window-or-frame)
+      xy))))
+
+(defun edraw-posn-delta-xy-frame-to-object (down-pos)
+  "Calculate coordinate delta from frame to image."
+  (let* ((down-xy-on-frame (edraw-posn-x-y-on-frame down-pos))
+         (down-xy-on-object (posn-object-x-y down-pos)))
+    (and down-xy-on-frame
+         (cons (- (car down-xy-on-object) (car down-xy-on-frame))
+               (- (cdr down-xy-on-object) (cdr down-xy-on-frame))))))
+
+
+;;;; Input Event Modifiers
 
 (defun edraw-event-mouse-modifiers (event)
   (seq-remove (lambda (m) (not (memq m '(click double triple drag down))))

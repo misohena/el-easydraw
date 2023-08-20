@@ -898,20 +898,27 @@
     (edraw-dispatch-click area)))
 
 (defun edraw-color-picker-areas-on-down-mouse-1 (areas down-event image-scale updator)
-  (when-let ((down-xy (edraw-color-picker-mouse-to-xy down-event image-scale))
+  (when-let ((down-xy (edraw-color-picker-mouse-to-xy
+                       down-event image-scale down-event))
              (area (edraw-color-picker-areas-find-by-xy areas down-xy)))
     (edraw-dispatch-mouse-xy area down-xy)
     (funcall updator)
 
-    (let ((inside-p t))
+    (let* ((inside-p t)
+           ;; Generate detailed movement events even on fringes and scrollbars
+           (mouse-fine-grained-tracking t))
       (edraw-track-dragging
        down-event
        (lambda (move-event)
-         (let ((move-xy (edraw-color-picker-mouse-to-xy move-event image-scale)))
+         (let ((move-xy (edraw-color-picker-mouse-to-xy
+                         move-event image-scale down-event)))
            (unless (edraw-contains-point-p area move-xy)
              (setq inside-p nil))
            (edraw-dispatch-mouse-xy area move-xy)
-           (funcall updator))))
+           (funcall updator)))
+       nil nil nil nil
+       ;; Allow out of image
+       t)
       (when inside-p
         (edraw-dispatch-click area)))))
 
@@ -919,8 +926,20 @@
 ;;;; Mouse Event
 
 
-(defun edraw-color-picker-mouse-to-xy (event image-scale)
-  (let* ((xy (posn-object-x-y (event-start event)))
+(defun edraw-color-picker-mouse-to-xy (move-event image-scale down-event)
+  (let* ((move-pos (event-start move-event))
+         (down-pos (event-start down-event))
+         (xy
+          (if (edraw-posn-same-object-p move-pos down-pos)
+              ;; In the target image
+              (posn-object-x-y move-pos)
+            ;; Out of the target image
+            (let ((delta-xy (edraw-posn-delta-xy-frame-to-object down-pos))
+                  (xy-on-frame (edraw-posn-x-y-on-frame move-pos)))
+              (if (and delta-xy xy-on-frame)
+                  (cons (+ (car delta-xy) (car xy-on-frame))
+                        (+ (cdr delta-xy) (cdr xy-on-frame)))
+                (cons 0 0)))))
          (x (round (/ (car xy) image-scale)))
          (y (round (/ (cdr xy) image-scale))))
     (cons x y)))
