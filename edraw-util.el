@@ -378,6 +378,24 @@
 
 
 
+;;;; Max Image Size
+
+(defun edraw-max-image-width ()
+  "Return max image width in pixels."
+  (let ((size max-image-size))
+    (cond
+     ((integerp size) size)
+     ((floatp size) (round (* size (frame-pixel-width))))
+     (t 1024))))
+
+(defun edraw-max-image-height ()
+  "Return max image height in pixels."
+  (let ((size max-image-size))
+    (cond
+     ((integerp size) size)
+     ((floatp size) (round (* size (frame-pixel-height))))
+     (t 1024))))
+
 ;;;; Misc
 
 (defun edraw-alist-get-as-number (key alist default)

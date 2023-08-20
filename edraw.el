@@ -147,16 +147,52 @@ uses the value of `image-scaling-factor' variable."
   :group 'edraw-editor
   :type 'number)
 
-(defcustom edraw-editor-auto-view-enlargement-max-size (cons 560 420)
+(defcustom edraw-editor-auto-view-enlargement-max-size
+  (cons
+   (list 'window 0.9375 0 320 1024)
+   (list 'window 0.625 0 320 1024))
   "When zoomed, editing view will automatically resize up to this size.
 
-When nil, disable auto view enlargement."
+nil : disable auto view enlargement.
+
+(W . H) : Auto enlarge to the size specified by W and H as the upper limit.
+          Each values can be one of the following:
+
+- Integer : Number of pixels (before scaling for the whole editor)
+- Float : Ratio to frame size
+- (window RATIO MINUS MIN MAX) : clamp(WINDOWSIZE * RATIO - MINUS, MIN, MAX)
+
+Note: All pixel counts are before applying the editor-wide scaling factor."
   :group 'edraw-editor
-  :type '(choice (const nil :tag "Disable auto view enlargement")
+  :type '(choice (const :tag "Disable auto view enlargement" nil)
                  (cons
                   :tag "Maximum Size"
-                  (integer :tag "Width")
-                  (integer :tag "Height"))))
+                  (choice (integer :tag "Width")
+                          (float :tag "Ratio to frame width" :value 1.0)
+                          (list
+                           :tag "Calculate from window width"
+                           (const :format "" window)
+                           (float :tag "Ratio to window width" :value 1.0)
+                           (integer :tag "Minus pixels")
+                           (choice :tag "Minimum"
+                                   (const :tag "0" nil)
+                                   (integer :tag "Pixels"))
+                           (choice :tag "Maximum"
+                                   (const :tag "max-image-size" nil)
+                                   (integer :tag "Pixels" :value 2048))))
+                  (choice (integer :tag "Height")
+                          (float :tag "Ratio to frame height" :value 1.0)
+                          (list
+                           :tag "Calculate from window height"
+                           (const :format "" window)
+                           (float :tag "Ratio to window height" :value 1.0)
+                           (integer :tag "Pixels")
+                           (choice :tag "Minimum"
+                                   (const :tag "0" nil)
+                                   (integer :tag "Pixels"))
+                           (choice :tag "Maximum"
+                                   (const :tag "max-image-size" nil)
+                                   (integer :tag "Pixels" :value 2048)))))))
 
 (defconst edraw-grid-display-min-interval 4.0)
 
@@ -2022,17 +2058,53 @@ For use with `edraw-editor-with-temp-undo-list',
                (edraw-clamp
                 (* (edraw-width editor) new-scale)
                 curr-view-w
-                (car edraw-editor-auto-view-enlargement-max-size)))
+                (max
+                 curr-view-w
+                 (edraw-auto-view-enlargement-max editor t))))
               (new-view-h
                (edraw-clamp
                 (* (edraw-height editor) new-scale)
                 curr-view-h
-                (cdr edraw-editor-auto-view-enlargement-max-size))))
+                (max
+                 curr-view-h
+                 (edraw-auto-view-enlargement-max editor nil)))))
           (when (or (> new-view-w curr-view-w)
                     (> new-view-h curr-view-h))
             (setq view-size (cons new-view-w new-view-h))
             ;; It is the caller's responsibility to update SVG
             ))))))
+
+(cl-defmethod edraw-auto-view-enlargement-max ((editor edraw-editor)
+                                               x-p)
+  (let ((spec (if x-p
+                  (car edraw-editor-auto-view-enlargement-max-size)
+                (cdr edraw-editor-auto-view-enlargement-max-size)))
+        (image-scale (oref editor image-scale)))
+    (pcase spec
+      ;; Number of pixels (before scaling)
+      ((pred integerp) spec)
+      ;; Ratio to frame body size
+      ((pred floatp)
+       (floor
+        (/ (* spec (if x-p (frame-text-width) (frame-text-height)))
+           image-scale)))
+      ;; Ratio to window body size
+      (`(window ,ratio ,minus ,min ,max)
+       (let* ((ratio (or ratio 1.0))
+              (wsize (/ (if x-p
+                            (window-body-width nil t)
+                          (window-body-height nil t))
+                        image-scale))
+              (minus (or minus 0))
+              (min (or min 0))
+              (max (or max
+                       (/ (if x-p
+                              (edraw-max-image-width)
+                            (edraw-max-image-height))
+                          image-scale))))
+         (floor (edraw-clamp (- (* ratio wsize) minus) min max))))
+      (_ (if x-p 560 420)))))
+
 
 ;;;;;;; Commands
 
