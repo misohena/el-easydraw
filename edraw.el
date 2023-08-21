@@ -3052,6 +3052,12 @@ For use with `edraw-editor-with-temp-undo-list',
             ((edraw-msg "Circle") edraw-editor-edit-default-marker-circle-props))))
          )
         ;;((edraw-msg "Search Object") edraw-editor-search-object)
+        ((edraw-msg "Select All") edraw-editor-toggle-selection-all
+         :visible ,(not (edraw-selected-shapes editor))
+         :enable ,(not (edraw-selected-shapes editor)))
+        ((edraw-msg "Deselect All") edraw-editor-toggle-selection-all
+         :visible ,(not (null (edraw-selected-shapes editor)))
+         :enable ,(not (null (edraw-selected-shapes editor))))
         ((edraw-msg "Undo") edraw-editor-undo
          :enable ,(not (edraw-empty-undo-p editor)))
         ((edraw-msg "Redo") edraw-editor-redo
