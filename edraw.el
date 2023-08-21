@@ -3302,7 +3302,8 @@ position where the EVENT occurred."
                    'before-string (propertize "*"
                                               'display image
                                               'face 'default
-                                              'keymap keymap)))))
+                                              'keymap keymap
+                                              'pointer 'arrow)))))
 
 (defun edraw-editor-make-toolbar-button
     (parent x y w h image-scale icon key-id help-echo selected-p)
