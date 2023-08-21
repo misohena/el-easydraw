@@ -4134,23 +4134,40 @@ position where the EVENT occurred."
     :stroke "#ccc" :stroke-width 1 :fill "url(#icon-fg-gradient)")))
 
 (defclass edraw-editor-tool-text (edraw-editor-tool)
-  ()
+  ((prefix-arg-last-down-mouse :initform nil))
   )
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-text))
   'text)
 
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool-text))
-  (message (edraw-msg "[Text Tool] Click:Add, C-Click:Glue")))
+  (message (edraw-msg "[Text Tool] Click:Add or Change, C-u Click:Add, C-Click:Glue")))
+
+(cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-text) _click-event)
+  (oset tool prefix-arg-last-down-mouse current-prefix-arg))
 
 (cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-text) click-event)
-  (edraw-put-text-shape tool click-event edraw-snap-text-to-shape-center))
+  (or (and (not (oref tool prefix-arg-last-down-mouse))
+           (edraw-change-text-shape tool click-event))
+      (edraw-put-text-shape tool click-event edraw-snap-text-to-shape-center)))
 
 (cl-defmethod edraw-on-S-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (edraw-put-text-shape tool click-event (not edraw-snap-text-to-shape-center)))
 
 (cl-defmethod edraw-on-C-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (edraw-put-text-shape tool click-event (not edraw-snap-text-to-shape-center)))
+
+(cl-defmethod edraw-change-text-shape ((tool edraw-editor-tool text)
+                                       click-event)
+  (let* ((editor (oref tool editor))
+         (down-xy (edraw-mouse-event-to-xy-raw editor click-event)) ;;Do not any rounding coordinates
+         (down-shape (car (edraw-find-shapes-by-xy editor down-xy)))) ;;front
+    (when down-shape
+      (edraw-select-shape editor down-shape)
+      (let* ((old-text (edraw-get-property down-shape 'text))
+             (new-text (read-string (edraw-msg "Change Text: ") (or old-text ""))))
+        (edraw-set-property down-shape 'text new-text)
+        t))))
 
 (cl-defmethod edraw-put-text-shape ((tool edraw-editor-tool-text) click-event
                                     snap-to-shape-center-p)
