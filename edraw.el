@@ -2862,7 +2862,9 @@ For use with `edraw-editor-with-temp-undo-list',
                (value (edraw-get-property shape prop-name)))
           ;; Set property value as default
           (edraw-set-default-shape-property
-           editor tag prop-name value))))))
+           editor tag prop-name value))))
+    ;; Update toolbar
+    (edraw-update-toolbar editor)))
 
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
   (with-slots (default-shape-properties) editor
