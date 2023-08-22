@@ -38,17 +38,18 @@ The following commands are available:
 \\{edraw-mode-map}"
   (interactive)
 
-  (major-mode-suspend)
-
   (widen)
 
-  (let* ((svg (edraw-svg-decode (buffer-substring-no-properties
-                                 (point-min) (point-max))
-                                nil))
+  (let* ((svg (edraw-mode--parse-svg)) ;; May throw an error
+         ;; After SVG parse
          (ov (progn
+               ;; Leave current major mode
+               (major-mode-suspend)
+
                ;; Fix source text (If buffer is empty, add dummy text)
                ;; and set read-only property
                (edraw-mode--text-lock)
+
                ;; Cover the entire source text
                (make-overlay (point-min) (point-max) nil nil t)))
          (editor (edraw-editor
@@ -75,6 +76,17 @@ The following commands are available:
 
     (run-mode-hooks 'edraw-mode-hook)))
 
+(defun edraw-mode--parse-svg ()
+  (let* ((source (buffer-substring-no-properties (point-min) (point-max)))
+         (svg (edraw-svg-decode source nil)))
+    ;; Check SVG
+    (unless (if (string-empty-p source) ;;@todo check whitespace only?
+                (null svg)
+              (and (not (null svg))
+                   (edraw-dom-element-p svg)
+                   (eq (dom-tag svg) 'svg)))
+      (error "Failed to parse SVG"))
+    svg))
 
 
 ;;;; Finalize Major Mode
