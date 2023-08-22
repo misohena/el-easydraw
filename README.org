@@ -118,6 +118,14 @@ NOTE: Setup later than other modes for .svg such as image-mode.
 
 Emacs Easy Draw can only handle a small subset of the SVG specification, but the files it outputs can be viewed in a browser or other software that can handle SVG.
 
+#+begin_src emacs-lisp
+(autoload 'edraw "edraw-mode" nil t)
+#+end_src
+
+The `edraw' command simply creates a new buffer and sets its major mode to edraw-mode. Suitable for quickly creating new diagrams. You can save as with the save-buffer (C-x C-s) command.
+
+Typing M-x xml-mode in the edraw-mode buffer will edit it as XML. Typing M-x edraw-mode again graphically edits.
+
 * Key bindings
 
 Most of the key bindings are displayed in menus and help echoes.

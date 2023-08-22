@@ -24,6 +24,12 @@
 ;; (add-to-list 'auto-mode-alist '("\\.edraw\\.svg$" . edraw-mode))
 ;; NOTE: Set later than other modes for .svg such as image-mode.
 
+;;
+
+;; (autoload 'edraw "edraw-mode" nil t)
+;; M-x edraw
+
+
 ;;; Code:
 
 (require 'edraw)
