@@ -160,6 +160,7 @@ show the overlay using display property.")
   (set-buffer-modified-p t))
 
 (defun edraw-mode-on-before-save ()
+  (set-buffer-file-coding-system 'utf-8) ;; SVG must be UTF-8 encoded
   (edraw-mode-save))
 
 (defun edraw-mode-write-document (svg)
