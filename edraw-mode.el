@@ -55,7 +55,17 @@ The following commands are available:
          (editor (edraw-editor
                   :overlay ov
                   :svg svg
-                  :document-writer 'edraw-mode-write-document)))
+                  ;; Don't use :document-writer to hide "save" from main menu
+                  ;;:document-writer 'edraw-mode-write-document
+                  :menu-filter
+                  (lambda (menu-type items &rest _)
+                    (pcase menu-type
+                      ('main-menu
+                       (append
+                        items
+                        `(((edraw-msg "Save") save-buffer)
+                          ("xml-mode" xml-mode))))
+                      (_ items))))))
     (edraw-initialize editor)
     (setq-local edraw-mode-editor editor)
 
@@ -182,8 +192,14 @@ show the overlay using display property.")
                                               edraw-mode-compress-file-p)))
 
 (defun edraw-mode-save ()
-  (when edraw-mode-editor
-   (edraw-save edraw-mode-editor)))
+  (let ((editor edraw-mode-editor))
+    ;; Same as edraw-save, but don't use document-writer because it
+    ;; shows a "save" item in the main menu.
+    (when (and editor
+               (edraw-modified-p editor))
+      (let ((doc-svg (edraw-document-svg editor)))
+        (edraw-mode-write-document doc-svg)
+        (edraw-set-modified-p editor nil)))))
 
 
 (provide 'edraw-mode)
