@@ -1,6 +1,7 @@
 
 
 * Inbox
+** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
 ** TODO edraw-mode/拡張子を.edraw.svgとせず.svgでもedraw-modeで開くようにする
 セーブ時に.edraw.svgという拡張子を入力するのが煩わしい。
 
@@ -10,14 +11,6 @@ svgファイルの先頭に ~<!-- -*- mode: edraw -*- -->~ と入れればOK。�
 オプションを追加するくらい？
 
 他の方法としては、magic-mode-alistで ~id="edraw-body"~ とか edraw-def? を検出するとか？　edraw-bodyはedraw-defが肥大化するとそこまで検索できないかもしれないので。 ~id="edraw-~ で十分かな?
-
-** TODO edraw-mode/専用のウィンドウで独立して動作するエディタを作る
-M-x edraw-editor で起動するような。
-起動してからファイルを読み込んだりする。
-edraw-modeじゃダメなの？
-switch-to-bufferで空のバッファを作ってからedraw-modeしても作図は出来る。
-まぁ、同じでも良いけど、あくまで使い方の違い。
-実際からのバッファを作ってedraw-modeを立ち上げるだけでも良い。
 
 ** TODO edraw-mode/ビューを常にウィンドウサイズに合わせる
 やりたいけど実際の所ちょっと重い。環境によっては不安定になる可能性もある？
@@ -2589,3 +2582,13 @@ edraw-modeでは普通にsave-buffer(C-x C-s)が使える。
 完全に消すか、C-x C-sを載せるか。
 ** DONE edraw-mode/メインメニューにxml-modeへの切り替えを追加する
 CLOSED: [2023-08-22 Tue 21:20]
+** DONE edraw-mode/専用のウィンドウで独立して動作するエディタを作る
+CLOSED: [2023-08-22 Tue 21:38]
+M-x edraw-editor で起動するような。
+起動してからファイルを読み込んだりする。
+edraw-modeじゃダメなの？
+switch-to-bufferで空のバッファを作ってからedraw-modeしても作図は出来る。
+まぁ、同じでも良いけど、あくまで使い方の違い。
+実際からのバッファを作ってedraw-modeを立ち上げるだけでも良い。
+
+edraw-modeを再整備したので、 M-x edraw で新しいバッファを作ってedraw-modeを立ち上げる。

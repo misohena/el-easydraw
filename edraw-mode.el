@@ -30,6 +30,7 @@
 
 (defvar-local edraw-mode-editor nil)
 
+;;;###autoload
 (defun edraw-mode ()
   "Major mode for editing edraw SVG files.
 
@@ -201,6 +202,13 @@ show the overlay using display property.")
         (edraw-mode-write-document doc-svg)
         (edraw-set-modified-p editor nil)))))
 
+;;;; Edraw Command
+
+;;;###autoload
+(defun edraw ()
+  (interactive)
+  (pop-to-buffer-same-window (generate-new-buffer "new-image.edraw.svg"))
+  (edraw-mode))
 
 (provide 'edraw-mode)
 ;;; edraw-mode.el ends here
