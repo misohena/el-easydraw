@@ -840,12 +840,25 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-initialize-svg-document ((editor edraw-editor))
   (with-slots (svg svg-document-size svg-document-view-box defrefs) editor
+    ;; Check specified SVG
+    (unless (or (null svg)
+                (and (edraw-dom-element-p svg) (eq (dom-tag svg) 'svg)))
+      (warn "The root of the DOM passed to edraw-editor as SVG is not an SVG element.")
+      (setq svg nil))
+
+    ;; Create default SVG
     (when (null svg)
       (setq svg (edraw-create-document-svg)))
 
     ;; Backup SVG Size
-    (setq svg-document-size (cons (edraw-svg-attr-length svg 'width)
-                                  (edraw-svg-attr-length svg 'height)))
+    (setq svg-document-size
+          (let ((w (edraw-svg-attr-length svg 'width))
+                (h (edraw-svg-attr-length svg 'height)))
+            (when (or (null w) (null h))
+              (warn "Width and height are not specified for svg element. Apply default document size."))
+            (cons
+             (or w (alist-get 'width edraw-default-document-properties))
+             (or h (alist-get 'height edraw-default-document-properties)))))
     ;; Backup SVG View Box
     (setq svg-document-view-box (dom-attr svg 'viewBox))
 
