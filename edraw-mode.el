@@ -40,11 +40,19 @@ The following commands are available:
 
   (major-mode-suspend)
 
+  (widen)
+
   (let* ((svg (edraw-svg-decode (buffer-substring-no-properties
                                  (point-min) (point-max))
                                 nil))
+         (ov (progn
+               ;; Fix source text (If buffer is empty, add dummy text)
+               ;; and set read-only property
+               (edraw-mode--text-lock)
+               ;; Cover the entire source text
+               (make-overlay (point-min) (point-max) nil nil t)))
          (editor (edraw-editor
-                  :overlay (make-overlay (point-min) (point-max) nil nil t)
+                  :overlay ov
                   :svg svg
                   :document-writer 'edraw-mode-write-document)))
     (edraw-initialize editor)
@@ -56,10 +64,6 @@ The following commands are available:
     ;; Setup modification tracking and data saving
     (edraw-add-hook editor 'change 'edraw-mode-on-changed)
     (add-hook 'before-save-hook 'edraw-mode-on-before-save nil t)
-    (with-silent-modifications
-      (add-text-properties (point-min) (point-max)
-                           (list 'read-only t
-                                 'front-sticky '(read-only))))
 
     ;; Setup major mode finalization
     (add-hook 'change-major-mode-hook 'edraw-mode-finalize-major-mode nil t)
@@ -78,11 +82,50 @@ The following commands are available:
   ;; Remove editor overlay
   (remove-overlays (point-min) (point-max))
   ;; Remove read only properties
-  (with-silent-modifications
-    (remove-list-of-text-properties (point-min) (point-max)
-                                    '(read-only front-sticky)))
+  (edraw-mode--text-unlock)
+
   (remove-hook 'change-major-mode-hook 'edraw-mode-on-change-major-mode t))
 
+
+
+;;;; Text Modification
+
+(defvar edraw-mode--text-empty-p nil
+  "Non-nil means source text is empty and dummy text is added to
+show the overlay using display property.")
+
+(defun edraw-mode--text-lock ()
+  (with-silent-modifications
+    ;; Empty buffers cannot use display property.
+    ;; So if the current buffer is empty, adds a dummy character.
+    (setq edraw-mode--text-empty-p (= (point-min) (point-max)))
+    (when edraw-mode--text-empty-p
+      (insert "\n"))
+    (add-text-properties (point-min) (point-max)
+                         (list 'read-only t
+                               'front-sticky '(read-only)))))
+
+(defun edraw-mode--text-unlock ()
+  (with-silent-modifications
+    (if edraw-mode--text-empty-p
+        (progn
+          (erase-buffer)
+          (setq edraw-mode--text-empty-p nil))
+      (remove-list-of-text-properties (point-min) (point-max)
+                                      '(read-only front-sticky)))))
+
+(defun edraw-mode--text-replace (new-text)
+  (unless (string= (if edraw-mode--text-empty-p "" (buffer-string))
+                   new-text)
+    ;; Changed
+    (let ((inhibit-read-only t))
+      (if edraw-mode--text-empty-p
+          ;; Do not record undo data for deletion of dummy text
+          (with-silent-modifications
+            (erase-buffer))
+        (erase-buffer))
+      (insert new-text)
+      (edraw-mode--text-lock))))
 
 
 ;;;; Keymap
@@ -120,11 +163,8 @@ The following commands are available:
   (edraw-mode-save))
 
 (defun edraw-mode-write-document (svg)
-  (let ((text (edraw-svg-encode
-               svg nil edraw-mode-compress-file-p)))
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (insert text))))
+  (edraw-mode--text-replace (edraw-svg-encode svg nil
+                                              edraw-mode-compress-file-p)))
 
 (defun edraw-mode-save ()
   (when edraw-mode-editor
