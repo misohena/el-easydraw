@@ -2552,3 +2552,6 @@ EnterやC-qで。
 次に、セーブ時にバッファテキストを更新するときにread-onlyテキストプロパティが消えてしまう。
 ** DONE edraw-mode/ファイルへ保存するときはUTF-8で保存する
 CLOSED: [2023-08-22 Tue 13:47]
+** DONE edraw-mode/カーソルを消す
+CLOSED: [2023-08-22 Tue 13:50]
+(setq cursor-type nil)で消せる。

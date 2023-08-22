@@ -71,6 +71,8 @@ The following commands are available:
     ;; Start major mode
     (setq mode-name "Easy Draw")
     (setq major-mode 'edraw-mode)
+    (setq cursor-type nil) ;;Hide cursor
+
     (run-mode-hooks 'edraw-mode-hook)))
 
 
