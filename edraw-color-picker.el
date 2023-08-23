@@ -1056,6 +1056,11 @@
     (when display
       (edraw-close display))))
 
+(cl-defmethod edraw-update ((picker edraw-color-picker))
+  (with-slots (display) picker
+    (when display
+      (edraw-update display))))
+
 (cl-defmethod edraw-get-current-color ((picker edraw-color-picker))
   (edraw-get-current-color (oref picker model)))
 
@@ -1229,7 +1234,8 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
 (defclass edraw-color-picker-display-overlay ()
   ((overlay :initarg :overlay)
    (target-property :initarg :target-property)
-   (keymap :initarg :keymap)))
+   (keymap :initarg :keymap)
+   (picker)))
 
 (cl-defmethod edraw-overlay ((display edraw-color-picker-display-overlay))
   (oref display overlay))
@@ -1240,6 +1246,7 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
 (cl-defmethod edraw-initialize ((display edraw-color-picker-display-overlay)
                                 picker)
   (with-slots (overlay target-property keymap) display
+    (oset display picker picker)
     ;; Set overlay properties
     (when (eq target-property 'display)
       (overlay-put overlay 'edraw-color-picker picker)
@@ -1256,20 +1263,19 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
        (overlay-put overlay target-property nil)))
     (delete-overlay overlay)))
 
-(cl-defmethod edraw-update ((picker edraw-color-picker))
-  (let ((display (oref picker display)))
-    (with-slots (overlay target-property keymap) display
-      (pcase target-property
-        ('display
-         (overlay-put overlay 'display (edraw-get-image picker)))
-        ((or 'before-string 'after-string)
-         (overlay-put overlay target-property
-                      (propertize
-                       "*"
-                       'display (edraw-get-image picker)
-                       'face 'default
-                       'keymap keymap
-                       'pointer 'arrow)))))))
+(cl-defmethod edraw-update ((display edraw-color-picker-display-overlay))
+  (with-slots (overlay target-property keymap picker) display
+    (pcase target-property
+      ('display
+       (overlay-put overlay 'display (edraw-get-image picker)))
+      ((or 'before-string 'after-string)
+       (overlay-put overlay target-property
+                    (propertize
+                     "*"
+                     'display (edraw-get-image picker)
+                     'face 'default
+                     'keymap keymap
+                     'pointer 'arrow))))))
 
 (defun edraw-color-picker-make-overlay (overlay-or-args-props)
   "If OVERLAY-OR-ARGS-PROPS is an overlay, return it as is.
