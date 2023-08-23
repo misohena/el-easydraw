@@ -2620,3 +2620,7 @@ alphaが1のときはrgbを使うようにする。
 CLOSED: [2023-08-24 Thu 02:02]
 edraw-color-picker-replace-color-at-pointのposition指定版。
 edraw-color-picker-replace-color-at-pointは内部でedraw-color-picker-replace-color-atを呼び出す。
+** DONE 色/edraw-color-picker-replace-or-insert-color-at-pointコマンドを追加
+CLOSED: [2023-08-24 Thu 02:10]
+一つのコマンド(一つのキー割り当て)で置換または新規挿入を行う。
+mhtml-modeには案外空いているキーが少ないので。

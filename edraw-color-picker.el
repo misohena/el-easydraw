@@ -29,6 +29,7 @@
 ;; - (edraw-color-picker-insert-color)
 ;; - (edraw-color-picker-replace-color-at-point)
 ;; - (edraw-color-picker-replace-color-at)
+;; - (edraw-color-picker-replace-or-insert-color-at-point)
 
 ;; A function that opens a color picker near the point:
 ;; - edraw-color-picker-open-near-point
@@ -1750,6 +1751,12 @@ OVERLAY uses the display property to display the color PICKER."
        (eq this-command mc)))))
 
 ;;;;; Replace Color
+
+;;;###autoload
+(defun edraw-color-picker-replace-or-insert-color-at-point (&optional options)
+  (interactive)
+  (or (edraw-color-picker-replace-color-at (point) options)
+      (edraw-color-picker-insert-color nil options)))
 
 (defun edraw-color-picker-replace-color-at-point (&optional options)
   "Replace the color at the point with the color selected by color picker."
