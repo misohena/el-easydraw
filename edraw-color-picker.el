@@ -31,6 +31,18 @@
 ;; - (edraw-color-picker-replace-color-at)
 ;; - (edraw-color-picker-replace-or-insert-color-at-point)
 
+;; To use it while editing css or html:
+;;   (autoload 'edraw-color-picker-replace-color-at "edraw-color-picker" nil t)
+;;   (autoload 'edraw-color-picker-replace-or-insert-color-at-point "edraw-color-picker" nil t)
+;;   (defun my-edraw-color-picker-enable ()
+;;     ;; Replaces the color of the clicked location
+;;     (local-set-key [mouse-1] #'edraw-color-picker-replace-color-at)
+;;     ;; C-c C-o replaces the color in place or adds color
+;;     (local-set-key (kbd "C-c C-o") #'edraw-color-picker-replace-or-insert-color-at-point))
+;;   (add-hook 'css-mode-hook 'my-edraw-color-picker-enable)
+;;   (add-hook 'mhtml-mode-hook 'my-edraw-color-picker-enable)
+
+
 ;; A function that opens a color picker near the point:
 ;; - edraw-color-picker-open-near-point
 
@@ -1701,6 +1713,7 @@ OVERLAY uses the display property to display the color PICKER."
 
 ;;;;; Insert Color
 
+;;;###autoload
 (defun edraw-color-picker-insert-color (&optional initial-color options)
   "Insert a color selected by color picker."
   (interactive)
@@ -1758,6 +1771,7 @@ OVERLAY uses the display property to display the color PICKER."
   (or (edraw-color-picker-replace-color-at (point) options)
       (edraw-color-picker-insert-color nil options)))
 
+;;;###autoload
 (defun edraw-color-picker-replace-color-at-point (&optional options)
   "Replace the color at the point with the color selected by color picker."
   (interactive)
@@ -1823,6 +1837,7 @@ OVERLAY uses the display property to display the color PICKER."
 
 ;;;;; Read Color from Minibuffer
 
+;;;###autoload
 (defun edraw-color-picker-read-color (&optional
                                       prompt initial-color
                                       allow-strings options)

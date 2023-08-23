@@ -200,12 +200,33 @@ The following code is an example of inserting an editor into a buffer from Emacs
 
 edraw-color-picker.el contains a color picker library and some commands.
 
+Commands to add/replace the selected color to the buffer:
+- edraw-color-picker-insert-color
+- edraw-color-picker-replace-color-at
+- edraw-color-picker-replace-or-insert-color-at-point
+
+Settings for using them while editing CSS or HTML:
+
+#+begin_src elisp
+(autoload 'edraw-color-picker-replace-color-at "edraw-color-picker" nil t)
+(autoload 'edraw-color-picker-replace-or-insert-color-at-point "edraw-color-picker" nil t)
+(defun my-edraw-color-picker-enable ()
+  ;; Replaces the color of the clicked location
+  (local-set-key [mouse-1] #'edraw-color-picker-replace-color-at)
+  ;; C-c C-o replaces the color in place or adds color
+  (local-set-key (kbd "C-c C-o") #'edraw-color-picker-replace-or-insert-color-at-point))
+(add-hook 'css-mode-hook 'my-edraw-color-picker-enable)
+(add-hook 'mhtml-mode-hook 'my-edraw-color-picker-enable)
+#+end_src
+
+#+CAPTION: Show color picker inline
+[[file:./screenshot/color-picker-inline.png]]
+
 Show color picker in minibuffer:
 - (edraw-color-picker-read-color)
 
-Insert the selected color into the buffer:
-- (edraw-color-picker-insert-color)
-- (edraw-color-picker-replace-color-at-point)
+#+CAPTION: Show color picker in minibuffer
+[[file:./screenshot/color-picker-minibuffer.png]]
 
 A function that opens a color picker near the point:
 - edraw-color-picker-open-near-point
@@ -216,11 +237,7 @@ A function that displays a color picker using an overlay:
 The core class of the color picker:
 - edraw-color-picker
 
-#+CAPTION: Show color picker in minibuffer
-[[file:./screenshot/color-picker-minibuffer.png]]
 
-#+CAPTION: Show color picker inline
-[[file:./screenshot/color-picker-inline.png]]
 
 * License
 
