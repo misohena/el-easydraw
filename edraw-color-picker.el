@@ -1083,6 +1083,11 @@
     (when-let ((hook (alist-get hook-type hooks)))
       (apply 'edraw-hook-add hook function args))))
 
+(cl-defmethod edraw-closed-p ((picker edraw-color-picker))
+  (with-slots (display) picker
+    (when display
+      (edraw-closed-p display))))
+
 (cl-defmethod edraw-close ((picker edraw-color-picker))
   (with-slots (display) picker
     (when display
@@ -1281,6 +1286,11 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
       (overlay-put overlay 'keymap keymap)
       (overlay-put overlay 'pointer 'arrow))))
 
+(cl-defmethod edraw-closed-p ((display edraw-color-picker-display-overlay))
+  (with-slots (overlay) display
+    (when overlay
+      (null (overlay-buffer overlay)))))
+
 (cl-defmethod edraw-close ((display edraw-color-picker-display-overlay))
   (with-slots (overlay target-property) display
     (pcase target-property
@@ -1288,6 +1298,7 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
        (overlay-put overlay 'display nil))
       ((or 'before-string 'after-string)
        (overlay-put overlay target-property nil)))
+    ;;@todo delete here? (If change here, also change edraw-closed-p)
     (delete-overlay overlay)))
 
 (cl-defmethod edraw-update ((display edraw-color-picker-display-overlay))
@@ -1704,8 +1715,38 @@ OVERLAY uses the display property to display the color PICKER."
        ;; Insert
        (insert (edraw-color-picker-color-to-string
                 (edraw-get-current-color picker)
-                options)))))
+                options))))
+
+    (edraw-color-picker--set-transient-map picker))
   t)
+
+(defun edraw-color-picker--set-transient-map (picker)
+  (set-transient-map
+   (let ((km (make-sparse-keymap)))
+     (define-key km (kbd "C-c C-c")
+                 (lambda () (interactive) (edraw-click-area picker "ok")))
+     km)
+   ;;@todo Pass actual keymap of picker to keep-pred
+   #'edraw-color-picker--transient-map-keep-pred
+   (lambda ()
+     (edraw-close picker))
+   "C-c C-c: OK, C-g: Cancel"))
+
+(defun edraw-color-picker--transient-map-keep-pred ()
+  (or
+   (memq this-command
+         '(;; Allow switching frames
+           handle-switch-frame
+           edraw-color-picker-on-down-mouse-1
+           ignore))
+   ;; Check this-command is in color picker's keymap
+   ;; See `set-transient-map' function
+   (let ((mc (lookup-key edraw-color-picker-map
+                         (this-command-keys-vector))))
+     (when mc
+       ;; Consider remapping
+       (setq mc (or (and (symbolp mc) (command-remapping mc)) mc))
+       (eq this-command mc)))))
 
 ;;;;; Replace Color
 
@@ -1716,48 +1757,55 @@ OVERLAY uses the display property to display the color PICKER."
   (unless (assq :color-name-scheme options)
     (setf (alist-get :color-name-scheme options) 'web))
 
-  (let ((pos (point))
-        (line-begin (line-beginning-position))
-        (line-end (line-end-position))
-        range
-        format-index) ;;index of edraw-color-string-patterns
-    ;; Find color string at point
-    (save-excursion
-      (goto-char line-begin)
-      (while (and (null range)
-                  (re-search-forward edraw-color-string-patterns-re line-end t))
-        (when (<= (match-beginning 0) pos (match-end 0))
-          (setq range (cons
-                       (match-beginning 0)
-                       (match-end 0)))
-          (setq format-index
-                (/ (seq-position (cddr (match-data)) t (lambda (a b) (and a b)))
-                   2)))))
-
-    ;; If not found, insert a new color string
-    (unless range
-      (setq range (cons pos pos)))
-
+  (when-let ((match-result (edraw-color-picker-lookup-color-at position))
+             (beg (nth 0 match-result))
+             (end (nth 1 match-result))
+             ;; Index of `edraw-color-string-patterns'
+             (format-index (nth 2 match-result)))
     ;; Open color picker near the point
-    (let* ((str (buffer-substring-no-properties (car range) (cdr range)))
-           (initial-color (edraw-color-picker-color-from-string str options)))
-      (let ((picker (edraw-color-picker-open-near-point initial-color options)))
-        ;; OK
-        (edraw-add-hook
-         picker 'ok
-         (lambda (&rest _)
-           ;; Replace color string as same format
-           (save-excursion
-             (goto-char (car range))
-             (delete-char (- (cdr range) (car range)))
-             (insert
-              (edraw-color-picker-color-to-string
-               (edraw-get-current-color picker)
-               (cons
-                (cons :color-format
-                      (cadr (nth format-index edraw-color-string-patterns)))
-                options)))))))))
-  t)
+    (let* ((str (buffer-substring-no-properties beg end))
+           (initial-color (edraw-color-picker-color-from-string str options))
+           (picker (edraw-color-picker-open-near-point initial-color options)))
+      ;; OK
+      (edraw-add-hook
+       picker 'ok
+       (lambda (&rest _)
+         ;; Close first
+         (edraw-close picker)
+         ;; Replace color string as same format
+         (save-excursion
+           ;;@todo Use marker?
+           (goto-char beg)
+           (delete-region beg end)
+           (insert
+            (edraw-color-picker-color-to-string
+             (edraw-get-current-color picker)
+             (cons
+              (cons :color-format
+                    (cadr (nth format-index edraw-color-string-patterns)))
+              options))))))
+
+      (edraw-color-picker--set-transient-map picker))
+    t))
+
+(defun edraw-color-picker-lookup-color-at (position)
+  (save-excursion
+    (goto-char position)
+    (goto-char (line-beginning-position))
+    (let ((line-end (line-end-position))
+          (result nil))
+      (while (and (null result)
+                  (re-search-forward edraw-color-string-patterns-re line-end t))
+        (let ((beg (match-beginning 0))
+              (end (match-end 0)))
+          (when (and (<= beg position) (< position end))
+            (setq result
+                  (list beg
+                        end
+                        ;; Index of `edraw-color-string-patterns'
+                        (/ (cl-position-if-not #'null (cddr (match-data)))
+                           2))))))
+      result)))
 
 ;;;;; Read Color from Minibuffer
 

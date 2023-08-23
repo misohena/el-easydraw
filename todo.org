@@ -407,8 +407,6 @@ edrawリンクのdata-file相互変換機能があれば十分かも？　data�
 
 ** TODO グラデーションエディタを作る
 ** TODO デフォルト値を何度も設定しなくて良くなる機能
-** TODO 色/edraw-color-picker-replace-color-at-pointのキー入力を改善する
-C-c C-c や C-c C-kが効かない。
 ** TODO 色/カラーピッカーに固定のカラーパレットが欲しいかも？
 特定の色集合を保持し続けられるようなやつ。
 ファイルとの読み書きも出来ると良い。
@@ -2603,3 +2601,7 @@ CLOSED: [2023-08-24 Thu 00:54]
 CLOSED: [2023-08-24 Thu 01:46]
 0.75がハードコードされている。
 変数edraw-color-picker-near-point-scaleを追加する。
+** DONE 色/edraw-color-picker-replace-color-at-pointのキー入力を改善する
+CLOSED: [2023-08-24 Thu 00:54]
+C-c C-c や C-c C-kが効かない。
+edraw-color-picker-insert-color共々set-transient-mapを使用する。
