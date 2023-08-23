@@ -99,6 +99,11 @@
   :group 'edraw-color-picker
   :type 'boolean)
 
+(defcustom edraw-color-picker-near-point-scale 0.75
+  "A scaling factor when displaying the color picker near the point."
+  :group 'edraw-color-picker
+  :type 'float)
+
 ;;;; SVG Common
 
 (defun edraw-color-picker-rect (x y w h fill &optional stroke &rest attrs)
@@ -1659,7 +1664,7 @@ OVERLAY uses the display property to display the color PICKER."
   (interactive)
 
   (unless (assq :scale options)
-    (setf (alist-get :scale options) 0.75))
+    (setf (alist-get :scale options) edraw-color-picker-near-point-scale))
 
   (let* ((picker (if edraw-color-picker-use-frame-p
                      ;; Use child frame

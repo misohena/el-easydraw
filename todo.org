@@ -2599,3 +2599,7 @@ CLOSED: [2023-08-24 Thu 00:54]
 - edraw-color-picker-insert-color
 - edraw-color-picker-replace-color-at-point
 - edraw-color-picker-replace-color-at (新規追加)
+** DONE 色/カラーピッカーをポイントの近くに表示するときの拡大率をカスタマイズ
+CLOSED: [2023-08-24 Thu 01:46]
+0.75がハードコードされている。
+変数edraw-color-picker-near-point-scaleを追加する。
