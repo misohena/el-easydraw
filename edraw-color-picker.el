@@ -2040,7 +2040,7 @@ Valid OPTIONS are:
       ('hex
        (edraw-to-string-hex color))
       ((or 'rgb 'rgba)
-       (edraw-to-string-rgba color)))))
+       (edraw-to-string-rgba-or-rgb color)))))
 
 (defun edraw-color-picker-color-from-string (string options)
   "Convert STRING to edraw-color object.

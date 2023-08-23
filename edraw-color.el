@@ -198,6 +198,15 @@
             (round (* 255 b))
             (edraw-color-string-format-float a))))
 
+(cl-defmethod edraw-to-string-rgba-or-rgb ((color edraw-color))
+  (with-slots (r g b a) color
+    (if (= a 1)
+        (format "rgb(%d,%d,%d)"
+                (round (* 255 r))
+                (round (* 255 g))
+                (round (* 255 b)))
+      (edraw-to-string-rgba color))))
+
 (cl-defmethod edraw-to-string-hex ((color edraw-color))
   (with-slots (r g b a) color
     (if (= a 1.0)
@@ -258,7 +267,7 @@
 
 (defconst edraw-color-string-patterns
   '(("#[0-9a-fA-F]*" hex edraw-color-from-hex-string edraw-to-string-hex)
-    ("rgba? *([^)]*)" rgb edraw-color-from-rgb-string edraw-to-string-rgba)))
+    ("rgba? *([^)]*)" rgb edraw-color-from-rgb-string edraw-to-string-rgba-or-rgb)))
 
 (defconst edraw-color-string-patterns-re
   (mapconcat (lambda (re) (concat "\\(" (car re) "\\)"))

@@ -413,6 +413,14 @@ edrawリンクのdata-file相互変換機能があれば十分かも？　data�
 どうやって変更する？　右クリックしてメニューを出して「変更」とか？
 いや、パレット項目をクリックするとその色がピッカーの現在の選択色になると同時に選択マークが付いて、その状態でピッカーやrecent colorsで色を選ぶとそのパレット項目の色がそれに変わるようにする。もう一度パレット項目をクリックすると単に選択を解除するだけ。キャンセルでその変更は記録しない。OKでパレットの変更を記録。
 
+** TODO 色/edraw-color-picker-replace-color-atは可能な限り元の記法を尊重する
+元の記法を認識して、極力それに合わせるようにする。
+rgbaはもはやrgbの別名。それにカンマでなく空白で区切っても良い。
+[[https://developer.mozilla.org/ja/docs/Web/CSS/color_value/rgb][rgb() - CSS: カスケーディングスタイルシート | MDN]]
+カンマの後のスペースまで認識するかは悩み所。
+形式を認識する関数が必要。
+
+** TODO 色/edraw-color-picker-replace-color-atは色名を認識すべき
 ** TODO 色/HSL等の別の表色系に対応する
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
@@ -2605,3 +2613,6 @@ CLOSED: [2023-08-24 Thu 01:46]
 CLOSED: [2023-08-24 Thu 00:54]
 C-c C-c や C-c C-kが効かない。
 edraw-color-picker-insert-color共々set-transient-mapを使用する。
+** DONE 色/rgba(?,?,?,1)のような出力を回避する
+CLOSED: [2023-08-24 Thu 01:57]
+alphaが1のときはrgbを使うようにする。
