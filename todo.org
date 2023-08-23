@@ -2616,3 +2616,7 @@ edraw-color-picker-insert-color共々set-transient-mapを使用する。
 ** DONE 色/rgba(?,?,?,1)のような出力を回避する
 CLOSED: [2023-08-24 Thu 01:57]
 alphaが1のときはrgbを使うようにする。
+** DONE 色/edraw-color-picker-replace-color-atコマンドを追加する
+CLOSED: [2023-08-24 Thu 02:02]
+edraw-color-picker-replace-color-at-pointのposition指定版。
+edraw-color-picker-replace-color-at-pointは内部でedraw-color-picker-replace-color-atを呼び出す。

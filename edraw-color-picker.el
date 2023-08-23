@@ -28,6 +28,7 @@
 ;; Insert the selected color into the buffer:
 ;; - (edraw-color-picker-insert-color)
 ;; - (edraw-color-picker-replace-color-at-point)
+;; - (edraw-color-picker-replace-color-at)
 
 ;; A function that opens a color picker near the point:
 ;; - edraw-color-picker-open-near-point
@@ -1753,6 +1754,12 @@ OVERLAY uses the display property to display the color PICKER."
 (defun edraw-color-picker-replace-color-at-point (&optional options)
   "Replace the color at the point with the color selected by color picker."
   (interactive)
+  (edraw-color-picker-replace-color-at (point) options))
+
+;;;###autoload
+(defun edraw-color-picker-replace-color-at (position &optional options)
+  "Replace the color at POSITION with the color selected by color picker."
+  (interactive "d")
 
   (unless (assq :color-name-scheme options)
     (setf (alist-get :color-name-scheme options) 'web))
