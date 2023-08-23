@@ -86,6 +86,19 @@
 
 (defvar edraw-color-picker-model-suppress-change-hook nil)
 
+;;;; Customize
+
+(defgroup edraw-color-picker nil
+  "Color picker."
+  :tag "Edraw Color Picker"
+  :prefix "edraw-color-picker-"
+  :group 'edraw)
+
+(defcustom edraw-color-picker-use-frame-p t
+  "Non-nil means use child frame to display color picker."
+  :group 'edraw-color-picker
+  :type 'boolean)
+
 ;;;; SVG Common
 
 (defun edraw-color-picker-rect (x y w h fill &optional stroke &rest attrs)
@@ -947,6 +960,20 @@
 
 ;;;; Color Picker
 
+(defun edraw-color-picker-create (uninitialized-display
+                                  &optional initial-color options)
+  "Create a color picker object and initialize it."
+  (let ((picker (edraw-color-picker
+                 :initial-color initial-color
+                 :display uninitialized-display)))
+    ;; Initialize the picker object
+    (edraw-initialize picker options)
+    ;; Initialize the display object and link it to the picker object
+    (edraw-initialize uninitialized-display picker)
+    ;; First update
+    (edraw-update picker)
+    picker))
+
 (defclass edraw-color-picker ()
   ((initial-color :initarg :initial-color :initform (edraw-color-f 1 0 0 1))
    (model)
@@ -1218,18 +1245,13 @@ overlay-put.
 TARGET-PROPERTY : Overlay property to set the color-picker image.
 Specify one of \\='display, \\='before-string, or \\='after-string."
 
-  (let* ((display (edraw-color-picker-display-overlay
-                   :overlay (edraw-color-picker-make-overlay
-                             overlay-or-args-props)
-                   :target-property (or target-property 'display)
-                   :keymap edraw-color-picker-map))
-         (picker (edraw-color-picker
-                  :initial-color initial-color
-                  :display display)))
-    (edraw-initialize display picker)
-    (edraw-initialize picker options)
-    (edraw-update picker)
-    picker))
+  (edraw-color-picker-create (edraw-color-picker-display-overlay
+                              :overlay (edraw-color-picker-make-overlay
+                                        overlay-or-args-props)
+                              :target-property (or target-property 'display)
+                              :keymap edraw-color-picker-map)
+                             initial-color
+                             options))
 
 (defclass edraw-color-picker-display-overlay ()
   ((overlay :initarg :overlay)
@@ -1335,6 +1357,298 @@ OVERLAY uses the display property to display the color PICKER."
   (when-let ((picker (edraw-color-picker-at-input down-event)))
     (edraw-on-down-mouse-1 picker down-event)))
 
+;;;; Frame Display
+
+(defvar edraw-color-picker-frame-parameters
+  '(
+    ;; *Basic
+    ;;(display)
+    ;;(display-type)
+    (title . nil)
+    (name . " *Color Picker Frame*")
+    ;;(explicit-name)
+    ;; *Position
+    ;;(left . (+ 100))
+    ;;(top . 100)
+    ;;(icon-left)
+    ;;(icon-top)
+    (user-position . t)
+    (z-group . above)
+    ;; *Size
+    ;;(width . (text-pixels . 400))
+    ;;(height . (text-pixels . 300))
+    ;;(user-size)
+    ;;(min-width)
+    ;;(min-height)
+    ;;(fullscreen)
+    ;;(fullscreen-restore)
+    ;;(fit-frame-to-buffer-margins)
+    ;;(fit-frame-to-buffer-sizes)
+    ;; *Layout
+    (border-width . 0)
+    (internal-border-width . 0)
+    (child-frame-border-width . 0)
+    (vertical-scroll-bars . nil)
+    (horizontal-scroll-bars . nil)
+    (scroll-bar-width . 0)
+    (scroll-bar-height . 0)
+    (left-fringe . 0)
+    (right-fringe . 0)
+    (right-divider-width . 0)
+    (bottom-divider-width . 0)
+    (menu-bar-lines . 0)
+    (tool-bar-lines . 0)
+    ;;(tool-bar-position)
+    (tab-bar-lines . 0)
+    (line-spacing . 0)
+    (no-special-glyphs . t)
+    ;; *Buffer
+    (minibuffer . nil)
+    ;;(buffer-predicate . (lambda (_buffer) nil))
+    ;;(buffer-list)
+    (unsplittable . t)
+    ;; *Frame Interaction
+    ;;(parent-frame . ,(selected-frame))
+    ;;(delete-before . <related-frame>)
+    ;;(mouse-wheel-frame)
+    (no-other-frame . t)
+    ;;(auto-hide-function)
+    ;;(minibuffer-exit)
+    ;;(keep-ratio . nil)
+    ;; *Mouse Dragging
+    ;;(drag-internal-border)
+    ;;(drag-with-header-line)
+    ;;(drag-with-tab-line)
+    ;;(drag-with-mode-line)
+    ;;(snap-width)
+    ;;(top-visible)
+    ;;(bottom-visible)
+    ;; *Management
+    (visibility . t)
+    ;;(auto-raise)
+    ;;(auto-lower)
+    ;;(icon-type)
+    ;;(icon-name)
+    ;;(window-id)
+    ;;(outer-window-id)
+    ;;(wait-for-wm)
+    ;;(sticky)
+    ;;(inhibit-double-buffering)
+    ;;(skip-taskbar)
+    ;;(no-focus-on-map)
+    ;;(no-accept-focus . t)
+    (undecorated . t) ;; No caption, borders, buttons
+    ;;(override-redirect . t)
+    ;;(ns-appearance)
+    ;;(ns-transparent-titlebar)
+    ;; *Cursor
+    (cursor-type . nil)
+    ;; *Font and Color
+    ;;(font-backend)
+    ;;(background-mode)
+    ;;(tty-color-mode)
+    ;;(screen-gamma)
+    ;;(alpha)
+    ))
+
+(defun edraw-color-picker-frame-parameters ()
+  edraw-color-picker-frame-parameters)
+
+(defclass edraw-color-picker-display-frame ()
+  ((overlay-display)
+   (frame)
+   (buffer)
+   (frame-position :initform nil)))
+
+(cl-defmethod edraw-overlay ((display edraw-color-picker-display-frame))
+  (edraw-overlay (oref display overlay-display)))
+
+(cl-defmethod edraw-buffer ((display edraw-color-picker-display-frame))
+  (oref display buffer))
+
+(cl-defmethod edraw-initialize ((display edraw-color-picker-display-frame)
+                                picker)
+  (let* (;; Create buffer
+         (buffer
+          (generate-new-buffer " *Color Picker*"))
+         ;; Create overlay display
+         (overlay-display
+          (with-current-buffer buffer
+            ;; Initialize local variables
+            (setq-local mode-line-format nil
+                        header-line-format nil
+                        tab-line-format nil
+                        tab-bar-format nil
+                        truncate-lines nil
+                        show-trailing-whitespace nil
+                        display-line-numbers nil)
+            ;; Create overlay
+            (insert (propertize "*"
+                                'read-only t
+                                'front-sticky '(read-only)))
+            (let* ((ov (make-overlay (point-min) (point-max) buffer nil t))
+                   (overlay-display (edraw-color-picker-display-overlay
+                                     :overlay ov
+                                     :target-property 'display
+                                     :keymap edraw-color-picker-map)))
+              (edraw-initialize overlay-display picker)
+              overlay-display)))
+         ;; Compute frame size and position
+         (width (edraw-image-width picker))
+         (height (edraw-image-height picker))
+         (position
+          ;; Note: the selected frame, selected window, and current
+          ;;       buffer may be used to compute frame position.
+          (edraw-compute-frame-position display width height))
+         ;; Create frame
+         (frame
+          (let* ((before-make-frame-hook nil)
+                 (after-make-frame-functions nil)
+                 (frame (edraw-color-picker--get-unused-frame
+                         (append
+                          `((parent-frame . ,(selected-frame))
+                            (width . (text-pixels . ,width))
+                            (height . (text-pixels . ,height))
+                            (left . ,(car position))
+                            (top . ,(cdr position)))
+                          (edraw-color-picker-frame-parameters)))))
+            frame))
+         ;; Get Window
+         (window (frame-root-window frame)))
+
+    ;; Initialize Window
+    (let ((old-buffer (window-buffer window)))
+      (unless (eq buffer old-buffer)
+        ;; Kill previous buffer if window dedicated
+        (edraw-color-picker--kill-dedicated-buffer window)
+        ;; Set new buffer
+        (set-window-buffer window buffer)
+        (set-window-dedicated-p window t)))
+
+    ;; Set to slots
+    (oset display overlay-display overlay-display)
+    (oset display frame frame)
+    (oset display buffer buffer)))
+
+(cl-defmethod edraw-closed-p ((display edraw-color-picker-display-frame))
+  (null (oref display frame)))
+
+(cl-defmethod edraw-close ((display edraw-color-picker-display-frame))
+  (with-slots (overlay-display buffer frame) display
+    (when frame
+      (edraw-close overlay-display)
+
+      ;; Release buffer resources
+      (with-current-buffer buffer
+        (with-silent-modifications
+          (erase-buffer))
+        (kill-all-local-variables))
+      ;; Hide frame
+      (edraw-color-picker--hide-frame frame)
+      (setq frame nil))))
+
+(cl-defmethod edraw-update ((display edraw-color-picker-display-frame))
+  (edraw-update (oref display overlay-display)))
+
+(cl-defmethod edraw-compute-frame-position ((display
+                                             edraw-color-picker-display-frame)
+                                            width height)
+  (let ((fp (oref display frame-position)))
+    (cond
+     ((functionp fp) (funcall fp width height))
+     (t
+      (edraw-color-picker-frame-position-near-point width height)
+      ;;(cons 0 0)
+      ))))
+
+(defun edraw-color-picker-frame-position-near-point (width height)
+  (let* ((point-pos (pos-visible-in-window-p (point) nil t))
+         (point-x (or (car point-pos) 0))
+         (point-y (or (cadr point-pos) 0))
+         (window-edges (window-inside-pixel-edges))
+         (window-left (nth 0 window-edges))
+         (window-top (nth 1 window-edges))
+         (window-w (- (nth 2 window-edges) window-left))
+         ;;(window-h (window-pixel-height))
+         (x (min (- window-w width) (max 0 (- point-x (/ width 2)))))
+         (y (- point-y height)))
+
+    (when (< y 0)
+      (setq y (+ point-y (default-line-height))))
+
+    (cons (+ window-left x) (+ window-top y))))
+
+;;;;; Recycle Frame
+
+(defvar edraw-color-picker--unused-frames nil)
+
+(defun edraw-color-picker--get-unused-frame (frame-parameters
+                                             &optional parent-frame)
+  (let* ((parent-frame (or parent-frame (selected-frame)))
+         (frame (seq-find (lambda (frame)
+                            (and frame
+                                 (frame-live-p frame)
+                                 (eq (frame-parent frame) parent-frame)
+                                 (not (frame-visible-p frame))))
+                          edraw-color-picker--unused-frames)))
+    (if frame
+        ;; Reuse
+        (progn
+          (setq edraw-color-picker--unused-frames
+                (delq frame edraw-color-picker--unused-frames))
+          (modify-frame-parameters frame frame-parameters)
+          frame)
+      ;; New
+      (make-frame frame-parameters))))
+
+(defun edraw-color-picker--hide-frame (frame)
+  (let ((parent-frame (and (eq (selected-frame) frame)
+                           (frame-parent frame))))
+    (make-frame-invisible frame t)
+    ;; Transfor focus to parent
+    (when parent-frame
+      (select-frame parent-frame)))
+  (setq edraw-color-picker--unused-frames
+        (nconc edraw-color-picker--unused-frames
+               (list frame)))
+  (edraw-color-picker--cleanup-frames))
+
+(defun edraw-color-picker--cleanup-frames ()
+  (setq edraw-color-picker--unused-frames
+        (cl-loop with parent-alist = nil
+                 for frame in edraw-color-picker--unused-frames
+                 if (and frame
+                         (frame-live-p frame)
+                         ;; max frame count per same parent
+                         (<= (cl-incf (alist-get
+                                       (frame-parent frame)
+                                       parent-alist 0))
+                             2))
+                 collect frame
+                 else do (edraw-color-picker--kill-frame frame))))
+
+(defun edraw-color-picker--kill-dedicated-buffer (window)
+  (when (and window
+             (window-live-p window)
+             (window-dedicated-p window))
+    (let ((buffer (window-buffer window)))
+      (when buffer
+        (set-window-dedicated-p window nil)
+        (kill-buffer buffer)))))
+
+(defun edraw-color-picker--kill-frame (frame)
+  (when (and frame (frame-live-p frame))
+    ;; Kill dedicated buffer
+    (edraw-color-picker--kill-dedicated-buffer (frame-root-window frame))
+    ;; Kill frame
+    (delete-frame frame t)))
+
+(defun edraw-color-picker-delete-all-unused-frames ()
+  "Delete all unused frames that are kept for faster processing."
+  (interactive)
+  (mapc #'edraw-color-picker--kill-frame edraw-color-picker--unused-frames)
+  (setq edraw-color-picker--unused-frames nil))
+
 
 
 ;;;; Applications
@@ -1344,34 +1658,27 @@ OVERLAY uses the display property to display the color PICKER."
 (defun edraw-color-picker-open-near-point (&optional initial-color options)
   (interactive)
 
-  ;;@todo use child-frame
-
   (unless (assq :scale options)
     (setf (alist-get :scale options) 0.75))
 
-  (let* ((overlay (let ((ov (make-overlay (point) (point) nil t nil)))
-                    (delete-overlay ov)
-                    ov))
-         (picker (edraw-color-picker-overlay
-                  overlay 'display initial-color options))
+  (let* ((picker (if edraw-color-picker-use-frame-p
+                     ;; Use child frame
+                     (edraw-color-picker-create
+                      (edraw-color-picker-display-frame)
+                      initial-color options)
+                   ;; Use overlay
+                   (let* ((overlay (make-overlay (point) (point) nil t nil))
+                          (picker (edraw-color-picker-overlay
+                                   overlay 'display initial-color options)))
+                     (edraw-color-picker-move-overlay-at-point overlay picker)
+                     (overlay-put overlay 'evaporate t)
+                     picker)))
 
          (on-ok (lambda (&rest _) (edraw-close picker)))
          (on-cancel (lambda (&rest _) (edraw-close picker))))
 
-    (edraw-color-picker-move-overlay-at-point overlay picker)
-    (overlay-put overlay 'evaporate t)
-
-    (let ((km (make-sparse-keymap)))
-      (set-keymap-parent km (overlay-get overlay 'keymap))
-      (define-key km (kbd "C-c C-c")
-        (lambda () (interactive) (edraw-click-area picker "ok")))
-      (define-key km (kbd "C-c C-k")
-        (lambda () (interactive) (edraw-click-area picker "cancel")))
-      (overlay-put overlay 'keymap km))
-
     (edraw-add-hook picker 'ok on-ok)
     (edraw-add-hook picker 'cancel on-cancel)
-    (message "C-c C-c: OK, C-c C-k: Cancel")
     picker))
 
 ;;;;; Insert Color
@@ -1387,6 +1694,9 @@ OVERLAY uses the display property to display the color PICKER."
     (edraw-add-hook
      picker 'ok
      (lambda (&rest _)
+       ;; Close first
+       (edraw-close picker)
+       ;; Insert
        (insert (edraw-color-picker-color-to-string
                 (edraw-get-current-color picker)
                 options)))))
