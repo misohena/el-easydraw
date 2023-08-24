@@ -1,8 +1,6 @@
 
 
 * Inbox
-
-
 ** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
 ** TODO edraw-mode/拡張子を.edraw.svgとせず.svgでもedraw-modeで開くようにする
 セーブ時に.edraw.svgという拡張子を入力するのが煩わしい。
@@ -225,8 +223,14 @@ Dとか？
 とは言えやはりtextは同一視できないんじゃない？
 カスタムシェイプにtextなんて入れることがある？
 
-** TODO 変形/GUI変形時にマウスの位置に操作種類記号を表示する
-拡大、回転、平行移動等
+** TODO 変形/GUI変形時に代替マウスポインターが消えることがある
+Corfuによるinvisibleな子フレームがあると、その上では正しい座標が来なくなる。
+~(make-frame-invisible frame t)~ しただけでは完全には消えていないらしい。
+幸いドラッグ中は問題ない。
+
+frame上の座標から無理矢理変換してくれば対応できないことも無いかもしれないが難しい。
+edraw-color-picker-insert-color等の子フレームは(-1000,-1000)へ飛ばすことで回避した。
+
 ** TODO 変形/ローカル座標系変形機能を追加する
 図形のtransformプロパティ適用前の座標系で、平行移動、伸縮、回転できるようにする。
 transform-methodのような設定を追加すべきか、あるいは、コマンドを追加したり、コマンド内でのオプションにするか。
@@ -2645,3 +2649,24 @@ svg要素を期待して処理しているところを全て確認する。
 
 とりあえず、edraw-svg-decodeは単にxmlをデコードするだけにする。
 コメント除去を期待する部分はedraw-svg-decode-svgという関数を呼び出すようにする。
+** DONE 変形/GUI変形時にマウスの位置に操作種類記号を表示する
+CLOSED: [2023-08-24 Thu 21:24]
+拡大、回転、平行移動等。
+
+[[edraw:data=H4sIAFbg5GQAA3VS226DMAz9Fct7bZsL0bRWTV947X5gb10JEJVCFbJC/34OSbuibUjh2D72MTli218rGM9N22/GxrYnjbX3lw1jwzCshmzVuYqJ9XrNJhZj619NknPOSAxhsIWvNSrFEWpjq9qn5Gpcb7tWo1gJ3G2dOXoYNRJzm97/DtpCoyncYVh+Ho6nynVfbYHQe9edjMa2aw1CaZtG40tZlghst62eh7riRvsuB18DFd8zyReS7yWBkDxPCBmfYR6QOAg8xSAi5uIpD3zCfSgThFTJ2KYSnakH5lLFnM5CJpzWRQQlZ7iPX/vxuCGfnvv1l8k08eNH8OBug2kae+kNOHJYvNGUG1NwDBUZgjEFUT+6+aTF+Sufac04JeeDYZGUadEU/F5EWqyiQ3/L7hun+cU+gAIAAA==]]
+
+[[edraw:data=H4sIAGPf5GQAA3WRz26EIBDGX4VMr135oxc3ixev9gV6sysi0YUN0sV9+6Kia5OWBH75nJkPZryMD4mm26DH8zQo3XPonLufMfbeJz5NjJWY5nmOlyisqX8lMUIIDmaAvGpcxyHLCKBOKNm5KB7CjspoDjShUFysuDo0cQiR53L+W6gaDqKxtT991ddeWvOtG0Cjs6YXHLTRAlCrhoHDW9u2gHBxkcci0zzDfffadSh8/Aie74yRKg2kjJSRaGZoY2O5aUp+sTzquS6yWl1nlbI1K41Rlu0sN724v1gedcp2VvG1n3uLZFlb/6c4NfoayDyEbQ5Yhh1+S/EDBY9v8OkBAAA=]]
+
+[[edraw:data=H4sIANDe5GQAA3WSzW6DMAyAXyXyrm0TSDS1VdOLr90L7NaVX8Gggqy0b7+QOCWVNiT4+IgTx8SH8Vay+3fbjft7W3eNhsqY657zaZo2k9z0Q8mT3W7H3Sj40L+CUiEEt4sBm+rMVBqUEsCqvC4rQ3LLh7HuOw3JJoHjYcgvht012JGHe/47sc405NlwntZf50tTDv1PlwEbzdA3uYau73JgRd22Gt6KogDGj4cyntRnD5vvejYVsx8/7JqrNBUn+S5WiRJIZDNtGYEYPFUvxNi3AUgmRQQks9lW9ET/nvhoDyRLRQSMzGUTlJ18GwMXmyvxOPkyrUgfISleBSCZW3Mhxm7/QiAGn/cbEYPPtSn1JAaXNI+IwVP1Qozd5Ve0H3J3IgsxdimePNEJfz7bQrgr9MyaOi1ZmmhunNA7vLS3beXjL3oE9dUdAwAA]]
+
+#+begin_src xml
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="440" height="440" version="1.1"><g id="edraw-body"><path d="M320,20L220,120L300,120C300,220 220,300 120,300L120,220L20,320L120,420L120,340C240,340 340,240 340,120L420,120L320,20Z" fill="#000000" stroke-width="1" stroke="#ffffff" /></g></svg>
+#+end_src
+
+#+begin_src xml
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="440" height="440" version="1.1"><g id="edraw-body"><path d="M440,220L340,120L340,200L100,200L100,120L0,220L100,320L100,240L340,240L340,320L440,220Z" fill="#000000" stroke-width="1" stroke="#ffffff" /></g></svg>
+#+end_src
+
+#+begin_src xml
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="440" height="440" version="1.1"><g id="edraw-body"><path d="M440,220L360,140L360,200L240,200L240,80L300,80L220,0L140,80L200,80L200,200L80,200L80,140L0,220L80,300L80,240L200,240L200,360L140,360L220,440L300,360L240,360L240,240L360,240L360,300L440,220Z" fill="#000000" stroke-width="1" stroke="#ffffff" /></g></svg>
+#+end_src
