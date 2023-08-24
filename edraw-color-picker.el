@@ -1635,6 +1635,10 @@ OVERLAY uses the display property to display the color PICKER."
   (let ((parent-frame (and (eq (selected-frame) frame)
                            (frame-parent frame))))
     (make-frame-invisible frame t)
+    ;; Invisible frames can interfere with motion events, so move them
+    ;; out of the way. (Emacs 29.1 for Windows)
+    ;; Affects edraw-transform-interactive.
+    (set-frame-position frame -1000 -1000)
     ;; Transfor focus to parent
     (when parent-frame
       (select-frame parent-frame)))
