@@ -288,17 +288,20 @@ attribute already exists in alist form, use dom-node."
   (with-temp-buffer
     (insert data)
     (edraw-decode-buffer base64-p)
-    (let ((svg (edraw-svg-remove-top-element
-                (libxml-parse-xml-region (point-min) (point-max)))))
-      ;; Recover missing xmlns.
-      ;; libxml-parse-xml-region drops the xmlns= attribute.
-      (when (and svg
-                 (eq (dom-tag svg) 'svg))
-        (unless (dom-attr svg 'xmlns)
-          (dom-set-attribute svg 'xmlns "http://www.w3.org/2000/svg"))
-        (unless (dom-attr svg 'xmlns:xlink)
-          (dom-set-attribute svg 'xmlns:xlink "http://www.w3.org/1999/xlink")))
-      svg)))
+    (libxml-parse-xml-region (point-min) (point-max))))
+
+(defun edraw-svg-decode-svg (data base64-p)
+  (let ((svg (edraw-svg-remove-top-element
+              (edraw-svg-decode data base64-p))))
+    ;; Recover missing xmlns.
+    ;; libxml-parse-xml-region drops the xmlns= attribute.
+    (when (and svg
+               (eq (dom-tag svg) 'svg))
+      (unless (dom-attr svg 'xmlns)
+        (dom-set-attribute svg 'xmlns "http://www.w3.org/2000/svg"))
+      (unless (dom-attr svg 'xmlns:xlink)
+        (dom-set-attribute svg 'xmlns:xlink "http://www.w3.org/1999/xlink")))
+    svg))
 
 (defun edraw-svg-encode (svg base64-p gzip-p)
   (with-temp-buffer
@@ -339,7 +342,7 @@ attribute already exists in alist form, use dom-node."
     (set-buffer-file-coding-system 'utf-8)))
 
 (defun edraw-svg-read-from-file (path)
-  (edraw-svg-decode
+  (edraw-svg-decode-svg
    (with-temp-buffer
      (insert-file-contents path)
      (buffer-substring-no-properties (point-min) (point-max)))

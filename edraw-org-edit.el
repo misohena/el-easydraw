@@ -93,7 +93,7 @@ its own."
 
 (defun edraw-org-link-load-svg (link-props)
   (if-let ((data (edraw-org-link-prop-data link-props)))
-      (edraw-svg-decode data t)
+      (edraw-svg-decode-svg data t)
     (if-let ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file)
             (edraw-svg-read-from-file file)))))

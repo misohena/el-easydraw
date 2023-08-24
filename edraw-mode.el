@@ -95,7 +95,7 @@ The following commands are available:
 
 (defun edraw-mode--parse-svg ()
   (let* ((source (buffer-substring-no-properties (point-min) (point-max)))
-         (svg (edraw-svg-decode source nil)))
+         (svg (edraw-svg-decode-svg source nil)))
     ;; Check SVG
     (unless (if (string-empty-p source) ;;@todo check whitespace only?
                 (null svg)

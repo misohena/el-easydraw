@@ -1,6 +1,8 @@
 
 
 * Inbox
+
+
 ** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
 ** TODO edraw-mode/拡張子を.edraw.svgとせず.svgでもedraw-modeで開くようにする
 セーブ時に.edraw.svgという拡張子を入力するのが煩わしい。
@@ -2624,3 +2626,22 @@ edraw-color-picker-replace-color-at-pointは内部でedraw-color-picker-replace-
 CLOSED: [2023-08-24 Thu 02:10]
 一つのコマンド(一つのキー割り当て)で置換または新規挿入を行う。
 mhtml-modeには案外空いているキーが少ないので。
+** DONE シェイプピッカーで図が表示されないのを修正する。
+CLOSED: [2023-08-24 Thu 15:51]
+一部でedraw-svg-decodeはsvg要素専門では無い！
+svg要素専門だと勘違いして色々修正してしまったのが原因。
+<g>要素をそのままdecodeすることもある。
+そちらの使い方の方が正しい。
+
+svg要素を期待して処理しているところを全て確認する。
+- edraw-org-link-load-svg
+  - edraw-org-link-html-link-to-svg エクスポート時
+  - edraw-org-edit-link (edraw-editorに引き渡す)
+  - edraw-org-link-copy-contents-at-point (edraw-get-document-bodyに引き渡す)
+- edraw-mode
+- edraw-svg-read-from-file
+  - edraw-org-link-load-svg
+  - edraw-org-edit-regular-file-link (edraw-edit-svgに引き渡す)
+
+とりあえず、edraw-svg-decodeは単にxmlをデコードするだけにする。
+コメント除去を期待する部分はedraw-svg-decode-svgという関数を呼び出すようにする。
