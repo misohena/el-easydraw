@@ -1751,8 +1751,8 @@ OVERLAY uses the display property to display the color PICKER."
    ;;@todo Pass actual keymap of picker to keep-pred
    #'edraw-color-picker--transient-map-keep-pred
    (lambda ()
-     (edraw-close picker))
-   "C-c C-c: OK, C-g: Cancel"))
+     (edraw-close picker)))
+  (message "C-c C-c: OK, C-g: Cancel"))
 
 (defun edraw-color-picker--transient-map-keep-pred ()
   (or
