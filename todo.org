@@ -442,7 +442,6 @@ rgbaはもはやrgbの別名。それにカンマでなく空白で区切って�
 カンマの後のスペースまで認識するかは悩み所。
 形式を認識する関数が必要。
 
-** TODO 色/edraw-color-picker-replace-color-atは色名を認識すべき
 ** TODO 色/HSL等の別の表色系に対応する
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
@@ -2770,3 +2769,5 @@ svgファイルの先頭に ~<!-- -*- mode: edraw -*- -->~ と入れればOK。�
 両方の方法をREADME.orgに記載した。
 ** DONE 色/色を色名に変換する関数を追加する
 CLOSED: [2023-08-25 Fri 23:25]
+** DONE 色/edraw-color-picker-replace-color-atは色名を認識すべき
+CLOSED: [2023-08-25 Fri 23:14]

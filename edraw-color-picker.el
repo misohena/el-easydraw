@@ -1789,7 +1789,9 @@ OVERLAY uses the display property to display the color PICKER."
   (unless (assq :color-name-scheme options)
     (setf (alist-get :color-name-scheme options) 'web))
 
-  (when-let ((match-result (edraw-color-picker-lookup-color-at position))
+  (when-let ((match-result (edraw-color-picker-lookup-color-at
+                            position
+                            (alist-get :color-name-scheme options)))
              (beg (nth 0 match-result))
              (end (nth 1 match-result))
              ;; Index of `edraw-color-string-patterns'
@@ -1810,24 +1812,44 @@ OVERLAY uses the display property to display the color PICKER."
            (goto-char beg)
            (delete-region beg end)
            (insert
-            (edraw-color-picker-color-to-string
-             (edraw-get-current-color picker)
-             (cons
-              (cons :color-format
-                    (cadr (nth format-index edraw-color-string-patterns)))
-              options))))))
+            (edraw-color-picker-lookup-color-to-string
+             (edraw-get-current-color picker) format-index options)))))
 
       (edraw-color-picker--set-transient-map picker))
     t))
 
-(defun edraw-color-picker-lookup-color-at (position)
+;;;;; Color Name Lookup From Buffer
+
+(defvar edraw-color-picker-lookup-color-name-regexp-alist nil)
+
+(defun edraw-color-picker-lookup-color-name-regexp (name-scheme)
+  (or
+   (alist-get name-scheme edraw-color-picker-lookup-color-name-regexp-alist)
+
+   (let ((regexp
+          (pcase name-scheme
+            ('web (regexp-opt (mapcar #'car edraw-color-web-keywords)))
+            ('emacs (regexp-opt (defined-colors))))))
+     (when regexp
+       (push (cons name-scheme regexp)
+             edraw-color-picker-lookup-color-name-regexp-alist)
+       regexp))))
+
+(defun edraw-color-picker-lookup-color-regexp (name-scheme)
+  (concat "\\(?:" edraw-color-string-patterns-re "\\|"
+          ;; last index
+          "\\(" (edraw-color-picker-lookup-color-name-regexp name-scheme) "\\)"
+          "\\)"))
+
+(defun edraw-color-picker-lookup-color-at (position name-scheme)
   (save-excursion
     (goto-char position)
     (goto-char (line-beginning-position))
     (let ((line-end (line-end-position))
-          (result nil))
+          (result nil)
+          (regexp (edraw-color-picker-lookup-color-regexp name-scheme)))
       (while (and (null result)
-                  (re-search-forward edraw-color-string-patterns-re line-end t))
+                  (re-search-forward regexp line-end t))
         (let ((beg (match-beginning 0))
               (end (match-end 0)))
           (when (and (<= beg position) (< position end))
@@ -1838,6 +1860,24 @@ OVERLAY uses the display property to display the color PICKER."
                         (/ (cl-position-if-not #'null (cddr (match-data)))
                            2))))))
       result)))
+
+(defun edraw-color-picker-lookup-color-to-string (color format-index options)
+  (or
+   ;; last index
+   (when (= format-index (length edraw-color-string-patterns))
+     (or
+      (pcase (alist-get :color-name-scheme options)
+        ('web (edraw-to-string-web-keyword color))
+        ('emacs (edraw-to-string-emacs-color-name color)))
+      (edraw-color-picker-color-to-string color options)))
+   ;; Use edraw-color-string-patterns
+   (edraw-color-picker-color-to-string
+    color
+    (cons
+     (cons :color-format
+           ;; hex or rgb
+           (cadr (nth format-index edraw-color-string-patterns)))
+     options))))
 
 ;;;;; Read Color from Minibuffer
 
