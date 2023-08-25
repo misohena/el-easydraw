@@ -2771,3 +2771,8 @@ svgファイルの先頭に ~<!-- -*- mode: edraw -*- -->~ と入れればOK。�
 CLOSED: [2023-08-25 Fri 23:25]
 ** DONE 色/edraw-color-picker-replace-color-atは色名を認識すべき
 CLOSED: [2023-08-25 Fri 23:14]
+** DONE 色/edraw-color-picker-replace-color-at等をCustom-modeで使えるようにする
+CLOSED: [2023-08-25 Fri 23:16]
+デフォルトのcolor-name-schemeをバッファローカル変数で指定出来るようにする。
+キー割り当ては custom-field-keymap に追加しなければならない。
+READMEに設定方法を書く。

@@ -1717,13 +1717,16 @@ OVERLAY uses the display property to display the color PICKER."
 
 ;;;;; Insert Color
 
+(defvar edraw-color-picker-insert-default-color-scheme 'web)
+
 ;;;###autoload
 (defun edraw-color-picker-insert-color (&optional initial-color options)
   "Insert a color selected by color picker."
   (interactive)
 
   (unless (assq :color-name-scheme options)
-    (setf (alist-get :color-name-scheme options) 'web))
+    (setf (alist-get :color-name-scheme options)
+          edraw-color-picker-insert-default-color-scheme))
 
   (let ((picker (edraw-color-picker-open-near-point initial-color options)))
     (edraw-add-hook
@@ -1787,7 +1790,8 @@ OVERLAY uses the display property to display the color PICKER."
   (interactive "d")
 
   (unless (assq :color-name-scheme options)
-    (setf (alist-get :color-name-scheme options) 'web))
+    (setf (alist-get :color-name-scheme options)
+          edraw-color-picker-insert-default-color-scheme))
 
   (when-let ((match-result (edraw-color-picker-lookup-color-at
                             position
