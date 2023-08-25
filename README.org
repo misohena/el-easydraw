@@ -109,6 +109,14 @@ On the other hand, regular file links have the advantage that they can be export
 
 * Edit a Single Edraw File - edraw-mode.el
 
+The data that Emacs Easy Draw handles is a small subset of the SVG specification. The recommended file extension is .edraw.svg.
+
+Emacs Easy Draw cannot edit general SVG data, but the data it outputs can be viewed by web browsers and other software that can handle SVG.
+
+** Open .edraw.svg files using edraw-mode
+
+To open a file with the extension .edraw.svg using edraw-mode, add the following setting to init.el.
+
 #+begin_src emacs-lisp
 (autoload 'edraw-mode "edraw-mode")
 (add-to-list 'auto-mode-alist '("\\.edraw\\.svg$" . edraw-mode))
@@ -116,7 +124,20 @@ On the other hand, regular file links have the advantage that they can be export
 
 NOTE: Setup later than other modes for .svg such as image-mode.
 
-Emacs Easy Draw can only handle a small subset of the SVG specification, but the files it outputs can be viewed in a browser or other software that can handle SVG.
+If you don't like the long .edraw.svg extension, you can put a comment specifying the mode at the top of the file.
+
+: <!-- -*- mode: edraw -*- -->
+: <svg ...
+
+Comments in files are preserved as much as possible during editing.
+
+Or you can use magic-mode-alist.
+
+#+begin_src emacs-lisp
+(push '("\\(<!--[^>]*-->[\n\t ]*\\)*<svg .* id=\"edraw-" . edraw-mode) magic-mode-alist)
+#+end_src
+
+** Quick sketch using edraw-mode
 
 #+begin_src emacs-lisp
 (autoload 'edraw "edraw-mode" nil t)
