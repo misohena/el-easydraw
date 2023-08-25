@@ -3037,6 +3037,8 @@ For use with `edraw-editor-with-temp-undo-list',
            :enable ,(not (null selected-shapes)))
           ((edraw-msg "Cut") edraw-editor-cut-selected-shapes
            :enable ,(not (null selected-shapes)))
+          ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes
+           :enable ,(not (null selected-shapes)))
           ((edraw-msg "Group") edraw-editor-group-selected-shapes)
           ((edraw-msg "Transform")
            (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)

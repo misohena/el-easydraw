@@ -2670,3 +2670,6 @@ CLOSED: [2023-08-24 Thu 21:24]
 #+begin_src xml
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" width="440" height="440" version="1.1"><g id="edraw-body"><path d="M440,220L360,140L360,200L240,200L240,80L300,80L220,0L140,80L200,80L200,200L80,200L80,140L0,220L80,300L80,240L200,240L200,360L140,360L220,440L300,360L240,360L240,240L360,240L360,300L440,220Z" fill="#000000" stroke-width="1" stroke="#ffffff" /></g></svg>
 #+end_src
+** DONE 選択図形の複製機能をメインメニューに追加する
+CLOSED: [2023-08-25 Fri 10:33]
+コンテキストメニューにあるのにメインメニューに無いので追加する。
