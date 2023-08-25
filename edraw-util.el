@@ -199,6 +199,9 @@
         (while (null result)
           (let ((event (read-event)))
             (cond
+             ;; Ignore switch-frame event
+             ;; (For Ubuntu 22/Emacs 27.1, To allow dragging in child frames)
+             ((eq (car-safe event) 'switch-frame))
              ;; mouse move
              ((mouse-movement-p event)
               ;; check same object
