@@ -68,11 +68,12 @@ its own."
       (let* ((editor-overlay (make-overlay link-begin link-end nil t nil))
              (editor (edraw-editor
                       :overlay editor-overlay
-                      :svg (edraw-org-link-load-svg link-props)
+                      :svg (edraw-org-link-load-svg link-props t)
                       :document-writer (edraw-org-link-make-writer
                                         editor-overlay
                                         edraw-org-link-compress-data-p
                                         edraw-org-link-compress-file-p)
+                      :document-writer-accepts-top-level-comments-p t
                       :menu-filter #'edraw-org-link-editor-menu-filter
                       )))
         (edraw-initialize editor)
@@ -91,12 +92,13 @@ its own."
 
       (message "%s" (substitute-command-keys "\\[edraw-org-link-finish-edit]:Finish Edit, \\[edraw-org-link-cancel-edit]:Cancel Edit")))))
 
-(defun edraw-org-link-load-svg (link-props)
+(defun edraw-org-link-load-svg (link-props
+                                &optional accepts-top-level-comments-p)
   (if-let ((data (edraw-org-link-prop-data link-props)))
-      (edraw-svg-decode-svg data t)
+      (edraw-svg-decode-svg data t accepts-top-level-comments-p)
     (if-let ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file)
-            (edraw-svg-read-from-file file)))))
+            (edraw-svg-read-from-file file accepts-top-level-comments-p)))))
 
 (defun edraw-org-link-make-writer (editor-overlay data-gzip-p file-gzip-p)
   (lambda (svg)
@@ -222,7 +224,7 @@ use `edraw:' link type and want to use the regular `file:' link type
     (edraw-org--remove-org-inline-images beg end)
 
     (edraw-edit-svg (when (file-exists-p path)
-                      (edraw-svg-read-from-file path))
+                      (edraw-svg-read-from-file path t))
                     'edraw-svg
                     beg end
                     (lambda (_ok _svg)
@@ -231,7 +233,9 @@ use `edraw:' link type and want to use the regular `file:' link type
                       (org-display-inline-images nil t beg end))
                     (lambda (svg)
                       (edraw-svg-write-to-file svg path nil)
-                      t))))
+                      t)
+                    ;; Keep file's top-level comments
+                    t)))
 
 (defun edraw-org--remove-org-inline-images (beg end)
   (if (version<= "9.6" (org-version))
@@ -255,7 +259,7 @@ can be pasted in the editor or in the shape picker (custom shape list)."
   (interactive)
   (let* ((link-element (edraw-org-link-at-point))
          (props (car (edraw-org-link-element-link-properties link-element nil t)))
-         (svg (edraw-org-link-load-svg props)))
+         (svg (edraw-org-link-load-svg props t)))
     (unless link-element
       (error (edraw-msg "No link at point")))
     (unless svg

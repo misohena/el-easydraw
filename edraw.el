@@ -359,8 +359,11 @@ line-prefix and wrap-prefix are used in org-indent.")
    (svg :initarg :svg :initform nil)
    (svg-document-size)
    (svg-document-view-box)
+   (svg-document-comments :initform nil) ;; (PRE-COMMENTS . POST-COMMENTS)
    (defrefs)
    (document-writer :initarg :document-writer :initform nil)
+   (document-writer-accepts-top-level-comments-p
+    :initarg :document-writer-accepts-top-level-comments-p :initform nil)
    (menu-filter :initarg :menu-filter :initform nil)
 
    (image-scale
@@ -840,10 +843,18 @@ For use with `edraw-editor-with-temp-undo-list',
 (defconst edraw-editor-svg-body-id "edraw-body")
 
 (cl-defmethod edraw-initialize-svg-document ((editor edraw-editor))
-  (with-slots (svg svg-document-size svg-document-view-box defrefs) editor
-    ;; Check specified SVG
-    (unless (or (null svg)
-                (and (edraw-dom-element-p svg) (eq (dom-tag svg) 'svg)))
+  (with-slots (svg
+               svg-document-size svg-document-view-box
+               svg-document-comments defrefs)
+      editor
+    ;; Strip top-level comments
+    (let ((svg-comments (edraw-dom-split-top-nodes svg)))
+      (setq svg (car svg-comments))
+      (setq svg-document-comments (cdr svg-comments)))
+
+    ;; Check specified SVG (Only accepts nil or svg element)
+    (when (and svg
+               (not (edraw-dom-tag-eq svg 'svg)))
       (warn "The root of the DOM passed to edraw-editor as SVG is not an SVG element.")
       (setq svg nil))
 
@@ -907,7 +918,11 @@ For use with `edraw-editor-with-temp-undo-list',
     svg))
 
 (defun edraw-get-document-body (svg)
-  (edraw-dom-get-by-id svg edraw-editor-svg-body-id))
+  ;; NOTE: SVG may contain top-level comments. But `edraw-dom-get-by-id'
+  ;;       works fine, so don't use `edraw-dom-split-top-nodes'.
+  (edraw-dom-get-by-id
+   svg
+   edraw-editor-svg-body-id))
 
 (cl-defmethod edraw-svg-body ((editor edraw-editor))
   (edraw-get-document-body (oref editor svg)))
@@ -946,14 +961,20 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (document-writer svg) editor
     (when (and document-writer
                (edraw-modified-p editor))
-      (let ((doc-svg (edraw-document-svg editor)))
+      (let ((doc-svg
+             (edraw-document-svg
+              editor
+              (oref editor document-writer-accepts-top-level-comments-p))))
         (prog1
             ;;signal error if failed
             (funcall document-writer doc-svg)
           (edraw-set-modified-p editor nil))))))
 
-(cl-defmethod edraw-document-svg ((editor edraw-editor))
-  (with-slots (svg svg-document-size svg-document-view-box) editor
+(cl-defmethod edraw-document-svg ((editor edraw-editor)
+                                  &optional with-top-level-comments-p)
+  (with-slots (svg svg-document-size svg-document-view-box
+                   svg-document-comments)
+      editor
     (let ((doc-svg (copy-tree svg)))
       (edraw-editor-remove-ui-elements-from-svg doc-svg)
       (edraw-editor-remove-internal-attributes-from-svg doc-svg)
@@ -968,13 +989,19 @@ For use with `edraw-editor-with-temp-undo-list',
       ;; Add xmlns
       (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
       (dom-set-attribute doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
-      doc-svg)))
+
+      (if with-top-level-comments-p
+          ;; Append pre&post comments
+          (edraw-dom-merge-top-nodes doc-svg
+                                     (car svg-document-comments)
+                                     (cdr svg-document-comments))
+        doc-svg))))
 
 (edraw-editor-defcmd edraw-export-to-buffer ((editor edraw-editor))
   (pop-to-buffer "*Easy Draw SVG*")
   (erase-buffer)
   (edraw-svg-print
-   (edraw-document-svg editor)
+   (edraw-document-svg editor t)
    nil
    'edraw-svg-print-attr-filter 0)
   (xml-mode))
@@ -996,7 +1023,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (with-temp-file filename
       (set-buffer-file-coding-system 'utf-8)
       (edraw-svg-print
-       (edraw-document-svg editor)
+       (edraw-document-svg editor t)
        nil
        'edraw-svg-print-attr-filter 0))))
 
@@ -8988,7 +9015,10 @@ This function is for registering with the `kill-buffer-query-functions' hook."
 
 ;;;; Simple Editor Function
 
-(defun edraw-edit-svg (source _source-type &optional ov-beg ov-end on-finish writer)
+(defun edraw-edit-svg (source
+                       _source-type
+                       &optional ov-beg ov-end on-finish writer
+                       accepts-top-level-comments-p)
   ;; @todo Convert SOURCE to SVG tree by SOURCE-TYPE
   ;; SOURCE-TYPE : SOURCE => SVG
   ;; edraw-svg : (svg .... (g id="edraw-body" ...)) => no conv
@@ -9018,6 +9048,8 @@ This function is for registering with the `kill-buffer-query-functions' hook."
                     :overlay editor-overlay
                     :svg svg
                     :document-writer writer
+                    :document-writer-accepts-top-level-comments-p
+                    accepts-top-level-comments-p
                     :menu-filter #'edraw-edit-svg--menu-filter
                     )))
       (edraw-initialize editor)
@@ -9037,12 +9069,16 @@ This function is for registering with the `kill-buffer-query-functions' hook."
       ;; Add Finish Hook
       (when on-finish
         (edraw-define-hook-type editor 'edraw-edit-svg--finish)
-        (edraw-add-hook editor 'edraw-edit-svg--finish
-                        (lambda (&rest args)
-                          (if (buffer-live-p original-buffer)
-                              (with-current-buffer original-buffer
-                                (apply on-finish args))
-                            (message (edraw-msg "The buffer has been killed"))))))
+        (edraw-add-hook
+         editor 'edraw-edit-svg--finish
+         (lambda (ok svg &rest args)
+           (if (buffer-live-p original-buffer)
+               (with-current-buffer original-buffer
+                 (unless accepts-top-level-comments-p
+                   ;; Discard top-level comments
+                   (setq svg (car (edraw-dom-split-top-nodes svg))))
+                 (apply on-finish ok svg args))
+             (message (edraw-msg "The buffer has been killed"))))))
 
       ;; Hook kill buffer
       (add-hook 'kill-buffer-query-functions 'edraw-buffer-kill-query nil t)
@@ -9090,7 +9126,7 @@ This function is for registering with the `kill-buffer-query-functions' hook."
       (edraw-call-hook editor 'edraw-edit-svg--finish
                        t
                        ;;@todo Convert by SOURCE-TYPE spec
-                       (edraw-document-svg editor)))))
+                       (edraw-document-svg editor t)))))
 
 (defun edraw-edit-svg--cancel-edit (&optional editor)
   (interactive)

@@ -122,7 +122,7 @@ svg = Embed SVG element (<svg>...</svg>)
    info))
 
 (defun edraw-org-link-html-link-to-svg (link-props link info)
-  (let ((svg (edraw-org-link-load-svg link-props))
+  (let ((svg (edraw-org-link-load-svg link-props t))
         (attributes (edraw-org-link-html-attributes-plist link info))
         (link-ref (org-export-get-reference link info)))
     (unless svg
@@ -171,6 +171,9 @@ Sets the attribute specified by #+ATTR_HTML to the svg root element.
 
 Guarantees the uniqueness of ids defined by the SVG in the
 exported HTML. Add a random string to id."
+  ;; Discard top-level comments
+  (setq svg (car (edraw-dom-split-top-nodes svg)))
+
   ;; Add viewBox= attribute
   (when (and edraw-org-export-html-use-viewbox
              (null (dom-attr svg 'viewBox)))

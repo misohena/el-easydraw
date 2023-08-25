@@ -64,6 +64,7 @@ The following commands are available:
                   :svg svg
                   ;; Don't use :document-writer to hide "save" from main menu
                   ;;:document-writer 'edraw-mode-write-document
+                  ;;:document-writer-accepts-top-level-comments-p t
                   :menu-filter
                   (lambda (menu-type items &rest _)
                     (pcase menu-type
@@ -95,13 +96,14 @@ The following commands are available:
 
 (defun edraw-mode--parse-svg ()
   (let* ((source (buffer-substring-no-properties (point-min) (point-max)))
-         (svg (edraw-svg-decode-svg source nil)))
+         (svg (edraw-svg-decode-svg source nil t)))
     ;; Check SVG
     (unless (if (string-empty-p source) ;;@todo check whitespace only?
                 (null svg)
               (and (not (null svg))
                    (edraw-dom-element-p svg)
-                   (eq (dom-tag svg) 'svg)))
+                   (edraw-dom-tag-eq (car (edraw-dom-split-top-nodes svg))
+                                     'svg)))
       (error "Failed to parse SVG"))
     svg))
 
@@ -204,7 +206,7 @@ show the overlay using display property.")
     ;; shows a "save" item in the main menu.
     (when (and editor
                (edraw-modified-p editor))
-      (let ((doc-svg (edraw-document-svg editor)))
+      (let ((doc-svg (edraw-document-svg editor t)))
         (edraw-mode-write-document doc-svg)
         (edraw-set-modified-p editor nil)))))
 

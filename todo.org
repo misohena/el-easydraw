@@ -2,6 +2,11 @@
 
 * Inbox
 ** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
+** TODO edraw-svg-printはtopとcommentという名前のタグがあったら動作しない
+まぁ、仕方ないよね。
+ただ、topの方は関数を分ければ対処可能。topかsvgと分かっている場所は専用の関数を呼ぶべき。もしくはトップ以外と分かっているところはedraw-svg-print-nodeみたいにするか。
+edraw-svg-printの意味がちょっと曖昧になっている。svg要素をprintする関数なのか、汎用的なSVG仕様定義要素をprintする関数なのか。現在は再帰で呼び出しているのだから後者と考えざるを得ない。でも後者ならtopを特別扱いするのは良くない。
+
 ** TODO edraw-mode/拡張子を.edraw.svgとせず.svgでもedraw-modeで開くようにする
 セーブ時に.edraw.svgという拡張子を入力するのが煩わしい。
 
@@ -2691,3 +2696,62 @@ CLOSED: [2023-08-25 Fri 10:38]
 CLOSED: [2023-08-25 Fri 10:45]
 コピー、ペーストやM-移動すれば良いのだが、一つのキーでやりたい。
 Dとか？
+** DONE edraw-mode/ファイルトップレベルのコメントをセーブ時に復元する
+CLOSED: [2023-08-25 Fri 15:48]
+svg要素内のコメントは復元するようにしたが、肝心のトップレベルのコメントはしていない。
+~<!-- -*- mode: edraw -*- -->~ のようなコメントを維持したい。
+
+簡単なように見えて実は結構難しい問題。
+コメントがありうるのはedraw-modeに限らない。
+org-modeのedrawリンクやfileリンクをインラインで編集したときにも生じうる。
+
+かといって、全ての所をコメント対応にして良いのかも疑問。エクスポートするときはコメントを出力しない方が良さそう。
+
+編集後のDOMツリーからedraw-body下の要素を取り出すような場所もある。topがあるDOMツリーが返ってくるとそこが動かなくなる。
+
+方針としては、SVG DOMツリーを扱う各所では、読み書きそれぞれについて、コメントを受け入れるかをフラグなり関数名なりで明示すべき。コメントを受け入れる旨を明示したところだけ、コメント付きのDOMツリーを流通させる。
+
+1. まずedraw-editorをトップレベルコメント付きSVG DOMに対応させる
+   - (入力)svgの初期化時にコメントを待避させる (svgの前のコメントと後ろのコメントに分ける)
+   - (出力)edraw-document-svg関数にwith-top-level-comments-p引数を追加する。
+   これらをサポートするための関数 edraw-dom-split-top-nodes と edraw-dom-merge-top-nodes を追加する。
+2. edraw-svg-printをトップレベルコメントに対応させる。
+3. edraw-document-svg使用箇所を修正する。(出力系を対応させる)
+   即edraw-svg-printしている所(export-to-buffer|file)はwith-top-level-comments-p引数を指定する。
+   edraw-mode-save はその後結局svg-printするだけなので問題なし。
+   問題は次の二箇所。
+   - edraw-edit-svg--finish-edit
+   - edraw-save
+   この辺りは関数利用者がどうなっているかによる。
+   edraw-editorに document-writer-accepts-top-level-comments-p というオプションを追加するくらいしか無い。
+   その上で既知の関数利用者を調べる。
+   ~:document-writer~ を指定しているところ。
+   - edraw-org-edit-link : OK
+   - edraw-edit-svg : 利用者次第
+   edraw-edit-svgの利用者を調べる。
+   - edraw-shape-picker-edit-shape-atとedraw-shape-picker-insert-new-shape-at : OK
+     (どちらもedraw-shape-picker-editor-svg-to-stringでedraw-get-document-bodyをを使ってbody下の要素を列挙している)
+   - edraw-org-edit-regular-file-link : OK
+4. edraw-editorに:svgを引き渡しているところを調べる。
+   - edraw-editor-create : OK コメントでしか使われていない。
+   - edraw-edit-svg : 利用箇所による。
+     - edraw-shape-picker-edit-shape-at : OK edraw-create-document-svg使用
+     - edraw-shape-picker-insert-new-shape-at : OK edraw-create-document-svg使用
+     - edraw-org-edit-regular-file-link :
+       edraw-svg-read-from-file => edraw-svg-decode-svg
+   - edraw-org-edit-link :
+     edraw-org-link-load-svg => edraw-svg-read-from-file => edraw-svg-decode-svg
+   - edraw-mode : 後でじっくり調べる。
+5. edraw-org-link-html-convert-svg-for-embed-in-htmlをトップレベルコメントに対応させる。
+6. 次の関数に accept-top-level-comments-p 引数を追加する。
+   - edraw-svg-decode-svg
+   - edraw-svg-read-from-file
+   - edraw-org-link-load-svg
+7. 次の関数は accept-comments-p をtにする。
+   - edraw-mode--parse-svg
+   - edraw-org-edit-regular-file-link
+   - edraw-org-link-html-link-to-svg
+   - edraw-org-edit-link
+8. edraw-modeはコメントがあるかもしれない前提で検査をする
+
+注意:コメントの前後の改行位置までは保持されない。コメントの前後は必ず改行で区切られる。これは最初の一行に ~<!-- -*- mode: edraw -*- -->~ と書かれている場合を想定した処置。

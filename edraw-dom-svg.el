@@ -95,6 +95,49 @@ attribute already exists in alist form, use dom-node."
        (not (null (car node)))
        (symbolp (car node))))
 
+(defsubst edraw-dom-tag (node)
+  "Return the NODE tag.
+Unlike `dom-tag', this function doesn't consider NODE if is's a
+list of nodes."
+  (car-safe node))
+
+(defun edraw-dom-tag-eq (node tag)
+  (eq (edraw-dom-tag node) tag))
+
+(defun edraw-dom-split-top-nodes (dom)
+  "Split DOM into pre comment nodes, top-level element, and post
+comment nodes.
+
+Return (ROOT-ELEMENT . (PRE-COMMENTS . POST-COMMENTS)).
+
+`libxml-parse-xml-region' returns an element with the tag top if
+there are comments before or after root element. This function
+splits the DOM into pre comment nodes, root element, and post
+comment nodes."
+  (if (edraw-dom-tag-eq dom 'top)
+      ;; DOM contains comments directly below
+      (let* ((top-nodes (dom-children dom))
+             (p top-nodes)
+             (pre-comments nil))
+        (while (and p (edraw-dom-tag-eq (car p) 'comment))
+          (push (car p) pre-comments)
+          (setq p (cdr p)))
+
+        (if p
+            ;; (ROOT-ELEMENT . (PRE-COMMENTS . POST-COMMENTS))
+            (cons (car p) (cons (nreverse pre-comments) (cdr p)))
+          ;; No elements!
+          (cons nil (cons top-nodes nil))))
+    (cons dom nil)))
+
+(defun edraw-dom-merge-top-nodes (root-element pre-comments post-comments)
+  "Reverse operation of `edraw-dom-split-top-nodes'."
+  ;;@todo If (edraw-dom-tag-eq root-element 'top)?
+  (if (or pre-comments post-comments)
+      (apply #'dom-node 'top nil
+             (append pre-comments (list root-element) post-comments))
+    root-element))
+
 (defun edraw-dom-do (node function &optional ancestors)
   (funcall function node ancestors)
   (when (edraw-dom-element-p node)
@@ -230,38 +273,76 @@ attribute already exists in alist form, use dom-node."
   ;; Derived from svg-print in svg.el
   (when (or (null node-filter) (funcall node-filter dom))
     (cond
+     ;; Text Node
      ((stringp dom)
-      (insert (edraw-svg-escape-chars dom)))
+      (edraw-svg-print--text-node dom))
+     ;; Comment
      ((eq (car-safe dom) 'comment)
-      (insert "<!--" (caddr dom) "-->"))
-     ;;@todo Support tag is top
+      (edraw-svg-print--comment dom))
+     ;; Top-Level Comments
+     ;;@todo `top' should only be processed if dom is expected to be the root element.
+     ((eq (car-safe dom) 'top)
+      (edraw-svg-print--top-level dom node-filter attr-filter indent no-indent))
+     ;; Element
      (t
-      (let ((tag (car dom))
-            (attrs (cadr dom))
-            (children (cddr dom)))
-        (when (and (integerp indent) (not no-indent)) (insert (make-string indent ? )))
-        (insert (format "<%s" tag))
-        (dolist (attr attrs)
-          (when (or (null attr-filter) (funcall attr-filter attr))
-            (insert (format " %s=\"%s\""
-                            (car attr)
-                            ;;@todo add true attribute filter and add number format option on export
-                            (edraw-svg-escape-chars
-                             (edraw-svg-ensure-string-attr (cdr attr)))))))
-        (if (null children)
-            ;;children is empty
-            (insert " />")
-          ;; output children
-          (insert ">")
-          (let ((no-indent (or (not (integerp indent))
-                               no-indent
-                               (memq tag '(text tspan))
-                               (seq-find 'stringp children))))
-            (dolist (elem children)
-              (unless no-indent (insert "\n"))
-              (edraw-svg-print elem node-filter attr-filter (unless no-indent (+ indent 2)) no-indent))
-            (unless no-indent (insert "\n" (make-string indent ? )))
-            (insert (format "</%s>" (car dom))))))))))
+      (edraw-svg-print--element dom node-filter attr-filter indent no-indent))
+     )))
+
+(defun edraw-svg-print--text-node (dom)
+  (insert (edraw-svg-escape-chars dom)))
+
+(defun edraw-svg-print--comment (dom)
+  (insert "<!--" (caddr dom) "-->"))
+
+(defun edraw-svg-print--top-level (dom node-filter attr-filter indent no-indent)
+  (let ((children (cddr dom)))
+    (dolist (node children)
+      (if (edraw-dom-tag-eq node 'comment)
+          (progn
+            ;; Insert a line break after root element for footer comments.
+            (unless (bolp)
+              (insert "\n"))
+            (edraw-svg-print--comment node)
+            ;; Insert a line break after each top-level comment.
+            ;; It expects to put a line like
+            ;; <!-- -*- mode: edraw -*- --> at the top of the file.
+            (insert "\n"))
+        (edraw-svg-print node node-filter attr-filter indent no-indent)))))
+
+(defun edraw-svg-print--element (dom node-filter attr-filter indent no-indent)
+  (let ((tag (car dom))
+        (attrs (cadr dom))
+        (children (cddr dom)))
+    (when (and (integerp indent) (not no-indent))
+      (insert (make-string indent ? )))
+    (insert (format "<%s" tag))
+    (dolist (attr attrs)
+      (when (or (null attr-filter) (funcall attr-filter attr))
+        (insert (format " %s=\"%s\""
+                        (car attr)
+                        ;;@todo add true attribute filter and add number format option on export
+                        (edraw-svg-escape-chars
+                         (edraw-svg-ensure-string-attr (cdr attr)))))))
+    (if (null children)
+        ;;children is empty
+        (insert " />")
+      ;; output children
+      (insert ">")
+      (edraw-svg-print--children-and-end-tag
+       tag children node-filter attr-filter indent no-indent))))
+
+(defun edraw-svg-print--children-and-end-tag (tag
+                                              children node-filter attr-filter
+                                              indent no-indent)
+  (let ((no-indent (or no-indent
+                       (not (integerp indent))
+                       (memq tag '(text tspan))
+                       (seq-find 'stringp children))))
+    (dolist (elem children)
+      (unless no-indent (insert "\n"))
+      (edraw-svg-print elem node-filter attr-filter (unless no-indent (+ indent 2)) no-indent))
+    (unless no-indent (insert "\n" (make-string indent ? )))
+    (insert (format "</%s>" tag))))
 
 (defun edraw-svg-print-attr-filter (attr)
   (/= (aref (edraw-svg-symbol-name (car attr)) 0) ?:))
@@ -290,13 +371,15 @@ attribute already exists in alist form, use dom-node."
     (edraw-decode-buffer base64-p)
     (libxml-parse-xml-region (point-min) (point-max))))
 
-(defun edraw-svg-decode-svg (data base64-p)
-  (let ((svg (edraw-svg-remove-top-element
-              (edraw-svg-decode data base64-p))))
+(defun edraw-svg-decode-svg (data base64-p
+                                  &optional accepts-top-level-comments-p)
+  (let ((svg (edraw-svg-decode data base64-p)))
+    ;; Strip `top' root element generated by libxml-parse-xml-region.
+    (unless accepts-top-level-comments-p
+      (setq svg (car (edraw-dom-split-top-nodes svg))))
     ;; Recover missing xmlns.
     ;; libxml-parse-xml-region drops the xmlns= attribute.
-    (when (and svg
-               (eq (dom-tag svg) 'svg))
+    (when (edraw-dom-tag-eq svg 'svg)
       (unless (dom-attr svg 'xmlns)
         (dom-set-attribute svg 'xmlns "http://www.w3.org/2000/svg"))
       (unless (dom-attr svg 'xmlns:xlink)
@@ -312,22 +395,6 @@ attribute already exists in alist form, use dom-node."
     (edraw-encode-buffer base64-p gzip-p)
     (buffer-string)))
 
-(defun edraw-svg-remove-top-element (svg)
-  "Remove the root element `top' representing the entire document
- generated by libxml, if any, and return the first `svg' element
- encountered. If the root element is `svg', return it
- as-is. `top' is generated if there are comments below the top of
- the document."
-  (when (consp svg)
-    (let ((tag (dom-tag svg)))
-      (cond
-       ((eq tag 'svg) svg)
-       ((eq tag 'top)
-        ;; Skip comments
-        (seq-find (lambda (elem) (and (consp elem) (eq (dom-tag elem) 'svg)))
-                  (cddr svg)))
-       (t nil)))))
-
 
 ;;;; SVG File I/O
 
@@ -341,12 +408,13 @@ attribute already exists in alist form, use dom-node."
     (insert (edraw-svg-encode svg nil gzip-p))
     (set-buffer-file-coding-system 'utf-8)))
 
-(defun edraw-svg-read-from-file (path)
+(defun edraw-svg-read-from-file (path &optional accepts-top-level-comments-p)
   (edraw-svg-decode-svg
    (with-temp-buffer
      (insert-file-contents path)
      (buffer-substring-no-properties (point-min) (point-max)))
-   nil))
+   nil
+   accepts-top-level-comments-p))
 
 
 ;;;; SVG Attributes
