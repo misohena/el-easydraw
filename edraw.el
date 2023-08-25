@@ -3039,12 +3039,17 @@ For use with `edraw-editor-with-temp-undo-list',
            :enable ,(not (null selected-shapes)))
           ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes
            :enable ,(not (null selected-shapes)))
-          ((edraw-msg "Group") edraw-editor-group-selected-shapes)
+          ((edraw-msg "Group") edraw-editor-group-selected-shapes
+           :enable ,(not (null selected-shapes)))
           ((edraw-msg "Transform")
-           (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)
-            ((edraw-msg "Translate...") edraw-editor-translate-selected)
-            ((edraw-msg "Scale...") edraw-editor-scale-selected)
-            ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
+           (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive
+             :enable ,(not (null selected-shapes)))
+            ((edraw-msg "Translate...") edraw-editor-translate-selected
+             :enable ,(not (null selected-shapes)))
+            ((edraw-msg "Scale...") edraw-editor-scale-selected
+             :enable ,(not (null selected-shapes)))
+            ((edraw-msg "Rotate...") edraw-editor-rotate-selected
+             :enable ,(not (null selected-shapes)))
             ,(edraw-transform-method-menu editor)))
           ((edraw-msg "Z-Order")
            ;;@todo check :enable when multiple shapes are selected
