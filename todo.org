@@ -2768,3 +2768,5 @@ svgファイルの先頭に ~<!-- -*- mode: edraw -*- -->~ と入れればOK。�
 他の方法としては、magic-mode-alistで ~id="edraw-body"~ とか edraw-def? を検出するとか？　edraw-bodyはedraw-defが肥大化するとそこまで検索できないかもしれないので。 ~id="edraw-~ で十分かな?
 
 両方の方法をREADME.orgに記載した。
+** DONE 色/色を色名に変換する関数を追加する
+CLOSED: [2023-08-25 Fri 23:25]

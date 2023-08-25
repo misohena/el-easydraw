@@ -290,6 +290,8 @@
      ('emacs (edraw-color-from-emacs-color-name str))
      (_ (edraw-color-from-emacs-color-name str)))))
 
+;;;; Emacs Color Names
+
 (defun edraw-color-from-emacs-color-name (str)
   (when-let ((rgb (color-name-to-rgb str)))
     (edraw-color-f
@@ -297,6 +299,24 @@
      (nth 1 rgb)
      (nth 2 rgb)
      1.0)))
+
+(cl-defmethod edraw-to-string-emacs-color-name ((color edraw-color))
+  "Convert COLOR to Emacs color name.
+Since there are many colors with the same name, COLOR does not
+ always return to the original color name."
+  (when (= (edraw-color-a color) 1.0)
+    (let ((r (edraw-color-r color))
+          (g (edraw-color-g color))
+          (b (edraw-color-b color))
+          (eps (/ 1.0 255 2)))
+      (seq-find (lambda (name)
+                  (let ((named-color (color-name-to-rgb name)))
+                    (and (<= (abs (- (car named-color) r)) eps)
+                         (<= (abs (- (cadr named-color) g)) eps)
+                         (<= (abs (- (caddr named-color) b)) eps))))
+                (defined-colors)))))
+
+;;;; Web Keywords
 
 (defconst edraw-color-web-keywords
   '(("black" . "#000000")
@@ -454,6 +474,13 @@
 (defun edraw-color-from-web-keyword-string (str)
   (when-let ((color (alist-get str edraw-color-web-keywords nil nil 'string=)))
     (edraw-color-from-hex-string color)))
+
+(cl-defmethod edraw-to-string-web-keyword ((color edraw-color))
+  (if (= (edraw-color-a color) 0)
+      "transparent" ;; Ignore RGB
+    (let ((hex (edraw-to-string-hex color)))
+      (car (seq-find (lambda (cell) (string= (cdr cell) hex))
+                     edraw-color-web-keywords)))))
 
 
 (provide 'edraw-color)
