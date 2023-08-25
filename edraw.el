@@ -257,6 +257,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "vr" 'edraw-editor-set-view-size-spec)
     ;; Selected Object
     (define-key km "A" 'edraw-editor-toggle-selection-all)
+    (define-key km "D" 'edraw-editor-duplicate-selected-shapes)
     (define-key km [remap yank] 'edraw-editor-paste-and-select)
     (define-key km [remap kill-region] 'edraw-editor-cut-selected-shapes)
     (define-key km [remap kill-ring-save] 'edraw-editor-copy-selected-shapes)

@@ -146,10 +146,6 @@ UNDO時には接続の更新を抑制するような仕組みがあればよい�
 
 [[edraw:data=H4sIAMwGg2QAA61VwW6jMBT8FeReEimAbQyBKkRKLpV2u9vzHgk2YJXgCNyS7tfvA4eWhK7URkECkgd+M29mnKya19xqJddFjHyGkVUImRc6Rl735VXUjVRVjIhDkHXcl1UTo0Lrw73rtm3rtJ6j6tylGGMXGqH1qhap/n+/Y4zg+tZfM1mWMbrLsgxZja7Vs4hRpSqBLMljJHidtPYuSZ/zWr1UHFnuepWPHyn+BniHRBfvy++iKBqa2ScSbEAyvWH9rwAvKMOPhOFFCER4ohPbNO3ap56Po1SkPaIoS3loxAXBE3VOaUrhvRTGIhg6pTAZCeBDDRXa3d/MfQRxULLSdqqqCpQCbUHQzWa7nWHHt+Cc3z9tf8wGDvOeRK/p5ww4N2DkBEaMyD2JDrsT/SREMDKDTccOdpkXkiDqEa9RFUKwoF7kRONj+UjDicqfSTDDZvKBxnxCkONA8EREZ7500vdDnklPLlgw78OKC+/OZf2uTwOna33yvu8Ti4LAJx69EpFRgxh+GTBjgUd3fnJ1MLxo6fh4dAT99mOMXpYJxc64gr0v52aQZb7YzGxiagPzaZZY5rOE0GySJUZCZ+mbOFE/cKg/3cw3TdDAxCRIi6O2MgXLsmQvSwD882I9KF1IAOrrjfwLWCREVveunVRpoeoY7SXn5Yf7lFLzO4CN22Dx+unnyu3WnFCGjWOe3gr0EuWGswzJ7Wb5/TCguDmc8Nez/gen7B41yQYAAA==]]
 
-** TODO 図形の複製機能にキーを割り当てる
-コピー、ペーストやM-移動すれば良いのだが、一つのキーでやりたい。
-Dとか？
-
 ** TODO ドキュメントのトリミング機能を追加する
 上下左右にどの程度余白を残すかを指定して、それに合うように切り抜く。
 マウスドラッグによる切り抜き機能が既にあるので必要性は低い。
@@ -2677,3 +2673,7 @@ CLOSED: [2023-08-25 Fri 10:33]
 CLOSED: [2023-08-25 Fri 10:38]
 一部のコマンドが選択していないのに選べてしまうのを直す。
 グループ化と変形に関するコマンド。
+** DONE 図形の複製機能にキーを割り当てる
+CLOSED: [2023-08-25 Fri 10:45]
+コピー、ペーストやM-移動すれば良いのだが、一つのキーでやりたい。
+Dとか？
