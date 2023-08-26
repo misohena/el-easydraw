@@ -3635,13 +3635,13 @@ position where the EVENT occurred."
                                              down-event)
   "Drag a anchor point or select it."
   (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
-         (move-xy nil)
          (anchor (seq-some (lambda (shp)
                              (edraw-pick-anchor-point shp down-xy))
                            (edraw-selected-shapes editor))))
     (when anchor
       (let ((original-xy (edraw-get-xy anchor))
-            (shift-p (memq 'shift (event-modifiers down-event))))
+            (shift-p (memq 'shift (event-modifiers down-event)))
+            (move-xy nil))
         (edraw-editor-with-temp-modifications editor
           (edraw-track-dragging
            down-event
