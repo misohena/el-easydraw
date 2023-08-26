@@ -654,58 +654,58 @@ are set as strings."
 ;;;; SVG Element Creation
 
 
-(defun edraw-svg-rect (x y width height &rest attr-plist)
+(defun edraw-svg-rect (x y width height &rest attr-plist-and-children)
   "Create a `rect' element.
-Attributes are specified by X, Y, WIDTH, HEIGHT, and ATTR-PLIST.
+Attributes are specified by X, Y, WIDTH, HEIGHT, and ATTR-PLIST-AND-CHILDREN.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'rect
-         `(x ,x y ,y width ,width height ,height ,@attr-plist)))
+         `(x ,x y ,y width ,width height ,height ,@attr-plist-and-children)))
 
-(defun edraw-svg-circle (cx cy r &rest attr-plist)
+(defun edraw-svg-circle (cx cy r &rest attr-plist-and-children)
   "Create a `circle' element.
-Attributes are specified by CX, CY, R, and ATTR-PLIST.
+Attributes are specified by CX, CY, R, and ATTR-PLIST-AND-CHILDREN.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'circle
-         `(cx ,cx cy ,cy r ,r ,@attr-plist)))
+         `(cx ,cx cy ,cy r ,r ,@attr-plist-and-children)))
 
-(defun edraw-svg-ellipse (cx cy rx ry &rest attr-plist)
+(defun edraw-svg-ellipse (cx cy rx ry &rest attr-plist-and-children)
   "Create an `ellipse' element.
-Attributes are specified by CX, CY, RX, RY, and ATTR-PLIST.
+Attributes are specified by CX, CY, RX, RY, and ATTR-PLIST-AND-CHILDREN.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'ellipse
-         `(cx ,cx cy ,cy rx ,rx ry ,ry ,@attr-plist)))
+         `(cx ,cx cy ,cy rx ,rx ry ,ry ,@attr-plist-and-children)))
 
-(defun edraw-svg-line (x1 y1 x2 y2 &rest attr-plist)
+(defun edraw-svg-line (x1 y1 x2 y2 &rest attr-plist-and-children)
   "Create a `line' element.
-Attributes are specified by X1, Y1, X2, Y2, and ATTR-PLIST.
+Attributes are specified by X1, Y1, X2, Y2, and ATTR-PLIST-AND-CHILDREN.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'line
-         `(x1 ,x1 y1 ,y1 x2 ,x2 y2 ,y2 ,@attr-plist)))
+         `(x1 ,x1 y1 ,y1 x2 ,x2 y2 ,y2 ,@attr-plist-and-children)))
 
-(defun edraw-svg-path (d &rest attr-plist)
+(defun edraw-svg-path (d &rest attr-plist-and-children)
   "Create a `path' element.
-Attributes are specified by D, and ATTR-PLIST.
+Attributes are specified by D, and ATTR-PLIST-AND-CHILDREN.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'path
-         `(d ,d ,@attr-plist)))
+         `(d ,d ,@attr-plist-and-children)))
 
-(defun edraw-svg-polygon (points &rest attr-plist)
+(defun edraw-svg-polygon (points &rest attr-plist-and-children)
   "Create a `polygon' element.
-Attributes are specified by POINTS, and ATTR-PLIST.
+Attributes are specified by POINTS, and ATTR-PLIST-AND-CHILDREN.
 
 POINTS is a string or a list of cons cell representing coordinates.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'polygon
          `(points
@@ -713,15 +713,15 @@ See `edraw-dom-element' for more information about ATTR-PLIST."
                 points
               (mapconcat (lambda (xy) (format "%s %s" (car xy) (cdr xy)))
                          points " "))
-           ,@attr-plist)))
+           ,@attr-plist-and-children)))
 
-(defun edraw-svg-polyline (points &rest attr-plist)
+(defun edraw-svg-polyline (points &rest attr-plist-and-children)
   "Create a `polyline' element.
-Attributes are specified by POINTS, and ATTR-PLIST.
+Attributes are specified by POINTS, and ATTR-PLIST-AND-CHILDREN.
 
 POINTS is a string or a list of cons cell representing coordinates.
 
-See `edraw-dom-element' for more information about ATTR-PLIST."
+See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   (apply #'edraw-dom-element
          'polyline
          `(points
@@ -729,7 +729,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST."
                 points
               (mapconcat (lambda (xy) (format "%s %s" (car xy) (cdr xy)))
                          points " "))
-           ,@attr-plist)))
+           ,@attr-plist-and-children)))
 
 (defun edraw-svg-group (&rest attr-plist-and-children)
   "Create a `g' element.
