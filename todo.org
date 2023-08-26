@@ -2802,3 +2802,74 @@ CLOSED: [2023-08-26 Sat 19:49]
 - (require 'seq)が必要。
 - tab-bar-formatはEmacs 28.1以降。
 - org-export-derived-backend-pはedraw-org.elからはox.elが必要なので何で大丈夫なんだろう。autoloadを足しておいた。
+** DONE xlink:hrefがhrefになってしまうのを何とかする
+CLOSED: [2023-08-26 Sat 19:55]
+とにかくSVGを読み込んだら強制的にxlink:hrefに直す。
+ついでにedraw-svg-version変数を追加して2.0用の入出力も出来るようにしておく。
+
+libxml-parse-xml-regionを使うとxlink:hrefがhrefになってしまう。
+Emacs27環境で試したらxlink:hrefでは表示されていたものが保存してエディタで開き直すと表示されなくなる。Emacs29環境ではどちらも表示されるが、xlink:hrefがhrefになるのは変わらない。
+
+#+begin_src elisp :results pp
+(with-temp-buffer
+  (insert "<svg width=\"560\" height=\"420\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><image x=\"240\" y=\"220\" width=\"180\" height=\"120\" xlink:href=\"steak.jpg\" /></svg>")
+  (libxml-parse-xml-region (point-min) (point-max)))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+(svg
+ ((width . "560")
+  (height . "420")
+  (version . "1.1"))
+ (image
+  ((x . "240")
+   (y . "220")
+   (width . "180")
+   (height . "120")
+   (href . "steak.jpg"))))
+#+end_example
+
+修正後のテスト。
+
+#+begin_src elisp :results pp
+(let ((edraw-svg-version "1.1"))
+  (edraw-svg-decode-svg "<!-- test --><svg width=\"560\" height=\"420\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><image x=\"240\" y=\"220\" width=\"180\" height=\"120\" xlink:href=\"steak.jpg\" /></svg>" nil))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+(svg
+ ((xmlns . "http://www.w3.org/2000/svg")
+  (xmlns:xlink . "http://www.w3.org/1999/xlink")
+  (width . "560")
+  (height . "420")
+  (version . "1.1"))
+ (image
+  ((x . "240")
+   (y . "220")
+   (width . "180")
+   (height . "120")
+   (xlink:href . "steak.jpg"))))
+#+end_example
+
+2.0だと次のようになる。
+
+#+begin_src elisp :results pp
+(let ((edraw-svg-version "2.0"))
+  (edraw-svg-decode-svg "<!-- test --><svg width=\"560\" height=\"420\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><image x=\"240\" y=\"220\" width=\"180\" height=\"120\" xlink:href=\"steak.jpg\" /></svg>" nil))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+(svg
+ ((xmlns . "http://www.w3.org/2000/svg")
+  (width . "560")
+  (height . "420"))
+ (image
+  ((x . "240")
+   (y . "220")
+   (width . "180")
+   (height . "120")
+   (href . "steak.jpg"))))
+#+end_example

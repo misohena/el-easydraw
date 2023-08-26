@@ -900,7 +900,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (let* ((width (or width (alist-get 'width edraw-default-document-properties)))
          (height (or height (alist-get 'height edraw-default-document-properties)))
          (background (or background (alist-get 'background edraw-default-document-properties)))
-         (svg (svg-create width height)))
+         (svg (edraw-svg-create width height)))
     (when (and background (not (equal background "none")))
       (edraw-svg-rect 0 0 width height
                       :parent svg
@@ -988,7 +988,8 @@ For use with `edraw-editor-with-temp-undo-list',
           (dom-remove-node doc-svg defs)))
       ;; Add xmlns
       (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
-      (dom-set-attribute doc-svg 'xmlns:xlink "http://www.w3.org/1999/xlink")
+      ;; Adjust xmlns:xlink and xlink:href
+      (edraw-svg-compatibility-fix doc-svg)
 
       (if with-top-level-comments-p
           ;; Append pre&post comments
@@ -2503,7 +2504,7 @@ For use with `edraw-editor-with-temp-undo-list',
         ((edraw-msg "Stroke...") edraw-editor-edit-stroke-selected
          :visible ,(edraw-can-have-property-p shapes 'stroke))
         ((edraw-msg "Href...") edraw-editor-edit-href-selected
-         :visible ,(edraw-can-have-property-p shapes 'xlink:href))
+         :visible ,(edraw-can-have-property-p shapes (edraw-svg-href-symbol)))
         ((edraw-msg "Font Size...") edraw-editor-edit-font-size-selected
          :visible ,(edraw-can-have-property-p shapes 'font-size))
 
@@ -3320,8 +3321,9 @@ position where the EVENT occurred."
            (bar-h (+ y padding))
 
            ;; Create SVG Element
-           (svg (let ((svg (svg-create (round (* image-scale bar-w))
-                                       (round (* image-scale bar-h)))))
+           (svg (let ((svg (edraw-svg-create
+                            (round (* image-scale bar-w))
+                            (round (* image-scale bar-h)))))
                   (svg-gradient svg "icon-fg-gradient" 'linear
                                 '((0 . "rgba(255,255,255,0.5)")
                                   (100 . "rgba(255,255,255,0.0)")))
@@ -4342,7 +4344,7 @@ position where the EVENT occurred."
                     'y (edraw-rect-top rect)
                     'width (edraw-rect-width rect)
                     'height (edraw-rect-height rect)
-                    'xlink:href (file-relative-name image-file))))
+                    (edraw-svg-href-symbol) (file-relative-name image-file))))
         (edraw-select-shape editor shape)))))
 
 
@@ -5865,7 +5867,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       ((edraw-msg "Stroke...") edraw-edit-stroke
        :visible ,(edraw-can-have-property-p shape 'stroke))
       ((edraw-msg "Href...") edraw-edit-href
-       :visible ,(edraw-can-have-property-p shape 'xlink:href))
+       :visible ,(edraw-can-have-property-p shape (edraw-svg-href-symbol)))
       ((edraw-msg "Font Size...") edraw-edit-font-size
        :visible ,(edraw-can-have-property-p shape 'font-size))))
     ((edraw-msg "Transform")
@@ -6522,9 +6524,11 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-edit-href ((shape edraw-shape-image))
   (let ((filename (read-file-name (edraw-msg "Image File: ")
                                   nil
-                                  (edraw-get-property shape 'xlink:href)
+                                  (edraw-get-property shape
+                                                      (edraw-svg-href-symbol))
                                   t)))
-    (edraw-set-property shape 'xlink:href (file-relative-name filename))))
+    (edraw-set-property shape (edraw-svg-href-symbol)
+                        (file-relative-name filename))))
 
 
 ;;;;; Shape - Path
