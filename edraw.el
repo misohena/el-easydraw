@@ -3605,6 +3605,8 @@ position where the EVENT occurred."
     (when handle
       (let ((anchor-xy (edraw-get-xy (edraw-parent-anchor handle)))
             (shift-p (memq 'shift (event-modifiers down-event)))
+            (meta-p (or (memq 'meta (event-modifiers down-event))
+                        (memq 'alt (event-modifiers down-event))))
             (move-xy nil))
         (edraw-editor-with-temp-modifications editor
           (edraw-track-dragging
@@ -3615,15 +3617,17 @@ position where the EVENT occurred."
              (when shift-p
                (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
              ;; If selected handle, move it alone
-             (if (and selected-handle
-                      (edraw-same-point-p handle selected-handle))
+             (if (or meta-p
+                     (and selected-handle
+                          (edraw-same-point-p handle selected-handle)))
                  (edraw-move-on-transformed handle move-xy) ;;notify modification
                (edraw-move-with-opposite-handle-on-transformed handle move-xy)))))
         (if move-xy
             ;; Fix position
             ;; If selected handle, move it alone
-            (if (and selected-handle
-                     (edraw-same-point-p handle selected-handle))
+            (if (or meta-p
+                    (and selected-handle
+                         (edraw-same-point-p handle selected-handle)))
                 (edraw-move-on-transformed handle move-xy) ;;notify modification
               (edraw-move-with-opposite-handle-on-transformed handle move-xy))
           ;; Click handle point
@@ -4369,7 +4373,13 @@ position where the EVENT occurred."
   (cl-call-next-method))
 
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool-path))
-  (message (edraw-msg "[Path Tool] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection")))
+  (message (edraw-msg "[Path Tool] Click:Add Anchor, Drag:Add Anchor and Handles
+(On Endpoint) Click:Continue/Connect, C-u Click:Add Anchor
+(On Point) Click:Select, Drag:Move
+(On Anchor) M-Click:Make Corner, M-Drag:Recreate Handles
+(On Handle) M-Drag:Move
+(On Another Shape) C-Click:Glue
+S-Click/Drag: 45 degree increments")))
 
 (cl-defmethod edraw-mouse-down-continue-path ((tool edraw-editor-tool-path)
                                               down-event)
@@ -4486,6 +4496,51 @@ position where the EVENT occurred."
              move-xy))
           t)))))
 
+(defun edraw-create-symmetrical-handles-on-anchor (anchor-point
+                                                  down-event editor
+                                                  shift-p)
+  (let ((anchor-index (edraw-anchor-index-in-path anchor-point))
+        (editing-path (edraw-parent-shape anchor-point))
+        move-xy)
+    ;; Drag handle points of the ANCHOR-POINT
+    (let ((anchor-xy (edraw-get-xy anchor-point))
+          dragging-point)
+      (edraw-editor-with-temp-modifications editor
+        (edraw-track-dragging
+         down-event
+         (lambda (move-event)
+           (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+           (when shift-p
+             (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
+
+           (unless dragging-point
+             (setq dragging-point
+                   (edraw-create-forward-handle anchor-point)) ;;notify modification
+             (when dragging-point
+               (edraw-create-backward-handle anchor-point))) ;;notify modification
+
+           (when dragging-point
+             (edraw-move-with-opposite-handle-symmetry-on-transformed
+              dragging-point
+              move-xy
+              t);;notify modification
+             )))))
+
+    (when move-xy
+      ;; ANCHOR-POINT may have been invalidated by UNDO handle creation,
+      ;; so reacquire it.
+      (let* ((anchor-point (edraw-get-nth-anchor-point editing-path anchor-index))
+             (dragging-point (edraw-create-forward-handle anchor-point))) ;;notify modification
+        (edraw-select-anchor editor anchor-point)
+        (when dragging-point
+          (edraw-create-backward-handle anchor-point)
+          (edraw-move-with-opposite-handle-symmetry-on-transformed
+           dragging-point
+           move-xy
+           t);;notify modification
+          )
+        t))))
+
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-path)
                                        down-event)
   (edraw-on-down-mouse-1 tool down-event))
@@ -4539,49 +4594,16 @@ position where the EVENT occurred."
                              (edraw-xy-snap-to-45deg down-xy last-xy)
                            down-xy))
                  ;; Add a new point
-                 (anchor-point (edraw-add-anchor-point editing-path new-xy)) ;;notify modification
-                 dragging-point
-                 move-xy)
+                 (anchor-point (edraw-add-anchor-point editing-path new-xy))) ;;notify modification
 
             ;; Select last anchor point
             (edraw-select-anchor editor anchor-point)
             (edraw-display-selected-object-coordinates editor)
 
             ;; Drag handle points of the new point
-            (edraw-editor-with-temp-modifications editor
-              (edraw-track-dragging
-               down-event
-               (lambda (move-event)
-                 (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
-                 (when shift-p
-                   (setq move-xy (edraw-xy-snap-to-45deg move-xy new-xy)))
-
-                 (unless dragging-point
-                   (setq dragging-point
-                         (edraw-create-forward-handle anchor-point)) ;;notify modification
-                   (when dragging-point
-                     (edraw-create-backward-handle anchor-point))) ;;notify modification
-
-                 (when dragging-point
-                   (edraw-move-with-opposite-handle-symmetry-on-transformed
-                    dragging-point
-                    move-xy
-                    t);;notify modification
-                   ))))
-
-            (when move-xy
-              ;; ANCHOR-POINT may have been invalidated by UNDO handle creation,
-              ;; so reacquire it.
-              (let* ((anchor-point (edraw-get-last-anchor-point editing-path))
-                     (dragging-point (edraw-create-forward-handle anchor-point))) ;;notify modification
-                (edraw-select-anchor editor anchor-point)
-                (when dragging-point
-                  (edraw-create-backward-handle anchor-point)
-                  (edraw-move-with-opposite-handle-symmetry-on-transformed
-                   dragging-point
-                   move-xy
-                   t);;notify modification
-                  ))))))))))
+            (edraw-create-symmetrical-handles-on-anchor
+             anchor-point down-event editor shift-p)
+            )))))))
 
 (cl-defmethod edraw-on-C-down-mouse-1 ((tool edraw-editor-tool-path)
                                        down-event)
@@ -4623,6 +4645,31 @@ position where the EVENT occurred."
           ;; End editing-path
           (when last-anchor
             (edraw-clear tool)))))))
+
+(cl-defmethod edraw-recreate-symmetrical-handles-on-click-anchor
+  ((tool edraw-editor-tool-path) down-event)
+  (let* ((editor (oref tool editor))
+         (down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
+         (anchor (seq-some (lambda (shp)
+                             (edraw-pick-anchor-point shp down-xy))
+                           (edraw-selected-shapes editor))))
+    (when anchor
+      (edraw-select-anchor editor anchor)
+      (or
+       ;; Drag
+       (edraw-create-symmetrical-handles-on-anchor
+        anchor down-event editor (memq 'shift (event-modifiers down-event)))
+       ;; Click
+       (edraw-make-corner anchor))
+      t)))
+
+(cl-defmethod edraw-on-M-down-mouse-1 ((tool edraw-editor-tool-path)
+                                       down-event)
+  (with-slots (editor) tool
+    (or
+     (edraw-mouse-down-handle-point editor down-event)
+     (edraw-recreate-symmetrical-handles-on-click-anchor tool down-event)
+     )))
 
 
 (cl-defmethod edraw-clear ((tool edraw-editor-tool-path))
