@@ -141,9 +141,15 @@ comment nodes."
 (defun edraw-dom-do (node function &optional ancestors)
   (funcall function node ancestors)
   (when (edraw-dom-element-p node)
-    (let ((ancestors (cons node ancestors)))
-      (dolist (child-node (dom-children node))
-        (edraw-dom-do child-node function ancestors)))))
+    (let ((ancestors (cons node ancestors))
+          (children (dom-children node)))
+      (cond
+       ((listp children)
+        (dolist (child-node children)
+          (edraw-dom-do child-node function ancestors)))
+       ;; Comment Node (comment nil "comment text")
+       ((stringp children)
+        (funcall function children ancestors))))))
 
 (defun edraw-dom-get-by-id (parent id)
   (car (dom-by-id parent (concat "\\`" (regexp-quote id) "\\'"))))
