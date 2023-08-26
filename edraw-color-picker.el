@@ -1498,6 +1498,7 @@ OVERLAY uses the display property to display the color PICKER."
 
 (cl-defmethod edraw-initialize ((display edraw-color-picker-display-frame)
                                 picker)
+  (defvar tab-bar-format) ;;Emacs 28.1
   (let* (;; Create buffer
          (buffer
           (generate-new-buffer " *Color Picker*"))

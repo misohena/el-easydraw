@@ -700,6 +700,8 @@ If WIDTH-P is non-nil, return width, otherwise return height."
   (let ((edraw-org-export-current-link link))
     (apply old-func link args)))
 
+(autoload 'org-export-derived-backend-p "ox")
+
 (defun edraw-org-link-export (path description back-end info)
   (let ((link edraw-org-export-current-link))
     (cond

@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'seq)
 (require 'cl-lib)
 
 ;;;; Parse Source File
