@@ -449,6 +449,18 @@ rgbaはもはやrgbの別名。それにカンマでなく空白で区切って�
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO ソース/defgenericをどうするか
 defgenericは全部に必要？ どこに書くべき？
+** TODO ORG/ファイル名を付けていないOrgバッファでimage要素が表示できない
+仕組みを知っていればそりゃそうだろうとしか言いようが無いけど……。
+デフォルトのbase-uriはbuffer-file-nameなので。
+
+edraw-modeはファイル名を付けるまでdefault-directoryを使うようにした。
+
+[[*edrawコマンドで作ったバッファで画像ツールで挿入した画像が表示されない][edrawコマンドで作ったバッファで画像ツールで挿入した画像が表示されない]]
+
+org-modeでもそうする？(そんな使い方する人どれだけいるの?)
+
+それともedraw-editor側でそうする？(それは良くない気がする)
+
 ** TODO ORG/org-modeでODTへのエクスポートに対応する
 ** TODO ORG/個別のedrawリンクにHTML属性値を指定出来るようにする
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
