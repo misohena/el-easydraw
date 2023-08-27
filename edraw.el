@@ -4237,7 +4237,8 @@ position where the EVENT occurred."
   (let* ((editor (oref tool editor))
          (down-xy (edraw-mouse-event-to-xy-raw editor click-event)) ;;Do not any rounding coordinates
          (down-shape (car (edraw-find-shapes-by-xy editor down-xy)))) ;;front
-    (when down-shape
+    (when (and down-shape
+               (edraw-shape-text-p down-shape))
       (edraw-select-shape editor down-shape)
       (let* ((old-text (edraw-get-property down-shape 'text))
              (new-text (read-string (edraw-msg "Change Text: ") (or old-text ""))))

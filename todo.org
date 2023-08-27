@@ -2901,3 +2901,8 @@ buffer-file-nameがnilなのでcreate-imageに(画像記述子に):base-uriを�
 なので後者で実装することにした。
 
 base-uriに対応していないEmacs 27では画像が表示されない現象は残るがそこは諦める。時間とともに解決するだろう。
+** DONE 既にテキスト以外の図形がある所にテキストを追加できないのを直す
+CLOSED: [2023-08-27 Sun 17:02]
+テキストをクリックで変更できるようにしたときに生じたバグ。
+[[https://github.com/misohena/el-easydraw/commit/bd1d19271972a04c8fa3e6a3d892288cfc00faa2][Change existing text on click in text tool · misohena/el-easydraw@bd1d192]]
+対象をテキストに限定していないのが原因。
