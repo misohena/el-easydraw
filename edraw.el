@@ -366,6 +366,7 @@ line-prefix and wrap-prefix are used in org-indent.")
     :initarg :document-writer-accepts-top-level-comments-p :initform nil)
    (menu-filter :initarg :menu-filter :initform nil)
 
+   (image-base-uri :initform nil)
    (image-scale
     :initform (image-compute-scaling-factor
                (or edraw-editor-image-scaling-factor image-scaling-factor))
@@ -1478,6 +1479,10 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;; Editor - View
 ;;;;;; Editor - View - SVG Image Update
 
+(cl-defmethod edraw-set-base-uri ((editor edraw-editor) filename-or-nil)
+  (oset editor image-base-uri filename-or-nil)
+  (edraw-invalidate-image editor))
+
 (cl-defmethod edraw-invalidate-image ((editor edraw-editor))
   "Request an image update."
   (with-slots (image-update-timer) editor
@@ -1499,12 +1504,19 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-update-image ((editor edraw-editor))
   "Update the image and apply the image to the overlay."
-  (with-slots (overlay svg image) editor
+  (with-slots (overlay svg image image-base-uri) editor
     (edraw-update-image-timer-cancel editor)
     (edraw-update-ui-parts editor)
     (edraw-call-hook editor 'before-image-update)
-    (setq image (edraw-svg-to-image svg
-                                    :scale 1.0)) ;;Cancel image-scale effect
+
+    (setq image
+          (apply #'edraw-svg-to-image
+                 svg
+                 `(;; Set Base URI (Default value is `buffer-file-name')
+                   ,@(when image-base-uri
+                       (list :base-uri image-base-uri))
+                   ;; Cancel image-scale effect
+                   :scale 1.0)))
     (overlay-put overlay 'display image)))
 
 ;;;;;; Editor - View - SVG Structure

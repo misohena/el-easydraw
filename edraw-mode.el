@@ -84,6 +84,12 @@ The following commands are available:
     (edraw-add-hook editor 'change 'edraw-mode-on-changed)
     (add-hook 'before-save-hook 'edraw-mode-on-before-save nil t)
 
+    ;; Setup file name tracking and maintain :base-uri
+    ;; @todo If default-directory changes, base-uri should also change.
+    (edraw-mode-update-base-uri)
+    (add-hook 'after-set-visited-file-name-hook
+              'edraw-mode-on-file-name-changed nil t)
+
     ;; Setup major mode finalization
     (add-hook 'change-major-mode-hook 'edraw-mode-finalize-major-mode nil t)
 
@@ -209,6 +215,31 @@ show the overlay using display property.")
       (let ((doc-svg (edraw-document-svg editor t)))
         (edraw-mode-write-document doc-svg)
         (edraw-set-modified-p editor nil)))))
+
+;;;; Base URI
+
+(defun edraw-mode-on-file-name-changed ()
+  (edraw-mode-update-base-uri))
+
+(defun edraw-mode-update-base-uri ()
+  "Update the :base-uri of the editor image.
+
+:base-uri is the base file name when referring to external
+resources such as images.
+
+The default is the buffer file name, but buffers created with the
+`edraw' command do not yet have a buffer file name.
+
+Therefore external images will not be displayed until the buffer
+is saved with a filename.
+
+This function sets :base-uri to default-directory if the buffer
+filename is nil. If non-nil invalidate the :base-uri."
+  (let ((editor edraw-mode-editor))
+    (when editor
+      (edraw-set-base-uri editor
+                          (and (null (buffer-file-name))
+                               (expand-file-name "___unnamed___.svg"))))))
 
 ;;;; Edraw Command
 
