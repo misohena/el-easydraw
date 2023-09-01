@@ -4766,23 +4766,67 @@ S-Click/Drag: 45 degree increments")))
         (let ((path-data
                (if (edraw-get-setting editor 'grid-visible) ;;@todo Checking while snapping should be a dedicated predicate.
                    ;; If snapped to grid, don't smooth.
-                   (concat
-                    "M"
-                    (mapconcat (lambda (xy)
-                                 (concat
-                                  (edraw-to-string (edraw-x xy))
-                                  " "
-                                  (edraw-to-string (edraw-y xy))))
-                               points
-                               "L"))
-                 ;; Fit bezier curve
-                 (edraw-xy-points-to-smooth-path-data points))))
+                   (edraw-editor-tool-freehand--make-poly-line points)
+                 ;; Smooth
+                 (edraw-editor-tool-freehand--make-smooth points))))
           (when path-data
             ;; Add a new path shape
             (edraw-create-shape ;;modify
              editor (edraw-svg-body editor) 'path
              'd path-data)))))))
 
+(defcustom edraw-editor-tool-freehand-smoothing-method 'bezier-fitting
+  "The smoothing method used by the Freehand tool."
+  :group 'edraw-editor
+  :type '(choice
+          (const :tag "Do not smooth" nil)
+          (const :tag "Smooth each point individually" each-point)
+          (const :tag "Approximate the whole with as few Bezier curves as possible" bezier-fitting)))
+
+(defun edraw-editor-tool-freehand--make-smooth (points)
+  (pcase edraw-editor-tool-freehand-smoothing-method
+    ('nil (edraw-editor-tool-freehand--make-poly-line points))
+    ('each-point (edraw-editor-tool-freehand--smooth-each-point points))
+    (_ (edraw-xy-points-to-smooth-path-data points))))
+
+(defun edraw-editor-tool-freehand--make-poly-line (points)
+  (concat
+   "M"
+   (mapconcat (lambda (xy)
+                (concat
+                 (edraw-to-string (edraw-x xy))
+                 " "
+                 (edraw-to-string (edraw-y xy))))
+              points
+              "L")))
+
+(defun edraw-editor-tool-freehand--smooth-each-point (points)
+  (let ((result nil)
+        (prev-xy nil))
+    (while points
+      (let* ((curr-xy (car points))
+             (next-xy (cadr points))
+             (pn (edraw-path-make-corner-smooth curr-xy prev-xy next-xy))
+             (back-xy (or (car pn) curr-xy))
+             (fore-xy (or (cdr pn) curr-xy)))
+        (if prev-xy
+            (setq result (concat result
+                                 (edraw-to-string (edraw-x back-xy)) " "
+                                 (edraw-to-string (edraw-y back-xy)) " "
+                                 (edraw-to-string (edraw-x curr-xy)) " "
+                                 (edraw-to-string (edraw-y curr-xy))))
+          (setq result (concat result
+                               "M"
+                               (edraw-to-string (edraw-x curr-xy)) " "
+                               (edraw-to-string (edraw-y curr-xy)))))
+        (when next-xy
+          (setq result (concat result
+                               "C"
+                               (edraw-to-string (edraw-x fore-xy)) " "
+                               (edraw-to-string (edraw-y fore-xy)) " ")))
+        (setq prev-xy curr-xy)
+        (setq points (cdr points))))
+    result))
 
 ;;;;; Tool - Custom Shape Tool
 

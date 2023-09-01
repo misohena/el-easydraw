@@ -2906,3 +2906,9 @@ CLOSED: [2023-08-27 Sun 17:02]
 テキストをクリックで変更できるようにしたときに生じたバグ。
 [[https://github.com/misohena/el-easydraw/commit/bd1d19271972a04c8fa3e6a3d892288cfc00faa2][Change existing text on click in text tool · misohena/el-easydraw@bd1d192]]
 対象をテキストに限定していないのが原因。
+** DONE 手書きツールのスムーズ化の方式を選べるようにする
+CLOSED: [2023-09-01 Fri 23:37]
+現在のベジェ曲線フィッティングは歪むのが気になるという人がいるようなので、とりあえず昔の挙動に戻せるようにする。
+[[https://github.com/misohena/el-easydraw/issues/17][Improve path smoothing in the free hand tool · Issue #17 · misohena/el-easydraw]]
+
+edraw-editor-tool-freehand-smoothing-method変数を追加した。

@@ -1786,59 +1786,61 @@ handle point of ANCHOR-POINT. If it doesn't exist, create it."
             ('Z )))))))
 
 (defun edraw-path-anchor-make-smooth (anchor-point)
-  (let ((curr-xy (edraw-path-point-xy anchor-point))
-        (prev-xy (edraw-path-point-prev-anchor-xy anchor-point))
-        (next-xy (edraw-path-point-next-anchor-xy anchor-point)))
+  (let* ((curr-xy (edraw-path-point-xy anchor-point))
+         (prev-xy (edraw-path-point-prev-anchor-xy anchor-point))
+         (next-xy (edraw-path-point-next-anchor-xy anchor-point))
+         (pn (edraw-path-make-corner-smooth curr-xy prev-xy next-xy)))
     ;;(message "make smooth prev=%s curr=%s next=%s" prev-xy curr-xy next-xy)
-    (cond
-     ((and (null prev-xy) (null next-xy))
-      nil)
-     ((null prev-xy) ;;(not (null next-xy))
-      (when-let ((forward-handle
-                  (edraw-path-anchor-create-forward-handle anchor-point)))
-        (edraw-path-point-move forward-handle
-                               (edraw-xy-midpoint-float curr-xy next-xy))))
-     ((null next-xy) ;;(not (null prev-xy))
+
+    (when (car pn)
       (when-let ((backward-handle
                   (edraw-path-anchor-create-backward-handle anchor-point)))
-        (edraw-path-point-move backward-handle
-                               (edraw-xy-midpoint-float curr-xy prev-xy))))
-     (t ;;(and prev-xy next-xy)
-      ;;     hp+,
-      ;;     ,`  `,
-      ;;vp ,`   uvp`, curr-xy
-      ;; p+<-----+<--+,
-      ;;         vm+ | `,
-      ;;             +uvn`+hn
-      ;;             | , `
-      ;;             +vn
-      ;;             n
-      (let* ((vp (edraw-xy-sub prev-xy curr-xy))
-             (vn (edraw-xy-sub next-xy curr-xy))
-             (vp-len (edraw-xy-length vp))
-             (vn-len (edraw-xy-length vn))
-             (dist-from-anchor 0.4))
-        (when (and (>= vp-len 0.5) (>= vn-len 0.5))
-          (let* ((uvp (edraw-xy-divn vp vp-len))
-                 (uvn (edraw-xy-divn vn vn-len))
-                 (vm (edraw-xy-nmul 0.5 (edraw-xy-add uvp uvn)))
-                 (hp (edraw-xy-add
-                      curr-xy
-                      (edraw-xy-nmul
-                       dist-from-anchor
-                       (edraw-xy-sub vp (edraw-xy-nmul vp-len vm)))))
-                 (hn (edraw-xy-add
-                      curr-xy
-                      (edraw-xy-nmul
-                       dist-from-anchor
-                       (edraw-xy-sub vn (edraw-xy-nmul vn-len vm))))))
-            (when-let ((forward-handle
-                        (edraw-path-anchor-create-forward-handle anchor-point)))
-              (edraw-path-point-move forward-handle hn))
-            (when-let ((backward-handle
-                        (edraw-path-anchor-create-backward-handle anchor-point)))
-              (edraw-path-point-move backward-handle hp))
-            t)))))))
+        (edraw-path-point-move backward-handle (car pn))))
+    (when (cdr pn)
+      (when-let ((forward-handle
+                  (edraw-path-anchor-create-forward-handle anchor-point)))
+        (edraw-path-point-move forward-handle (cdr pn))))
+    (when (or (car pn) (cdr pn))
+      t)))
+
+(defun edraw-path-make-corner-smooth (curr-xy prev-xy next-xy)
+  (cond
+   ((and (null prev-xy) (null next-xy))
+    nil)
+   ((null prev-xy) ;;(not (null next-xy))
+    (cons nil (edraw-xy-midpoint-float curr-xy next-xy)))
+   ((null next-xy) ;;(not (null prev-xy))
+    (cons (edraw-xy-midpoint-float curr-xy prev-xy) nil))
+   (t ;;(and prev-xy next-xy)
+    ;;     hp+,
+    ;;     ,`  `,
+    ;;vp ,`   uvp`, curr-xy
+    ;; p+<-----+<--+,
+    ;;         vm+ | `,
+    ;;             +uvn`+hn
+    ;;             | , `
+    ;;             +vn
+    ;;             n
+    (let* ((vp (edraw-xy-sub prev-xy curr-xy))
+           (vn (edraw-xy-sub next-xy curr-xy))
+           (vp-len (edraw-xy-length vp))
+           (vn-len (edraw-xy-length vn))
+           (dist-from-anchor 0.4))
+      (when (and (>= vp-len 0.5) (>= vn-len 0.5))
+        (let* ((uvp (edraw-xy-divn vp vp-len))
+               (uvn (edraw-xy-divn vn vn-len))
+               (vm (edraw-xy-nmul 0.5 (edraw-xy-add uvp uvn)))
+               (hp (edraw-xy-add
+                    curr-xy
+                    (edraw-xy-nmul
+                     dist-from-anchor
+                     (edraw-xy-sub vp (edraw-xy-nmul vp-len vm)))))
+               (hn (edraw-xy-add
+                    curr-xy
+                    (edraw-xy-nmul
+                     dist-from-anchor
+                     (edraw-xy-sub vn (edraw-xy-nmul vn-len vm))))))
+          (cons hp hn)))))))
 
 (defun edraw-path-anchor-split-path (anchor)
   "Split path at ANCHOR point.
