@@ -299,6 +299,14 @@ mouse.el内のmouse-drag-lineではset-transient-mapを使っている。一時�
 グループ内で矢印を使っていたときに、編集前には表示されている矢印が編集を開始したとたん消える。
 おそらくグループ内まで検索していないのだと思う。
 
+** TODO テキスト/スタイルシートを考慮する
+テキストの様々な設定はstyle属性でも設定できる。正しい境界矩形を計算するには、style属性も考慮しなければならない。
+またその際親からの継承も考慮すべき。これはstyleに限らないが。
+** TODO テキスト/複数行になるとtext-decorationが機能しない
+[[edraw:data=H4sIAHUN/WQAA42Sv07DMBDGX8U65jZ/ytBWTVeegTEkTmI1tSvHbVKmumJrF4RAQmKgC6AysCIGXsaV6GNwSaMKIaAMsXK6u+/73dm9bBKTYpjyzINEqVHXsvI8b+atppCx5dq2bWEF7Eq6Rcr44KdCp9PpWFUWSM5ClXjQattAEsriRHnguBhMqMyY4Bg1Hej3JA0UKTzAzLQ6f21koQc0lH7eOPODQSzFmIdAMiXFgHrABadAIpamHhxFUQTE6vfir00inKKfooUi5dEIaSCkryoWlKISwWlFcYxuiFSa1oKu68Kuy+dBIqQHmfKlwrzgqpGxcyRw2nUY+UOWoszpmJwIlbAA+kZfmfnS6JfN62y7wp97oy+NfjT61szmPauUrtkOOf7F/j+acsT2fkS0zUY+J0HqZ3j9lfxOrc5v3pYV8rPRazNfGP2EvGXLoU4SopFDh+X4a6PvjF58gzd6+XGx2j7cGH1d7ed9v5CdQb0YK8YPX2D/E5VqM5upAgAA]]
+
+※エクスポートすると両方ともアンダーラインが引かれるのでlibrsvgのバグ？
+
 ** TODO テキスト/行間を広げたい
 その他テキストに関する設定がもっと欲しい。
 ** TODO テキスト/より良いテキストサイズの推測
@@ -2912,3 +2920,15 @@ CLOSED: [2023-09-01 Fri 23:37]
 [[https://github.com/misohena/el-easydraw/issues/17][Improve path smoothing in the free hand tool · Issue #17 · misohena/el-easydraw]]
 
 edraw-editor-tool-freehand-smoothing-method変数を追加した。
+** DONE テキスト/縦書きが出来るようにしたい
+CLOSED: [2023-09-10 Sun 09:35]
+writing-modeプロパティを追加する。SVG1.1だとtbだがSVG2ではvertical-rl。
+
+[[edraw:data=H4sIANOm9mQAA3WQUUrEMBCGrxLG527arsh2afrqGXysTZqGpomks5uuj907qAcQRUTwAN6moHgL02VZfNCHGRiG75s/yfutJF5xbBgsz2MgjVCyQQbpRRiGTpueQYN4s6bUe7/wy4V1kqZxHNOAAtkK1ytrGCSL5AisB61M+xeWZFlGD1socicqJAODcGd36P/GUJyB4K700XVZtdLZjeFAenS2FQyMNQJIrbRmcFbXNRBa5PI3ZPku3EMxYIB2OjDeKVRGRp3lYj2/AVVV6sjpQ5Y5QAi2ik/aNE2BzIKoNFVjHYMeS4dhbw1GvboNzmR1HOuyUzporjbk0mKjKig+796/Xsbv14dp/zbtP6b9/TQ+TePzND7mdPYWOZWhwpcWP7TPEl6TAQAA]]
+
+ただし、現時点のlibrsvgでは正しく表示されない。
+フォントは何を指定してもダメ。もちろんエクスポートすればブラウザで正しく表示される。
+
+境界矩形を正しく計算したい。
+text-anchorは縦書きでも本来はちゃんと機能する(librsvgは何かがおかしい)。
++writing-modeはどうやって取得するべきなのか。属性とスタイルの両方を見るべきだし、祖先も見るべきなのか。+ とりあえずwriting-mode属性のみ考慮する。

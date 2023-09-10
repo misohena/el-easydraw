@@ -960,6 +960,8 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      (font-style attr (or "normal" "italic" "oblique") nil)
      (text-decoration attr (or "underline" "overline" "line-through") nil)
      (text-anchor attr (or "start" "middle" "end") nil)
+     (writing-mode attr-update-text
+                   (or "horizontal-tb" "vertical-rl" "vertical-lr") nil)
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
      ;;(baseline-shift attr number nil)
      ,@edraw-svg-element-properties-common)
@@ -1056,6 +1058,10 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
    ((and (eq (dom-tag element) 'text)
          (eq prop-name 'x))
     (edraw-svg-text-set-x element value))
+   ;; y of text must by changed along with inner tspans if vertical writing.
+   ((and (eq (dom-tag element) 'text)
+         (eq prop-name 'y))
+    (edraw-svg-text-set-y element value))
    ;; Store as is. Avoid numerical errors.
    ((numberp value)
     (edraw-svg-set-attr-number element prop-name value))
@@ -1065,14 +1071,17 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (dom-set-attribute element prop-name value))))
 
 (defun edraw-svg-element-get-inner-text (element _prop-name _defrefs)
-  ;;(dom-text element)
   (edraw-svg-text-get-text element))
 
 (defun edraw-svg-element-set-inner-text (element _prop-name value _defrefs)
-  ;; (when (stringp value)
-  ;;   (edraw-dom-remove-all-children element)
-  ;;   (dom-append-child element value)))
   (edraw-svg-text-set-text element value))
+
+(defun edraw-svg-element-get-attr-update-text (element prop-name defrefs)
+  (edraw-svg-element-get-attr element prop-name defrefs))
+
+(defun edraw-svg-element-set-attr-update-text (element prop-name value defrefs)
+  (edraw-svg-element-set-attr element prop-name value defrefs)
+  (edraw-svg-text-update-text element))
 
 (defun edraw-svg-element-get-attr-marker (element prop-name defrefs)
   (edraw-svg-get-marker-property element prop-name defrefs))
@@ -1090,6 +1099,8 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 ;;;; SVG Text Layout
 
+(defun edraw-svg-text-update-text (element)
+  (edraw-svg-text-set-text element (edraw-svg-text-get-text element)))
 
 (defun edraw-svg-text-set-text (element text)
   (edraw-dom-remove-all-children element)
@@ -1100,18 +1111,26 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
           ;; single line
           (dom-append-child element (car lines))
         ;; multi-line
-        (let ((x (or (edraw-svg-attr-coord element 'x) 0))
-              (first-line-p t))
-          (dolist (line lines)
-            (dom-append-child
-             element
-             (dom-node 'tspan
-                       (append (list (cons 'class "text-line")
-                                     (cons 'x x))
-                               (when (not first-line-p)
-                                 (list (cons 'dy "1em"))))
-                       line))
-            (setq first-line-p nil)))))))
+        (edraw-svg-text--set-text-multiline element lines)))))
+
+(defun edraw-svg-text--set-text-multiline (element lines)
+  (let* ((vertical-p (edraw-svg-text-vertical-writing-p element))
+         (negative-dir-p (eq (edraw-svg-text-writing-mode element)
+                             'vertical-rl))
+         (attr-col (if vertical-p 'y 'x))
+         (col (or (edraw-svg-attr-coord element attr-col) 0))
+         (attr-line-delta (if vertical-p 'dx 'dy))
+         (line-delta (if negative-dir-p "-1em" "1em"))
+         (first-line (car lines)))
+    (dolist (line lines)
+      (dom-append-child
+       element
+       (dom-node 'tspan
+                 (append (list (cons 'class "text-line")
+                               (cons attr-col col))
+                         (unless (eq line first-line)
+                           (list (cons attr-line-delta line-delta))))
+                 line)))))
 
 (defun edraw-svg-text-get-text (element)
   (if (stringp (car (dom-children element)))
@@ -1121,13 +1140,21 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 (defun edraw-svg-text-set-x (element x)
   (edraw-svg-set-attr-number element 'x x)
-  (let ((tspans (dom-by-class element "\\`text-line\\'")))
-    (dolist (tspan tspans)
-      (edraw-svg-set-attr-number tspan 'x x))))
+  (unless (edraw-svg-text-vertical-writing-p element)
+    (let ((tspans (dom-by-class element "\\`text-line\\'")))
+      (dolist (tspan tspans)
+        (edraw-svg-set-attr-number tspan 'x x)))))
+
+(defun edraw-svg-text-set-y (element y)
+  (edraw-svg-set-attr-number element 'y y)
+  (when (edraw-svg-text-vertical-writing-p element)
+    (let ((tspans (dom-by-class element "\\`text-line\\'")))
+      (dolist (tspan tspans)
+        (edraw-svg-set-attr-number tspan 'y y)))))
 
 (defun edraw-svg-text-set-xy (element xy)
   (edraw-svg-text-set-x element (car xy))
-  (edraw-svg-set-attr-number element 'y (cdr xy)))
+  (edraw-svg-text-set-y element (cdr xy)))
 
 
 ;;;; SVG Defs
@@ -1548,6 +1575,8 @@ This function does not consider the effect of the transform attribute."
               (or (mapcar #'string-to-number (split-string y separator t))
                   (list 0))
             (list y)))
+         (anchor-x (car xs))
+         (anchor-y (car ys))
          ;;@todo support dx, dy
          (text (edraw-svg-text-get-text element));;@todo analyze decendant nodes
          (lines (split-string text "\n"))
@@ -1556,23 +1585,48 @@ This function does not consider the effect of the transform attribute."
          (text-anchor (or (dom-attr element 'text-anchor) "start"))
          (font-size (or (edraw-svg-attr-number element 'font-size) 12)) ;;@todo default font size
          (font-ascent (/ (* font-size 80) 100)) ;;@todo default font ascent
-         )
-    ;;@todo direction=rtl, writing-mode
+         (writing-mode (edraw-svg-text-writing-mode element))
+         (vertical-p (edraw-svg-text-vertical-writing-p element))
+         (vertical-rl-p (eq writing-mode 'vertical-rl)))
+    ;;@todo direction=rtl
+    ;;@todo support style
     ;;@todo support baseline spec. (but librsvg does not support baseline spec https://gitlab.gnome.org/GNOME/librsvg/-/issues/414 )
     ;;@todo support list-of-coordinates x=, y=, dx=, dy= (librsvg does not support https://gitlab.gnome.org/GNOME/librsvg/-/issues/183 )
     ;;@todo support rotate (librsvg does not suppor ?)
     ;;@todo support textLength (librsvg does not support https://gitlab.gnome.org/GNOME/librsvg/-/issues/88 )
 
-    (let* ((text-w (* 0.5 font-size max-width))
-           (text-x (+ (car xs)
-                      (* text-w (pcase text-anchor
-                                  ("middle" -0.5) ("end" -1) (_ 0)))))
-           (text-y (- (car ys) font-ascent))
-           (text-h (* font-size (length lines))))
-      (when edraw-svg-text-contents-aabb--remove-last-descent
-        (setq text-h (max 0 (- text-h (- font-size font-ascent)))))
-      ;;(message "x=%s y=%s text-x=%s text-y=%s text-w=%s text-h=%s text-anchor=%s" (car xs) (car ys) text-x text-y text-w text-h text-anchor)
-      (edraw-rect-xywh text-x text-y text-w text-h))))
+    (let* ((anchor-col (if vertical-p anchor-y anchor-x))
+           (anchor-line (if vertical-p anchor-x anchor-y))
+           (text-w (* 0.5 font-size max-width))
+           (text-h (max 0
+                        (- (* font-size (length lines))
+                           (if edraw-svg-text-contents-aabb--remove-last-descent
+                               (- font-size font-ascent) 0))))
+           (text-col (- anchor-col
+                        (* text-w (pcase text-anchor
+                                    ("middle" 0.5) ("end" 1) (_ 0)))))
+           (text-line (if vertical-p
+                          (if vertical-rl-p
+                              (+ (- anchor-line text-h) (* 0.5 font-size))
+                            ;; vertical-lr
+                            (- anchor-line (* 0.5 font-size)))
+                        (- anchor-line font-ascent))))
+      (if vertical-p
+          (edraw-rect-xywh text-line text-col text-h text-w)
+        (edraw-rect-xywh text-col text-line text-w text-h)))))
+
+(defun edraw-svg-text-writing-mode (element)
+  ;;@todo support style attribute
+  ;;@todo support inherit
+  ;; https://www.w3.org/TR/css-writing-modes-3/#svg-writing-mode
+  (pcase (dom-attr element 'writing-mode)
+    ((or "horizontal-tb" "lr" "lr-tb" "rl" "rl-tb") 'horizontal-tb)
+    ((or "vertical-rl" "tb-rl" "tb") 'vertical-rl)
+    ("vertical-lr" 'vertical-lr)
+    (_ 'horizontal-tb)))
+
+(defun edraw-svg-text-vertical-writing-p (element)
+  (memq (edraw-svg-text-writing-mode element) '(vertical-rl vertical-lr)))
 
 
 ;;;; SVG Shape Translation
