@@ -878,7 +878,9 @@ For use with `edraw-editor-with-temp-undo-list',
     ;; #edraw-defs
     (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
         (setq defrefs (edraw-svg-defrefs-from-dom
-                       defs-element (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
+                       defs-element
+                       (edraw-dom-get-by-id svg edraw-editor-svg-body-id)
+                       t))
       (setq defrefs (edraw-svg-defs-as-defrefs edraw-editor-svg-defs-id))
       (edraw-dom-insert-first svg
                               (edraw-svg-defrefs-defs-element defrefs)))

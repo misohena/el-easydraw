@@ -1305,7 +1305,7 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
   (when-let ((idnum (edraw-svg-defref-url-to-idnum url)))
     (edraw-svg-defrefs-get-by-idnum defrefs idnum)))
 
-(defun edraw-svg-defrefs-from-dom (defs-node body-node)
+(defun edraw-svg-defrefs-from-dom (defs-node body-node &optional recursive-p)
   (let ((defrefs (edraw-svg-defrefs defs-node))
         defref-list)
     ;; Collect definitions
@@ -1318,12 +1318,8 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
                                 (< (edraw-svg-defref-idnum defref1)
                                    (edraw-svg-defref-idnum defref2)))))
     ;; Collect references
-    (when body-node
-      (dolist (element (dom-children body-node))
-        (dolist (attr (dom-attributes element))
-          (when (member (car attr) '(marker-start marker-mid marker-end))
-            (when-let ((idnum (edraw-svg-defref-url-to-idnum (cdr attr))))
-              (edraw-svg-defrefs-add-ref-by-idnum defrefs idnum element))))))
+    (edraw-svg-defrefs-from-dom--collect-references defrefs body-node
+                                                    recursive-p)
     ;; Remove unreferenced definitions
     (dolist (defref (edraw-svg-defrefs-defrefs defrefs))
       (when (edraw-svg-defref-empty-p defref)
@@ -1333,6 +1329,19 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
                         (edraw-svg-defrefs-defrefs defrefs)))
 
     defrefs))
+
+(defun edraw-svg-defrefs-from-dom--collect-references (defrefs
+                                                       body-node
+                                                       recursive-p)
+  (when body-node
+    (dolist (node (dom-children body-node))
+      (when (edraw-dom-element-p node) ;;exclude text nodes
+        (dolist (attr (dom-attributes node))
+          (when (member (car attr) '(marker-start marker-mid marker-end))
+            (when-let ((idnum (edraw-svg-defref-url-to-idnum (cdr attr))))
+              (edraw-svg-defrefs-add-ref-by-idnum defrefs idnum node))))
+        (when recursive-p
+          (edraw-svg-defrefs-from-dom--collect-references defrefs node t))))))
 
 
 ;;;; SVG Marker
