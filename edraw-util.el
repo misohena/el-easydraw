@@ -448,6 +448,7 @@ and `event-end'."
 
 (defun edraw-max-image-width ()
   "Return max image width in pixels."
+  (defvar max-image-size)
   (let ((size max-image-size))
     (cond
      ((integerp size) size)
@@ -456,6 +457,7 @@ and `event-end'."
 
 (defun edraw-max-image-height ()
   "Return max image height in pixels."
+  (defvar max-image-size)
   (let ((size max-image-size))
     (cond
      ((integerp size) size)

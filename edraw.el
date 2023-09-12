@@ -32,6 +32,7 @@
 
 ;;; Code:
 
+(require 'mwheel)
 (require 'cl-lib)
 (require 'eieio)
 (require 'edraw-math)
@@ -45,6 +46,8 @@
 (declare-function edraw-shape-picker-connect "edraw-shape-picker")
 (declare-function edraw-shape-picker-disconnect "edraw-shape-picker")
 (declare-function edraw-shape-picker-selected-args "edraw-shape-picker")
+(declare-function image-size "image.c")
+(declare-function image-flush "image.c")
 
 
 ;;;; Editor

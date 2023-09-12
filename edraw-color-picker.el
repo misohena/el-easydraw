@@ -86,6 +86,7 @@
 ;;    float : scaling factor for color picker image
 ;;            (rate from pixel size)
 
+(require 'image)
 (require 'eieio)
 (require 'svg)
 (require 'edraw-color)

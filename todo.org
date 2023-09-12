@@ -2932,3 +2932,17 @@ text-anchorは縦書きでも本来はちゃんと機能する(librsvgは何か�
 CLOSED: [2023-09-10 Sun 10:05]
 グループ内で矢印を使っていたときに、編集前には表示されている矢印が編集を開始したとたん消える。
 おそらくグループ内まで検索していないのだと思う。
+** DONE 非GUI環境でのエラーや警告を修正する
+CLOSED: [2023-09-12 Tue 21:03]
+最低限エクスポートだけはできるようにする。
+エラー:
+- mwheel.el
+  - mouse-wheel-up-eventとmouse-wheel-down-event (変数)
+警告:
+- image.c
+  - image-size
+  - image-flush
+  - max-image-size
+- image.el
+  - image-compute-scaling-factor
+  - image-scaling-factor (変数)

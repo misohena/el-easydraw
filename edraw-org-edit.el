@@ -27,6 +27,8 @@
 (require 'edraw)
 (require 'edraw-org)
 
+(declare-function image-flush "image.c")
+
 ;;;; Edit edraw link inline
 
 (defvar edraw-org-enable-modification nil)
