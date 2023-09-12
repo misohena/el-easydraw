@@ -2946,3 +2946,7 @@ CLOSED: [2023-09-12 Tue 21:03]
 - image.el
   - image-compute-scaling-factor
   - image-scaling-factor (変数)
+** DONE エクスポート前の段階でedraw.elを読み込まないようにする
+CLOSED: [2023-09-12 Tue 21:17]
+ox-htmlやox-latexが読み込まれた時点でedraw.elが読み込まれてしまう。
+実際にエクスポート関数が呼ばれた時点までedraw.elの読み込みを遅延する。

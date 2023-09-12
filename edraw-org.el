@@ -36,9 +36,7 @@
 
 (autoload 'edraw-org-edit-link "edraw-org-edit" "" t)
 (autoload 'edraw-org-link-copy-contents-at-point "edraw-org-edit" "" t)
-(autoload 'edraw-org-export-html-setup "edraw-org-export-html" "" nil)
 (autoload 'edraw-org-export-html-link "edraw-org-export-html" "" nil)
-(autoload 'edraw-org-export-latex-setup "edraw-org-export-latex" "" nil)
 (autoload 'edraw-org-export-latex-link "edraw-org-export-latex" "" nil)
 
 ;;;; Setup
@@ -692,6 +690,20 @@ If WIDTH-P is non-nil, return width, otherwise return height."
     (edraw-org-export-html-setup))
   (with-eval-after-load 'ox-latex
     (edraw-org-export-latex-setup)))
+
+(defun edraw-org-export-html-setup ()
+  (defvar org-html-inline-image-rules) ;;ox-html.el
+  (with-eval-after-load 'ox-html
+    (setf (alist-get edraw-org-link-type
+                     org-html-inline-image-rules nil nil #'equal)
+          ".*")))
+
+(defun edraw-org-export-latex-setup ()
+  (defvar org-latex-inline-image-rules) ;;ox-latex.el
+  (with-eval-after-load 'ox-latex
+    (setf (alist-get edraw-org-link-type
+                     org-latex-inline-image-rules nil nil #'equal)
+          ".*")))
 
 (defvar edraw-org-export-current-link nil)
 

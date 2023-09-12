@@ -32,12 +32,6 @@
 
 ;;;; Export
 
-(defun edraw-org-export-latex-setup ()
-  (with-eval-after-load 'ox-latex
-    (setf (alist-get edraw-org-link-type
-                     org-latex-inline-image-rules nil nil #'equal)
-          ".*")))
-
 (defun edraw-org-export-latex-link (path _description _back-end info link)
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]

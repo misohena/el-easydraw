@@ -62,12 +62,6 @@ svg = Embed SVG element (<svg>...</svg>)
 
 ;;;; Export
 
-(defun edraw-org-export-html-setup ()
-  (with-eval-after-load 'ox-html
-    (setf (alist-get edraw-org-link-type
-                     org-html-inline-image-rules nil nil #'equal)
-          ".*")))
-
 (defun edraw-org-export-html-link (path _description _back-end info link)
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]
