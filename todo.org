@@ -1,6 +1,14 @@
 
 
 * Inbox
+** TODO org-mode 9.3(Emacs 27.1バンドル)でエクスポートできない
+org-link-parametersの:export関数が3引数だから(引数infoが無い)。
+
+edraw-org-link-exportのinfoを&optionalにすれば動くっぽい。
+完全にはテストしていないし動く原理も確かめていない。
+
+対応すべきだろうか。
+
 ** TODO Ubuntuで子フレーム上のカラーピッカーでドラッグが出来ない原因を探る
 edraw-track-draggingでswitch-frameイベントを無視するようにしたら回避できた。
 
@@ -2950,3 +2958,5 @@ CLOSED: [2023-09-12 Tue 21:03]
 CLOSED: [2023-09-12 Tue 21:17]
 ox-htmlやox-latexが読み込まれた時点でedraw.elが読み込まれてしまう。
 実際にエクスポート関数が呼ばれた時点までedraw.elの読み込みを遅延する。
+** DONE Version 1.1.0
+CLOSED: [2023-11-14 Tue 18:05]
