@@ -568,25 +568,26 @@ Allowed values for TARGET-TYPE are:
     result))
 
 (defun edraw-org-link-image-update-region (beg end)
-  (save-excursion
-    (goto-char beg)
-    (let ((last-end beg))
-      (while (re-search-forward
-              ;; [[edraw:...]] or ][edraw:...]]
-              (format "[][]\\[%s:.*?\\]\\]" edraw-org-link-type) end t)
-        (goto-char (match-beginning 0))
-        (if-let ((link-element (edraw-org-link-at-point)))
-            (let ((link-begin (org-element-property :begin link-element))
-                  (link-end (org-element-property :end link-element)))
-              (when (edraw-org-link-image-update link-begin link-end link-element)
-                ;; Remove overlays before image
-                (edraw-org-link-image-remove-region last-end link-begin)
-                (setq last-end link-end))
-              (goto-char link-end))
-          (goto-char (match-end 0))))
-      ;; Remove overlays after last image
-      (when (< last-end end)
-        (edraw-org-link-image-remove-region last-end end)))))
+  (save-match-data
+    (save-excursion
+      (goto-char beg)
+      (let ((last-end beg))
+	(while (re-search-forward
+		;; [[edraw:...]] or ][edraw:...]]
+		(format "[][]\\[%s:.*?\\]\\]" edraw-org-link-type) end t)
+          (goto-char (match-beginning 0))
+          (if-let ((link-element (edraw-org-link-at-point)))
+              (let ((link-begin (org-element-property :begin link-element))
+                    (link-end (org-element-property :end link-element)))
+		(when (edraw-org-link-image-update link-begin link-end link-element)
+                  ;; Remove overlays before image
+                  (edraw-org-link-image-remove-region last-end link-begin)
+                  (setq last-end link-end))
+		(goto-char link-end))
+            (goto-char (match-end 0))))
+	;; Remove overlays after last image
+	(when (< last-end end)
+          (edraw-org-link-image-remove-region last-end end))))))
 
 (defun edraw-org-link-image-remove-region (beg end)
   ;;(remove-overlays beg end 'edraw-org-link-image-p t) ;;move the endpoints? split?
