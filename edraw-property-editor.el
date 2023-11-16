@@ -35,6 +35,14 @@
 
 (declare-function edraw-node-position "edraw")
 (declare-function edraw-node-siblings-count "edraw")
+(declare-function edraw-preset-save "edraw")
+(declare-function edraw-preset-enum-names "edraw")
+(declare-function edraw-preset-load "edraw")
+(declare-function edraw-preset-apply "edraw")
+(declare-function edraw-preset-delete "edraw")
+(declare-function edraw-preset-rename "edraw")
+(declare-function edraw-preset-clear "edraw")
+
 
 ;;;; Property Editor Target
 
@@ -43,6 +51,18 @@
 (defclass edraw-properties-holder ()
   ()
   :abstract t)
+
+;;@todo Add defgeneric here? and remove methods for edraw-property-editor-target?
+;; edraw-get-property-info-list
+;; edraw-get-property
+;; edraw-set-property
+;; edraw-set-properties
+
+(cl-defmethod edraw-get-all-properties ((holder edraw-properties-holder))
+  (cl-loop for prop-info in (edraw-get-property-info-list holder)
+           collect (let ((prop-name (plist-get prop-info :name)))
+                     (cons prop-name
+                           (edraw-get-property holder prop-name)))))
 
 ;;;;; Property Editor Target - Interface
 
@@ -80,6 +100,12 @@
 (cl-defgeneric edraw-property-editor-shape-p
   (_target)
   nil)
+(cl-defmethod edraw-preset-type
+  ((_target edraw-property-editor-target))
+  nil)
+(cl-defmethod edraw-preset-data
+  ((_target edraw-property-editor-target))
+  nil)
 
 ;;;;; Property Editor Target - Alist
 
@@ -88,7 +114,9 @@
    (alist-head :initarg :alist-head) ;;(??? (prop . value) ...)
    (editor :initarg :editor)
    (name :initarg :name)
-   (change-hook :initform (edraw-hook-make))))
+   (change-hook :initform (edraw-hook-make))
+   (preset-type :initarg :preset-type :initform nil)
+   (preset-subtype :initarg :preset-subtype :initform nil)))
 
 (cl-defmethod edraw-set-alist-head ((holder edraw-alist-properties-holder)
                                     alist-head)
@@ -153,6 +181,12 @@
 
 (cl-defmethod edraw-remove-change-hook ((holder edraw-alist-properties-holder) function &rest args)
   (apply 'edraw-hook-remove (oref holder change-hook) function args))
+
+(cl-defmethod edraw-preset-type ((holder edraw-alist-properties-holder))
+  (oref holder preset-type))
+
+(cl-defmethod edraw-preset-subtype ((holder edraw-alist-properties-holder))
+  (oref holder preset-subtype))
 
 
 ;;;; Property Editor Variables
@@ -397,26 +431,7 @@ editor when the selected shape changes."
       (setq widgets (edraw-insert-property-widgets pedit target 0)))
 
     ;; Bottom
-    (widget-insert (make-string 2 ? ))
-    (when target
-      (when (edraw-property-editor-target-shape-p target)
-        (widget-create 'push-button
-                       :notify 'edraw-property-editor--set-as-default
-                       :keymap edraw-property-editor-push-button-map
-                       (edraw-msg "Set as default"))
-        (widget-insert " "))
-
-      (unless edraw-property-editor-apply-immediately
-        (widget-create 'push-button :notify 'edraw-property-editor--apply
-                       (edraw-msg "Apply"))
-        (widget-insert " ")))
-
-    (widget-create 'push-button :notify 'edraw-property-editor--close
-                   (edraw-msg "Close"))
-    (widget-insert " ")
-    (widget-create 'push-button :notify 'edraw-property-editor--menu
-                   (edraw-msg "Menu"))
-    (widget-insert "\n")
+    (edraw-property-editor--update-buffer--button-line target)
 
     (widget-insert "\n")
 
@@ -453,6 +468,36 @@ editor when the selected shape changes."
                 widgets))))
     ;; Return widgets
     (nreverse widgets)))
+
+(defun edraw-property-editor--update-buffer--button-line (target)
+  (widget-insert (make-string 2 ? ))
+  (when target
+    (when (edraw-property-editor-target-shape-p target)
+      (widget-create 'push-button
+                     :notify 'edraw-property-editor--set-as-default
+                     :keymap edraw-property-editor-push-button-map
+                     (edraw-msg "Set as default"))
+      (widget-insert " "))
+
+    (when (edraw-preset-type target)
+      (widget-create 'push-button
+                     :notify 'edraw-property-editor--preset-menu
+                     :keymap edraw-property-editor-push-button-map
+                     (edraw-msg "Preset"))
+      (widget-insert " "))
+
+    (unless edraw-property-editor-apply-immediately
+      (widget-create 'push-button :notify 'edraw-property-editor--apply
+                     (edraw-msg "Apply"))
+      (widget-insert " ")))
+
+  (widget-create 'push-button :notify 'edraw-property-editor--close
+                 (edraw-msg "Close"))
+  (widget-insert " ")
+  (widget-create 'push-button :notify 'edraw-property-editor--menu
+                 (edraw-msg "Menu"))
+  (widget-insert "\n"))
+
 
 ;;;;; Window/Frame
 
@@ -1300,6 +1345,7 @@ once. widget-value-set updates the same property four times."
    (edraw-property-editor--prevnext 'edraw-next-sibling)))
 
 (defun edraw-property-editor--set-as-default (&rest _ignore)
+  "Called when the `Set as Default' button is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
    (with-slots (target) edraw-property-editor--pedit
@@ -1326,6 +1372,8 @@ once. widget-value-set updates the same property four times."
            :button (:toggle . ,(edraw-get-frame-top-most-p pedit)))))
         ((edraw-msg "Apply") edraw-property-editor--apply)
         ((edraw-msg "Close") edraw-property-editor--close))))))
+
+;;;;;; Frame
 
 (defun edraw-property-editor--toggle-frame-mode ()
   (interactive)
@@ -1382,6 +1430,130 @@ once. widget-value-set updates the same property four times."
 (cl-defmethod edraw-get-frame-top-most-p ((pedit edraw-property-editor))
   (with-slots (display) pedit
     (eq (edraw-get-frame-parameter display 'z-group) 'above)))
+
+;;;;;; Preset
+
+(defun edraw-property-editor--preset-menu (&rest _ignore)
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (let ((_pedit edraw-property-editor--pedit))
+     (edraw-popup-menu
+      (edraw-msg "Preset")
+      `(
+        ((edraw-msg "Save...") edraw-property-editor--save-preset)
+        ((edraw-msg "Overwrite...") edraw-property-editor--overwrite-preset)
+        ((edraw-msg "Load...") edraw-property-editor--load-preset)
+        ((edraw-msg "Delete...") edraw-property-editor--delete-preset)
+        ((edraw-msg "Rename...") edraw-property-editor--rename-preset)
+        ((edraw-msg "Clear...") edraw-property-editor--clear-presets)
+        ;;@todo impl
+        ;; ( "Style Only(Without Geometry)" edraw-property-editor--toggle-preset-style-only
+        ;;    :button (:toggle . ,(edraw-??? pedit)))
+        )))))
+
+(defun edraw-property-editor--save-preset (&rest _ignore)
+  "Called when the Save button in the Preset menu is pressed."
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when target
+       (when-let ((preset-type (edraw-preset-type target)))
+         (let ((name (read-string (edraw-msg "Save preset named: ")))
+               (data (edraw-preset-data target)))
+           (when (and name data (not (string-empty-p name)))
+             (when (and (edraw-preset-load preset-type name)
+                        (not (y-or-n-p (format (edraw-msg "Preset %s exists. Do you want to overwrite?") name))))
+               (signal 'quit nil))
+             (edraw-preset-save preset-type name data))))))))
+
+(defun edraw-property-editor--select-preset-name (preset-type prompt)
+  (let* ((candidate-names
+          ;;@todo check subtype
+          (edraw-preset-enum-names preset-type)))
+    ;;@todo add app default
+
+    (unless candidate-names
+      (error "No preset"))
+
+    ;; @todo use (use-dialog-box-p) or something.
+    ;; I don't like that (use-dialog-box-p) is affected by
+    ;; the use-dialog-box variable.
+    (x-popup-menu
+     t
+     (list prompt
+           (cons ""
+                 (mapcar (lambda (name) (cons name name))
+                         candidate-names))))
+    ;;(completing-read "Load preset named: " candidate-names nil t)
+    ))
+
+(defun edraw-property-editor--overwrite-preset (&rest _ignore)
+  "Called when the Overwrite button in the Preset menu is pressed."
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when target
+       (when-let ((preset-type (edraw-preset-type target))
+                  (name (edraw-property-editor--select-preset-name
+                         preset-type
+                         (edraw-msg "Overwrite Preset")))
+                  (data (edraw-preset-data target)))
+         (when (and name data (not (string-empty-p name)))
+           (edraw-preset-save preset-type name data)))))))
+
+(defun edraw-property-editor--load-preset (&rest _ignore)
+  "Called when the Load button in the Preset menu is pressed."
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when target
+       (when-let ((preset-type (edraw-preset-type target))
+                  (preset-name (edraw-property-editor--select-preset-name
+                                preset-type
+                                (edraw-msg "Load Preset")))
+                  (preset-data (edraw-preset-load preset-type preset-name)))
+         (when preset-data
+           (edraw-preset-apply target preset-data
+                               ;;@todo customize condition
+                               (lambda (prop-info)
+                                 ;; style only
+                                 (not (memq 'geometry (plist-get prop-info :flags)))
+                                 ))))))))
+
+(defun edraw-property-editor--delete-preset (&rest _ignore)
+  "Called when the Delete button in the Preset menu is pressed."
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when target
+       (when-let ((preset-type (edraw-preset-type target))
+                  (preset-name (edraw-property-editor--select-preset-name
+                                preset-type
+                                (edraw-msg "Delete Preset"))))
+         (edraw-preset-delete preset-type preset-name))))))
+
+(defun edraw-property-editor--rename-preset (&rest _ignore)
+  "Called when the Rename button in the Preset menu is pressed."
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when target
+       (when-let* ((preset-type (edraw-preset-type target))
+                   (old-name (edraw-property-editor--select-preset-name
+                              preset-type
+                              (edraw-msg "Rename Preset")))
+                   (new-name (read-string (format (edraw-msg "Rename preset %s to: ") old-name))))
+         (edraw-preset-rename preset-type old-name new-name))))))
+
+(defun edraw-property-editor--clear-presets (&rest _ignore)
+  "Called when the Clear button in the Preset menu is pressed."
+  (interactive)
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target) edraw-property-editor--pedit
+     (when target
+       (when-let ((preset-type (edraw-preset-type target)))
+         (when (edraw-y-or-n-p (edraw-msg "Do you want to delete all presets?"))
+           (edraw-preset-clear preset-type)))))))
 
 
 ;;;;; Synchronizing Property Editor with Target

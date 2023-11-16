@@ -2937,6 +2937,8 @@ For use with `edraw-editor-with-temp-undo-list',
         (seq-remove
          (lambda (prop-info) (plist-get prop-info :required))
          (edraw-svg-element-get-property-info-list-by-tag tag))
+        :preset-type 'shape
+        :preset-subtype tag ;; edraw-shape-type value (g, not group)
         )))))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor tag)
@@ -5814,12 +5816,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                             &optional default-value)
   (or (edraw-svg-attr-length-to-number (edraw-get-property shape prop-name))
       (or default-value 0)))
-
-(cl-defmethod edraw-get-all-properties ((shape edraw-shape));;@todo generalize
-  (cl-loop for prop-info in (edraw-get-property-info-list shape)
-           collect (let ((prop-name (plist-get prop-info :name)))
-                     (cons prop-name
-                           (edraw-get-property shape prop-name)))))
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape) prop-list)
   "Returns t if the property is actually changed."
@@ -9101,6 +9097,162 @@ REF is a point reference in scaling-points."
         (edraw-invalidate-ui-parts editor 'selection-ui)))
     (when (eq result 'ok)
       (edraw-transform target (edraw-get-transform-matrix transformer)))))
+
+
+
+;;;; Preset
+
+(defun edraw-preset--check-arg (type name)
+  (unless (symbolp type)
+    (signal 'wrong-type-argument (list (format "preset type is not a symbol: %s" type))))
+  (unless (stringp name)
+    (signal 'wrong-type-argument (list (format "preset name is not a string: %s" name))))
+  (when (string-empty-p name)
+    (error "preset name is empty")))
+
+(defun edraw-preset-save (type name data)
+  (edraw-preset--check-arg type name)
+  (let* ((type-alist (edraw-ui-state-get 'preset 'presets))
+         (type-cell (or (assq type type-alist)
+                        (let ((new-type-cell (cons type nil)))
+                          ;; push back
+                          (setq type-alist
+                                (append type-alist (list new-type-cell)))
+                          new-type-cell)))
+         (name-alist (cdr type-cell))
+         (name-cell (or (assoc name name-alist)
+                        (let ((new-name-cell (cons name nil)))
+                          ;; push back
+                          (setq name-alist
+                                (append name-alist (list new-name-cell)))
+                          (setcdr type-cell name-alist)
+                          new-name-cell))))
+    (setcdr name-cell data)
+    (edraw-ui-state-set 'preset 'presets type-alist)
+    (edraw-ui-state-save)))
+
+(defun edraw-preset-load (type name)
+  (edraw-preset--check-arg type name)
+  (let ((type-alist (edraw-ui-state-get 'preset 'presets)))
+    (alist-get name (alist-get type type-alist) nil nil #'string=)))
+
+(defun edraw-preset-enum (type &optional pred)
+  (edraw-preset--check-arg type "-")
+  (let* ((type-alist (edraw-ui-state-get 'preset 'presets))
+         (name-alist (alist-get type type-alist)))
+    (if pred
+        (seq-filter (lambda (name-data) (funcall pred (cdr name-data)))
+                    name-alist)
+      name-alist)))
+
+(defun edraw-preset-enum-names (type &optional pred)
+  (mapcar #'car (edraw-preset-enum type pred)))
+
+(defun edraw-preset-delete (type name)
+  (edraw-preset--check-arg type name)
+  (let ((type-alist (edraw-ui-state-get 'preset 'presets)))
+    (setf (alist-get name (alist-get type type-alist) nil t #'string=) nil)
+    (edraw-ui-state-set 'preset 'presets type-alist)
+    (edraw-ui-state-save)))
+
+(defun edraw-preset-rename (type old-name new-name)
+  (edraw-preset--check-arg type old-name)
+  (edraw-preset--check-arg type new-name)
+  (let* ((type-alist (edraw-ui-state-get 'preset 'presets))
+         (name-alist (alist-get type type-alist))
+         (cell (assoc old-name name-alist)))
+    (when cell
+      (setcar cell new-name)
+      (edraw-ui-state-set 'preset 'presets type-alist)
+      (edraw-ui-state-save)
+      t)))
+
+(defun edraw-preset-clear (type)
+  (edraw-preset--check-arg type "-")
+  (let ((type-alist (edraw-ui-state-get 'preset 'presets)))
+    (setf (alist-get type type-alist nil t) nil)
+    (edraw-ui-state-set 'preset 'presets type-alist)
+    (edraw-ui-state-save)))
+
+;;;;; Generic
+
+(cl-defgeneric edraw-preset-type (_presettable)
+  "Return the preset data type of PRESETTABLE object."
+  nil)
+
+(cl-defgeneric edraw-preset-subtype (_presettable)
+  "Return the preset data subtype of PRESETTABLE object."
+  nil)
+
+(cl-defgeneric edraw-preset-properties (_presettable)
+  "Generate preset data properties from PRESETTABLE object and return it."
+  nil)
+
+(cl-defgeneric edraw-preset-data (presettable)
+  "Generate preset data from PRESETTABLE object and return it."
+  (let ((subtype (edraw-preset-subtype presettable))
+        (properties (edraw-preset-properties presettable)))
+    (when properties
+      (nconc
+       (when subtype
+         (list (cons 'subtype subtype)))
+       (list (cons 'properties properties))))))
+
+;;;;; for Properties Holder
+
+(cl-defmethod edraw-preset-properties ((holder edraw-properties-holder))
+  ;;@todo Save only common properties.
+  (edraw-get-all-properties holder))
+
+(cl-defmethod edraw-preset-apply ((holder edraw-properties-holder) data
+                                  pred-for-prop-info)
+  (let (;;(subtype (alist-get 'subtype data))
+        (properties (alist-get 'properties data)))
+    ;; Filter properties
+    (let ((prop-info-list (edraw-get-property-info-list holder)))
+      (setq properties
+            (seq-filter
+             (lambda (prop)
+               (let* ((prop-name (car prop))
+                      (prop-info (seq-find
+                                  (lambda (info)
+                                    (eq (plist-get info :name) prop-name))
+                                  prop-info-list)))
+                 (and
+                  ;; Can be set for PROPERTIES-HOLDER.
+                  prop-info
+                  ;; pred
+                  (funcall pred-for-prop-info prop-info)
+                  ;; Not required property.
+                  ;;(not (plist-get prop-info :required))
+                  )))
+             properties)))
+    ;; Apply properties
+    (when properties
+      (edraw-set-properties holder properties))))
+
+;;;;; for edraw-shape
+
+(cl-defmethod edraw-preset-type ((_shape edraw-shape))
+  'shape)
+
+(cl-defmethod edraw-preset-subtype ((shape edraw-shape))
+  ;;@todo Save as specific subtype.
+  (edraw-shape-type shape) ;; SVG tag name
+  )
+
+;;;;; for edraw-multiple-shapes
+
+(cl-defmethod edraw-preset-type ((_shapes edraw-multiple-shapes))
+  'shape)
+
+(cl-defmethod edraw-preset-subtype ((_shapes edraw-multiple-shapes))
+  ;;@todo If SHAPES consist of a single type, return the type as subtype.
+  nil)
+
+;;;;; for edraw-alist-properties-holder
+
+;; See edraw-property-editor.el
 
 
 

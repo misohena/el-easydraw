@@ -897,7 +897,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   '(number opacity length coordinate))
 
 (defconst edraw-svg-element-properties-common
-  ;;name source type required
+  ;;name source type flags attrs...
   '((opacity attr opacity nil)
     (fill attr-fill-stroke paint nil)
     (fill-opacity attr opacity nil)
@@ -907,7 +907,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (stroke-dasharray attr string nil)
     (stroke-dashoffset attr length nil)
     (style attr string nil)
-    (transform attr string nil)))
+    (transform attr string (geometry))))
 (defconst edraw-svg-element-properties-path-common
   '((fill-rule attr (or "nonzero" "evenodd") nil)
     (stroke-linecap attr (or "butt" "round" "square") nil)
@@ -915,39 +915,39 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (stroke-miterlimit attr number nil)))
 (defconst edraw-svg-element-properties
   `((rect
-     (x attr coordinate t)
-     (y attr coordinate t)
-     (width attr length t)
-     (height attr length t)
-     (rx attr length nil)
-     (ry attr length nil)
+     (x attr coordinate (required geometry))
+     (y attr coordinate (required geometry))
+     (width attr length (required geometry))
+     (height attr length (required geometry))
+     (rx attr length (geometry))
+     (ry attr length (geometry))
      ,@edraw-svg-element-properties-common)
     (circle
-     (cx attr coordinate t)
-     (cy attr coordinate t)
-     (r attr length t)
+     (cx attr coordinate (required geometry))
+     (cy attr coordinate (required geometry))
+     (r attr length (required geometry))
      ,@edraw-svg-element-properties-common)
     (ellipse
-     (cx attr coordinate t)
-     (cy attr coordinate t)
-     (rx attr length t)
-     (ry attr length t)
+     (cx attr coordinate (required geometry))
+     (cy attr coordinate (required geometry))
+     (rx attr length (required geometry))
+     (ry attr length (required geometry))
      ,@edraw-svg-element-properties-common)
     (path
-     (d attr string t :internal t)
+     (d attr string (required geometry) :internal t)
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common
      (marker-start attr-marker marker nil)
      (marker-mid attr-marker marker nil)
      (marker-end attr-marker marker nil))
     (text
-     (text inner-text string t)
+     (text inner-text string (required geometry))
      ;; librsvg does not support list-of-coordinates
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/183
-     (x attr coordinate t)
-     (y attr coordinate t)
-     (dx attr coordinate nil)
-     (dy attr coordinate nil)
+     (x attr coordinate (required geometry))
+     (y attr coordinate (required geometry))
+     (dx attr coordinate (geometry))
+     (dy attr coordinate (geometry))
      ;; librsvg does not support?
      ;;(rotate attr string nil)
      ;; librsvg does not support textLength
@@ -955,36 +955,38 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      ;;(textLength attr number nil)
      ;;(lengthAdjust attr (or "spacing" "spacingAndGlyphs") nil)
      (font-family attr font-family nil)
-     (font-size attr number nil)
+     (font-size attr number (geometry))
      (font-weight attr (or "normal" "bold" "bolder" "lighter") nil)
      (font-style attr (or "normal" "italic" "oblique") nil)
      (text-decoration attr (or "underline" "overline" "line-through") nil)
-     (text-anchor attr (or "start" "middle" "end") nil)
+     (text-anchor attr (or "start" "middle" "end") (geometry))
      (writing-mode attr-update-text
-                   (or "horizontal-tb" "vertical-rl" "vertical-lr") nil)
+                   (or "horizontal-tb" "vertical-rl" "vertical-lr") (geometry))
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
      ;;(baseline-shift attr number nil)
      ,@edraw-svg-element-properties-common)
     (image
-     (x attr coordinate t)
-     (y attr coordinate t)
-     (width attr length t)
-     (height attr length t)
+     (x attr coordinate (required geometry))
+     (y attr coordinate (required geometry))
+     (width attr length (required geometry))
+     (height attr length (required geometry))
      ;;@todo should change dynamically depending on edraw-svg-version
-     (xlink:href attr string ,(eq (edraw-svg-href-symbol) 'xlink:href))
-     (href attr string  ,(eq (edraw-svg-href-symbol) 'href))
+     (xlink:href attr string ,(when (eq (edraw-svg-href-symbol) 'xlink:href) '(required)))
+     (href attr string  ,(when (eq (edraw-svg-href-symbol) 'href) '(required)))
      (preserveAspectRatio attr string nil)
      (opacity attr opacity nil)
      (style attr string nil)
-     (transform attr string nil))
+     (transform attr string (geometry)))
     (g
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common)))
 (defun edraw-svg-elem-prop-name (prop-def) (nth 0 prop-def))
 (defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
 (defun edraw-svg-elem-prop-type (prop-def) (nth 2 prop-def))
-(defun edraw-svg-elem-prop-required (prop-def) (nth 3 prop-def))
+(defun edraw-svg-elem-prop-flags (prop-def) (nth 3 prop-def))
 (defun edraw-svg-elem-prop-attrs (prop-def) (nthcdr 4 prop-def))
+(defun edraw-svg-elem-prop-required (prop-def)
+  (when (memq 'required (edraw-svg-elem-prop-flags prop-def)) t))
 
 (defun edraw-svg-elem-prop-number-p (prop-def)
   (memq (edraw-svg-elem-prop-type prop-def) edraw-svg-elem-prop-number-types))
@@ -1001,6 +1003,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
               (list :name (edraw-svg-elem-prop-name prop-def)
                     :type prop-type
                     :required (edraw-svg-elem-prop-required prop-def)
+                    :flags (edraw-svg-elem-prop-flags prop-def)
                     :to-string #'edraw-svg-ensure-string-attr
                     :from-string #'identity
                     :number-p (edraw-svg-elem-prop-number-p prop-def)
@@ -1421,16 +1424,16 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
      :creator edraw-svg-marker-arrow-create
      :get-props edraw-svg-marker-arrow-props
      :prop-info-list
-     ((:name markerWidth :type number :required nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name markerHeight :type number :required nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name refX :type number :required nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)))
+     ((:name markerWidth :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
+      (:name markerHeight :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
+      (:name refX :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)))
     ("circle"
      :creator edraw-svg-marker-circle-create
      :get-props edraw-svg-marker-circle-props
      :prop-info-list
-     ((:name markerWidth :type number :required nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name markerHeight :type number :required nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name refX :type number :required nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)))
+     ((:name markerWidth :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
+      (:name markerHeight :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
+      (:name refX :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)))
     ;; Ignore "" or "none"
     ))
 
