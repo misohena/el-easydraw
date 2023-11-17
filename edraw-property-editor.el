@@ -46,68 +46,155 @@
 
 ;;;; Property Editor Target
 
-;;;;; Property Editor Target - Base
+;;;;; Base Class
 
 (defclass edraw-properties-holder ()
   ()
   :abstract t)
 
-;;@todo Add defgeneric here? and remove methods for edraw-property-editor-target?
-;; edraw-get-property-info-list
-;; edraw-get-property
-;; edraw-set-property
-;; edraw-set-properties
+;;;;; Object Name
 
-(cl-defmethod edraw-get-all-properties ((holder edraw-properties-holder))
-  (cl-loop for prop-info in (edraw-get-property-info-list holder)
+(cl-defgeneric edraw-name (object)
+  "Return the name of OBJECT.")
+
+;;;;; Get/Set Properties
+
+(cl-defgeneric edraw-get-property-info-list (object)
+  "Return information on all properties that OBJECT can have.
+
+Return a list of property information.
+
+Information for one property is represented in the form of one plist.")
+
+(cl-defgeneric edraw-get-property-info (object prop-name)
+  "Return information on the property with the name specified by PROP-NAME.
+
+Return property information in the form of a plist.
+
+The default implementation calls `edraw-get-property-info-list'
+and searches it for a property named PROP-NAME."
+  (seq-find (lambda (prop-info) (eq (plist-get prop-info :name) prop-name))
+            (edraw-get-property-info-list object)))
+
+(cl-defgeneric edraw-get-property (object prop-name)
+  "Return the value of the property named PROP-NAME of OBJECT.
+
+PROP-NAME is a symbol that identifies a property.")
+
+(cl-defgeneric edraw-set-property (object prop-name value)
+  "Set the value of the property named PROP-NAME of OBJECT to VALUE.
+
+PROP-NAME is a symbol that identifies a property.
+
+Generally has the same effect as calling `edraw-set-properties'
+on an alist with one element.
+
+Use `edraw-set-properties' to change multiple properties at the
+same time. It behaves more efficiently and consistently."
+  (edraw-set-properties object (list (cons prop-name value))))
+
+(cl-defgeneric edraw-set-properties (object prop-alist)
+  "Set the property values specified in PROP-ALIST to OBJECT.
+
+PROP-ALIST is an alist of (PROP-NAME . VALUE).
+
+PROP-NAME is a symbol that identifies a property.")
+
+(cl-defgeneric edraw-get-all-properties (object)
+  "Return an alist of all property values that OBJECT has.
+
+For all properties that can be obtained with
+`edraw-get-property-info-list', returns an alist of property
+values (PROP-NAME . VALUE) obtained by calling
+`edraw-get-property'."
+  (cl-loop for prop-info in (edraw-get-property-info-list object)
            collect (let ((prop-name (plist-get prop-info :name)))
                      (cons prop-name
-                           (edraw-get-property holder prop-name)))))
+                           (edraw-get-property object prop-name)))))
 
-;;;;; Property Editor Target - Interface
+;;;;; Undo Support
 
-(defclass edraw-property-editor-target (edraw-properties-holder)
- ())
+;; @todo It appears to undo changes to OBJECT, but it actually undoes
+;; the editor associated with OBJECT. It is difficult to understand
+;; because it does not necessarily mean that only changes to OBJECT
+;; are undone.
 
-(cl-defmethod edraw-name
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-undo-block-begin
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-undo-block-end
-  ((_target edraw-property-editor-target) _backup))
-(cl-defmethod edraw-undo-all
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-last-undo-data
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-undo
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-get-property-info-list
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-get-property
-  ((_target edraw-property-editor-target) _prop-name))
-(cl-defmethod edraw-set-property
-  ((_target edraw-property-editor-target) _prop-name _value))
-(cl-defmethod edraw-set-properties
-  ((_target edraw-property-editor-target) _prop-list))
-(cl-defmethod edraw-select
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-set-all-properties-as-default
-  ((_target edraw-property-editor-target)))
-(cl-defmethod edraw-add-change-hook
-  ((_target edraw-property-editor-target) _function &rest _args))
-(cl-defmethod edraw-remove-change-hook
-  ((_target edraw-property-editor-target) _function &rest _args))
-(cl-defgeneric edraw-property-editor-shape-p
-  (_target)
+(cl-defgeneric edraw-undo-block-begin (object))
+
+(cl-defgeneric edraw-undo-block-end (object backup))
+
+(cl-defgeneric edraw-undo-all (object))
+
+(cl-defgeneric edraw-last-undo-data (object))
+
+(cl-defgeneric edraw-undo (object))
+
+;;;;; Hook
+
+(cl-defgeneric edraw-add-change-hook (object function &rest args)
+  "Add a FUNCTION to be called when OBJECT changes.
+
+The arguments passed to the function FUNCTION are ARGS, OBJECT,
+and information indicating the type of change.
+
+See `edraw-hook-add'.")
+
+(cl-defgeneric edraw-remove-change-hook (object function &rest args)
+  "Remove the FUNCTION that is called when OBJECT changes.
+
+Remove the function added with `edraw-add-change-hook'.
+
+FUNCTION and each element of ARGS must be `eq' with those
+specified when added.
+
+See `edraw-hook-remove'.")
+
+;;;;; Selection
+
+(cl-defgeneric edraw-select (object)
+  "Select OBJECT.
+
+The detailed meaning depends on the type of OBJECT.")
+
+;;;;; Settings
+
+(cl-defgeneric edraw-set-all-properties-as-default (object)
+  "Set all properties of OBJECT to default values for objects of
+ the same type.")
+
+;;;;; Preset
+
+(cl-defgeneric edraw-preset-type (_presettable)
+  "Return the preset data type of PRESETTABLE object."
   nil)
-(cl-defmethod edraw-preset-type
-  ((_target edraw-property-editor-target))
-  nil)
-(cl-defmethod edraw-preset-data
-  ((_target edraw-property-editor-target))
+
+(cl-defgeneric edraw-preset-subtype (_presettable)
+  "Return the preset data subtype of PRESETTABLE object."
   nil)
 
-;;;;; Property Editor Target - Alist
+(cl-defgeneric edraw-preset-properties (_presettable)
+  "Generate preset data properties from PRESETTABLE object and return it."
+  nil)
+
+(cl-defgeneric edraw-preset-data (presettable)
+  "Generate preset data from PRESETTABLE object and return it."
+  (let ((subtype (edraw-preset-subtype presettable))
+        (properties (edraw-preset-properties presettable)))
+    (when properties
+      (nconc
+       (when subtype
+         (list (cons 'subtype subtype)))
+       (list (cons 'properties properties))))))
+
+;;;;; Type Predicate
+
+(cl-defgeneric edraw-property-editor-shape-p (_object)
+  "Return non-nil if OBJECT is a derived class of edraw-shape.
+
+Used by the property editor to determine the type of object."
+  nil)
+
+;;;;; Implementation with alist
 
 (defclass edraw-alist-properties-holder (edraw-properties-holder)
   ((prop-info-list :initarg :prop-info-list)
@@ -170,11 +257,6 @@
     (when changed
       (edraw-hook-call (oref holder change-hook) holder 'alist-properties))
     changed))
-
-(cl-defmethod edraw-set-property ((holder edraw-alist-properties-holder) prop-name value) ;;@todo generalize
-  (edraw-set-properties
-   holder
-   (list (cons prop-name value))))
 
 (cl-defmethod edraw-add-change-hook ((holder edraw-alist-properties-holder) function &rest args)
   (apply 'edraw-hook-add (oref holder change-hook) function args))

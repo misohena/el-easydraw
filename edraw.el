@@ -5852,11 +5852,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
                                                  _old-prop-list)
   )
 
-(cl-defmethod edraw-set-property ((shape edraw-shape) prop-name value);;@todo generalize
-  (edraw-set-properties
-   shape
-   (list (cons prop-name value))))
-
 (cl-defmethod edraw-push-undo-properties ((shape edraw-shape) type prop-names)
   (edraw-push-undo
    (oref shape editor)
@@ -8207,11 +8202,6 @@ possible. Because undoing invalidates all point objects."
             nil;;@todo represent invalid
           value)))))
 
-(cl-defmethod edraw-set-property ((obj edraw-multiple-shapes) prop-name value)
-  (edraw-set-properties
-   obj
-   (list (cons prop-name value))))
-
 (cl-defmethod edraw-set-properties ((obj edraw-multiple-shapes) prop-list)
   (edraw-make-undo-group (oref obj editor) 'shape-properties
     (dolist (shape (oref obj shapes))
@@ -9173,30 +9163,6 @@ REF is a point reference in scaling-points."
     (setf (alist-get type type-alist nil t) nil)
     (edraw-ui-state-set 'preset 'presets type-alist)
     (edraw-ui-state-save)))
-
-;;;;; Generic
-
-(cl-defgeneric edraw-preset-type (_presettable)
-  "Return the preset data type of PRESETTABLE object."
-  nil)
-
-(cl-defgeneric edraw-preset-subtype (_presettable)
-  "Return the preset data subtype of PRESETTABLE object."
-  nil)
-
-(cl-defgeneric edraw-preset-properties (_presettable)
-  "Generate preset data properties from PRESETTABLE object and return it."
-  nil)
-
-(cl-defgeneric edraw-preset-data (presettable)
-  "Generate preset data from PRESETTABLE object and return it."
-  (let ((subtype (edraw-preset-subtype presettable))
-        (properties (edraw-preset-properties presettable)))
-    (when properties
-      (nconc
-       (when subtype
-         (list (cons 'subtype subtype)))
-       (list (cons 'properties properties))))))
 
 ;;;;; for Properties Holder
 

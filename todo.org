@@ -3082,3 +3082,13 @@ CLOSED: [2023-11-17 Fri 00:28]
 - △一覧に表示するプリセットの限定
   - 切り替えUI
 - △プリセットはエディタ毎に持てるべき？(他のエディタとプリセット集合を共有しない別のエディタを作れるべき)　一般にedraw-ui-stateは同様の問題を抱えている。ui-stateクラスを作ってエディタはそのオブジェクトを持つべきかもしれない。
+
+** DONE プロパティ操作メソッドを整理する
+CLOSED: [2023-11-17 Fri 11:39]
+edraw-get-propertyに代表されるようなオブジェクトのプロパティに対する一般的な操作を整理する。
+
+- edraw-property-editor.elの先頭部分にまとめる。
+- edraw-property-editor-targetに対するdefmethodをdefgenericにする。
+- edraw-property-editor-targetクラスを削除する(使われていない)。
+- edraw-set-propertyを一般化する。
+- edraw-get-property-infoを追加する。
