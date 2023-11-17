@@ -105,6 +105,20 @@
      (text-anchor . "middle")
      (fill . "#222"))))
 
+(defvar edraw-default-shape-properties-for-each-tool
+  '(;; (<tool-class-symbol> . shape-type-default | <properties-alist>)
+    (edraw-editor-tool-rect . shape-type-default)
+    (edraw-editor-tool-ellipse . shape-type-default)
+    (edraw-editor-tool-path . shape-type-default)
+    (edraw-editor-tool-freehand . shape-type-default)
+    ;; Example of specifying line width and color of path only for
+    ;; handwriting tool:
+    ;;(edraw-editor-tool-freehand . ((stroke . "#222") (stroke-width . 1) (fill . "none")))
+    (edraw-editor-tool-text . shape-type-default)
+    (edraw-editor-tool-image . shape-type-default)
+    (edraw-editor-tool-custom-shape . shape-type-default))
+  "Specifies default properties for shapes created by each tool.")
+
 (defvar edraw-default-marker-properties
   nil
    ;; '(("arrow" (markerWidth . "20") (markerHeight . "10")))
@@ -394,6 +408,10 @@ line-prefix and wrap-prefix are used in org-indent.")
      :initform (if edraw-editor-share-default-shape-properties
                    edraw-default-shape-properties ;;@todo observe changes made by other editors
                  (copy-tree edraw-default-shape-properties)))
+   (default-shape-properties-for-each-tool
+     :initform (if edraw-editor-share-default-shape-properties
+                   edraw-default-shape-properties-for-each-tool ;;@todo observe changes made by other editors
+                 (copy-tree edraw-default-shape-properties-for-each-tool)))
    (tool :initform nil :type (or null edraw-editor-tool))
    (selected-shapes :initform nil :type list)
    (selected-anchor :initform nil :type (or null edraw-shape-point))
@@ -2890,25 +2908,39 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;;;;; Editor - Default Shape Properties
 
-(cl-defmethod edraw-get-default-shape-properties-by-tag ((editor edraw-editor)
-                                                         tag)
-  (with-slots (default-shape-properties) editor
-    (or (assq tag default-shape-properties) ;;already exists
-        (let ((tag-props (list tag))) ;;create new
-          (push tag-props default-shape-properties)
-          tag-props))))
+(cl-defmethod edraw-get-default-shape-properties-container
+  ((editor edraw-editor) tag create-p)
+  "Return a cons cell whose cdr is the default shape property alist."
+  (or
+   ;; From current tool
+   (when (eq (edraw-shape-type-to-create (edraw-selected-tool editor)) tag)
+     (let* ((cell (assq (edraw-selected-tool-class editor)
+                        (oref editor default-shape-properties-for-each-tool)))
+            (props-spec (cdr cell)))
+       (when (and cell (listp props-spec)) cell)))
+   ;; From shape type (tag)
+   (assq tag (oref editor default-shape-properties))
+   ;; Create new
+   (when create-p
+     (let ((cell (cons tag nil)))
+       (push cell (oref editor default-shape-properties))
+       cell))))
+
+(cl-defmethod edraw-get-default-shape-properties ((editor edraw-editor) tag)
+  "Return the default shape property alist of shape type TAG."
+  (cdr (edraw-get-default-shape-properties-container editor tag nil)))
 
 (cl-defmethod edraw-get-default-shape-property ((editor edraw-editor)
                                                 tag prop-name)
   (alist-get prop-name
-             (alist-get tag (oref editor default-shape-properties))))
+             (edraw-get-default-shape-properties editor tag)))
 
 (cl-defmethod edraw-set-default-shape-property ((editor edraw-editor)
                                                 tag prop-name value)
-  (setf
-   (alist-get prop-name
-              (alist-get tag (oref editor default-shape-properties)))
-   value))
+  (setf (alist-get
+         prop-name
+         (cdr (edraw-get-default-shape-properties-container editor tag t)))
+        value))
 
 (cl-defmethod edraw-set-default-shape-properties-from-shape
   ((editor edraw-editor) shape)
@@ -2926,20 +2958,28 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-update-toolbar editor)))
 
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
-  (with-slots (default-shape-properties) editor
-    (when-let ((alist-head (assq tag default-shape-properties)))
-      (edraw-editor-open-property-editor
-       (edraw-property-proxy-shape
-        :alist-head alist-head
-        :editor editor
-        :name (format "default %s" tag)
-        :prop-info-list
-        (seq-remove
-         (lambda (prop-info) (plist-get prop-info :required))
-         (edraw-svg-element-get-property-info-list-by-tag tag))
-        :preset-type 'shape
-        :preset-subtype tag ;; edraw-shape-type value (g, not group)
-        )))))
+  (when-let ((alist-head (edraw-get-default-shape-properties-container
+                          editor tag t)))
+    (edraw-editor-open-property-editor
+     (edraw-property-proxy-shape
+      :alist-head alist-head
+      :editor editor
+      :name (format "default %s"
+                    (let ((key (car alist-head)))
+                      (if (and (class-p key)
+                               (child-of-class-p key 'edraw-editor-tool))
+                          ;; Show tool name
+                          ;; 'edraw-editor-tool-rect => "Rect Tool"
+                          (edraw-editor-make-tool-title key)
+                        ;; Show shape type
+                        tag)))
+      :prop-info-list
+      (seq-remove
+       (lambda (prop-info) (plist-get prop-info :required))
+       (edraw-svg-element-get-property-info-list-by-tag tag))
+      :preset-type 'shape
+      :preset-subtype tag ;; edraw-shape-type value (g, not group)
+      ))))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor tag)
   (let ((editor (or editor (edraw-current-editor))))
@@ -3873,6 +3913,10 @@ position where the EVENT occurred."
 (cl-defmethod edraw-selected-tool ((editor edraw-editor))
   (oref editor tool))
 
+(cl-defmethod edraw-selected-tool-class ((editor edraw-editor))
+  (when-let ((current-tool (oref editor tool)))
+    (edraw-tool-class current-tool)))
+
 (cl-defmethod edraw-get-selected-tool-default-shape-property
   ((editor edraw-editor) prop-name)
 
@@ -3901,6 +3945,10 @@ position where the EVENT occurred."
     :type (or null edraw-editor)))
   :abstract t)
 
+(cl-defmethod edraw-tool-class ((tool edraw-editor-tool))
+  "Returns the class name of the TOOL object as a symbol."
+  (eieio-object-class-name tool))
+
 (cl-defmethod edraw-tool-type ((tool edraw-editor-tool))
   (let ((name (symbol-name (eieio-object-class-name tool))))
     (when (string-match "\\`edraw-editor-tool-\\(.*\\)\\'" name)
@@ -3908,11 +3956,6 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool))
   nil)
-
-(cl-defmethod edraw-default-properties ((tool edraw-editor-tool))
-  (when-let ((shape-type (edraw-shape-type-to-create tool)))
-    (edraw-get-default-shape-properties-by-tag
-     (oref tool editor) shape-type))) ;;e.g. (rect (a . "1") (b . "2"))
 
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool))
   )
@@ -5019,10 +5062,7 @@ S-Click/Drag: 45 degree increments")))
         ;; Apply default properties
         (let ((keep-properties (plist-get selected-picker-entry-properties
                                           :keep-properties))
-              ;;@todo Default values should be per tool, not per type
-              (default-props (cdr
-                              (edraw-get-default-shape-properties-by-tag
-                               editor 'path))))
+              (default-props (edraw-get-default-shape-properties editor 'path)))
           ;; Filter default properties
           (pcase keep-properties
             ('nil )
@@ -5194,7 +5234,10 @@ S-Click/Drag: 45 degree increments")))
    type
    ;; Complete property values with default values
    (edraw-merge-properties
-    (alist-get type (oref editor default-shape-properties))
+    ;; NOTE: Default properties depend on the selected tool.
+    ;; Therefore, edraw-create-shape should not be used outside of
+    ;; editor tools.
+    (edraw-get-default-shape-properties editor type)
     ;; Convert plist to alist
     (cl-loop for (prop-name value) on props by #'cddr
              collect (cons prop-name value)))))
@@ -8258,7 +8301,7 @@ possible. Because undoing invalidates all point objects."
   (with-slots (editor shapes) obj
     (when shapes ;; Requires one or more shapes
       (edraw-make-undo-group editor 'shapes-group
-        (let ((group (edraw-create-shape
+        (let ((group (edraw-create-shape ;;@todo Use -without-default?
                       editor
                       ;; @todo Determined based on parent of shapes?
                       (edraw-svg-body editor)
