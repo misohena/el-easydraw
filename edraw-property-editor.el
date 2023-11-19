@@ -35,13 +35,13 @@
 
 (declare-function edraw-node-position "edraw")
 (declare-function edraw-node-siblings-count "edraw")
-(declare-function edraw-preset-save "edraw")
-(declare-function edraw-preset-enum-names "edraw")
-(declare-function edraw-preset-load "edraw")
+(declare-function edraw-preset-save "edraw" (ui-state type name data))
+(declare-function edraw-preset-enum-names "edraw" (ui-state type &optional pred))
+(declare-function edraw-preset-load "edraw" (ui-state type name))
+(declare-function edraw-preset-delete "edraw" (ui-state type name))
+(declare-function edraw-preset-rename "edraw" (ui-state type old-name new-name))
+(declare-function edraw-preset-clear "edraw" (ui-state type))
 (declare-function edraw-preset-apply "edraw")
-(declare-function edraw-preset-delete "edraw")
-(declare-function edraw-preset-rename "edraw")
-(declare-function edraw-preset-clear "edraw")
 
 
 ;;;; Property Editor Target
@@ -380,7 +380,8 @@ editor when the selected shape changes."
    (update-timer :initform nil)
    (last-edit-undo-data :initform nil)
    (last-edit-prop-name :initform nil)
-   (options :initform nil)))
+   (options :initarg :options)
+   (ui-state :initarg :ui-state)))
 
 (defvar-local edraw-property-editor--pedit nil)
 
@@ -395,11 +396,18 @@ editor when the selected shape changes."
 
 (defun edraw-property-editor-open (target &optional options)
   (let* ((buffer (get-buffer-create edraw-property-editor-buffer-name))
+         (ui-state (or (alist-get 'ui-state options)
+                       (edraw-ui-state-object-default)))
          ;; Get property editor object
-         (pedit (or (with-current-buffer buffer edraw-property-editor--pedit)
-                    (edraw-property-editor-create-object buffer))))
-    ;; Update options
-    (oset pedit options options)
+         (pedit (if-let ((pedit (with-current-buffer buffer
+                                  edraw-property-editor--pedit)))
+                    (progn
+                      ;; Update options
+                      (oset pedit options options)
+                      (oset pedit ui-state ui-state)
+                      pedit)
+                  ;; New property editor object
+                  (edraw-property-editor-create-object buffer options ui-state))))
 
     (unless (eq target (oref pedit target))
       (with-current-buffer buffer
@@ -418,7 +426,7 @@ editor when the selected shape changes."
     ;; Open window or frame
     (edraw-display-buffer pedit)))
 
-(defun edraw-property-editor-create-object (buffer)
+(defun edraw-property-editor-create-object (buffer options ui-state)
   (edraw-property-editor
    :buffer buffer
    :display (edraw-buffer-display
@@ -428,17 +436,19 @@ editor when the selected shape changes."
               '((title . "Edraw Property Editor"))
               edraw-buffer-display-frame-parameters-default)
              :frame-parameters-last
-             (edraw-ui-state-get 'property-editor 'frame-parameters-last)
+             (edraw-ui-state-get ui-state 'property-editor 'frame-parameters-last)
              :frame-mode
-             (edraw-ui-state-get 'property-editor 'frame-mode)
+             (edraw-ui-state-get ui-state 'property-editor 'frame-mode)
              :frame-mode-line-p
-             (edraw-ui-state-get 'property-editor 'frame-mode-line-p)
+             (edraw-ui-state-get ui-state 'property-editor 'frame-mode-line-p)
              :frame-child-p
-             (edraw-ui-state-get 'property-editor 'frame-child-p)
+             (edraw-ui-state-get ui-state 'property-editor 'frame-child-p)
              :save-function
              (lambda (_obj key value)
-               (edraw-ui-state-set 'property-editor key value)
-               (edraw-ui-state-save)))))
+               (edraw-ui-state-set ui-state 'property-editor key value)
+               (edraw-ui-state-save ui-state)))
+   :options options
+   :ui-state ui-state))
 
 (defun edraw-property-editor-target-shape-p (target)
   (and target
@@ -1408,13 +1418,13 @@ once. widget-value-set updates the same property four times."
 
 (defun edraw-property-editor--prevnext (prev-or-next-func)
   (when-let ((pedit edraw-property-editor--pedit))
-    (with-slots (target) pedit
+    (with-slots (target options) pedit
       (when (edraw-property-editor-target-shape-p target)
         (when-let ((new-target (funcall prev-or-next-func target)))
           (if edraw-property-editor-tracking-selected-shape
               (edraw-select new-target)
             ;; destroy PEDIT and open NEW-TARGET
-            (edraw-property-editor-open new-target)))))))
+            (edraw-property-editor-open new-target options)))))))
 
 (defun edraw-property-editor--prev (&rest _ignore)
   (interactive)
@@ -1537,21 +1547,21 @@ once. widget-value-set updates the same property four times."
   "Called when the Save button in the Preset menu is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (with-slots (target) edraw-property-editor--pedit
+   (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
        (when-let ((preset-type (edraw-preset-type target)))
          (let ((name (read-string (edraw-msg "Save preset named: ")))
                (data (edraw-preset-data target)))
            (when (and name data (not (string-empty-p name)))
-             (when (and (edraw-preset-load preset-type name)
+             (when (and (edraw-preset-load ui-state preset-type name)
                         (not (y-or-n-p (format (edraw-msg "Preset %s exists. Do you want to overwrite?") name))))
                (signal 'quit nil))
-             (edraw-preset-save preset-type name data))))))))
+             (edraw-preset-save ui-state preset-type name data))))))))
 
-(defun edraw-property-editor--select-preset-name (preset-type prompt)
+(defun edraw-property-editor--select-preset-name (ui-state preset-type prompt)
   (let* ((candidate-names
           ;;@todo check subtype
-          (edraw-preset-enum-names preset-type)))
+          (edraw-preset-enum-names ui-state preset-type)))
     ;;@todo add app default
 
     (unless candidate-names
@@ -1573,27 +1583,30 @@ once. widget-value-set updates the same property four times."
   "Called when the Overwrite button in the Preset menu is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (with-slots (target) edraw-property-editor--pedit
+   (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
        (when-let ((preset-type (edraw-preset-type target))
                   (name (edraw-property-editor--select-preset-name
+                         ui-state
                          preset-type
                          (edraw-msg "Overwrite Preset")))
                   (data (edraw-preset-data target)))
          (when (and name data (not (string-empty-p name)))
-           (edraw-preset-save preset-type name data)))))))
+           (edraw-preset-save ui-state preset-type name data)))))))
 
 (defun edraw-property-editor--load-preset (&rest _ignore)
   "Called when the Load button in the Preset menu is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (with-slots (target) edraw-property-editor--pedit
+   (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
        (when-let ((preset-type (edraw-preset-type target))
                   (preset-name (edraw-property-editor--select-preset-name
+                                ui-state
                                 preset-type
                                 (edraw-msg "Load Preset")))
-                  (preset-data (edraw-preset-load preset-type preset-name)))
+                  (preset-data (edraw-preset-load
+                                ui-state preset-type preset-name)))
          (when preset-data
            (edraw-preset-apply target preset-data
                                ;;@todo customize condition
@@ -1606,36 +1619,38 @@ once. widget-value-set updates the same property four times."
   "Called when the Delete button in the Preset menu is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (with-slots (target) edraw-property-editor--pedit
+   (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
        (when-let ((preset-type (edraw-preset-type target))
                   (preset-name (edraw-property-editor--select-preset-name
+                                ui-state
                                 preset-type
                                 (edraw-msg "Delete Preset"))))
-         (edraw-preset-delete preset-type preset-name))))))
+         (edraw-preset-delete ui-state preset-type preset-name))))))
 
 (defun edraw-property-editor--rename-preset (&rest _ignore)
   "Called when the Rename button in the Preset menu is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (with-slots (target) edraw-property-editor--pedit
+   (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
        (when-let* ((preset-type (edraw-preset-type target))
                    (old-name (edraw-property-editor--select-preset-name
+                              ui-state
                               preset-type
                               (edraw-msg "Rename Preset")))
                    (new-name (read-string (format (edraw-msg "Rename preset %s to: ") old-name))))
-         (edraw-preset-rename preset-type old-name new-name))))))
+         (edraw-preset-rename ui-state preset-type old-name new-name))))))
 
 (defun edraw-property-editor--clear-presets (&rest _ignore)
   "Called when the Clear button in the Preset menu is pressed."
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (with-slots (target) edraw-property-editor--pedit
+   (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
        (when-let ((preset-type (edraw-preset-type target)))
          (when (edraw-y-or-n-p (edraw-msg "Do you want to delete all presets?"))
-           (edraw-preset-clear preset-type)))))))
+           (edraw-preset-clear ui-state preset-type)))))))
 
 
 ;;;;; Synchronizing Property Editor with Target
@@ -1673,7 +1688,7 @@ once. widget-value-set updates the same property four times."
     (if edraw-property-editor-close-on-remove-shape
         (edraw-close pedit)
       ;; destroy pedit and open empty property editor
-      (edraw-property-editor-open nil)
+      (edraw-property-editor-open nil (oref pedit options))
       ))
    (t
     (with-slots (update-timer) pedit

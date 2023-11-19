@@ -239,13 +239,17 @@
 
 (defvar-local edraw-shape-picker-opened-by-user nil)
 (defvar-local edraw-shape-picker-display nil)
+(defvar-local edraw-shape-picker-ui-state nil)
 
 (defun edraw-shape-picker ()
   (interactive)
-  (edraw-shape-picker-open)
+  (edraw-shape-picker-open
+   ;; Normally, it should be obtained from the editor, but there is no
+   ;; guarantee that it exists, so there is no other choice.
+   (edraw-ui-state-object-default))
   (setq-local edraw-shape-picker-opened-by-user t))
 
-(defun edraw-shape-picker-open ()
+(defun edraw-shape-picker-open (ui-state)
   (edraw-shape-picker-pop-to-buffer
    (cond
     ;; org format
@@ -256,8 +260,9 @@
      )
     ;; .eshapes format
     (t
-     (edraw-shape-picker-get-buffer-file-mode edraw-shape-picker-entries-file)))))
-;;(edraw-shape-picker-open)
+     (edraw-shape-picker-get-buffer-file-mode edraw-shape-picker-entries-file)))
+   ui-state))
+;;(edraw-shape-picker-open ui-state)
 
 (defun edraw-shape-picker-get-buffer-file-mode (file)
   (if file
@@ -285,37 +290,40 @@
       (edraw-shape-picker-file-mode))
     buffer))
 
-(defun edraw-shape-picker-pop-to-buffer (buffer)
+(defun edraw-shape-picker-pop-to-buffer (buffer ui-state)
   (with-current-buffer buffer
     (if edraw-shape-picker-display
         (progn
           (edraw-delete-display edraw-shape-picker-display)
           (edraw-display-buffer edraw-shape-picker-display))
-      (let ((display (edraw-buffer-display
-                      :buffer buffer
-                      :frame-parameters-last
-                      (edraw-ui-state-get 'shape-picker 'frame-parameters-last)
-                      :frame-mode
-                      (edraw-ui-state-get 'shape-picker 'frame-mode)
-                      :frame-mode-line-p
-                      (edraw-ui-state-get 'shape-picker 'frame-mode-line-p)
-                      :frame-child-p
-                      (edraw-ui-state-get 'shape-picker 'frame-child-p)
-                      :save-function
-                      (lambda (_obj key value)
-                        (edraw-ui-state-set 'shape-picker key value)
-                        (edraw-ui-state-save))
-                      )))
+      (let ((display
+             (edraw-buffer-display
+              :buffer buffer
+              :frame-parameters-last
+              (edraw-ui-state-get ui-state 'shape-picker 'frame-parameters-last)
+              :frame-mode
+              (edraw-ui-state-get ui-state 'shape-picker 'frame-mode)
+              :frame-mode-line-p
+              (edraw-ui-state-get ui-state 'shape-picker 'frame-mode-line-p)
+              :frame-child-p
+              (edraw-ui-state-get ui-state 'shape-picker 'frame-child-p)
+              :save-function
+              (lambda (_obj key value)
+                (edraw-ui-state-set ui-state 'shape-picker key value)
+                (edraw-ui-state-save ui-state))
+              )))
         (edraw-display-buffer display)
-        (setq-local edraw-shape-picker-display display))))
+        (setq-local edraw-shape-picker-display display)
+        (setq-local edraw-shape-picker-ui-state ui-state))))
   buffer)
 
 ;; For read-only buffers never associated with a file.
 ;; Use edraw-shape-picker-ui-mode (not -file-mode).
 
-(defun edraw-shape-picker-open-neverfile (&optional buffer-name)
+(defun edraw-shape-picker-open-neverfile (&optional buffer-name ui-state)
   (edraw-shape-picker-pop-to-buffer
-   (edraw-shape-picker-get-buffer-neverfile buffer-name)))
+   (edraw-shape-picker-get-buffer-neverfile buffer-name)
+   ui-state))
 
 (defun edraw-shape-picker-get-buffer-neverfile (&optional buffer-name)
   (unless buffer-name
@@ -754,7 +762,13 @@
                  (cons :scale-direct edraw-editor-image-scaling-factor)))
             ,@(when (fboundp 'edraw-editor-recent-colors)
                 (list
-                 (cons :recent-colors (edraw-editor-recent-colors))))))
+                 (cons :recent-colors
+                       (edraw-editor-recent-colors
+                        :ui-state
+                        ;; @todo Is it possible for ui-state to be nil?
+                        (if edraw-shape-picker-ui-state
+                            edraw-shape-picker-ui-state
+                          (edraw-ui-state-object-default))))))))
          (fill (edraw-color-picker-read-color
                 "Fill Color: "
                 (alist-get 'fill (cdr curr-val) "")

@@ -1198,20 +1198,46 @@
        (edraw-color-from-string color)
      color)))
 
+(cl-defmethod edraw-get-recent-colors ((list edraw-list))
+  (edraw-list-data list))
+
+(cl-defmethod edraw-set-recent-colors ((list edraw-list) (colors list))
+  (edraw-assign list colors)
+  list)
+
+(cl-defmethod edraw-get-recent-colors ((list list))
+  list)
+
+(cl-defmethod edraw-set-recent-colors ((_list list) (colors list))
+  colors)
+
 (defun edraw-color-picker-get-recent-colors (options)
-  (edraw-list-data
+  (edraw-get-recent-colors
    (alist-get :recent-colors options edraw-color-picker-recent-colors)))
 
 (defun edraw-color-picker-add-recent-color (options color)
-  (let ((color-str (edraw-color-picker-normalize-color-string color))
-        (colors (alist-get :recent-colors options edraw-color-picker-recent-colors)))
-    (edraw-remove-if colors
-                     (lambda (c)
-                       (string=
-                        (edraw-color-picker-normalize-color-string c)
-                        color-str)))
-    (edraw-push-front colors color-str)
-    (edraw-shrink colors edraw-color-picker-recent-colors-max-size)))
+  (let* ((color-str (edraw-color-picker-normalize-color-string color))
+         (options-cell (assq :recent-colors options))
+         (container (if options-cell
+                        (cdr options-cell) ;;NOTE: nil means empty list
+                      edraw-color-picker-recent-colors))
+         (new-container
+          (edraw-set-recent-colors ;; Modify the CONTAINER if possible
+           container
+           (seq-take ;; Limit number of colors
+            (cons color-str ;; Push the color to front
+                  ;; Remove same color
+                  (seq-remove (lambda (c)
+                                (string=
+                                 (edraw-color-picker-normalize-color-string c)
+                                 color-str))
+                              (edraw-get-recent-colors container)))
+            edraw-color-picker-recent-colors-max-size))))
+    ;; Write back to the OPTIONS alist
+    (if options-cell
+        (setcdr options-cell new-container)
+      ;; or `edraw-color-picker-recent-colors'
+      (setq edraw-color-picker-recent-colors new-container))))
 
 (cl-defmethod edraw-select-recent-color ((picker edraw-color-picker) index)
   (with-slots (options) picker

@@ -336,21 +336,20 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 ;;;;; Editor - Color
 
-(defvar edraw-editor-recent-colors nil)
+(defclass edraw-editor-recent-colors ()
+  ((ui-state :initarg :ui-state)))
 
-(defun edraw-editor-recent-colors ()
-  (unless edraw-editor-recent-colors
-    (setq edraw-editor-recent-colors
-          (edraw-list
-           (edraw-ui-state-get 'color-picker 'recent-colors
-                               edraw-color-picker-recent-colors-default))))
-  edraw-editor-recent-colors)
+(cl-defmethod edraw-get-recent-colors ((obj edraw-editor-recent-colors))
+  (with-slots (ui-state) obj
+    (edraw-ui-state-get ui-state 'color-picker 'recent-colors
+                        edraw-color-picker-recent-colors-default)))
 
-(defun edraw-editor-save-recent-colors ()
-  (when edraw-editor-recent-colors
-    (edraw-ui-state-set 'color-picker 'recent-colors
-                        (edraw-list-data edraw-editor-recent-colors))
-    (edraw-ui-state-save)))
+(cl-defmethod edraw-set-recent-colors ((obj edraw-editor-recent-colors)
+                                       (colors list))
+  (with-slots (ui-state) obj
+    (edraw-ui-state-set ui-state 'color-picker 'recent-colors colors)
+    (edraw-ui-state-save ui-state)
+    obj))
 
 ;;;;; Editor - Constructor
 
@@ -393,6 +392,12 @@ line-prefix and wrap-prefix are used in org-indent.")
    (invalid-ui-parts :initform nil)
    (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
    (view-size :initform nil) ;; nil means document size
+   (ui-state
+    :initarg :ui-state :initform (edraw-ui-state-object-default)
+    :documentation
+    "Stores information that is shared across editing sessions (may
+ change slot names in the future). Settings are shared with other
+ editors open at the same time without recreating the editor.")
    (settings
     :initform (list (cons 'grid-visible
                           edraw-editor-default-grid-visible)
@@ -401,9 +406,15 @@ line-prefix and wrap-prefix are used in org-indent.")
                     (cons 'transparent-bg-visible
                           edraw-editor-default-transparent-bg-visible)
                     (cons 'view-size-spec nil) ;;User specified view size
-                    (cons 'transform-method 'auto)))
+                    (cons 'transform-method 'auto))
+    :documentation
+    "Stores settings that should be kept separately for each editor.")
    (selection-ui-visible :initform t)
-   (extra-properties :initform nil)
+   (extra-properties
+    :initform nil
+    :documentation
+    "A storage area for users of the edraw-editor class. It is never
+used by the edraw-editor class.")
    (default-shape-properties
      :initform (if edraw-editor-share-default-shape-properties
                    edraw-default-shape-properties ;;@todo observe changes made by other editors
@@ -460,8 +471,7 @@ line-prefix and wrap-prefix are used in org-indent.")
       (edraw-select-tool editor nil) ;;deselect tool (some tools need to disconnect)
       (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?
       (edraw-update-image-timer-cancel editor)
-      (delete-overlay overlay)
-      (edraw-editor-save-recent-colors))))
+      (delete-overlay overlay))))
 
 ;;;;; Editor - User Settings
 
@@ -604,12 +614,14 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 ;;;;; Editor - Property Editor
 
-(defun edraw-editor-open-property-editor (target)
+(defun edraw-editor-open-property-editor (editor target)
   (edraw-property-editor-open
    target
    `((image-scale . ,edraw-editor-image-scaling-factor)
-     (recent-colors . ,(edraw-editor-recent-colors))
+     (recent-colors . ,(edraw-editor-recent-colors
+                        :ui-state (oref editor ui-state)))
      (marker-defaults . ,edraw-default-marker-properties)
+     (ui-state . ,(oref editor ui-state))
      )))
 
 ;;;;; Editor - Undo
@@ -1239,7 +1251,8 @@ For use with `edraw-editor-with-temp-undo-list',
                             ;;@todo suppress notification?
                             (edraw-set-background editor string))))
                     (:scale-direct . ,(oref editor image-scale))
-                    (:recent-colors . ,(edraw-editor-recent-colors))))
+                    (:recent-colors . ,(edraw-editor-recent-colors
+                                        :ui-state (oref editor ui-state)))))
                (edraw-set-background editor current-value)))))
      (list editor new-value)))
 
@@ -2820,6 +2833,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
   (edraw-editor-open-property-editor
+   editor
    (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-edit-fill-selected ((editor edraw-editor))
@@ -2961,6 +2975,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (when-let ((alist-head (edraw-get-default-shape-properties-container
                           editor tag t)))
     (edraw-editor-open-property-editor
+     editor
      (edraw-property-proxy-shape
       :alist-head alist-head
       :editor editor
@@ -3042,6 +3057,7 @@ For use with `edraw-editor-with-temp-undo-list',
         (push (list marker-type) edraw-default-marker-properties)
         (setq alist-head (car edraw-default-marker-properties)))
       (edraw-editor-open-property-editor
+       editor
        (edraw-alist-properties-holder
         :alist-head alist-head
         :editor editor
@@ -3624,7 +3640,8 @@ position where the EVENT occurred."
                       `((:color-name-scheme . web)
                         (:no-color . "none")
                         (:scale-direct . ,(oref editor image-scale))
-                        (:recent-colors . ,(edraw-editor-recent-colors))))))
+                        (:recent-colors . ,(edraw-editor-recent-colors
+                                            :ui-state (oref editor ui-state)))))))
       (edraw-set-selected-tool-default-shape-property
        editor prop-name new-value)
       (edraw-update-toolbar editor))))
@@ -4912,7 +4929,7 @@ S-Click/Drag: 45 degree increments")))
 
 (cl-defmethod edraw-connect-to-shape-picker ((tool edraw-editor-tool-custom-shape))
   (let ((editor-buffer (current-buffer))) ;;@todo get from overlay?
-    (with-slots (on-picker-notify picker-buffer) tool
+    (with-slots (on-picker-notify picker-buffer editor) tool
       (when (or (null picker-buffer)
                 (not (buffer-live-p picker-buffer)))
         (unless on-picker-notify
@@ -4925,7 +4942,7 @@ S-Click/Drag: 45 degree increments")))
                         (edraw-on-shape-picker-notify tool type args))
                     ;; editor is killed!
                     (edraw-disconnect-from-shape-picker tool)))))
-        (setq picker-buffer (edraw-shape-picker-open)) ;; Open common buffer
+        (setq picker-buffer (edraw-shape-picker-open (oref editor ui-state))) ;; Open common buffer
         (edraw-shape-picker-connect picker-buffer on-picker-notify)
         ;; If you want to detect that a buffer has been killed arbitrarily, do:
         ;; (with-current-buffer picker-buffer (add-hook 'kill-buffer-hook <callback> nil t))
@@ -5099,7 +5116,7 @@ S-Click/Drag: 45 degree increments")))
     (edraw-undo holder)))
 
 (cl-defmethod edraw-edit-properties ((holder edraw-properties-holder))
-  (edraw-editor-open-property-editor holder))
+  (edraw-editor-open-property-editor (edraw-get-editor holder) holder))
 
 (cl-defmethod edraw-edit-property-paint ((holder edraw-properties-holder)
                                          prop-name)
@@ -5127,7 +5144,8 @@ S-Click/Drag: 45 degree increments")))
                            (edraw-undo-all editor)
                            (edraw-set-property holder prop-name string))))
                    (:scale-direct . ,(oref editor image-scale))
-                   (:recent-colors . ,(edraw-editor-recent-colors))))
+                   (:recent-colors . ,(edraw-editor-recent-colors
+                                       :ui-state (oref editor ui-state)))))
               ;; Restore value directly for HOLDER that don't support UNDO.
               ;; edraw-property-proxy-shape does not support UNDO.
               (edraw-undo-all editor)
@@ -9143,9 +9161,9 @@ REF is a point reference in scaling-points."
   (when (string-empty-p name)
     (error "preset name is empty")))
 
-(defun edraw-preset-save (type name data)
+(defun edraw-preset-save (ui-state type name data)
   (edraw-preset--check-arg type name)
-  (let* ((type-alist (edraw-ui-state-get 'preset 'presets))
+  (let* ((type-alist (edraw-ui-state-get ui-state 'preset 'presets))
          (type-cell (or (assq type type-alist)
                         (let ((new-type-cell (cons type nil)))
                           ;; push back
@@ -9161,51 +9179,51 @@ REF is a point reference in scaling-points."
                           (setcdr type-cell name-alist)
                           new-name-cell))))
     (setcdr name-cell data)
-    (edraw-ui-state-set 'preset 'presets type-alist)
-    (edraw-ui-state-save)))
+    (edraw-ui-state-set ui-state 'preset 'presets type-alist)
+    (edraw-ui-state-save ui-state)))
 
-(defun edraw-preset-load (type name)
+(defun edraw-preset-load (ui-state type name)
   (edraw-preset--check-arg type name)
-  (let ((type-alist (edraw-ui-state-get 'preset 'presets)))
+  (let ((type-alist (edraw-ui-state-get ui-state 'preset 'presets)))
     (alist-get name (alist-get type type-alist) nil nil #'string=)))
 
-(defun edraw-preset-enum (type &optional pred)
+(defun edraw-preset-enum (ui-state type &optional pred)
   (edraw-preset--check-arg type "-")
-  (let* ((type-alist (edraw-ui-state-get 'preset 'presets))
+  (let* ((type-alist (edraw-ui-state-get ui-state 'preset 'presets))
          (name-alist (alist-get type type-alist)))
     (if pred
         (seq-filter (lambda (name-data) (funcall pred (cdr name-data)))
                     name-alist)
       name-alist)))
 
-(defun edraw-preset-enum-names (type &optional pred)
-  (mapcar #'car (edraw-preset-enum type pred)))
+(defun edraw-preset-enum-names (ui-state type &optional pred)
+  (mapcar #'car (edraw-preset-enum ui-state type pred)))
 
-(defun edraw-preset-delete (type name)
+(defun edraw-preset-delete (ui-state type name)
   (edraw-preset--check-arg type name)
-  (let ((type-alist (edraw-ui-state-get 'preset 'presets)))
+  (let ((type-alist (edraw-ui-state-get ui-state 'preset 'presets)))
     (setf (alist-get name (alist-get type type-alist) nil t #'string=) nil)
-    (edraw-ui-state-set 'preset 'presets type-alist)
-    (edraw-ui-state-save)))
+    (edraw-ui-state-set ui-state 'preset 'presets type-alist)
+    (edraw-ui-state-save ui-state)))
 
-(defun edraw-preset-rename (type old-name new-name)
+(defun edraw-preset-rename (ui-state type old-name new-name)
   (edraw-preset--check-arg type old-name)
   (edraw-preset--check-arg type new-name)
-  (let* ((type-alist (edraw-ui-state-get 'preset 'presets))
+  (let* ((type-alist (edraw-ui-state-get ui-state 'preset 'presets))
          (name-alist (alist-get type type-alist))
          (cell (assoc old-name name-alist)))
     (when cell
       (setcar cell new-name)
-      (edraw-ui-state-set 'preset 'presets type-alist)
-      (edraw-ui-state-save)
+      (edraw-ui-state-set ui-state 'preset 'presets type-alist)
+      (edraw-ui-state-save ui-state)
       t)))
 
-(defun edraw-preset-clear (type)
+(defun edraw-preset-clear (ui-state type)
   (edraw-preset--check-arg type "-")
-  (let ((type-alist (edraw-ui-state-get 'preset 'presets)))
+  (let ((type-alist (edraw-ui-state-get ui-state 'preset 'presets)))
     (setf (alist-get type type-alist nil t) nil)
-    (edraw-ui-state-set 'preset 'presets type-alist)
-    (edraw-ui-state-save)))
+    (edraw-ui-state-set ui-state 'preset 'presets type-alist)
+    (edraw-ui-state-save ui-state)))
 
 ;;;;; for Properties Holder
 

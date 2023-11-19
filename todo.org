@@ -300,9 +300,6 @@ x-popup-menuか番号入力させる。
 ** TODO プリセット/並び替えできるようにする
 ** TODO プリセット/サブタイプが一致するプリセットのみ一覧に表示できるようにする
 ** TODO プリセット/サブタイプをnilにして保存できるようにする
-** TODO プリセット/プリセットをエディタ毎に持てるようにする
-他のエディタとプリセット集合を共有しない別のエディタを作れるべき。一般にedraw-ui-stateは同様の問題を抱えている。ui-stateクラスを作ってエディタはそのオブジェクトを持つべきかもしれない。
-
 ** TODO プリセット/プリセットリストをファイルへ保存できるようにする
 ** TODO プリセット/プリセットリストをファイルから(追加)読み込めるようにする
 ** TODO プリセット/アプリデフォルトをプリセットとして扱う
@@ -3107,3 +3104,12 @@ CLOSED: [2023-11-17 Fri 16:34]
 1. edraw-default-shape-properties-for-each-tool変数を追加する。
 2. editorクラスにdefault-shape-properties-for-each-toolスロットを持たせる。
 3. default-shape-propertiesを使っているところはdefault-shape-properties-for-each-toolも考慮させる。
+** DONE edraw-ui-stateをedraw-editor毎に変えられるようにする
+CLOSED: [2023-11-19 Sun 17:48]
+他のエディタとプリセット集合を共有しない別のエディタを作れるべき。一般にedraw-ui-stateは同様の問題を抱えている。ui-stateクラスを作ってエディタはそのオブジェクトを持つべきかもしれない。
+
+現在のところ必要は無いが、グローバル変数をあちこちからアクセスすると情報の共有範囲が曖昧で責任の所在が分かりづらいので、edraw-ui-stateクラスを作ることにする。
+
+クラス名はあまり良くない気がするが、とりあえずそのままにする。edraw-editorにとっては、同時に開いている他のエディタオブジェクトと即事共有される情報を保持するクラスとなる。最近使った色やプリセットはエディタを二つ並べて使うときに共有されているととても便利。フレーム化の設定は正直どうでもいい。一方でグリッドの表示状態などはedraw-ui-stateに持たせるべきではない。同時に開いている複数のエディタ毎に違う設定にしたい場合があるから。そう考えると、edraw-shared-info辺りだろうか？　とりあえず保留。
+
+property-editorやshape-pickerにもui-stateオブジェクトを引き渡さなければならない(フレーム状態の保存・復元のため)。color-pickerが直接ui-stateに依存するのは良くない。edraw-editor-util.elへ依存したくないから。カラーピッカーはedraw-get-recent-colorsとedraw-set-recent-colorsというメソッドのみを使って、最近使った色を取得・変更することにする。optionsの:recent-colorsにはそのメソッドを適用出来るオブジェクトを指定することにする。edraw-editor-recent-colorsクラスにui-stateを持たせて、そのクラスに対するedraw-get-recent-colors・edraw-set-recent-colorsはui-stateに対するリストの取得・設定とする。

@@ -300,34 +300,74 @@
 
 (defcustom edraw-ui-state-file
   (locate-user-emacs-file "edraw-ui-state.config")
-  ""
+  "Default UI state file."
   :type 'file
   :group 'edraw-editor)
 
-(defvar edraw-ui-state-store nil)
+(defvar edraw-ui-state-object nil
+  "Default UI state object.")
 
-(defun edraw-ui-state-load ()
-  (unless edraw-ui-state-store
-    (setq edraw-ui-state-store
-          (condition-case _err
-              (with-temp-buffer
-                (insert-file-contents edraw-ui-state-file)
-                (goto-char (point-min))
-                (read (current-buffer)))
-            (error (list (cons 'edraw-ui-state (list (cons 'version 1)))))))))
+(defun edraw-ui-state-object-default ()
+  (or edraw-ui-state-object
+      (setq edraw-ui-state-object (edraw-ui-state))))
 
-(defun edraw-ui-state-save ()
-  (with-temp-file edraw-ui-state-file
+(defclass edraw-ui-state ()
+  ((store :initform nil)
+   (file :initarg file :initform 'default)))
+
+(cl-defmethod edraw-clear ((ui-state edraw-ui-state))
+  (oset ui-state store nil))
+
+(cl-defgeneric edraw-ui-state-get (ui-state domain key &optional default))
+
+(cl-defmethod edraw-ui-state-get ((ui-state edraw-ui-state)
+                                  domain key &optional default)
+  (edraw-ui-state-prepare ui-state)
+  (alist-get key (alist-get domain (oref ui-state store) default)))
+
+(cl-defgeneric edraw-ui-state-set (ui-state domain key value))
+
+(cl-defmethod edraw-ui-state-set ((ui-state edraw-ui-state)
+                                  domain key value)
+  (edraw-ui-state-prepare ui-state)
+  (setf (alist-get key (alist-get domain (oref ui-state store))) value))
+
+(cl-defmethod edraw-ui-state-prepare ((ui-state edraw-ui-state))
+  (edraw-ui-state-load ui-state))
+
+(cl-defmethod edraw-ui-state-file ((ui-state edraw-ui-state))
+  (let ((file (oref ui-state file)))
+    (pcase file
+      ((pred stringp) file)
+      ('default edraw-ui-state-file))))
+
+(cl-defgeneric edraw-ui-state-load (ui-state))
+
+(cl-defmethod edraw-ui-state-load ((ui-state edraw-ui-state))
+  (with-slots (store) ui-state
+    (unless store
+      (when-let ((file (edraw-ui-state-file ui-state)))
+        (setq store (edraw-ui-state-file-load file))))))
+
+(cl-defgeneric edraw-ui-state-save (ui-state))
+
+(cl-defmethod edraw-ui-state-save ((ui-state edraw-ui-state))
+  (when-let ((file (edraw-ui-state-file ui-state)))
+    (edraw-ui-state-file-save file (oref ui-state store))))
+
+(defun edraw-ui-state-file-load (file)
+  (condition-case _err
+      (with-temp-buffer
+        (insert-file-contents file)
+        (goto-char (point-min))
+        (read (current-buffer)))
+    (error (list (cons 'edraw-ui-state (list (cons 'version 1)))))))
+
+(defun edraw-ui-state-file-save (file store)
+  (with-temp-file file
     (insert ";;; Edraw UI State ---    -*- mode: lisp-data -*-\n")
-    (pp edraw-ui-state-store (current-buffer))))
+    (pp store (current-buffer))))
 
-(defun edraw-ui-state-get (domain key &optional default)
-  (edraw-ui-state-load)
-  (alist-get key (alist-get domain edraw-ui-state-store) default))
-
-(defun edraw-ui-state-set (domain key value)
-  (edraw-ui-state-load)
-  (setf (alist-get key (alist-get domain edraw-ui-state-store)) value))
 
 
 (provide 'edraw-editor-util)
