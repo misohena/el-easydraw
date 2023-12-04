@@ -3037,7 +3037,8 @@ For use with `edraw-editor-with-temp-undo-list',
                      (if (edraw-editor-tool-class-p key)
                          ;; Show tool name
                          ;; 'edraw-editor-tool-rect => "Rect Tool"
-                         (edraw-editor-make-tool-title key)
+                         (let ((tool-class key))
+                           (edraw-name tool-class))
                        ;; Show shape type
                        shape-type)))
      :prop-info-list
@@ -3060,7 +3061,7 @@ For use with `edraw-editor-with-temp-undo-list',
      :name (format "default %s"
                    ;; Show tool name
                    ;; 'edraw-editor-tool-rect => "Rect Tool"
-                   (edraw-editor-make-tool-title tool-class))
+                   (edraw-name tool-class))
      :prop-info-list
      (seq-remove
       (lambda (prop-info) (plist-get prop-info :required))
@@ -3550,13 +3551,10 @@ position where the EVENT occurred."
     (parent x y w h image-scale tool-class selected-class-name)
   (edraw-editor-make-toolbar-button
    parent x y w h image-scale
-   (edraw-editor-make-tool-icon tool-class)
+   (edraw-icon tool-class)
    (edraw-editor-make-tool-key-id tool-class)
    (edraw-editor-make-tool-help-echo tool-class)
-   (eq (edraw-editor-make-tool-class-name tool-class) selected-class-name)))
-
-(defun edraw-editor-make-tool-class-name (tool-class)
-  tool-class)
+   (eq tool-class selected-class-name)))
 
 (defun edraw-editor-make-tool-key-id (tool-class)
   (edraw-editor-tool-select-function-name tool-class))
@@ -3566,17 +3564,11 @@ position where the EVENT occurred."
 
 (defun edraw-editor-make-tool-help-echo (tool-class)
   (edraw-editor-make-toolbar-help-echo
-   (edraw-editor-make-tool-title tool-class)
+   (edraw-name tool-class)
    (edraw-editor-tool-select-function-name tool-class)))
 
-(defun edraw-editor-make-tool-title (tool-class)
-  (if (edraw-editor-tool-class-p tool-class)
-      (edraw-name tool-class)
-    ;;@todo Delete the following if unnecessary
-    (edraw-msg (capitalize (symbol-name tool-class)))))
-
 (defun edraw-editor-make-tool (tool-class)
-  (funcall (edraw-editor-make-tool-class-name tool-class)))
+  (funcall tool-class))
 
 (defun edraw-editor-tool-select-function-name (tool-class)
   (let ((tool-class-str (symbol-name tool-class)))
@@ -3616,9 +3608,6 @@ position where the EVENT occurred."
    (edraw-svg-rect 9 10 18 3 :stroke "none" :fill "#ccc")
    (edraw-svg-rect 3 16  3 3 :stroke "none" :fill "#ccc")
    (edraw-svg-rect 9 16 18 3 :stroke "none" :fill "#ccc")))
-
-(defun edraw-editor-make-tool-icon (tool-class)
-  (edraw-icon tool-class))
 
 ;; (defun edraw-preview-icon (name)
 ;;   (interactive "sIcon Name(e.g.tool-text): ")
@@ -5219,8 +5208,7 @@ S-Click/Drag: 45 degree increments")))
                              (list 'const
                                    ;; At this point, all tool classes
                                    ;; must be defined.
-                                   :tag (edraw-editor-make-tool-title
-                                         tool-class)
+                                   :tag (edraw-name tool-class)
                                    tool-class))
                            edraw-editor-tool-list))
   :group 'edraw-editor)
