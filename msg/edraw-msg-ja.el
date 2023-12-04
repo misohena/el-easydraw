@@ -137,7 +137,7 @@
      "Insert New Section Before" "この前に新しいセクションを挿入"
      "Insert New Section" "新しいセクションを挿入"
      "Insert New Shape Before" "この前に新しい図形を挿入"
-     "Insert New Shape" "新しい図形を投入"
+     "Insert New Shape" "新しい図形を挿入"
      "Insert Point Before" "この前に点を追加"
      "Invalid view size" "無効なビューサイズ"
      "Link at point does not contain valid data" "この場所のリンクに有効なデータが含まれていません"
