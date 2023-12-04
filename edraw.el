@@ -430,14 +430,13 @@ used by the edraw-editor class.")
    (modified-p :initform nil)
    (undo-list :initform nil)
    (redo-list :initform nil)
-   (hooks))
+   (hooks
+    :initform (list
+               (cons 'change (edraw-hook-make))
+               (cons 'selection-change (edraw-hook-make)))))
   "Editor")
 
 (cl-defmethod edraw-initialize ((editor edraw-editor))
-  (oset editor hooks (list
-                      (cons 'change (edraw-hook-make))
-                      (cons 'selection-change (edraw-hook-make))))
-
   (edraw-editor-clear-undo-vars)
   (edraw-editor-clear-modified-vars)
 
