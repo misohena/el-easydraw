@@ -2944,8 +2944,7 @@ For use with `edraw-editor-with-temp-undo-list',
                (edraw-preset-apply object data 'not-required)))
             ('initial-default-shape-for-tool
              (let ((tool-class (edraw-preset-name-special-subtype name)))
-               (when (and (class-p tool-class)
-                          (child-of-class-p tool-class 'edraw-editor-tool))
+               (when (edraw-editor-tool-class-p tool-class)
                  (when-let ((object (edraw-get-default-shape-object-for-tool
                                      editor tool-class)))
                    (edraw-preset-apply object data 'not-required)))))))))))
@@ -2981,8 +2980,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-get-default-shape-properties-container-for-tool
   ((editor edraw-editor) tool-class &optional create-p)
-  (when (and (class-p tool-class)
-             (child-of-class-p tool-class 'edraw-editor-tool))
+  (when (edraw-editor-tool-class-p tool-class)
     (or
      (let* ((cell (assq tool-class (oref editor default-shape-properties-for-each-tool)))
             (props-spec (cdr cell)))
@@ -3036,8 +3034,7 @@ For use with `edraw-editor-with-temp-undo-list',
      :editor editor
      :name (format "default %s"
                    (let ((key (car alist-head)))
-                     (if (and (class-p key)
-                              (child-of-class-p key 'edraw-editor-tool))
+                     (if (edraw-editor-tool-class-p key)
                          ;; Show tool name
                          ;; 'edraw-editor-tool-rect => "Rect Tool"
                          (edraw-editor-make-tool-title key)
@@ -3573,8 +3570,7 @@ position where the EVENT occurred."
    (edraw-editor-tool-select-function-name tool-class)))
 
 (defun edraw-editor-make-tool-title (tool-class)
-  (if (and (class-p tool-class)
-           (child-of-class-p tool-class 'edraw-editor-tool))
+  (if (edraw-editor-tool-class-p tool-class)
       (edraw-name tool-class)
     ;;@todo Delete the following if unnecessary
     (edraw-msg (capitalize (symbol-name tool-class)))))
@@ -3600,15 +3596,6 @@ position where the EVENT occurred."
     (edraw-editor-define-tool-select-function tool-class)))
 
 (edraw-editor-define-tool-select-functions) ;;defun edraw-editor-select-tool-*
-
-(defcustom edraw-editor-default-tool 'edraw-editor-tool-select
-  "The first tool selected when opening the editor."
-  :type `(choice ,@(mapcar (lambda (x)
-                            (list 'const
-                                  :tag (edraw-editor-make-tool-title x)
-                                  x))
-                          edraw-editor-tool-list))
-  :group 'edraw-editor)
 
 ;; Icon 30x24
 
@@ -3988,17 +3975,16 @@ position where the EVENT occurred."
 (cl-defmethod edraw-select-tool-default ((editor edraw-editor))
   (defvar edraw-editor-tool-list)
   (defvar edraw-editor-default-tool) ;;defcustom
-  (edraw-select-tool editor (edraw-editor-make-tool
-                             (if (and (fboundp edraw-editor-default-tool)
-                                      edraw-editor-default-tool)
-                                 edraw-editor-default-tool
-                               (car edraw-editor-tool-list)))))
+  (edraw-select-tool editor
+                     (edraw-editor-make-tool
+                      (if (edraw-editor-tool-class-p edraw-editor-default-tool)
+                          edraw-editor-default-tool
+                        (car edraw-editor-tool-list)))))
 
 (cl-defmethod edraw-select-tool ((editor edraw-editor)
-                                 new-tool) ;;edraw-editor-tool
-  (when (and (symbolp new-tool) (not (null new-tool)))
-    (setq new-tool
-          (edraw-editor-make-tool new-tool)))
+                                 new-tool) ;;edraw-editor-tool object or class or nil
+  (when (edraw-editor-tool-class-p new-tool)
+    (setq new-tool (edraw-editor-make-tool new-tool)))
 
   (with-slots (tool) editor
     (when tool
@@ -4038,6 +4024,12 @@ position where the EVENT occurred."
 
 
 ;;;; Tool
+
+(defun edraw-editor-tool-class-p (class)
+  "Return non-nil if CLASS is a derived class name symbol of
+ `edraw-editor-tool'."
+  (and (class-p class)
+       (child-of-class-p class 'edraw-editor-tool)))
 
 (defclass edraw-editor-tool ()
   ((editor
@@ -5217,6 +5209,21 @@ S-Click/Drag: 45 degree increments")))
       (or
        (plist-get selected-picker-entry-properties :ref-box)
        (edraw-shape-aabb shapes)))))
+
+
+;;;;; Tool - After Class Definition
+
+(defcustom edraw-editor-default-tool 'edraw-editor-tool-select
+  "The first tool selected when opening the editor."
+  :type `(choice ,@(mapcar (lambda (tool-class)
+                             (list 'const
+                                   ;; At this point, all tool classes
+                                   ;; must be defined.
+                                   :tag (edraw-editor-make-tool-title
+                                         tool-class)
+                                   tool-class))
+                           edraw-editor-tool-list))
+  :group 'edraw-editor)
 
 
 ;;;; Properties Holder
