@@ -172,12 +172,20 @@ The detailed meaning depends on the type of OBJECT.")
   "Return the preset data subtype of PRESETTABLE object."
   nil)
 
+(cl-defgeneric edraw-preset-tool-type (_presettable)
+  nil)
+
 (cl-defgeneric edraw-preset-properties (_presettable)
   "Generate preset data properties from PRESETTABLE object and return it."
   nil)
 
 (cl-defgeneric edraw-preset-data (presettable)
-  "Generate preset data from PRESETTABLE object and return it."
+  "Generate preset data from PRESETTABLE object and return it.
+
+To extract more detailed information from the returned preset
+data, the following functions may be available:
+- `edraw-preset-data-subtype'
+- `edraw-preset-data-properties'"
   (let ((subtype (edraw-preset-subtype presettable))
         (properties (edraw-preset-properties presettable)))
     (when properties
@@ -185,6 +193,61 @@ The detailed meaning depends on the type of OBJECT.")
        (when subtype
          (list (cons 'subtype subtype)))
        (list (cons 'properties properties))))))
+
+(defun edraw-preset-data-subtype (data)
+  "Get subtype from DATA created by `edraw-preset-data' function."
+  (alist-get 'subtype data))
+
+(defun edraw-preset-data-properties (data)
+  "Get properties from DATA created by `edraw-preset-data' function."
+  (alist-get 'properties data))
+
+(defun edraw-preset-name-special (category subtype)
+  (list 'special category subtype))
+
+(defun edraw-preset-name-special-p (name)
+  (and (listp name) (eq (car name) 'special)))
+(defun edraw-preset-name-special-category (name) (nth 1 name))
+(defun edraw-preset-name-special-subtype (name) (nth 2 name))
+(defun edraw-preset-name-special-caption (name)
+  (pcase (edraw-preset-name-special-category name)
+    ('initial-default-shape
+     (format (edraw-msg "(Initial %s Shape Default)")
+             ;; shape-type to capitalized string
+             (edraw-msg (capitalize (symbol-name (edraw-preset-name-special-subtype name))))))
+    ('initial-default-shape-for-tool
+     (format (edraw-msg "(Initial %s Tool Default)")
+             ;; shape-type to capitalized stringe
+             (let ((tool-class (edraw-preset-name-special-subtype name)))
+               (if (and (class-p tool-class)
+                        (child-of-class-p tool-class 'edraw-editor-tool))
+                   ;; Capitalized and Localized name
+                   (edraw-name tool-class)
+                 (edraw-msg (capitalize (symbol-name tool-class)))))))
+    ;; Unknown
+    (category
+     (format "%s" category))))
+
+(defun edraw-preset-name-as-string (name)
+  (cond
+   ((edraw-preset-name-special-p name)
+    (edraw-preset-name-special-caption name))
+   ((stringp name) name)
+   (t (format "%s" name))))
+
+(defun edraw-preset-name-less-p (n1 n2)
+  (if (edraw-preset-name-special-p n1)
+      (if (edraw-preset-name-special-p n2)
+          (string< (format "%s %s"
+                           (edraw-preset-name-special-category n1)
+                           (edraw-preset-name-special-subtype n1))
+                   (format "%s %s"
+                           (edraw-preset-name-special-category n2)
+                           (edraw-preset-name-special-subtype n2)))
+        t)
+    (if (edraw-preset-name-special-p n2)
+        nil
+      (string< n1 n2))))
 
 ;;;;; Type Predicate
 
@@ -1528,20 +1591,83 @@ once. widget-value-set updates the same property four times."
 (defun edraw-property-editor--preset-menu (&rest _ignore)
   (interactive)
   (edraw-property-editor--with-event-buffer
-   (let ((_pedit edraw-property-editor--pedit))
-     (edraw-popup-menu
-      (edraw-msg "Preset")
-      `(
-        ((edraw-msg "Save...") edraw-property-editor--save-preset)
-        ((edraw-msg "Overwrite...") edraw-property-editor--overwrite-preset)
-        ((edraw-msg "Load...") edraw-property-editor--load-preset)
-        ((edraw-msg "Delete...") edraw-property-editor--delete-preset)
-        ((edraw-msg "Rename...") edraw-property-editor--rename-preset)
-        ((edraw-msg "Clear...") edraw-property-editor--clear-presets)
-        ;;@todo impl
-        ;; ( "Style Only(Without Geometry)" edraw-property-editor--toggle-preset-style-only
-        ;;    :button (:toggle . ,(edraw-??? pedit)))
-        )))))
+   ;;(let ((_pedit edraw-property-editor--pedit))
+   (edraw-popup-menu
+    (edraw-msg "Preset")
+    `(
+      ((edraw-msg "Special Preset")
+       ,(edraw-property-editor--preset-menu-special-preset))
+      ((edraw-msg "Save...") edraw-property-editor--save-preset)
+      ((edraw-msg "Overwrite...") edraw-property-editor--overwrite-preset)
+      ((edraw-msg "Load...") edraw-property-editor--load-preset)
+      ((edraw-msg "Delete...") edraw-property-editor--delete-preset)
+      ((edraw-msg "Rename...") edraw-property-editor--rename-preset)
+      ((edraw-msg "Clear...") edraw-property-editor--clear-presets)
+      ;;@todo impl
+      ;; ( "Style Only(Without Geometry)" edraw-property-editor--toggle-preset-style-only
+      ;;    :button (:toggle . ,(edraw-??? pedit)))
+      ))))
+
+(defun edraw-property-editor--preset-menu-special-preset ()
+  ;; (edraw-property-editor--with-event-buffer
+  (when-let* ((pedit edraw-property-editor--pedit)
+              (target (oref pedit target))
+              (preset-type (edraw-preset-type target))
+              (preset-subtype (edraw-preset-subtype target)))
+    (when (and (eq preset-type 'shape) preset-subtype)
+      (append
+       `((,(format (edraw-msg "Save as Initial %s Shape Default")
+                   (edraw-msg (capitalize (symbol-name preset-subtype))))
+          edraw-property-editor--save-preset-as-initial-shape-default))
+       (when-let ((preset-tool-type (edraw-preset-tool-type target)))
+         `((,(format (edraw-msg "Save as Initial %s Default")
+                     ;; Capitalized and Localized name
+                     (edraw-name preset-tool-type))
+            edraw-property-editor--save-preset-as-initial-tool-default)))))))
+
+(defun edraw-property-editor--save-preset-as-initial-shape-default (&rest _ignore)
+  "Called when the `Save as initial %s shape default' button in the Preset
+menu is pressed."
+  (interactive)
+
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target ui-state) edraw-property-editor--pedit
+     (when target
+       (let ((preset-type (edraw-preset-type target))
+             (preset-subtype (edraw-preset-subtype target))
+             (preset-data (edraw-preset-data target)))
+
+         (when (and (eq preset-type 'shape)
+                    preset-subtype
+                    preset-data)
+           (let* (;; Generate a special preset name
+                  (preset-name
+                   (edraw-preset-name-special
+                    'initial-default-shape preset-subtype)))
+             (edraw-preset-save ui-state
+                                preset-type preset-name preset-data))))))))
+
+(defun edraw-property-editor--save-preset-as-initial-tool-default (&rest _ignore)
+  "Called when the `Save as initial %s tool default' button in the Preset
+menu is pressed."
+  (interactive)
+
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target ui-state) edraw-property-editor--pedit
+     (when target
+       (let ((preset-type (edraw-preset-type target))
+             (preset-data (edraw-preset-data target))
+             (preset-tool-type (edraw-preset-tool-type target)))
+
+         (when (and (eq preset-type 'shape)
+                    preset-data
+                    preset-tool-type)
+           (let* (;; Generate a special preset name
+                  (preset-name
+                   (edraw-preset-name-special
+                    'initial-default-shape-for-tool preset-tool-type)))
+             (edraw-preset-save ui-state
+                                preset-type preset-name preset-data))))))))
 
 (defun edraw-property-editor--save-preset (&rest _ignore)
   "Called when the Save button in the Preset menu is pressed."
@@ -1574,7 +1700,9 @@ once. widget-value-set updates the same property four times."
      t
      (list prompt
            (cons ""
-                 (mapcar (lambda (name) (cons name name))
+                 (mapcar (lambda (name) (cons
+                                         (edraw-preset-name-as-string name)
+                                         name))
                          candidate-names))))
     ;;(completing-read "Load preset named: " candidate-names nil t)
     ))

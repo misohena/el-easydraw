@@ -416,13 +416,13 @@ line-prefix and wrap-prefix are used in org-indent.")
     "A storage area for users of the edraw-editor class. It is never
 used by the edraw-editor class.")
    (default-shape-properties
-     :initform (if edraw-editor-share-default-shape-properties
-                   edraw-default-shape-properties ;;@todo observe changes made by other editors
-                 (copy-tree edraw-default-shape-properties)))
+    :initform (if edraw-editor-share-default-shape-properties
+                  edraw-default-shape-properties ;;@todo observe changes made by other editors
+                (copy-tree edraw-default-shape-properties)))
    (default-shape-properties-for-each-tool
-     :initform (if edraw-editor-share-default-shape-properties
-                   edraw-default-shape-properties-for-each-tool ;;@todo observe changes made by other editors
-                 (copy-tree edraw-default-shape-properties-for-each-tool)))
+    :initform (if edraw-editor-share-default-shape-properties
+                  edraw-default-shape-properties-for-each-tool ;;@todo observe changes made by other editors
+                (copy-tree edraw-default-shape-properties-for-each-tool)))
    (tool :initform nil :type (or null edraw-editor-tool))
    (selected-shapes :initform nil :type list)
    (selected-anchor :initform nil :type (or null edraw-shape-point))
@@ -441,6 +441,8 @@ used by the edraw-editor class.")
   (edraw-editor-clear-modified-vars)
 
   (edraw-define-hook-type editor 'before-image-update)
+
+  (edraw-initialize-default-shape-properties editor)
 
   (with-slots (overlay) editor
     (when edraw-editor-disable-line-prefix ;;for Emacs's line-prefix bug
@@ -2921,17 +2923,50 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;;;;; Editor - Default Shape Properties
 
+(cl-defmethod edraw-initialize-default-shape-properties ((editor edraw-editor))
+  (with-slots (default-shape-properties
+               default-shape-properties-for-each-tool
+               ui-state)
+      editor
+
+    ;;@todo Make it possible to disable reading from preset. Because it involves file access.
+    (when ui-state
+      ;; For each preset
+      (pcase-dolist (`(,name . ,data) (edraw-preset-enum ui-state 'shape))
+        ;; For each special preset
+        (when (edraw-preset-name-special-p name)
+          (pcase (edraw-preset-name-special-category name)
+            ('initial-default-shape
+             (when-let* ((shape-type (edraw-preset-name-special-subtype name))
+                         (object (edraw-get-default-shape-object editor
+                                                                 shape-type
+                                                                 t)))
+               (edraw-preset-apply object data 'not-required)))
+            ('initial-default-shape-for-tool
+             (let ((tool-class (edraw-preset-name-special-subtype name)))
+               (when (and (class-p tool-class)
+                          (child-of-class-p tool-class 'edraw-editor-tool))
+                 (when-let ((object (edraw-get-default-shape-object-for-tool
+                                     editor tool-class)))
+                   (edraw-preset-apply object data 'not-required)))))))))))
+
 (cl-defmethod edraw-get-default-shape-properties-container
-  ((editor edraw-editor) shape-type create-p)
+  ((editor edraw-editor) shape-type &optional create-p ignore-selected-tool-p)
   "Return a cons cell whose cdr is the default shape property alist."
   (or
    ;; From current tool
-   (when (eq (edraw-shape-type-to-create (edraw-selected-tool editor)) shape-type)
-     (let* ((cell (assq (edraw-selected-tool-class editor)
-                        (oref editor default-shape-properties-for-each-tool)))
-            (props-spec (cdr cell)))
-       (when (and cell (listp props-spec)) cell)))
-   ;; From shape type (shape-type)
+   (and
+    (not ignore-selected-tool-p)
+    (when (eq (edraw-shape-type-to-create (edraw-selected-tool editor))
+              shape-type)
+      (let* ((cell (assq (edraw-selected-tool-class editor)
+                         (oref editor default-shape-properties-for-each-tool)))
+             (props-spec (cdr cell)))
+        (when (and cell
+                   ;; CELL is (<tool-class> . <alist>) not (<tool-class> . <symbol>)
+                   (listp props-spec))
+          cell))))
+   ;; From shape type
    (assq shape-type (oref editor default-shape-properties))
    ;; Create new
    (when create-p
@@ -2943,6 +2978,24 @@ For use with `edraw-editor-with-temp-undo-list',
                                                   shape-type)
   "Return the default shape property alist of shape type SHAPE-TYPE."
   (cdr (edraw-get-default-shape-properties-container editor shape-type)))
+
+(cl-defmethod edraw-get-default-shape-properties-container-for-tool
+  ((editor edraw-editor) tool-class &optional create-p)
+  (when (and (class-p tool-class)
+             (child-of-class-p tool-class 'edraw-editor-tool))
+    (or
+     (let* ((cell (assq tool-class (oref editor default-shape-properties-for-each-tool)))
+            (props-spec (cdr cell)))
+       (if cell
+           (if (listp props-spec) ;; CELL is (<tool-class> . <alist>) not (<tool-class> . <symbol>)
+               cell
+             (when create-p
+               (setcdr cell nil)
+               cell))
+         (when create-p
+           (let ((cell (cons tool-class nil)))
+             (push cell (oref editor default-shape-properties-for-each-tool))
+             cell)))))))
 
 (cl-defmethod edraw-get-default-shape-property ((editor edraw-editor)
                                                 shape-type prop-name)
@@ -2972,30 +3025,57 @@ For use with `edraw-editor-with-temp-undo-list',
     ;; Update toolbar
     (edraw-update-toolbar editor)))
 
-(cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor) tag)
+(cl-defmethod edraw-get-default-shape-object ((editor edraw-editor) shape-type
+                                              &optional
+                                              ignore-selected-tool-p)
   (when-let ((alist-head (edraw-get-default-shape-properties-container
-                          editor tag t)))
-    (edraw-editor-open-property-editor
-     editor
-     (edraw-property-proxy-shape
-      :alist-head alist-head
-      :editor editor
-      :name (format "default %s"
-                    (let ((key (car alist-head)))
-                      (if (and (class-p key)
-                               (child-of-class-p key 'edraw-editor-tool))
-                          ;; Show tool name
-                          ;; 'edraw-editor-tool-rect => "Rect Tool"
-                          (edraw-editor-make-tool-title key)
-                        ;; Show shape type
-                        tag)))
-      :prop-info-list
-      (seq-remove
-       (lambda (prop-info) (plist-get prop-info :required))
-       (edraw-svg-element-get-property-info-list-by-tag tag))
-      :preset-type 'shape
-      :preset-subtype tag ;; edraw-shape-type value (g, not group)
-      ))))
+                          editor shape-type t ignore-selected-tool-p))
+             (shape-class (edraw-shape-class-from-type shape-type)))
+    (edraw-property-proxy-shape
+     :alist-head alist-head
+     :editor editor
+     :name (format "default %s"
+                   (let ((key (car alist-head)))
+                     (if (and (class-p key)
+                              (child-of-class-p key 'edraw-editor-tool))
+                         ;; Show tool name
+                         ;; 'edraw-editor-tool-rect => "Rect Tool"
+                         (edraw-editor-make-tool-title key)
+                       ;; Show shape type
+                       shape-type)))
+     :prop-info-list
+     (seq-remove
+      (lambda (prop-info) (plist-get prop-info :required))
+      (edraw-get-property-info-list shape-class))
+     :preset-type 'shape
+     :preset-subtype shape-type ;; edraw-shape-type value (g, not group)
+     )))
+
+(cl-defmethod edraw-get-default-shape-object-for-tool ((editor edraw-editor)
+                                                       tool-class)
+  (when-let ((alist-head (edraw-get-default-shape-properties-container-for-tool
+                          editor tool-class t))
+             (shape-type (edraw-shape-type-to-create tool-class))
+             (shape-class (edraw-shape-class-from-type shape-type)))
+    (edraw-property-proxy-shape
+     :alist-head alist-head
+     :editor editor
+     :name (format "default %s"
+                   ;; Show tool name
+                   ;; 'edraw-editor-tool-rect => "Rect Tool"
+                   (edraw-editor-make-tool-title tool-class))
+     :prop-info-list
+     (seq-remove
+      (lambda (prop-info) (plist-get prop-info :required))
+      (edraw-get-property-info-list shape-class))
+     :preset-type 'shape
+     :preset-subtype shape-type ;; edraw-shape-type value (g, not group)
+     )))
+
+(cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor)
+                                                   shape-type)
+  (when-let (object (edraw-get-default-shape-object editor shape-type))
+    (edraw-editor-open-property-editor editor object)))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor shape-type)
   (let ((editor (or editor (edraw-current-editor))))
@@ -3963,6 +4043,9 @@ position where the EVENT occurred."
     :type (or null edraw-editor)))
   :abstract t)
 
+(cl-defmethod edraw-name ((class (subclass edraw-editor-tool)))
+  (edraw-editor-make-tool-title class))
+
 (cl-defmethod edraw-tool-class ((tool edraw-editor-tool))
   "Returns the class name of the TOOL object as a symbol."
   (eieio-object-class-name tool))
@@ -4137,6 +4220,9 @@ position where the EVENT occurred."
   ()
   )
 
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-rect)))
+  'rect)
+
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-rect))
   'rect)
 
@@ -4205,6 +4291,9 @@ position where the EVENT occurred."
 (defclass edraw-editor-tool-ellipse (edraw-editor-tool)
   ()
   )
+
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-ellipse)))
+  'ellipse)
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-ellipse))
   'ellipse)
@@ -4279,6 +4368,9 @@ position where the EVENT occurred."
 (defclass edraw-editor-tool-text (edraw-editor-tool)
   ((prefix-arg-last-down-mouse :initform nil))
   )
+
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-text)))
+  'text)
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-text))
   'text)
@@ -4377,6 +4469,9 @@ position where the EVENT occurred."
   ()
   )
 
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-image)))
+  'image)
+
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-image))
   'image)
 
@@ -4447,6 +4542,9 @@ position where the EVENT occurred."
   ((editing-path
     :initform nil
     :type (or null edraw-shape-path))))
+
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-path)))
+  'path)
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-path))
   'path)
@@ -4789,6 +4887,9 @@ S-Click/Drag: 45 degree increments")))
 (defclass edraw-editor-tool-freehand (edraw-editor-tool)
   ())
 
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-freehand)))
+  'path)
+
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-freehand))
   'path)
 
@@ -4911,6 +5012,10 @@ S-Click/Drag: 45 degree increments")))
    (picker-buffer :initform nil)
    (selected-shape-descriptor-list :initform nil)
    (selected-picker-entry-properties :initform nil)))
+
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-custom-shape)))
+  ;;@todo Default values should be per tool, not per type
+  'path) ;;Although not only path, default properties can be set only for path
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-custom-shape))
   ;;@todo Default values should be per tool, not per type
@@ -9221,9 +9326,10 @@ REF is a point reference in scaling-points."
 (defun edraw-preset--check-arg (type name)
   (unless (symbolp type)
     (signal 'wrong-type-argument (list (format "preset type is not a symbol: %s" type))))
-  (unless (stringp name)
-    (signal 'wrong-type-argument (list (format "preset name is not a string: %s" name))))
-  (when (string-empty-p name)
+  (unless (or (stringp name)
+              (edraw-preset-name-special-p name))
+    (signal 'wrong-type-argument (list (format "preset name is not string or special name: %s" name))))
+  (when (and (stringp name) (string-empty-p name))
     (error "preset name is empty")))
 
 (defun edraw-preset-save (ui-state type name data)
@@ -9238,9 +9344,22 @@ REF is a point reference in scaling-points."
          (name-alist (cdr type-cell))
          (name-cell (or (assoc name name-alist)
                         (let ((new-name-cell (cons name nil)))
-                          ;; push back
-                          (setq name-alist
-                                (append name-alist (list new-name-cell)))
+                          (if (edraw-preset-name-special-p name)
+                              ;; Insert
+                              (let ((pos (or (cl-position-if
+                                              (lambda (x)
+                                                (edraw-preset-name-less-p
+                                                 name (car x)))
+                                              name-alist)
+                                             0)))
+                                (setq name-alist
+                                      (append
+                                       (seq-subseq name-alist 0 pos)
+                                       (list new-name-cell)
+                                       (seq-subseq name-alist pos))))
+                            ;; Push back
+                            (setq name-alist
+                                  (append name-alist (list new-name-cell))))
                           (setcdr type-cell name-alist)
                           new-name-cell))))
     (setcdr name-cell data)
@@ -9250,7 +9369,7 @@ REF is a point reference in scaling-points."
 (defun edraw-preset-load (ui-state type name)
   (edraw-preset--check-arg type name)
   (let ((type-alist (edraw-ui-state-get ui-state 'preset 'presets)))
-    (alist-get name (alist-get type type-alist) nil nil #'string=)))
+    (alist-get name (alist-get type type-alist) nil nil #'equal)))
 
 (defun edraw-preset-enum (ui-state type &optional pred)
   (edraw-preset--check-arg type "-")
@@ -9267,13 +9386,15 @@ REF is a point reference in scaling-points."
 (defun edraw-preset-delete (ui-state type name)
   (edraw-preset--check-arg type name)
   (let ((type-alist (edraw-ui-state-get ui-state 'preset 'presets)))
-    (setf (alist-get name (alist-get type type-alist) nil t #'string=) nil)
+    (setf (alist-get name (alist-get type type-alist) nil t #'equal) nil)
     (edraw-ui-state-set ui-state 'preset 'presets type-alist)
     (edraw-ui-state-save ui-state)))
 
 (defun edraw-preset-rename (ui-state type old-name new-name)
   (edraw-preset--check-arg type old-name)
   (edraw-preset--check-arg type new-name)
+  (when (symbolp old-name)
+    (error "Special presets cannot be renamed: %s" old-name))
   (let* ((type-alist (edraw-ui-state-get ui-state 'preset 'presets))
          (name-alist (alist-get type type-alist))
          (cell (assoc old-name name-alist)))
@@ -9297,9 +9418,20 @@ REF is a point reference in scaling-points."
   (edraw-get-all-properties holder))
 
 (cl-defmethod edraw-preset-apply ((holder edraw-properties-holder) data
+                                  &optional
                                   pred-for-prop-info)
   (let (;;(subtype (alist-get 'subtype data))
-        (properties (alist-get 'properties data)))
+        (properties (alist-get 'properties data))
+        (pred-for-prop-info
+         (pcase pred-for-prop-info
+           ('nil (lambda (_prop-info) t))
+           ('all (lambda (_prop-info) t))
+           ('not-required (lambda (prop-info)
+                            (not (plist-get prop-info :required))))
+           ('not-geometry (lambda (prop-info)
+                            (not (memq 'geometry
+                                       (plist-get prop-info :flags)))))
+           (_ pred-for-prop-info))))
     ;; Filter properties
     (let ((prop-info-list (edraw-get-property-info-list holder)))
       (setq properties
@@ -9322,6 +9454,14 @@ REF is a point reference in scaling-points."
     ;; Apply properties
     (when properties
       (edraw-set-properties holder properties))))
+
+(cl-defmethod edraw-preset-tool-type ((holder edraw-properties-holder))
+  (when-let* ((editor (edraw-get-editor holder))
+              (tool (edraw-selected-tool editor))
+              (tool-shape-type (edraw-shape-type-to-create tool)))
+    (when (and (eq (edraw-preset-type holder) 'shape)
+               (eq (edraw-preset-subtype holder) tool-shape-type))
+      (edraw-tool-class tool))))
 
 ;;;;; for edraw-shape
 
