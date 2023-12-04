@@ -3573,10 +3573,11 @@ position where the EVENT occurred."
    (edraw-editor-tool-select-function-name tool-id)))
 
 (defun edraw-editor-make-tool-title (tool-id)
-  (let ((fun (intern (format "%s--title" tool-id))))
-    (if (and fun (fboundp fun))
-        (funcall fun)
-      (edraw-msg (capitalize (symbol-name tool-id))))))
+  (if (and (class-p tool-id)
+           (child-of-class-p tool-id 'edraw-editor-tool))
+      (edraw-name tool-id)
+    ;;@todo Delete the following if unnecessary
+    (edraw-msg (capitalize (symbol-name tool-id)))))
 
 (defun edraw-editor-make-tool (tool-id)
   (funcall (edraw-editor-make-tool-class-name tool-id)))
@@ -3630,7 +3631,7 @@ position where the EVENT occurred."
    (edraw-svg-rect 9 16 18 3 :stroke "none" :fill "#ccc")))
 
 (defun edraw-editor-make-tool-icon (tool-id)
-  (funcall (intern (format "%s--icon" tool-id))))
+  (edraw-icon tool-id))
 
 ;; (defun edraw-preview-icon (name)
 ;;   (interactive "sIcon Name(e.g.tool-text): ")
@@ -4043,9 +4044,6 @@ position where the EVENT occurred."
     :type (or null edraw-editor)))
   :abstract t)
 
-(cl-defmethod edraw-name ((class (subclass edraw-editor-tool)))
-  (edraw-editor-make-tool-title class))
-
 (cl-defmethod edraw-tool-class ((tool edraw-editor-tool))
   "Returns the class name of the TOOL object as a symbol."
   (eieio-object-class-name tool))
@@ -4124,17 +4122,18 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Select Tool
 
-(defun edraw-editor-tool-select--title () (edraw-msg "Select Tool"))
+(defclass edraw-editor-tool-select (edraw-editor-tool)
+  ())
 
-(defun edraw-editor-tool-select--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-select)))
+  (edraw-msg "Select Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-select)))
   (edraw-svg-group
    (edraw-svg-path "M 6 3 L 21 10 17 12 23 18 21 20 15 14 13 18 z"
                    :stroke "#ccc"
                    :stroke-width 1
                    :fill "url(#icon-fg-gradient)")))
-
-(defclass edraw-editor-tool-select (edraw-editor-tool)
-  ())
 
 (cl-defmethod edraw-on-deselected ((_tool edraw-editor-tool-select))
   ;;(edraw-deselect-shape (oref tool editor))
@@ -4208,17 +4207,18 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Rect Tool
 
-(defun edraw-editor-tool-rect--title () (edraw-msg "Rect Tool"))
+(defclass edraw-editor-tool-rect (edraw-editor-tool)
+  ()
+  )
 
-(defun edraw-editor-tool-rect--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-rect)))
+  (edraw-msg "Rect Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-rect)))
   (edraw-svg-group
    (edraw-svg-rect
     6.5 6.5 18 12
     :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
-
-(defclass edraw-editor-tool-rect (edraw-editor-tool)
-  ()
-  )
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-rect)))
   'rect)
@@ -4280,17 +4280,18 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Ellipse Tool
 
-(defun edraw-editor-tool-ellipse--title () (edraw-msg "Ellipse Tool"))
+(defclass edraw-editor-tool-ellipse (edraw-editor-tool)
+  ()
+  )
 
-(defun edraw-editor-tool-ellipse--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-ellipse)))
+  (edraw-msg "Ellipse Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-ellipse)))
   (edraw-svg-group
    (edraw-svg-ellipse
     15 12 9 6
     :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
-
-(defclass edraw-editor-tool-ellipse (edraw-editor-tool)
-  ()
-  )
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-ellipse)))
   'ellipse)
@@ -4351,9 +4352,14 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Text Tool
 
-(defun edraw-editor-tool-text--title () (edraw-msg "Text Tool"))
+(defclass edraw-editor-tool-text (edraw-editor-tool)
+  ((prefix-arg-last-down-mouse :initform nil))
+  )
 
-(defun edraw-editor-tool-text--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-text)))
+  (edraw-msg "Text Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-text)))
   (edraw-svg-group
    (edraw-svg-path
     ;;     8 9 11  14 15 16  19 21 22
@@ -4364,10 +4370,6 @@ position where the EVENT occurred."
     ;;   18        +-----+
     "M 8 4.5 L 22 4.5 L 22 7 L 21 7 Q 21 5 19 5 L 16 5 L 16 17.5 L18 17.5 L 18 18 L 12 18 L 12 17.5 L 14 17.5 L 14 5 L 11 5 Q 9 5 9 7 L 8 7 z"
     :stroke "#ccc" :stroke-width 1 :fill "url(#icon-fg-gradient)")))
-
-(defclass edraw-editor-tool-text (edraw-editor-tool)
-  ((prefix-arg-last-down-mouse :initform nil))
-  )
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-text)))
   'text)
@@ -4453,9 +4455,14 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Image Tool
 
-(defun edraw-editor-tool-image--title () (edraw-msg "Image Tool"))
+(defclass edraw-editor-tool-image (edraw-editor-tool)
+  ()
+  )
 
-(defun edraw-editor-tool-image--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-image)))
+  (edraw-msg "Image Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-image)))
   (edraw-svg-group
    (edraw-svg-rect
     4.5 4.5 22 15
@@ -4464,10 +4471,6 @@ position where the EVENT occurred."
     11 9 2.5 2.5 :fill "#888")
    (edraw-svg-path
     "M10 13 14 15 20 10 26 16 26 18 5 18 10 13Z" :fill "#666")))
-
-(defclass edraw-editor-tool-image (edraw-editor-tool)
-  ()
-  )
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-image)))
   'image)
@@ -4527,9 +4530,15 @@ position where the EVENT occurred."
 
 ;;;;; Tool - Path Tool
 
-(defun edraw-editor-tool-path--title () (edraw-msg "Path Tool"))
+(defclass edraw-editor-tool-path (edraw-editor-tool)
+  ((editing-path
+    :initform nil
+    :type (or null edraw-shape-path))))
 
-(defun edraw-editor-tool-path--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-path)))
+  (edraw-msg "Path Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-path)))
   (edraw-svg-group
    (edraw-svg-path "M 4 18 Q 10 6 16 6 Q 22 6 28 18"
                    :stroke-width 1 :stroke "#ccc" :fill "none")
@@ -4537,11 +4546,6 @@ position where the EVENT occurred."
    (edraw-svg-line 7 6 25 6 :stroke-width 0.5 :stroke "#ccc")
    (edraw-svg-circle 7 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none")
    (edraw-svg-circle 25 6 0.8 :stroke-width 1 :stroke "#ccc" :fill "none")))
-
-(defclass edraw-editor-tool-path (edraw-editor-tool)
-  ((editing-path
-    :initform nil
-    :type (or null edraw-shape-path))))
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-path)))
   'path)
@@ -4876,16 +4880,17 @@ S-Click/Drag: 45 degree increments")))
 
 ;;;;; Tool - Freehand Tool
 
-(defun edraw-editor-tool-freehand--title () (edraw-msg "Freehand Tool"))
+(defclass edraw-editor-tool-freehand (edraw-editor-tool)
+  ())
 
-(defun edraw-editor-tool-freehand--icon ()
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-freehand)))
+  (edraw-msg "Freehand Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-freehand)))
   (edraw-svg-group
    (edraw-svg-path
     "M 4 19 C 15 -3 14 31 27 5"
     :stroke-width 1 :stroke "#ccc" :fill "none")))
-
-(defclass edraw-editor-tool-freehand (edraw-editor-tool)
-  ())
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-freehand)))
   'path)
@@ -4999,19 +5004,20 @@ S-Click/Drag: 45 degree increments")))
 
 ;;;;; Tool - Custom Shape Tool
 
-(defun edraw-editor-tool-custom-shape--title () (edraw-msg "Custom Shape Tool"))
-
-(defun edraw-editor-tool-custom-shape--icon ()
-  (edraw-svg-group
-   (edraw-svg-path
-    "M14,4C16,2 18,0 20,2C22,4 18,6 20,8C22,10 26,8 26,12C26,14 22,12 20,14C18,16 24,20 20,22C16,24 16,16 12,16C8,16 4,20 4,16C4,14 6,12 8,10C10,8 4,6 6,4C8,2 12,6 14,4Z"
-    :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
-
 (defclass edraw-editor-tool-custom-shape (edraw-editor-tool)
   ((on-picker-notify :initform nil)
    (picker-buffer :initform nil)
    (selected-shape-descriptor-list :initform nil)
    (selected-picker-entry-properties :initform nil)))
+
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-custom-shape)))
+  (edraw-msg "Custom Shape Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-custom-shape)))
+  (edraw-svg-group
+   (edraw-svg-path
+    "M14,4C16,2 18,0 20,2C22,4 18,6 20,8C22,10 26,8 26,12C26,14 22,12 20,14C18,16 24,20 20,22C16,24 16,16 12,16C8,16 4,20 4,16C4,14 6,12 8,10C10,8 4,6 6,4C8,2 12,6 14,4Z"
+    :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
 
 (cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-custom-shape)))
   ;;@todo Default values should be per tool, not per type
