@@ -2922,42 +2922,44 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;; Editor - Default Shape Properties
 
 (cl-defmethod edraw-get-default-shape-properties-container
-  ((editor edraw-editor) tag create-p)
+  ((editor edraw-editor) shape-type create-p)
   "Return a cons cell whose cdr is the default shape property alist."
   (or
    ;; From current tool
-   (when (eq (edraw-shape-type-to-create (edraw-selected-tool editor)) tag)
+   (when (eq (edraw-shape-type-to-create (edraw-selected-tool editor)) shape-type)
      (let* ((cell (assq (edraw-selected-tool-class editor)
                         (oref editor default-shape-properties-for-each-tool)))
             (props-spec (cdr cell)))
        (when (and cell (listp props-spec)) cell)))
-   ;; From shape type (tag)
-   (assq tag (oref editor default-shape-properties))
+   ;; From shape type (shape-type)
+   (assq shape-type (oref editor default-shape-properties))
    ;; Create new
    (when create-p
-     (let ((cell (cons tag nil)))
+     (let ((cell (cons shape-type nil)))
        (push cell (oref editor default-shape-properties))
        cell))))
 
-(cl-defmethod edraw-get-default-shape-properties ((editor edraw-editor) tag)
-  "Return the default shape property alist of shape type TAG."
-  (cdr (edraw-get-default-shape-properties-container editor tag nil)))
+(cl-defmethod edraw-get-default-shape-properties ((editor edraw-editor)
+                                                  shape-type)
+  "Return the default shape property alist of shape type SHAPE-TYPE."
+  (cdr (edraw-get-default-shape-properties-container editor shape-type)))
 
 (cl-defmethod edraw-get-default-shape-property ((editor edraw-editor)
-                                                tag prop-name)
+                                                shape-type prop-name)
   (alist-get prop-name
-             (edraw-get-default-shape-properties editor tag)))
+             (edraw-get-default-shape-properties editor shape-type)))
 
 (cl-defmethod edraw-set-default-shape-property ((editor edraw-editor)
-                                                tag prop-name value)
+                                                shape-type prop-name value)
   (setf (alist-get
          prop-name
-         (cdr (edraw-get-default-shape-properties-container editor tag t)))
+         (cdr
+          (edraw-get-default-shape-properties-container editor shape-type t)))
         value))
 
 (cl-defmethod edraw-set-default-shape-properties-from-shape
   ((editor edraw-editor) shape)
-  (when-let ((tag (edraw-shape-type shape)))
+  (when-let ((shape-type (edraw-shape-type shape)))
     (dolist (prop-info (edraw-get-property-info-list shape))
       ;; Skip required property
       (unless (plist-get prop-info :required)
@@ -2966,7 +2968,7 @@ For use with `edraw-editor-with-temp-undo-list',
                (value (edraw-get-property shape prop-name)))
           ;; Set property value as default
           (edraw-set-default-shape-property
-           editor tag prop-name value))))
+           editor shape-type prop-name value))))
     ;; Update toolbar
     (edraw-update-toolbar editor)))
 
@@ -2995,9 +2997,9 @@ For use with `edraw-editor-with-temp-undo-list',
       :preset-subtype tag ;; edraw-shape-type value (g, not group)
       ))))
 
-(defun edraw-editor-edit-default-shape-props (&optional editor tag)
+(defun edraw-editor-edit-default-shape-props (&optional editor shape-type)
   (let ((editor (or editor (edraw-current-editor))))
-    (edraw-edit-default-shape-properties editor tag)))
+    (edraw-edit-default-shape-properties editor shape-type)))
 
 (defun edraw-editor-edit-default-rect-props (&optional editor)
   (interactive)
@@ -5171,41 +5173,75 @@ S-Click/Drag: 45 degree increments")))
 ;;;;; Shape Object Types & Creation
 
 (defvar edraw-shape-types
-  '((rect
+  '(;; key:type-id(tag or classname)
+    (rect
+     (:class . edraw-shape-rect)
      (:from-element . edraw-shape-rect-create)
      (:create-element . dom-node))
     (ellipse
+     (:class . edraw-shape-ellipse)
      (:from-element . edraw-shape-ellipse-create)
      (:create-element . dom-node))
     (circle
+     (:class . edraw-shape-circle)
      (:from-element . edraw-shape-circle-create)
      (:create-element . dom-node))
     (text
+     (:class . edraw-shape-text)
      (:from-element . edraw-shape-text-create)
      (:create-element . dom-node))
     (image
+     (:class . edraw-shape-image)
      (:from-element . edraw-shape-image-create)
      (:create-element . dom-node))
     (path
+     (:class . edraw-shape-path)
      (:from-element . edraw-shape-path-create)
      (:create-element . dom-node))
     (g
+     (:class . edraw-shape-group)
      (:from-element . edraw-shape-group-create)
      (:create-element . dom-node)))
   "Alist of shape object types.")
 
-(defun edraw-shape-element-from-type (type)
-  "Create a new SVG element of shape TYPE."
+(defun edraw-shape-type-ids ()
+  "Return all symbols representing the types of shapes registered in edraw.
+
+A symbol may or may not be the same as an SVG tag name or class name."
+  (mapcar #'car edraw-shape-types))
+
+(defun edraw-shape-type-valid-p (shape-type)
+  "Return t if SHAPE-TYPE is valid.
+
+Only shape types registered in `edraw-shape-types' are valid."
+  (when (and (symbolp shape-type)
+             (assq shape-type edraw-shape-types))
+    t))
+
+(defun edraw-shape-class-from-type (shape-type)
+  "Return shape class name symbol from shape SHAPE-TYPE symbol."
+  (when (symbolp shape-type)
+    (alist-get :class (alist-get shape-type edraw-shape-types))))
+
+(defun edraw-shape-element-from-type (shape-type)
+  "Create a new SVG element of SHAPE-TYPE."
   (let ((create-element
-         (alist-get :create-element (alist-get type edraw-shape-types))))
+         (alist-get :create-element (alist-get shape-type edraw-shape-types))))
     (unless create-element
-      (error "Unsupported shape type %s" type))
-    (funcall create-element type)))
+      (error "Unsupported shape type %s" shape-type))
+    (funcall create-element shape-type)))
 
 (defun edraw-shape-type-from-element (element)
   "Return a symbol that represents the shape type of the SVG ELEMENT."
-  (or (dom-attr element 'data-edraw-type) ;;<?? data-edraw-type="type" ...>
-      (dom-tag element))) ;;<type ...>
+  (let ((shape-type
+         (or
+          ;;<?? data-edraw-type="type" ...>
+          (dom-attr element 'data-edraw-type)
+          ;;<type ...>
+          (dom-tag element))))
+    (when (edraw-shape-type-valid-p shape-type)
+      ;; For safety, only return if the shape-type is a registered shape type.
+      shape-type)))
 
 (defun edraw-shape-from-element-create (element editor)
   (when-let* ((type (edraw-shape-type-from-element element))
@@ -5322,6 +5358,11 @@ S-Click/Drag: 45 degree increments")))
 
 (cl-defgeneric edraw-shape-type (shape) ;; Must be implement in derived classes
   "Return a symbol representing the type of SHAPE.")
+
+(cl-defgeneric edraw-shape-svg-tag (class) ;; Must be implement in derived classes
+  "Return the SVG tag generated by CLASS as a symbol.
+
+Return nil if undefined.")
 
 (cl-defmethod edraw-get-editor ((shape edraw-shape))
   (oref shape editor))
@@ -5865,6 +5906,10 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
   (edraw-svg-element-can-have-property-p (edraw-element shape)
                                          prop-name))
 
+(cl-defmethod edraw-get-property-info-list ((class (subclass edraw-shape)))
+  (when-let ((tag (edraw-shape-svg-tag class)))
+    (edraw-svg-element-get-property-info-list-by-tag tag)))
+
 (cl-defmethod edraw-get-property-info-list ((shape edraw-shape))
   (edraw-svg-element-get-property-info-list (edraw-element shape)))
 
@@ -6298,6 +6343,9 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-rect))
   'rect)
 
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-rect)))
+  'rect)
+
 (cl-defmethod edraw-get-rect-local ((shape edraw-shape-rect))
   (let ((x (edraw-get-property-as-length shape 'x 0))
         (y (edraw-get-property-as-length shape 'y 0))
@@ -6354,6 +6402,9 @@ may be replaced by another mechanism."
   ())
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-ellipse))
+  'ellipse)
+
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-ellipse)))
   'ellipse)
 
 (cl-defmethod edraw-get-rect-local ((shape edraw-shape-ellipse))
@@ -6414,6 +6465,9 @@ may be replaced by another mechanism."
   ())
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-circle))
+  'circle)
+
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-circle)))
   'circle)
 
 (cl-defmethod edraw-get-rect-local ((shape edraw-shape-circle))
@@ -6524,6 +6578,9 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-text))
   'text)
 
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-text)))
+  'text)
+
 (cl-defmethod edraw-get-anchor-points ((shape edraw-shape-text))
   (oref shape anchor-points))
 
@@ -6598,6 +6655,9 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-image))
   'image)
 
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-image)))
+  'image)
+
 (cl-defmethod edraw-get-rect-local ((shape edraw-shape-image))
   (let ((x (edraw-get-property-as-length shape 'x 0))
         (y (edraw-get-property-as-length shape 'y 0))
@@ -6660,6 +6720,9 @@ may be replaced by another mechanism."
   ((cmdlist)))
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-path))
+  'path)
+
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-path)))
   'path)
 
 (cl-defmethod edraw-get-property ((shape edraw-shape-path) prop-name)
@@ -6958,6 +7021,9 @@ may be replaced by another mechanism."
   ((child-change-notification-suppressed-p :type boolean :initform nil)))
 
 (cl-defmethod edraw-shape-type ((_shape edraw-shape-group))
+  'g)
+
+(cl-defmethod edraw-shape-svg-tag ((_class (subclass edraw-shape-group)))
   'g)
 
 (cl-defmethod edraw-on-child-changed ((shape edraw-shape-group)
@@ -9263,9 +9329,8 @@ REF is a point reference in scaling-points."
   'shape)
 
 (cl-defmethod edraw-preset-subtype ((shape edraw-shape))
-  ;;@todo Save as specific subtype.
-  (edraw-shape-type shape) ;; SVG tag name
-  )
+  ;;@todo If the data includes only common properties, subtype should be allowed to be nil.
+  (edraw-shape-type shape))
 
 ;;;;; for edraw-multiple-shapes
 

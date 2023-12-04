@@ -3113,3 +3113,11 @@ CLOSED: [2023-11-19 Sun 17:48]
 クラス名はあまり良くない気がするが、とりあえずそのままにする。edraw-editorにとっては、同時に開いている他のエディタオブジェクトと即事共有される情報を保持するクラスとなる。最近使った色やプリセットはエディタを二つ並べて使うときに共有されているととても便利。フレーム化の設定は正直どうでもいい。一方でグリッドの表示状態などはedraw-ui-stateに持たせるべきではない。同時に開いている複数のエディタ毎に違う設定にしたい場合があるから。そう考えると、edraw-shared-info辺りだろうか？　とりあえず保留。
 
 property-editorやshape-pickerにもui-stateオブジェクトを引き渡さなければならない(フレーム状態の保存・復元のため)。color-pickerが直接ui-stateに依存するのは良くない。edraw-editor-util.elへ依存したくないから。カラーピッカーはedraw-get-recent-colorsとedraw-set-recent-colorsというメソッドのみを使って、最近使った色を取得・変更することにする。optionsの:recent-colorsにはそのメソッドを適用出来るオブジェクトを指定することにする。edraw-editor-recent-colorsクラスにui-stateを持たせて、そのクラスに対するedraw-get-recent-colors・edraw-set-recent-colorsはui-stateに対するリストの取得・設定とする。
+** DONE shape-typeとtagの違いを明確にする
+CLOSED: [2023-12-04 Mon 12:57]
+しばしば混同して使われている。tagは本来SVG要素のタグ名のはずだが、shape-typeがそのまま使われている場所がある。shape-typeは、今のところタグ名と同じだが、将来的に必ずしもタグ名と同じとは限らない。
+
+例えば何らかの機能を持つ独自のshapeクラスを追加する可能性がある。
+
+- 変数edraw-shape-typesやオブジェクト生成まわり
+- 設定まわり
