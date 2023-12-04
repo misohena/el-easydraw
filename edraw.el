@@ -3430,12 +3430,12 @@ position where the EVENT occurred."
               (cl-incf y icon-h)
               (cl-incf y 16) ;;spacing
               ;; tool buttons
-              (dolist (tool-id edraw-editor-tool-list)
+              (dolist (tool-class edraw-editor-tool-list)
                 (push (edraw-editor-make-tool-button
                        components-g
                        x y
                        icon-w icon-h image-scale
-                       tool-id
+                       tool-class
                        current-tool-class-name)
                       image-map)
                 (cl-incf y icon-h)
@@ -3550,54 +3550,54 @@ position where the EVENT occurred."
 
 
 (defun edraw-editor-make-tool-button
-    (parent x y w h image-scale tool-id selected-class-name)
+    (parent x y w h image-scale tool-class selected-class-name)
   (edraw-editor-make-toolbar-button
    parent x y w h image-scale
-   (edraw-editor-make-tool-icon tool-id)
-   (edraw-editor-make-tool-key-id tool-id)
-   (edraw-editor-make-tool-help-echo tool-id)
-   (eq (edraw-editor-make-tool-class-name tool-id) selected-class-name)))
+   (edraw-editor-make-tool-icon tool-class)
+   (edraw-editor-make-tool-key-id tool-class)
+   (edraw-editor-make-tool-help-echo tool-class)
+   (eq (edraw-editor-make-tool-class-name tool-class) selected-class-name)))
 
-(defun edraw-editor-make-tool-class-name (tool-id)
-  tool-id)
+(defun edraw-editor-make-tool-class-name (tool-class)
+  tool-class)
 
-(defun edraw-editor-make-tool-key-id (tool-id)
-  (edraw-editor-tool-select-function-name tool-id))
+(defun edraw-editor-make-tool-key-id (tool-class)
+  (edraw-editor-tool-select-function-name tool-class))
 
-(defun edraw-editor-make-tool-click-function (tool-id)
-  (edraw-editor-tool-select-function-name tool-id))
+(defun edraw-editor-make-tool-click-function (tool-class)
+  (edraw-editor-tool-select-function-name tool-class))
 
-(defun edraw-editor-make-tool-help-echo (tool-id)
+(defun edraw-editor-make-tool-help-echo (tool-class)
   (edraw-editor-make-toolbar-help-echo
-   (edraw-editor-make-tool-title tool-id)
-   (edraw-editor-tool-select-function-name tool-id)))
+   (edraw-editor-make-tool-title tool-class)
+   (edraw-editor-tool-select-function-name tool-class)))
 
-(defun edraw-editor-make-tool-title (tool-id)
-  (if (and (class-p tool-id)
-           (child-of-class-p tool-id 'edraw-editor-tool))
-      (edraw-name tool-id)
+(defun edraw-editor-make-tool-title (tool-class)
+  (if (and (class-p tool-class)
+           (child-of-class-p tool-class 'edraw-editor-tool))
+      (edraw-name tool-class)
     ;;@todo Delete the following if unnecessary
-    (edraw-msg (capitalize (symbol-name tool-id)))))
+    (edraw-msg (capitalize (symbol-name tool-class)))))
 
-(defun edraw-editor-make-tool (tool-id)
-  (funcall (edraw-editor-make-tool-class-name tool-id)))
+(defun edraw-editor-make-tool (tool-class)
+  (funcall (edraw-editor-make-tool-class-name tool-class)))
 
-(defun edraw-editor-tool-select-function-name (tool-id)
-  (let ((tool-id-str (symbol-name tool-id)))
-    (if (string-match "\\`edraw-editor-tool-\\([-a-z0-9]+\\)\\'" tool-id-str)
+(defun edraw-editor-tool-select-function-name (tool-class)
+  (let ((tool-class-str (symbol-name tool-class)))
+    (if (string-match "\\`edraw-editor-tool-\\([-a-z0-9]+\\)\\'" tool-class-str)
         (intern (format "edraw-editor-select-tool-%s"
-                        (match-string 1 tool-id-str)))
-      (intern (format "edraw-editor-select-tool--%s" tool-id)))))
+                        (match-string 1 tool-class-str)))
+      (intern (format "edraw-editor-select-tool--%s" tool-class)))))
 
-(defun edraw-editor-define-tool-select-function (tool-id)
-  (defalias (edraw-editor-tool-select-function-name tool-id)
+(defun edraw-editor-define-tool-select-function (tool-class)
+  (defalias (edraw-editor-tool-select-function-name tool-class)
     (lambda () (interactive)
       (let ((editor (edraw-current-editor)))
-        (edraw-select-tool editor (edraw-editor-make-tool tool-id))))))
+        (edraw-select-tool editor (edraw-editor-make-tool tool-class))))))
 
 (defun edraw-editor-define-tool-select-functions ()
-  (dolist (tool-id edraw-editor-tool-list)
-    (edraw-editor-define-tool-select-function tool-id)))
+  (dolist (tool-class edraw-editor-tool-list)
+    (edraw-editor-define-tool-select-function tool-class)))
 
 (edraw-editor-define-tool-select-functions) ;;defun edraw-editor-select-tool-*
 
@@ -3630,8 +3630,8 @@ position where the EVENT occurred."
    (edraw-svg-rect 3 16  3 3 :stroke "none" :fill "#ccc")
    (edraw-svg-rect 9 16 18 3 :stroke "none" :fill "#ccc")))
 
-(defun edraw-editor-make-tool-icon (tool-id)
-  (edraw-icon tool-id))
+(defun edraw-editor-make-tool-icon (tool-class)
+  (edraw-icon tool-class))
 
 ;; (defun edraw-preview-icon (name)
 ;;   (interactive "sIcon Name(e.g.tool-text): ")
