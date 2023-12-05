@@ -366,9 +366,7 @@ line-prefix and wrap-prefix are used in org-indent.")
                   ov))
                (t (error "Invalid overlay-spec")))))
 
-    (let ((editor (edraw-editor :overlay overlay :svg svg)))
-      (edraw-initialize editor)
-      editor)))
+    (edraw-editor :overlay overlay :svg svg)))
 
 (defclass edraw-editor ()
   ((overlay :initarg :overlay :initform nil :reader edraw-overlay)
@@ -437,6 +435,17 @@ used by the edraw-editor class.")
   "Editor")
 
 (cl-defmethod edraw-initialize ((editor edraw-editor))
+  "Do nothing.
+
+This method is defined for backward compatibility.
+
+edraw-editor initialization is now called automatically."
+  editor)
+
+(cl-defmethod initialize-instance :after ((editor edraw-editor) &rest _args)
+  (edraw-editor-initialize editor))
+
+(defun edraw-editor-initialize (editor)
   (edraw-editor-clear-undo-vars)
   (edraw-editor-clear-modified-vars)
 
@@ -9547,9 +9556,7 @@ This function is for registering with the `kill-buffer-query-functions' hook."
                     :document-writer writer
                     :document-writer-accepts-top-level-comments-p
                     accepts-top-level-comments-p
-                    :menu-filter #'edraw-edit-svg--menu-filter
-                    )))
-      (edraw-initialize editor)
+                    :menu-filter #'edraw-edit-svg--menu-filter)))
 
       ;; Add key bindings
       (overlay-put editor-overlay 'keymap

@@ -74,7 +74,6 @@ The following commands are available:
                         `(((edraw-msg "Save") save-buffer)
                           ("xml-mode" xml-mode))))
                       (_ items))))))
-    (edraw-initialize editor)
     (setq-local edraw-mode-editor editor)
 
     ;; Setup Keymap

@@ -985,9 +985,8 @@
   "Create a color picker object and initialize it."
   (let ((picker (edraw-color-picker
                  :initial-color initial-color
-                 :display uninitialized-display)))
-    ;; Initialize the picker object
-    (edraw-initialize picker options)
+                 :display uninitialized-display
+                 :options options)))
     ;; Initialize the display object and link it to the picker object
     (edraw-initialize uninitialized-display picker)
     ;; First update
@@ -1003,7 +1002,7 @@
    (image-height :reader edraw-image-height)
    (image-scale)
    (image-map)
-   (options :reader edraw-options)
+   (options :initarg :options :reader edraw-options)
    (display :initarg :display :reader edraw-get-display)
    (hooks :initform (list
                      (cons 'color-change (edraw-hook-make))
@@ -1011,9 +1010,10 @@
                      (cons 'cancel (edraw-hook-make))
                      (cons 'no-color (edraw-hook-make))))))
 
-(cl-defmethod edraw-initialize ((picker edraw-color-picker)
-                                &optional options)
-  (let* ((initial-color (edraw-color-picker-ensure-color
+(cl-defmethod initialize-instance :after ((picker edraw-color-picker)
+                                          &rest _args)
+  (let* ((options (oref picker options))
+         (initial-color (edraw-color-picker-ensure-color
                          (oref picker initial-color)
                          options))
          (model (edraw-color-picker-model-create initial-color))
@@ -1060,7 +1060,6 @@
     (oset picker image-scale image-scale)
     (oset picker image-map
           (edraw-color-picker-areas-create-image-map areas image-scale))
-    (oset picker options options)
 
     ;; Setup event routing
     (when-let ((button (edraw-color-picker-areas-find-by-name areas "ok")))

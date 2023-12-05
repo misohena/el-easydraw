@@ -3141,3 +3141,32 @@ editor起動時にその特殊なプリセットを検出してdefault-shape-pro
 - [X] 「Save as Initial Default」の後にshape名を表示する。場合によっては非表示にする？→「Save as Initial %s Shape Default」にした。
 - × 「Save as Default %s」「Save as %s Tool Default」を追加する。日本語訳は「デフォルトの%sとして保存」「%sツールのデフォルトとして保存」。ui-stateではなくeditor毎に持つデータなので、本来はここには入れるべきでは無い。やはりツール設定メニューが必要？
 - [X] 「Save as Initial %s Tool Default」を追加する。日本語訳は「編集開始時の%sツールのデフォルトとして保存」(「Save as Initial %s Default」は「編集開始時の%sのデフォルトとして保存」)
+** DONE edraw-initializeを廃止してinitialize-instanceを使う
+CLOSED: [2023-12-05 Tue 00:04]
+CLOSでオブジェクト構築時の初期化をカスタマイズするには、initialize-instanceをオーバーロードすべきらしい。
+
+[[https://www.reddit.com/r/emacs/comments/7fnfju/how_to_customize_constructors_for_eieio_objects/][How to customize constructors for EIEIO objects? : emacs]]
+
+#+begin_src elisp
+(require 'eieio)
+
+(defclass thblt/once-and-twice ()
+  ((once
+    :initarg :once
+    :initform :once)
+   (twice)))
+
+(cl-defmethod initialize-instance :after ((obj thblt/once-and-twice) &rest _)
+          (oset obj twice (* 2 (oref obj once))))
+
+(thblt/once-and-twice :once 3)
+#+end_src
+
+~(edraw-initialize editor)~ と毎回書かせるのは良くないので、この方法を使うべき。
+
+- [X] (edraw-initialize (EDITOR edraw-editor)) 互換性維持のため空の実装を残す。
+- [X] (edraw-initialize (PICKER edraw-color-picker) &optional OPTIONS) 削除する。
+- +[ ] (edraw-initialize (DISPLAY edraw-color-picker-display-frame) PICKER)+
+- +[ ] (edraw-initialize (DISPLAY edraw-color-picker-display-overlay) PICKER)+
+
+edraw-color-picker-display-*についてはpickerとの関連付けを含むのでそのままにする。

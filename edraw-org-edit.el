@@ -68,17 +68,15 @@ its own."
 
       ;; Create editor
       (let* ((editor-overlay (make-overlay link-begin link-end nil t nil))
-             (editor (edraw-editor
-                      :overlay editor-overlay
-                      :svg (edraw-org-link-load-svg link-props t)
-                      :document-writer (edraw-org-link-make-writer
-                                        editor-overlay
-                                        edraw-org-link-compress-data-p
-                                        edraw-org-link-compress-file-p)
-                      :document-writer-accepts-top-level-comments-p t
-                      :menu-filter #'edraw-org-link-editor-menu-filter
-                      )))
-        (edraw-initialize editor)
+             (_editor (edraw-editor
+                       :overlay editor-overlay
+                       :svg (edraw-org-link-load-svg link-props t)
+                       :document-writer (edraw-org-link-make-writer
+                                         editor-overlay
+                                         edraw-org-link-compress-data-p
+                                         edraw-org-link-compress-file-p)
+                       :document-writer-accepts-top-level-comments-p t
+                       :menu-filter #'edraw-org-link-editor-menu-filter)))
         ;;(overlay-put editor-overlay 'evaporate t)
         (overlay-put editor-overlay 'modification-hooks
                      (list (lambda (_ov _after-p _beg _end &optional _len)

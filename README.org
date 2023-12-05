@@ -205,8 +205,6 @@ The following code is an example of inserting an editor into a buffer from Emacs
                                     items
                                     `(((edraw-msg "Close") (lambda (editor) (edraw-close editor))))))
                                   (_ items))))))
-    ;; Initialize editor
-    (edraw-initialize editor)
     ;; Add key binding
     (overlay-put (edraw-overlay editor)
                  'keymap
