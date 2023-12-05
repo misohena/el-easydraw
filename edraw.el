@@ -3054,7 +3054,7 @@ For use with `edraw-editor-with-temp-undo-list',
                                               ignore-selected-tool-p)
   (when-let ((alist-head (edraw-get-default-shape-properties-container
                           editor shape-type t ignore-selected-tool-p))
-             (shape-class (edraw-shape-class-from-type shape-type)))
+             (shape-class (edraw-shape-type-to-class shape-type)))
     (edraw-property-proxy-shape
      :alist-head alist-head
      :editor editor
@@ -3080,7 +3080,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (when-let ((alist-head (edraw-get-default-shape-properties-container-for-tool
                           editor tool-class t))
              (shape-type (edraw-shape-type-to-create tool-class))
-             (shape-class (edraw-shape-class-from-type shape-type)))
+             (shape-class (edraw-shape-type-to-class shape-type)))
     (edraw-property-proxy-shape
      :alist-head alist-head
      :editor editor
@@ -4253,7 +4253,7 @@ position where the EVENT occurred."
           (shift-p (memq 'shift (event-modifiers down-event))))
       ;; Preview
       (edraw-editor-with-silent-modifications
-        (let* ((shape (edraw-create-shape ;;notify modification
+        (let* ((shape (edraw-create-shape-default ;;notify modification
                        editor
                        (edraw-svg-body editor)
                        'rect
@@ -4278,7 +4278,7 @@ position where the EVENT occurred."
       ;; Create
       (when (and move-xy
                  (not (edraw-xy-empty-aabb-p down-xy move-xy)))
-        (let ((shape (edraw-create-shape ;;notify modification
+        (let ((shape (edraw-create-shape-default ;;notify modification
                       editor
                       (edraw-svg-body editor)
                       'rect
@@ -4327,7 +4327,7 @@ position where the EVENT occurred."
           (shift-p (memq 'shift (event-modifiers down-event))))
       ;; Preview
       (edraw-editor-with-silent-modifications
-        (let* ((shape (edraw-create-shape ;;notify modification
+        (let* ((shape (edraw-create-shape-default ;;notify modification
                        editor
                        (edraw-svg-body editor)
                        'ellipse
@@ -4350,7 +4350,7 @@ position where the EVENT occurred."
       ;; Create
       (when (and move-xy
                  (not (edraw-xy-empty-aabb-p down-xy move-xy)))
-        (let ((shape (edraw-create-shape ;;notify modification
+        (let ((shape (edraw-create-shape-default ;;notify modification
                       editor
                       (edraw-svg-body editor)
                       'ellipse
@@ -4437,7 +4437,7 @@ position where the EVENT occurred."
       (unless (string-empty-p text)
         (edraw-deselect-all-shapes editor)
         (edraw-make-undo-group editor 'text-tool-create
-          (let ((shape (edraw-create-shape ;;notify modification
+          (let ((shape (edraw-create-shape-default ;;notify modification
                         editor
                         (edraw-svg-body editor)
                         'text
@@ -4527,7 +4527,7 @@ position where the EVENT occurred."
                            (edraw-xy-add (edraw-rect-xy1 rect) image-size))))
 
       ;; Create
-      (let ((shape (edraw-create-shape ;;notify modification
+      (let ((shape (edraw-create-shape-default ;;notify modification
                     editor
                     (edraw-svg-body editor)
                     'image
@@ -4779,7 +4779,7 @@ S-Click/Drag: 45 degree increments")))
               (progn
                 (edraw-deselect-all-shapes editor)
                 (setq editing-path
-                      (edraw-create-shape ;;notify modification
+                      (edraw-create-shape-default ;;notify modification
                        editor (edraw-svg-body editor) 'path))
                 ;; Select new shape
                 (edraw-select-shape editor editing-path)))
@@ -4823,7 +4823,7 @@ S-Click/Drag: 45 degree increments")))
         (when (null editing-path)
           (edraw-deselect-all-shapes editor)
           (setq editing-path
-                (edraw-create-shape ;;notify modification
+                (edraw-create-shape-default ;;notify modification
                  editor (edraw-svg-body editor) 'path))
           ;; Select new shape
           (edraw-select-shape editor editing-path))
@@ -4924,7 +4924,7 @@ S-Click/Drag: 45 degree increments")))
       ;; Preview
       (edraw-editor-with-silent-modifications
         ;; Add a new path shape
-        (let ((preview-path (edraw-create-shape
+        (let ((preview-path (edraw-create-shape-default
                              editor (edraw-svg-body editor) 'path)))
           (unwind-protect
               (progn
@@ -4957,7 +4957,7 @@ S-Click/Drag: 45 degree increments")))
                  (edraw-editor-tool-freehand--make-smooth points))))
           (when path-data
             ;; Add a new path shape
-            (edraw-create-shape ;;modify
+            (edraw-create-shape-default ;;modify
              editor (edraw-svg-body editor) 'path
              'd path-data)))))))
 
@@ -5311,34 +5311,35 @@ S-Click/Drag: 45 degree increments")))
 
 (defvar edraw-shape-types
   '(;; key:type-id(tag or classname)
+    ;; @todo Use static method?
     (rect
      (:class . edraw-shape-rect)
      (:from-element . edraw-shape-rect-create)
-     (:create-element . dom-node))
+     (:create-element . edraw-shape--create-element))
     (ellipse
      (:class . edraw-shape-ellipse)
      (:from-element . edraw-shape-ellipse-create)
-     (:create-element . dom-node))
+     (:create-element . edraw-shape--create-element))
     (circle
      (:class . edraw-shape-circle)
      (:from-element . edraw-shape-circle-create)
-     (:create-element . dom-node))
+     (:create-element . edraw-shape--create-element))
     (text
      (:class . edraw-shape-text)
      (:from-element . edraw-shape-text-create)
-     (:create-element . dom-node))
+     (:create-element . edraw-shape--create-element))
     (image
      (:class . edraw-shape-image)
      (:from-element . edraw-shape-image-create)
-     (:create-element . dom-node))
+     (:create-element . edraw-shape--create-element))
     (path
      (:class . edraw-shape-path)
      (:from-element . edraw-shape-path-create)
-     (:create-element . dom-node))
+     (:create-element . edraw-shape--create-element))
     (g
      (:class . edraw-shape-group)
      (:from-element . edraw-shape-group-create)
-     (:create-element . dom-node)))
+     (:create-element . edraw-shape--create-element)))
   "Alist of shape object types.")
 
 (defun edraw-shape-type-ids ()
@@ -5355,18 +5356,18 @@ Only shape types registered in `edraw-shape-types' are valid."
              (assq shape-type edraw-shape-types))
     t))
 
-(defun edraw-shape-class-from-type (shape-type)
+(defun edraw-shape-type-to-class (shape-type)
   "Return shape class name symbol from shape SHAPE-TYPE symbol."
   (when (symbolp shape-type)
     (alist-get :class (alist-get shape-type edraw-shape-types))))
 
-(defun edraw-shape-element-from-type (shape-type)
+(defun edraw-shape-type-to-element (shape-type props-alist defrefs)
   "Create a new SVG element of SHAPE-TYPE."
   (let ((create-element
          (alist-get :create-element (alist-get shape-type edraw-shape-types))))
     (unless create-element
       (error "Unsupported shape type %s" shape-type))
-    (funcall create-element shape-type)))
+    (funcall create-element shape-type props-alist defrefs)))
 
 (defun edraw-shape-type-from-element (element)
   "Return a symbol that represents the shape type of the SVG ELEMENT."
@@ -5380,16 +5381,19 @@ Only shape types registered in `edraw-shape-types' are valid."
       ;; For safety, only return if the shape-type is a registered shape type.
       shape-type)))
 
-(defun edraw-shape-from-element-create (element editor)
-  (when-let* ((type (edraw-shape-type-from-element element))
+(defun edraw-shape-type-create-shape-from-element (element editor)
+  "Create a new shape object in EDITOR from ELEMENT."
+  (when-let* ((shape-type (edraw-shape-type-from-element element))
               (constructor (alist-get :from-element
-                                      (alist-get type edraw-shape-types)))
+                                      (alist-get shape-type edraw-shape-types)))
               (shape (funcall constructor element editor)))
     ;; Attach the created SHAPE object to the ELEMENT.
     (dom-set-attribute element :-edraw-shape shape)
     shape))
 
+
 (defun edraw-shape-from-element-no-create (element)
+  "Return the shape object already attached to the ELEMENT."
   (when (edraw-dom-element-p element)
     (dom-attr element :-edraw-shape)))
 
@@ -5402,7 +5406,7 @@ Only shape types registered in `edraw-shape-types' are valid."
      ;; Already created
      (edraw-shape-from-element-no-create element)
      ;; Create new
-     (edraw-shape-from-element-create element editor)
+     (edraw-shape-type-create-shape-from-element element editor)
      ;; Error
      (if noerror-node-type
          nil
@@ -5418,42 +5422,83 @@ Only shape types registered in `edraw-shape-types' are valid."
                    (lambda (a b) (eq (car a) (car b))))
    props-alist))
 
-(defun edraw-create-shape (editor parent type &rest props)
+(defun edraw-create-shape-default (editor parent shape-type &rest props)
+  "Create a new shape.
+
+The shape type is specified by SHAPE-TYPE, and its initial
+properties are specified by the property list PROPS. Properties
+that are not specified will use the default value selected by the
+EDITOR.
+
+The newly created shape will be the last child of PARENT.
+
+This function may add undo data and predefined elements (such as
+markers) to the EDITOR."
   (edraw-create-shape-without-default
    editor parent nil
-   type
+   shape-type
    ;; Complete property values with default values
    (edraw-merge-properties
     ;; NOTE: Default properties depend on the selected tool.
-    ;; Therefore, edraw-create-shape should not be used outside of
+    ;; Therefore, edraw-create-shape-default should not be used outside of
     ;; editor tools.
-    (edraw-get-default-shape-properties editor type)
+    (edraw-get-default-shape-properties editor shape-type)
     ;; Convert plist to alist
     (cl-loop for (prop-name value) on props by #'cddr
              collect (cons prop-name value)))))
 
-(defun edraw-create-shape-without-default (editor parent index type props-alist)
+(defun edraw-create-shape-without-default (editor
+                                           parent index shape-type props-alist)
+  "Create a new shape.
+
+The shape type is specified by SHAPE-TYPE and its initial
+properties are specified by PROPS-ALIST. Properties that are not
+specified use values determined by the shape type and are not
+affected by the EDITOR state.
+
+The newly created shape becomes the INDEXth child of PARENT. If
+INDEX is nil, it will be the last child.
+
+This function may add undo data and predefined elements (such as
+markers) to the EDITOR."
+  ;; When creating a new shape object, first create a DOM element, then
+  ;; create a shape object for that element. This is the same behavior
+  ;; when loading an SVG and is easier to maintain consistency.
   (let* ((shape (edraw-shape-from-element
-                 (edraw-create-shape-svg-element (oref editor defrefs)
-                                                 parent index type props-alist)
+                 (edraw-create-shape-svg-element shape-type props-alist
+                                                 (oref editor defrefs)
+                                                 parent index)
                  editor)))
     (edraw-make-undo-group editor 'shape-create
       (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
       (edraw-on-shape-changed shape 'shape-create))
     shape))
 
-(defun edraw-create-shape-svg-element (defrefs parent index type props-alist)
-  (let ((element (edraw-shape-element-from-type type)))
-    ;; Set properties
-    (dolist (prop props-alist)
-      (let ((prop-name (car prop))
-            (value (cdr prop)))
-        (edraw-svg-element-set-property element prop-name value defrefs)))
-    ;; Add element to parent
+(defun edraw-create-shape-svg-element (shape-type props-alist defrefs
+                                                  parent index)
+  "Create an SVG element of the shape specified by SHAPE-TYPE."
+  ;; First, create an SVG element determined for each SHAPE-TYPE. In
+  ;; the future, we may construct more complex elements (for example,
+  ;; a g element with several child elements).
+  (let ((element (edraw-shape-type-to-element shape-type props-alist defrefs)))
+    ;; Then add the element to the PARENT.
     (when parent
       (if index
           (edraw-dom-insert-nth parent element index)
         (dom-append-child parent element)))
+    element))
+
+(defun edraw-shape--create-element (tag props-alist defrefs)
+  "Create an DOM element.
+
+Unlike `dom-node' etc., attributes are set by the
+`edraw-svg-element-set-property' function."
+  (let ((element (dom-node tag)))
+    ;; Initialize attributes in the manner of the edraw-dom-svg.el library.
+    (dolist (prop props-alist)
+      (let ((prop-name (car prop))
+            (value (cdr prop)))
+        (edraw-svg-element-set-property element prop-name value defrefs)))
     element))
 
 ;;;;; Selection Menu
@@ -5600,6 +5645,11 @@ Return nil if undefined.")
      (list
       (cons :type (edraw-shape-type-from-element element))
       (cons :properties
+            ;;@todo This becomes a problem when adding complex
+            ;;shape-types. Do not use edraw-svg-element-get-property
+            ;;directly. You need a way to get the class from
+            ;;shape-type and use a static method to get the
+            ;;properties.
             (mapcar
              (lambda (prop-info)
                (let* ((prop-name (plist-get prop-info :name))
@@ -5670,18 +5720,19 @@ Return nil if undefined.")
     nil)))
 
 (defun edraw-shape-descriptor-to-svg-element (shape-descriptor)
-  (let* ((type (alist-get :type shape-descriptor))
+  (let* ((shape-type (alist-get :type shape-descriptor))
          (props (alist-get :properties shape-descriptor))
          (children-descriptor (alist-get :children shape-descriptor))
          ;;@todo defrefs??? What happens when use marker attributes?
          (defrefs (edraw-svg-defrefs (dom-node 'defs))) ;;Dummy defrefs
          (element
           (edraw-create-shape-svg-element
+           shape-type
+           props
            defrefs
            nil ;;parent
            nil ;;index
-           type ;;type
-           props)))
+           )))
     (when children-descriptor
       (dolist (child-descriptor children-descriptor)
         (dom-append-child
@@ -8521,7 +8572,7 @@ possible. Because undoing invalidates all point objects."
   (with-slots (editor shapes) obj
     (when shapes ;; Requires one or more shapes
       (edraw-make-undo-group editor 'shapes-group
-        (let ((group (edraw-create-shape ;;@todo Use -without-default?
+        (let ((group (edraw-create-shape-default ;;@todo Use -without-default?
                       editor
                       ;; @todo Determined based on parent of shapes?
                       (edraw-svg-body editor)

@@ -490,6 +490,16 @@ path-cmdはともかく、path-pointは前後のアンカーやハンドルの�
 rectやellipse、textにもそういった問題はある。
 検出してshapeを消すべき。
 
+** TODO 新しいshape-typeを追加したときの問題を修正する
+- edraw-shape-descriptor-from-svg-element-without-editor ::
+  直接edraw-svg-element-get-propertyを使うべきでは無い。
+  [[*gタグのshape descriptor変換についての問題][gタグのshape descriptor変換についての問題]]も関係あるかも。
+
+その他にも何かあるかもしれない。直接DOMを操作しているところは怪しい。
+
+** TODO edraw-shape-typesの:from-element等は静的メソッドにすべき?
+:from-elementや:create-elementに指定する関数はクラスに対する静的メソッドであるべきだろうか。
+
 ** TODO gタグのshape descriptor変換についての問題
 edraw-shape-descriptor-from-svg-element-without-editor関数にgタグに特化した処理がある。子孫の要素を再帰的にshape descriptorへ変換するためのもの。ここはこれでいいのだろうか。
 
