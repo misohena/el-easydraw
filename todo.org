@@ -366,6 +366,9 @@ mouse.el内のmouse-drag-lineではset-transient-mapを使っている。一時�
 
 ** TODO 変形/接着されている図形のGUI変形で枠線が図とずれる
 接着されている図形の変形を禁止しても良いが、枠線を接着された位置に合わせても良い。
+** TODO 変形/スタイルシートを考慮する
+style属性からでも変形できるので、様々な場面でそれを考慮すべき。
+そもそもstyle属性のparserが必要。
 
 ** TODO 座標を表示する機能を追加する
 何らかの方法で座標が知りたい場合がある。
@@ -399,6 +402,24 @@ Emacsの window-text-pixel-size で比率を求めてはどうか。
     (buffer-text-pixel-size nil nil t)))
 #+end_src
 
+** TODO テキスト/テキスト関連プロパティを出来るだけ考慮する
+
+- [[https://triple-underscore.github.io/SVG11/text.html#TextLayout][テキスト – SVG 1.1 （第２版）]]
+- [[https://www.w3.org/TR/SVG2/text.html][Text — SVG 2]]
+
+- rotate
+- inline-size
+- shape-inside
+- shape-subtract
+- shape-padding
+- shape-margin
+- line-height
+- dominant-baseline
+- alignment-baseline
+- baseline-shift
+etc
+
+** TODO テキスト/textPathに対応する
 ** TODO パス編集/アンカーポイントの複数選択・移動機能を追加する
 図形を調整するときに無いと不便。
 
@@ -3170,3 +3191,11 @@ CLOSでオブジェクト構築時の初期化をカスタマイズするには�
 - +[ ] (edraw-initialize (DISPLAY edraw-color-picker-display-overlay) PICKER)+
 
 edraw-color-picker-display-*についてはpickerとの関連付けを含むのでそのままにする。
+** DONE default-marker-propertiesもdefault-shape-propertiesと同じように扱う
+CLOSED: [2023-12-05 Tue 14:23]
+
+default-shape-propertiesやdefault-shape-properties-for-each-toolは、edraw-editorオブジェクト内のslotにコピーしている。
+
+マーカーはグローバル変数edraw-default-marker-propertiesを直接操作しているので良くない。default-shape-propertiesと同じように扱うべき。
+
+ついでに、プリセットで初期デフォルトとして保存する機能に対応すべき。

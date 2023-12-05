@@ -415,12 +415,16 @@ line-prefix and wrap-prefix are used in org-indent.")
 used by the edraw-editor class.")
    (default-shape-properties
     :initform (if edraw-editor-share-default-shape-properties
-                  edraw-default-shape-properties ;;@todo observe changes made by other editors
+                  ;;@todo observe changes made by other editors
+                  edraw-default-shape-properties
                 (copy-tree edraw-default-shape-properties)))
    (default-shape-properties-for-each-tool
     :initform (if edraw-editor-share-default-shape-properties
-                  edraw-default-shape-properties-for-each-tool ;;@todo observe changes made by other editors
+                  ;;@todo observe changes made by other editors
+                  edraw-default-shape-properties-for-each-tool
                 (copy-tree edraw-default-shape-properties-for-each-tool)))
+   (default-marker-properties
+    :initform (copy-tree edraw-default-marker-properties))
    (tool :initform nil :type (or null edraw-editor-tool))
    (selected-shapes :initform nil :type list)
    (selected-anchor :initform nil :type (or null edraw-shape-point))
@@ -452,6 +456,7 @@ edraw-editor initialization is now called automatically."
   (edraw-define-hook-type editor 'before-image-update)
 
   (edraw-initialize-default-shape-properties editor)
+  (edraw-initialize-default-marker-properties editor)
 
   (with-slots (overlay) editor
     (when edraw-editor-disable-line-prefix ;;for Emacs's line-prefix bug
@@ -630,7 +635,7 @@ edraw-editor initialization is now called automatically."
    `((image-scale . ,edraw-editor-image-scaling-factor)
      (recent-colors . ,(edraw-editor-recent-colors
                         :ui-state (oref editor ui-state)))
-     (marker-defaults . ,edraw-default-marker-properties)
+     (marker-defaults . ,(oref editor default-marker-properties))
      (ui-state . ,(oref editor ui-state))
      )))
 
@@ -2933,11 +2938,7 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;; Editor - Default Shape Properties
 
 (cl-defmethod edraw-initialize-default-shape-properties ((editor edraw-editor))
-  (with-slots (default-shape-properties
-               default-shape-properties-for-each-tool
-               ui-state)
-      editor
-
+  (with-slots (ui-state) editor
     ;;@todo Make it possible to disable reading from preset. Because it involves file access.
     (when ui-state
       ;; For each preset
@@ -2957,6 +2958,21 @@ For use with `edraw-editor-with-temp-undo-list',
                  (when-let ((object (edraw-get-default-shape-object-for-tool
                                      editor tool-class)))
                    (edraw-preset-apply object data 'not-required)))))))))))
+
+(cl-defmethod edraw-initialize-default-marker-properties ((editor edraw-editor))
+  (with-slots (ui-state) editor
+    ;;@todo Make it possible to disable reading from preset. Because it involves file access.
+    (when ui-state
+      ;; For each preset
+      (pcase-dolist (`(,name . ,data) (edraw-preset-enum ui-state 'marker))
+        ;; For each special preset
+        (when (edraw-preset-name-special-p name)
+          (pcase (edraw-preset-name-special-category name)
+            ('initial-default-marker
+             (when-let* ((marker-type (edraw-preset-name-special-subtype name))
+                         (object (edraw-get-default-marker-object editor
+                                                                  marker-type)))
+               (edraw-preset-apply object data 'not-required)))))))))
 
 (cl-defmethod edraw-get-default-shape-properties-container
   ((editor edraw-editor) shape-type &optional create-p ignore-selected-tool-p)
@@ -3117,12 +3133,13 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;;;;; Editor - Default Marker Properties
 
-(cl-defmethod edraw-get-default-marker-properties ((_editor edraw-editor)
+(cl-defmethod edraw-get-default-marker-properties ((editor edraw-editor)
                                                    marker-type)
   ;; Related: edraw-property-editor-create-marker-widget
   (when (stringp marker-type)
     (edraw-svg-marker marker-type
-                      (alist-get marker-type edraw-default-marker-properties
+                      (alist-get marker-type
+                                 (oref editor default-marker-properties)
                                  nil nil #'equal))))
 
 (defun edraw-editor-edit-default-marker-arrow-props (&optional editor)
@@ -3137,21 +3154,29 @@ For use with `edraw-editor-with-temp-undo-list',
   (let ((editor (or editor (edraw-current-editor))))
     (edraw-edit-default-marker-properties editor marker-type)))
 
+(cl-defmethod edraw-get-default-marker-object ((editor edraw-editor)
+                                               marker-type)
+  (when (symbolp marker-type)
+    (setq marker-type (symbol-name marker-type)))
+  (when (stringp marker-type)
+    (with-slots (default-marker-properties) editor
+      (let ((alist-head (assoc marker-type default-marker-properties)))
+        (unless alist-head
+          (push (list marker-type) default-marker-properties)
+          (setq alist-head (car default-marker-properties)))
+        (edraw-alist-properties-holder
+         :alist-head alist-head
+         :editor editor
+         :name (format "default %s marker" marker-type)
+         :prop-info-list (edraw-svg-marker-prop-info-list marker-type)
+         :preset-type 'marker
+         :preset-subtype (intern marker-type))))))
+
 (cl-defmethod edraw-edit-default-marker-properties ((editor edraw-editor)
                                                     marker-type)
-  (when (stringp marker-type)
-    (let ((alist-head (assoc marker-type edraw-default-marker-properties)))
-      (unless alist-head
-        (push (list marker-type) edraw-default-marker-properties)
-        (setq alist-head (car edraw-default-marker-properties)))
-      (edraw-editor-open-property-editor
-       editor
-       (edraw-alist-properties-holder
-        :alist-head alist-head
-        :editor editor
-        :name (format "default %s marker" marker-type)
-        :prop-info-list
-        (edraw-svg-marker-prop-info-list marker-type))))))
+  (when-let ((marker-object (edraw-get-default-marker-object editor
+                                                             marker-type)))
+    (edraw-editor-open-property-editor editor marker-object)))
 
 
 ;;;;; Editor - Transform Method

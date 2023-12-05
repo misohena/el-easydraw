@@ -224,6 +224,10 @@ data, the following functions may be available:
                    ;; Capitalized and Localized name
                    (edraw-name tool-class)
                  (edraw-msg (capitalize (symbol-name tool-class)))))))
+    ('initial-default-marker
+     (format (edraw-msg "(Initial %s Marker Default)")
+             ;; marker-type to capitalized string
+             (edraw-msg (capitalize (symbol-name (edraw-preset-name-special-subtype name))))))
     ;; Unknown
     (category
      (format "%s" category))))
@@ -1614,16 +1618,24 @@ once. widget-value-set updates the same property four times."
               (target (oref pedit target))
               (preset-type (edraw-preset-type target))
               (preset-subtype (edraw-preset-subtype target)))
-    (when (and (eq preset-type 'shape) preset-subtype)
-      (append
-       `((,(format (edraw-msg "Save as Initial %s Shape Default")
-                   (edraw-msg (capitalize (symbol-name preset-subtype))))
-          edraw-property-editor--save-preset-as-initial-shape-default))
-       (when-let ((preset-tool-type (edraw-preset-tool-type target)))
-         `((,(format (edraw-msg "Save as Initial %s Default")
-                     ;; Capitalized and Localized name
-                     (edraw-name preset-tool-type))
-            edraw-property-editor--save-preset-as-initial-tool-default)))))))
+    (append
+     ;; Shape
+     (when (and (eq preset-type 'shape) preset-subtype)
+       (append
+        `((,(format (edraw-msg "Save as Initial %s Shape Default")
+                    (edraw-msg (capitalize (symbol-name preset-subtype))))
+           edraw-property-editor--save-preset-as-initial-shape-default))
+        (when-let ((preset-tool-type (edraw-preset-tool-type target)))
+          `((,(format (edraw-msg "Save as Initial %s Default")
+                      ;; Capitalized and Localized name
+                      (edraw-name preset-tool-type))
+             edraw-property-editor--save-preset-as-initial-tool-default)))))
+     ;; Marker
+     (when (and (eq preset-type 'marker) preset-subtype)
+       (append
+        `((,(format (edraw-msg "Save as Initial %s Marker Default")
+                    (edraw-msg (capitalize (symbol-name preset-subtype))))
+           edraw-property-editor--save-preset-as-initial-marker-default)))))))
 
 (defun edraw-property-editor--save-preset-as-initial-shape-default (&rest _ignore)
   "Called when the `Save as initial %s shape default' button in the Preset
@@ -1666,6 +1678,28 @@ menu is pressed."
                   (preset-name
                    (edraw-preset-name-special
                     'initial-default-shape-for-tool preset-tool-type)))
+             (edraw-preset-save ui-state
+                                preset-type preset-name preset-data))))))))
+
+(defun edraw-property-editor--save-preset-as-initial-marker-default (&rest _ignore)
+  "Called when the `Save as initial %s marker default' button in the Preset
+menu is pressed."
+  (interactive)
+
+  (edraw-property-editor--with-event-buffer
+   (with-slots (target ui-state) edraw-property-editor--pedit
+     (when target
+       (let ((preset-type (edraw-preset-type target))
+             (preset-subtype (edraw-preset-subtype target))
+             (preset-data (edraw-preset-data target)))
+
+         (when (and (eq preset-type 'marker)
+                    preset-subtype
+                    preset-data)
+           (let* (;; Generate a special preset name
+                  (preset-name
+                   (edraw-preset-name-special
+                    'initial-default-marker preset-subtype)))
              (edraw-preset-save ui-state
                                 preset-type preset-name preset-data))))))))
 
