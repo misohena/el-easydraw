@@ -370,6 +370,7 @@ line-prefix and wrap-prefix are used in org-indent.")
 
 (defclass edraw-editor ()
   ((overlay :initarg :overlay :initform nil :reader edraw-overlay)
+   (keymap :initarg :keymap :initform (identity edraw-editor-map))
    (svg :initarg :svg :initform nil)
    (svg-document-size)
    (svg-document-view-box)
@@ -458,12 +459,12 @@ edraw-editor initialization is now called automatically."
   (edraw-initialize-default-shape-properties editor)
   (edraw-initialize-default-marker-properties editor)
 
-  (with-slots (overlay) editor
+  (with-slots (overlay keymap) editor
     (when edraw-editor-disable-line-prefix ;;for Emacs's line-prefix bug
       (overlay-put overlay 'line-prefix "")
       (overlay-put overlay 'wrap-prefix ""))
     (overlay-put overlay 'edraw-editor editor)
-    (overlay-put overlay 'keymap edraw-editor-map)
+    (overlay-put overlay 'keymap keymap)
     ;;(overlay-put overlay 'evaporate t)
     (overlay-put overlay 'pointer 'arrow)
     (overlay-put overlay 'help-echo
@@ -3428,13 +3429,12 @@ position where the EVENT occurred."
     edraw-editor-tool-image
     edraw-editor-tool-custom-shape))
 
-(defvar edraw-editor-tool-map nil)
-
 (defconst edraw-editor-toolbar-button-w 30)
 (defconst edraw-editor-toolbar-button-h 24)
 
 (cl-defmethod edraw-update-toolbar ((editor edraw-editor))
-  (with-slots (overlay image-scale (current-tool tool)) editor
+  (with-slots (overlay keymap image-scale (current-tool tool))
+      editor
     (let* (;; Put components
            (icon-w edraw-editor-toolbar-button-w)
            (icon-h edraw-editor-toolbar-button-h)
@@ -3456,7 +3456,8 @@ position where the EVENT occurred."
                      'edraw-editor-main-menu
                      (edraw-editor-make-toolbar-help-echo
                       (edraw-msg "Main Menu")
-                      'edraw-editor-main-menu)
+                      'edraw-editor-main-menu
+                      keymap)
                      nil)
                     image-map)
               (cl-incf y icon-h)
@@ -3468,7 +3469,8 @@ position where the EVENT occurred."
                        x y
                        icon-w icon-h image-scale
                        tool-class
-                       current-tool-class-name)
+                       current-tool-class-name
+                       keymap)
                       image-map)
                 (cl-incf y icon-h)
                 (cl-incf y spacing))
@@ -3499,7 +3501,8 @@ position where the EVENT occurred."
                                 (edraw-msg (capitalize
                                             (symbol-name shape-type)))
                                 (edraw-msg "Defaults"))
-                        'edraw-editor-edit-tool-properties)
+                        'edraw-editor-edit-tool-properties
+                        keymap)
                        nil)
                       image-map)
                 (cl-incf y icon-h))
@@ -3529,20 +3532,19 @@ position where the EVENT occurred."
                                       :scale 1.0 ;;Cancel image-scale effect
                                       :map image-map))
            ;; Create keymap
-           (keymap
-            (if edraw-editor-tool-map
-                edraw-editor-tool-map
-              (let ((km (make-sparse-keymap)))
-                (dolist (hot-spot image-map)
-                  (let ((key-id (nth 1 hot-spot)))
-                    (define-key km (vector key-id 'mouse-1) key-id)))
-                km))))
+           ;;@todo cache?
+           (toolbar-keymap
+            (let ((km (make-sparse-keymap)))
+              (dolist (hot-spot image-map)
+                (let ((key-id (nth 1 hot-spot)))
+                  (define-key km (vector key-id 'mouse-1) key-id)))
+              km)))
       ;; Put IMAGE to the left side of the editor overlay
       (overlay-put overlay
                    'before-string (propertize "*"
                                               'display image
                                               'face 'default
-                                              'keymap keymap
+                                              'keymap toolbar-keymap
                                               'pointer 'arrow)))))
 
 (defun edraw-editor-make-toolbar-button
@@ -3566,15 +3568,8 @@ position where the EVENT occurred."
           (list 'pointer 'hand
                 'help-echo help-echo))))
 
-(defun edraw-editor-make-toolbar-help-echo (title command)
-  (let* (;; single key only
-         (key-event (car
-                     (seq-find (lambda (item) (eq (cdr item) command))
-                               (cdr edraw-editor-map))))
-         (key-str (cond
-                   ((null key-event) nil)
-                   ((symbolp key-event) (symbol-name key-event))
-                   ((integerp key-event) (char-to-string key-event)))))
+(defun edraw-editor-make-toolbar-help-echo (title command keymap)
+  (let* ((key-str (key-description (where-is-internal command keymap t))))
     (concat
      title ;;localized msg
      (if key-str (concat " (" key-str ")")))))
@@ -3582,12 +3577,12 @@ position where the EVENT occurred."
 
 
 (defun edraw-editor-make-tool-button
-    (parent x y w h image-scale tool-class selected-class-name)
+    (parent x y w h image-scale tool-class selected-class-name keymap)
   (edraw-editor-make-toolbar-button
    parent x y w h image-scale
    (edraw-icon tool-class)
    (edraw-editor-make-tool-key-id tool-class)
-   (edraw-editor-make-tool-help-echo tool-class)
+   (edraw-editor-make-tool-help-echo tool-class keymap)
    (eq tool-class selected-class-name)))
 
 (defun edraw-editor-make-tool-key-id (tool-class)
@@ -3596,10 +3591,11 @@ position where the EVENT occurred."
 (defun edraw-editor-make-tool-click-function (tool-class)
   (edraw-editor-tool-select-function-name tool-class))
 
-(defun edraw-editor-make-tool-help-echo (tool-class)
+(defun edraw-editor-make-tool-help-echo (tool-class keymap)
   (edraw-editor-make-toolbar-help-echo
    (edraw-name tool-class)
-   (edraw-editor-tool-select-function-name tool-class)))
+   (edraw-editor-tool-select-function-name tool-class)
+   keymap))
 
 (defun edraw-editor-make-tool (tool-class)
   (funcall tool-class))
@@ -3658,7 +3654,7 @@ position where the EVENT occurred."
                                                parent x y
                                                shape-type
                                                prop-name)
-  (with-slots (image-scale) editor
+  (with-slots (keymap image-scale) editor
     (let* ((rect (if (eq prop-name 'stroke)
                      '((0 . 6) . (30 . 18))
                    '((3 . 3) . (27 . 21))))
@@ -3718,7 +3714,8 @@ position where the EVENT occurred."
                       ('fill (edraw-msg "Fill"))
                       ('stroke (edraw-msg "Stroke"))
                       (_ (edraw-msg (capitalize (symbol-name prop-name))))))
-            key-id)
+            key-id
+            keymap)
            nil))))))
 
 (cl-defmethod edraw-edit-selected-tool-default-shape-property
@@ -9581,13 +9578,8 @@ This function is for registering with the `kill-buffer-query-functions' hook."
                     :document-writer writer
                     :document-writer-accepts-top-level-comments-p
                     accepts-top-level-comments-p
-                    :menu-filter #'edraw-edit-svg--menu-filter)))
-
-      ;; Add key bindings
-      (overlay-put editor-overlay 'keymap
-                   (edraw-edit-svg--make-keymap
-                    (or (overlay-get editor-overlay 'keymap)
-                        edraw-editor-map)))
+                    :menu-filter #'edraw-edit-svg--menu-filter
+                    :keymap (edraw-edit-svg--make-keymap edraw-editor-map))))
 
       ;; Set info to the editor object
       (edraw-set-extra-prop editor 'edraw-edit-svg--original-buffer

@@ -204,15 +204,17 @@ The following code is an example of inserting an editor into a buffer from Emacs
                                    (append
                                     items
                                     `(((edraw-msg "Close") (lambda (editor) (edraw-close editor))))))
-                                  (_ items))))))
-    ;; Add key binding
-    (overlay-put (edraw-overlay editor)
-                 'keymap
-                 (let ((original-keymap (overlay-get (edraw-overlay editor) 'keymap))
-                       (km (make-sparse-keymap)))
-                   (set-keymap-parent km original-keymap)
-                   (define-key km (kbd "C-c C-c") (lambda () (interactive) (edraw-close (edraw-editor-at))))
-                   km))))
+                                  (_ items)))
+                 ;; Add key binding
+                 :keymap (let ((km (make-sparse-keymap)))
+                           (set-keymap-parent km edraw-editor-map)
+                           (define-key km (kbd "C-c C-c") (lambda () (interactive) (edraw-close (edraw-editor-at))))
+                           km)
+                 )))
+    ;; Manipulate the editor object if necessary
+    ;; Set user extra data
+    (edraw-set-extra-prop editor 'my-extra-data 12345)
+    editor))
 #+end_src
 
 * Color Picker

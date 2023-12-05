@@ -3199,3 +3199,7 @@ default-shape-propertiesやdefault-shape-properties-for-each-toolは、edraw-edi
 マーカーはグローバル変数edraw-default-marker-propertiesを直接操作しているので良くない。default-shape-propertiesと同じように扱うべき。
 
 ついでに、プリセットで初期デフォルトとして保存する機能に対応すべき。
+** DONE edraw-editorにkeymapスロットを追加する
+CLOSED: [2023-12-05 Tue 17:10]
+~:keymap~ でエディタのキーマップを直接指定出来るようにする。
+edraw-editorオブジェクトの構築が簡潔に書けるようになるので。

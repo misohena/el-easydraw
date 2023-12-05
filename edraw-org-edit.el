@@ -76,17 +76,14 @@ its own."
                                          edraw-org-link-compress-data-p
                                          edraw-org-link-compress-file-p)
                        :document-writer-accepts-top-level-comments-p t
-                       :menu-filter #'edraw-org-link-editor-menu-filter)))
+                       :menu-filter #'edraw-org-link-editor-menu-filter
+                       :keymap (edraw-org-link-editor-make-keymap
+                                edraw-editor-map))))
         ;;(overlay-put editor-overlay 'evaporate t)
         (overlay-put editor-overlay 'modification-hooks
                      (list (lambda (_ov _after-p _beg _end &optional _len)
                              (unless edraw-org-enable-modification
-                               (error "There is an edraw-editor within modification range. Please close the editor")))))
-        ;; Add key bindings
-        (overlay-put editor-overlay 'keymap
-                     (edraw-org-link-editor-make-keymap
-                      (or (overlay-get editor-overlay 'keymap)
-                          edraw-editor-map))))
+                               (error "There is an edraw-editor within modification range. Please close the editor"))))))
       ;; Hook kill buffer
       (add-hook 'kill-buffer-query-functions 'edraw-buffer-kill-query nil t)
 
