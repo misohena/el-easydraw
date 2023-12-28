@@ -6852,11 +6852,12 @@ may be replaced by another mechanism."
         (cons 'x (edraw-x new-xy))
         (cons 'y (edraw-y new-xy)))))))
 
-(cl-defmethod edraw-edit-font-size ((shape edraw-shape-text))
-  (let ((font-size (edraw-read-number-or-nil
-                    (edraw-msg "Font Size: ")
-                    (edraw-get-property shape 'font-size))))
-    (edraw-set-property shape 'font-size font-size)))
+(cl-defmethod edraw-edit-font-size ((holder edraw-properties-holder))
+  (when (edraw-can-have-property-p holder 'font-size)
+    (let ((font-size (edraw-read-number-or-nil
+                      (edraw-msg "Font Size: ")
+                      (edraw-get-property holder 'font-size))))
+      (edraw-set-property holder 'font-size font-size))))
 
 (cl-defmethod edraw-point-connection-aabb ((shape edraw-shape-text))
   ;; Exclude descent of the last line.
@@ -6918,14 +6919,15 @@ may be replaced by another mechanism."
 
       (edraw-set-p0p1-without-notify shape left top right bottom))))
 
-(cl-defmethod edraw-edit-href ((shape edraw-shape-image))
-  (let ((filename (read-file-name (edraw-msg "Image File: ")
-                                  nil
-                                  (edraw-get-property shape
-                                                      (edraw-svg-href-symbol))
-                                  t)))
-    (edraw-set-property shape (edraw-svg-href-symbol)
-                        (file-relative-name filename))))
+(cl-defmethod edraw-edit-href ((holder edraw-properties-holder))
+  (when (edraw-can-have-property-p holder (edraw-svg-href-symbol))
+    (let ((filename (read-file-name (edraw-msg "Image File: ")
+                                    nil
+                                    (edraw-get-property holder
+                                                        (edraw-svg-href-symbol))
+                                    t)))
+      (edraw-set-property holder (edraw-svg-href-symbol)
+                          (file-relative-name filename)))))
 
 
 ;;;;; Shape - Path

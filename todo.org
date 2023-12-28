@@ -59,11 +59,6 @@ librsvgの仕様で基準ディレクトリ下以外のファイルは参照で�
 もしキャッシュが使われてしまうと問題がある。
 テストして調べるべき。
 
-** TODO 二つの画像を選択して右クリックからHrefを変更しようとするとエラー
-edraw-multiple-shapesに対するedraw-edit-hrefが実装されていないから。
-しかし、fillとかと同じようにedraw-properties-holderに対して実装すべき？
-いや、edraw-properties-holderに対してedraw-edit-fillがあること自体がおかしいような気もするけど。
-
 ** TODO 選択図形に対する操作はedraw-multiple-shapesを介すべき?
 「選択された図形」といった図形のリストはいったんedraw-multiple-shapesに保持させて、それを操作する方が良い。選択図形以外でも複数の図形を一度に操作したいことはあるはずなので。
 
@@ -3276,3 +3271,12 @@ CLOSED: [2023-12-28 Thu 21:24]
 前者は割り出す処理が不要だが、具体的なメニュー表示の実装によっては不可能。しかし、調べた限り問題なく処理が出来そう。shapeに対するedraw-get-actionsは、edraw-popup-context-menuのみが呼び出しており、そこではそのメニューとshapeを引数にしてedraw-popup-menuを呼び出している。edraw-popup-menuは選択されたのがコマンド(commandp)であれば引数shapeを使わないので問題なくエディタのコマンドを呼べるはず。ポイントが他の場所にあるときでも大丈夫かは要確認。
 
 動作が変わるのが怖いので前者で実現する。
+** DONE 二つの画像を選択して右クリックからHrefを変更しようとするとエラー
+CLOSED: [2023-12-28 Thu 22:17]
+edraw-multiple-shapesに対するedraw-edit-hrefが実装されていないから。
+しかし、fillとかと同じようにedraw-properties-holderに対して実装すべき？
+いや、edraw-properties-holderに対してedraw-edit-fillがあること自体がおかしいような気もするけど。
+
+複数のテキストに対するfont-size設定も同様にエラーになる。
+
+うーん、まぁ、edraw-properties-holderに対して実装するしか無いかなぁ。一応hrefやfont-sizeプロパティがあることを確認して入力・設定を行う。
