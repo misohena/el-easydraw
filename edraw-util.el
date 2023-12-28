@@ -519,5 +519,11 @@ and `event-end'."
       (sit-for 1))
     result))
 
+(defun edraw-where-is-string (definition &optional keymap firstonly)
+  (when-let ((keys (where-is-internal definition keymap firstonly)))
+    (if (listp keys)
+        (mapcar #'key-description keys)
+      (key-description keys))))
+
 (provide 'edraw-util)
 ;;; edraw-util.el ends here

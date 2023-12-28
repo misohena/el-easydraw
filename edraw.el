@@ -3566,10 +3566,10 @@ position where the EVENT occurred."
                 'help-echo help-echo))))
 
 (defun edraw-editor-make-toolbar-help-echo (title command keymap)
-  (let* ((key-str (key-description (where-is-internal command keymap t))))
+  (let ((binding (edraw-where-is-string command keymap t)))
     (concat
      title ;;localized msg
-     (if key-str (concat " (" key-str ")")))))
+     (if binding (concat " (" binding ")")))))
 
 
 
@@ -6177,6 +6177,13 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       (edraw-select-tool editor 'edraw-editor-tool-select))
     (edraw-select-shape editor shape)))
 
+(cl-defmethod edraw-only-one-selected-p ((shape edraw-shape))
+  "If SHAPE is selected and no other shapes are selected, return t."
+  (with-slots (editor) shape
+    (let ((selected-shapes (edraw-selected-shapes editor)))
+      (and (eq (car selected-shapes) shape)
+           (null (cdr selected-shapes))))))
+
 (cl-defmethod edraw-selected-p ((shape edraw-shape))
   (with-slots (editor) shape
     (edraw-selected-shape-p editor shape)))
@@ -6208,23 +6215,40 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            z-index
            shape-descriptor-list))))))
 
+(cl-defmethod edraw-get-actions--keys ((shape edraw-shape) command)
+  (when (edraw-only-one-selected-p shape)
+    (when-let ((binding (edraw-where-is-string command nil t)))
+      (list :keys binding))))
+
 (cl-defmethod edraw-get-actions ((shape edraw-shape))
+  ;;@todo Unify with `edraw-get-actions-for-selected-shapes'
   `(((edraw-msg "Select") edraw-select)
-    ((edraw-msg "Properties...") edraw-edit-properties)
+    ((edraw-msg "Properties...") edraw-edit-properties
+     ;; Print key binding if SHAPE is the only selected shape.
+     ,@(edraw-get-actions--keys
+        shape 'edraw-editor-edit-properties-of-selected-shapes))
     ((edraw-msg "Set")
      (((edraw-msg "Fill...") edraw-edit-fill
-       :visible ,(edraw-can-have-property-p shape 'fill))
+       :visible ,(edraw-can-have-property-p shape 'fill)
+       ,@(edraw-get-actions--keys shape 'edraw-editor-edit-fill-selected))
       ((edraw-msg "Stroke...") edraw-edit-stroke
-       :visible ,(edraw-can-have-property-p shape 'stroke))
+       :visible ,(edraw-can-have-property-p shape 'stroke)
+       ,@(edraw-get-actions--keys shape 'edraw-editor-edit-stroke-selected))
       ((edraw-msg "Href...") edraw-edit-href
-       :visible ,(edraw-can-have-property-p shape (edraw-svg-href-symbol)))
+       :visible ,(edraw-can-have-property-p shape (edraw-svg-href-symbol))
+       ,@(edraw-get-actions--keys shape 'edraw-editor-edit-href-selected))
       ((edraw-msg "Font Size...") edraw-edit-font-size
-       :visible ,(edraw-can-have-property-p shape 'font-size))))
+       :visible ,(edraw-can-have-property-p shape 'font-size)
+       ,@(edraw-get-actions--keys shape 'edraw-editor-edit-font-size-selected))))
     ((edraw-msg "Transform")
-     (((edraw-msg "Transform...") edraw-transform-interactive)
-      ((edraw-msg "Translate...") edraw-translate)
-      ((edraw-msg "Scale...") edraw-scale)
-      ((edraw-msg "Rotate...") edraw-rotate)
+     (((edraw-msg "Transform...") edraw-transform-interactive
+       ,@(edraw-get-actions--keys shape 'edraw-editor-transform-selected-interactive))
+      ((edraw-msg "Translate...") edraw-translate
+       ,@(edraw-get-actions--keys shape 'edraw-editor-translate-selected))
+      ((edraw-msg "Scale...") edraw-scale
+       ,@(edraw-get-actions--keys shape 'edraw-editor-scale-selected))
+      ((edraw-msg "Rotate...") edraw-rotate
+       ,@(edraw-get-actions--keys shape 'edraw-editor-rotate-selected))
       ((edraw-msg "Apply transform property to anchors") edraw-apply-transform-prop-to-anchor-points
        :enable ,(and (edraw-transform-prop-exists-p shape)
                      (not (edraw-matrix-identity-p
@@ -6232,22 +6256,30 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
       ,(edraw-transform-method-menu shape)))
     ((edraw-msg "Z-Order")
      (((edraw-msg "Bring to Front") edraw-bring-to-front
-       :enable ,(not (edraw-front-p shape)))
+       :enable ,(not (edraw-front-p shape))
+       ,@(edraw-get-actions--keys shape 'edraw-editor-bring-selected-to-front))
       ((edraw-msg "Bring Forward") edraw-bring-forward
-       :enable ,(not (edraw-front-p shape)))
+       :enable ,(not (edraw-front-p shape))
+       ,@(edraw-get-actions--keys shape 'edraw-editor-bring-selected-forward))
       ((edraw-msg "Send Backward") edraw-send-backward
-       :enable ,(not (edraw-back-p shape)))
+       :enable ,(not (edraw-back-p shape))
+       ,@(edraw-get-actions--keys shape 'edraw-editor-send-selected-backward))
       ((edraw-msg "Send to Back") edraw-send-to-back
-       :enable ,(not (edraw-back-p shape)))))
+       :enable ,(not (edraw-back-p shape))
+       ,@(edraw-get-actions--keys shape 'edraw-editor-send-selected-to-back))))
     ((edraw-msg "Glue")
      (((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
        :enable ,(null (edraw-get-point-connections shape)))
       ((edraw-msg "Unglue All") edraw-unglue-all
        :enable ,(not (null (edraw-get-point-connections shape))))))
-    ((edraw-msg "Delete...") edraw-delete-with-confirm)
-    ((edraw-msg "Duplicate") edraw-duplicate-and-select)
-    ((edraw-msg "Copy") edraw-copy)
-    ((edraw-msg "Cut") edraw-cut)))
+    ((edraw-msg "Delete...") edraw-delete-with-confirm
+     ,@(edraw-get-actions--keys shape 'edraw-editor-delete-selected))
+    ((edraw-msg "Duplicate") edraw-duplicate-and-select
+     ,@(edraw-get-actions--keys shape 'edraw-editor-duplicate-selected-shapes))
+    ((edraw-msg "Copy") edraw-copy
+     ,@(edraw-get-actions--keys shape 'edraw-editor-copy-selected-shapes))
+    ((edraw-msg "Cut") edraw-cut
+     ,@(edraw-get-actions--keys shape 'edraw-editor-cut-selected-shapes))))
 
 (cl-defmethod edraw-popup-context-menu ((shape edraw-shape))
   (edraw-popup-menu
@@ -6957,7 +6989,9 @@ may be replaced by another mechanism."
                  ((edraw-msg "Circle") edraw-set-marker-start-circle
                   :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-start)) "circle")))
                  ("--single-line")
-                 ((edraw-msg "Next Type") edraw-set-marker-start-next)))
+                 ((edraw-msg "Next Type") edraw-set-marker-start-next
+                  ,@(edraw-get-actions--keys
+                     shape 'edraw-editor-set-marker-start-next-selected))))
                ((edraw-msg "End Marker")
                 (((edraw-msg "None") edraw-set-marker-end-none
                   :button (:toggle . ,(null (edraw-get-property shape 'marker-end))))
@@ -6966,7 +7000,9 @@ may be replaced by another mechanism."
                  ((edraw-msg "Circle") edraw-set-marker-end-circle
                   :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-end)) "circle")))
                  ("--single-line")
-                 ((edraw-msg "Next Type") edraw-set-marker-end-next))))))
+                 ((edraw-msg "Next Type") edraw-set-marker-end-next
+                  ,@(edraw-get-actions--keys
+                     shape 'edraw-editor-set-marker-end-next-selected)))))))
 
     (append
      items
@@ -7407,11 +7443,13 @@ may be replaced by another mechanism."
    (unless (edraw-matrix-identity-p (edraw-transform-prop-get-matrix group))
      (y-or-n-p (edraw-msg "Apply group's transform property to children?")))))
 
-(cl-defmethod edraw-get-actions ((_shape edraw-shape-group))
+(cl-defmethod edraw-get-actions ((shape edraw-shape-group))
   (let* ((items (copy-tree (cl-call-next-method))))
     (append
      items
-     `(((edraw-msg "Ungroup") edraw-ungroup-interactive)))))
+     `(((edraw-msg "Ungroup") edraw-ungroup-interactive
+        ,@(edraw-get-actions--keys
+           shape 'edraw-editor-ungroup-selected-shapes))))))
 
 ;;;; Shape Point
 

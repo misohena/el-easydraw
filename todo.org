@@ -1,6 +1,15 @@
 
 
 * Inbox
+** TODO edraw-get-actionsを整理する。
+[[*選択オブジェクトに対するキー操作をコンテキストメニューに表示する][選択オブジェクトに対するキー操作をコンテキストメニューに表示する]]の続き。
+
+[[elisp-function:edraw-get-actions-for-selected-shapes][edraw-get-actions-for-selected-shapes]]と[[elisp-function:edraw-get-actions][edraw-get-actions]]メソッドを統合したい。可能？
+
+複数選択時のメニュー表示は、edraw-multiple-shapesに対するedraw-get-actionsを使うべきだと思う。
+
+しかし[[elisp-function:edraw-get-actions-for-selected-shapes][edraw-get-actions-for-selected-shapes]]は[[elisp-function:edraw-main-menu][edraw-main-menu]]からも使われているのがネック。
+
 ** TODO Ubuntuで子フレーム上のカラーピッカーでドラッグが出来ない原因を探る
 edraw-track-draggingでswitch-frameイベントを無視するようにしたら回避できた。
 
@@ -105,6 +114,15 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 
 ** TODO グループの子孫を直接編集できるようにする
 モード切替等で、#edraw-body直下よりも下の階層にあるshapeを直接選択、操作出来るようにする。
+
+** TODO 点接続/パスの向きを反転できないのを何とかする
+接着されているとパスの向きを反転して矢印を反転させられない。
+接着されているのだから当たり前。
+とは言えパスを選んで右クリックメニューから「パスの向きを反転」を選んだときに何も起こらないのは良くない。
+どうするべきか。
+パスの反転と同時に接着先も交換する？
+
+[[edraw:data=H4sIANhljWUAA61VTW/TQBD9K9b2kkr+2LXXX1Ucqb2AUBESFyg3Y68TK4k3Wjt1yi1F4lZB6YE7B7hxRxz4L1iV+BnMemMlTVoElGQde2dnZ96beev0y9OhtphOijJCo6qaHVhWXddm7ZhcDC0bY2yBB1IuB4tJXoxvcyRhGFrtKtLqPK1GEaIUI23E8uGoipBtw+SUiTLnRYSISdCgn7Ks1PI0QiwVcW3IKVinsRgzcdNuYCMWgtdIU6vPVAZid4aHqzQEsswEK5k4ZYfljCXV07jKeYQKXjAAkLP6iC8iZBCsycuWA2mCZc8jpB5O2gcuclZAwHhecaSVleBj1kXJ8skkQnuESBKzuBppgPUxhNMNX0bVfY3q+AXSrEHfUvjuoEWMJBfJhG3xotu06B+ycjUYQIvcj5MCpSWLdltypsK0MDYpWbJjg74APJpyVZ539n9N/mWcjIeCz4v0DiBZlrXJhpubeHqGVvnSuIoNZW4dSEBjHJN1Qm8NJFDIJAKAKVGplMZqHVQkzpR2xELdVygYY2t8bXEkptsAuCS1gyD2fgcgUADgTN0XQSs61QajrGIB6eZi0tvbVdZ+JyWDFemO1+pYgdMGnRnPi8pIeFEATziu8GI47Blk/+DJ0aNex3NfP+xhZepqL6PAOQhck7obX6r7oRne+BwTjHXi4WO7uxPbdHzP9wLfphDOcXRCqenaIXZCHFLfC72uJEomO/XbqVHFFpWsOunK7q2ratuwQzoYcZGMOEh7mqepPIcZB+5l/orJjatpFk/zCUQ6mWsPeDXKEzT48eayWV6143Pz+rI5/9osv1y/A+NFc/7++u3Fz28fm+WHZvmpWX6H374ls61A/ScQkpznKm6+JzFd/ROmTTHdTyTbgtBv0Y0SCSHbmtA995iE0HMvhK77PsZh6FI9tM3Qc2hAsRP4ge/Qv5WBNYQL/sEGvwAOFT1I6QYAAA==]]
 
 ** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
@@ -606,6 +624,9 @@ edraw-org-shape-picker-minor-modeが必要？
 ** TODO シェイプピッカー/シェイプはセクションの先頭部分にだけにする
 現在はセクションの下にシェイプとセクションが好きな順番に配置できる。
 しかし、セクションの後にシェイプを配置するとそのシェイプがセクションの中にあるのか外にあるのか分かりづらい。org-modeやoutline-modeのように、子セクションとエントリーの中身を完全に分離すべき。
+** TODO プロパティエディタ/対象の変化を取りこむ時間を延ばす
+入力中に書き換わってしまうことが多いので。
+もちろん入力が変化したらタイマーをキャンセルして延ばす。
 ** TODO プロパティエディタ/ウィンドウの高さを設定できるようにする
 高さが低いフレームで使っている場合、プロパティエディタが邪魔で作図に支障がある。
 自動でやるなら、ウィンドウの高さから画像の高さを差し引いて、残りをプロパティエディタの高さにすべき。もちろん小さくなりすぎないように何行かは確実に残す。
@@ -3237,3 +3258,21 @@ pathに対するメニューと選択オブジェクトに対するメニュー�
 CLOSED: [2023-12-28 Thu 13:35]
 複数選択をして右クリックした時に出るメニューとメインメニューの「選択オブジェクト」を選んだときに出るメニューが異なっている。メインメニューの方には「設定」などが無い。同じであるべきでは無いか。
 違いを調べるところから。
+** DONE 選択オブジェクトに対するキー操作をコンテキストメニューに表示する
+CLOSED: [2023-12-28 Thu 21:24]
+図形を右クリックした時のメニューにキー操作が表示されない。複数選択して右クリックした時には表示される。
+
+なぜなら、選択されていない一つの図形または一つの図形が選択されているときのその図形を右クリックした時に表示されるメニューは、現在選択されている図形ではなく右クリックした図形に対する直接的な操作になるから。
+
+しかし、右クリックした図形が現在選択されている唯一の図形と一致するならば、メニューに選択図形に対するキー操作を表示しても良いのではないか。そうすることで、キー操作をユーザーに分からせる効果がある。
+
+~(edraw-get-actions shape)~ において、shapeが唯一の選択オブジェクトと一致する場合に限り、キー割り当てを表示できるメニューを返せば良い。そのとき二通りの実装が考えられる。shapeが唯一の選択オブジェクトと一致する場合に:
+
+- 選択オブジェクトに対する操作コマンドをメニューに載せる
+- メニューに載せるメソッドは変えずにキー操作だけ割り出して載せる
+
+後者の方が動作としては筋が良いが、割り出す処理が手間。
+
+前者は割り出す処理が不要だが、具体的なメニュー表示の実装によっては不可能。しかし、調べた限り問題なく処理が出来そう。shapeに対するedraw-get-actionsは、edraw-popup-context-menuのみが呼び出しており、そこではそのメニューとshapeを引数にしてedraw-popup-menuを呼び出している。edraw-popup-menuは選択されたのがコマンド(commandp)であれば引数shapeを使わないので問題なくエディタのコマンドを呼べるはず。ポイントが他の場所にあるときでも大丈夫かは要確認。
+
+動作が変わるのが怖いので前者で実現する。
