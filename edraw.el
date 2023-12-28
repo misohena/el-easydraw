@@ -2564,9 +2564,9 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;; Editor - Manipulate Selected Shapes
 
 (cl-defmethod edraw-get-actions-for-selected-shapes ((editor edraw-editor))
-  (let* ((selected-shapes (edraw-selected-shapes editor))
-         (shapes (edraw-multiple-shapes
-                  :shapes selected-shapes :editor editor)))
+  (when-let* ((selected-shapes (edraw-selected-shapes editor))
+              (shapes (edraw-multiple-shapes
+                       :shapes selected-shapes :editor editor)))
     ;; NOTE: Use edraw-editor-* commands instead of methods for
     ;; edraw-multiple-shapes to show key bindings.
     `(((edraw-msg "Properties...") edraw-editor-edit-properties-of-selected-shapes)
@@ -2616,12 +2616,14 @@ For use with `edraw-editor-with-temp-undo-list',
          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
         ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
-      ((edraw-msg "Delete...") edraw-editor-delete-selected)
+      ((edraw-msg "Delete") edraw-editor-delete-selected)
       ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes)
       ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
       ((edraw-msg "Group") edraw-editor-group-selected-shapes)
-      ((edraw-msg "Ungroup") edraw-editor-ungroup-selected-shapes))))
+      ((edraw-msg "Ungroup") edraw-editor-ungroup-selected-shapes)
+      ((edraw-msg "Select Next Above") edraw-editor-select-next-shape)
+      ((edraw-msg "Select Next Below") edraw-editor-select-previous-shape))))
 
 (cl-defmethod edraw-get-summary-for-selected-shapes ((editor edraw-editor))
   (let ((selected-shapes (edraw-selected-shapes editor)))
@@ -3272,40 +3274,10 @@ For use with `edraw-editor-with-temp-undo-list',
           ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)
           ((edraw-msg "Scroll and Zoom") edraw-editor-interactive-scroll-and-zoom)))
         ((edraw-msg "Selected Object")
-         (((edraw-msg "Delete") edraw-editor-delete-selected
-           :enable ,(not (null (or (edraw-selected-handle editor)
-                                   (edraw-selected-anchor editor)
-                                   selected-shapes))))
-          ((edraw-msg "Copy") edraw-editor-copy-selected-shapes
-           :enable ,(not (null selected-shapes)))
-          ((edraw-msg "Cut") edraw-editor-cut-selected-shapes
-           :enable ,(not (null selected-shapes)))
-          ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes
-           :enable ,(not (null selected-shapes)))
-          ((edraw-msg "Group") edraw-editor-group-selected-shapes
-           :enable ,(not (null selected-shapes)))
-          ((edraw-msg "Transform")
-           (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive
-             :enable ,(not (null selected-shapes)))
-            ((edraw-msg "Translate...") edraw-editor-translate-selected
-             :enable ,(not (null selected-shapes)))
-            ((edraw-msg "Scale...") edraw-editor-scale-selected
-             :enable ,(not (null selected-shapes)))
-            ((edraw-msg "Rotate...") edraw-editor-rotate-selected
-             :enable ,(not (null selected-shapes)))
-            ,(edraw-transform-method-menu editor)))
-          ((edraw-msg "Z-Order")
-           ;;@todo check :enable when multiple shapes are selected
-           (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
-             :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
-            ((edraw-msg "Bring Forward") edraw-editor-bring-selected-forward
-             :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
-            ((edraw-msg "Send Backward") edraw-editor-send-selected-backward
-             :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
-            ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
-             :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
-          ((edraw-msg "Select Next Above") edraw-editor-select-next-shape)
-          ((edraw-msg "Select Next Below") edraw-editor-select-previous-shape)))
+         (,@(or
+             (edraw-get-actions-for-selected-shapes editor)
+             '(("Dummy" ignore))))
+         :enable ,(not (null selected-shapes)))
         ((edraw-msg "Default Config")
          (((edraw-msg "Shape")
            (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
