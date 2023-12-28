@@ -297,6 +297,8 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "pf" 'edraw-editor-edit-fill-selected)
     (define-key km "ps" 'edraw-editor-edit-stroke-selected)
     (define-key km "pp" 'edraw-editor-edit-properties-of-selected-shapes)
+    (define-key km "p<" 'edraw-editor-set-marker-start-next-selected)
+    (define-key km "p>" 'edraw-editor-set-marker-end-next-selected)
     (define-key km (kbd "M-RET") 'edraw-editor-edit-properties-of-selected-shapes)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
@@ -2584,7 +2586,9 @@ For use with `edraw-editor-with-temp-undo-list',
           ((edraw-msg "Arrow") edraw-editor-set-marker-start-arrow-selected
            :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "arrow")))
           ((edraw-msg "Circle") edraw-editor-set-marker-start-circle-selected
-           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "circle"))))
+           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "circle")))
+          ("--single-line")
+          ((edraw-msg "Next Type") edraw-editor-set-marker-start-next-selected))
          :visible ,(edraw-can-have-property-p shapes 'marker-start))
         ((edraw-msg "End Marker")
          (((edraw-msg "None") edraw-editor-set-marker-end-none-selected
@@ -2592,7 +2596,9 @@ For use with `edraw-editor-with-temp-undo-list',
           ((edraw-msg "Arrow") edraw-editor-set-marker-end-arrow-selected
            :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "arrow")))
           ((edraw-msg "Circle") edraw-editor-set-marker-end-circle-selected
-           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "circle"))))
+           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "circle")))
+          ("--single-line")
+          ((edraw-msg "Next Type") edraw-editor-set-marker-end-next-selected))
          :visible ,(edraw-can-have-property-p shapes 'marker-end))))
       ((edraw-msg "Transform")
        (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)
@@ -2897,6 +2903,19 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (edraw-editor-defcmd edraw-set-marker-end-circle-selected ((editor edraw-editor))
   (edraw-set-marker-selected editor 'marker-end "circle"))
+
+(cl-defmethod edraw-set-marker-next-selected ((editor edraw-editor) prop-name)
+  (let* ((shape (edraw-selected-multiple-shapes-or-shape editor))
+         (current-prop-value (edraw-get-property shape prop-name))
+         (current-marker-type (edraw-svg-marker-type current-prop-value))
+         (next-marker-type (edraw-svg-marker-type-next current-marker-type)))
+    (edraw-set-marker-selected editor prop-name next-marker-type)))
+
+(edraw-editor-defcmd edraw-set-marker-start-next-selected ((editor edraw-editor))
+  (edraw-set-marker-next-selected editor 'marker-start))
+
+(edraw-editor-defcmd edraw-set-marker-end-next-selected ((editor edraw-editor))
+  (edraw-set-marker-next-selected editor 'marker-end))
 
 
 ;;;;; Editor - Copy & Paste
@@ -6964,14 +6983,18 @@ may be replaced by another mechanism."
                  ((edraw-msg "Arrow") edraw-set-marker-start-arrow
                   :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-start)) "arrow")))
                  ((edraw-msg "Circle") edraw-set-marker-start-circle
-                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-start)) "circle")))))
+                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-start)) "circle")))
+                 ("--single-line")
+                 ((edraw-msg "Next Type") edraw-set-marker-start-next)))
                ((edraw-msg "End Marker")
                 (((edraw-msg "None") edraw-set-marker-end-none
                   :button (:toggle . ,(null (edraw-get-property shape 'marker-end))))
                  ((edraw-msg "Arrow") edraw-set-marker-end-arrow
                   :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-end)) "arrow")))
                  ((edraw-msg "Circle") edraw-set-marker-end-circle
-                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-end)) "circle"))))))))
+                  :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shape 'marker-end)) "circle")))
+                 ("--single-line")
+                 ((edraw-msg "Next Type") edraw-set-marker-end-next))))))
 
     (append
      items
@@ -7000,6 +7023,16 @@ may be replaced by another mechanism."
   (edraw-set-property
    shape prop-name
    (edraw-get-default-marker-properties (edraw-get-editor shape) marker-type)))
+
+(cl-defmethod edraw-set-marker-next ((shape edraw-shape-path) prop-name)
+  (edraw-set-property shape prop-name
+                      (edraw-svg-marker-type-next
+                       (edraw-svg-marker-type
+                        (edraw-get-property shape prop-name)))))
+(cl-defmethod edraw-set-marker-start-next ((shape edraw-shape-path))
+  (edraw-set-marker-next shape 'marker-start))
+(cl-defmethod edraw-set-marker-end-next ((shape edraw-shape-path))
+  (edraw-set-marker-next shape 'marker-end))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
   (cond

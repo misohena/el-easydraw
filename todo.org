@@ -1,20 +1,9 @@
 
 
 * Inbox
-** TODO ORG/org-activate-linksがdefsubstになっている
-ので、adviceをかけるのはやめた方が良さそう。なんで動いているのだろう。インライン展開されない条件になってる？　いや、関数名シンボルが org-font-lock-keywords に載ってるからインライン展開されないのは当たり前だった。
-
-org-agenda.elにはorg-activate-linksを直接呼び出しているところがある。そこにはadviceが引っかからないのだが、良いのだろうか。なぜ呼び出しているのか調べる必要あり。
-
-本来はadviceをやめて独立したkeywordにした方がおそらく良いのだと思う。そのほうが効率も良いのでは？　org-activate-linksは一つのfontify対象リンクを見つけるたびにリターンするわけだし。そのほとんどはedrawリンクではないはず。
-
-** TODO ORG/org-mode 9.3(Emacs 27.1バンドル)でエクスポートできない
-org-link-parametersの:export関数が3引数だから(引数infoが無い)。
-
-edraw-org-link-exportのinfoを&optionalにすれば動くっぽい。
-完全にはテストしていないし動く原理も確かめていない。
-
-対応すべきだろうか。
+** TODO メインメニューの「選択オブジェクト」を右クリックメニューと同じにする
+複数選択をして右クリックした時に出るメニューとメインメニューの「選択オブジェクト」を選んだときに出るメニューが異なっている。メインメニューの方には「設定」などが無い。同じであるべきでは無いか。
+違いを調べるところから。
 
 ** TODO Ubuntuで子フレーム上のカラーピッカーでドラッグが出来ない原因を探る
 edraw-track-draggingでswitch-frameイベントを無視するようにしたら回避できた。
@@ -33,10 +22,6 @@ libxml-parse-xml-regionはコメントをcommentという名前の要素とし�
 - 図形の重ね順操作
 
 元々defsが入る可能性は考えていた(が、実際には入らないので落ちなければいいやくらいに思っていた)。commentという要素があるものと考えて、shape関連以外の要素があることを考慮すべき。
-
-** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
-** TODO edraw-mode/ビューを常にウィンドウサイズに合わせる
-やりたいけど実際の所ちょっと重い。環境によっては不安定になる可能性もある？
 
 ** TODO 手書きツール/ドラッグ中に外に出た場合の挙動を改善する
 外に出ても続いている方がいいのではないか？
@@ -73,9 +58,6 @@ librsvgの仕様で基準ディレクトリ下以外のファイルは参照で�
 edraw-multiple-shapesに対するedraw-edit-hrefが実装されていないから。
 しかし、fillとかと同じようにedraw-properties-holderに対して実装すべき？
 いや、edraw-properties-holderに対してedraw-edit-fillがあること自体がおかしいような気もするけど。
-
-** TODO パスに矢印を付けるキーを割り当てたい
-~p m s a~ (property marker start arrow) さすがにダメだよね？
 
 ** TODO 選択図形に対する操作はedraw-multiple-shapesを介すべき?
 「選択された図形」といった図形のリストはいったんedraw-multiple-shapesに保持させて、それを操作する方が良い。選択図形以外でも複数の図形を一度に操作したいことはあるはずなので。
@@ -228,6 +210,10 @@ UNDO時には接続の更新を抑制するような仕組みがあればよい�
 1.5倍ズームの場合は0.666666666667ピクセル単位でスナップするの？　マジで？　まぁ、でも他にしようがない。ただ、edraw-grid-roundでは剰余を取っているので大きな座標で誤差が問題になるかもしれない((mod 10000 0.666666666667)=0.6666666616665555だから気にするほどでも無い？)。別な計算方法はある？
 
 もしスナップを改良するなら edraw-snap-xy を修正すること。
+
+** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
+** TODO edraw-mode/ビューを常にウィンドウサイズに合わせる
+やりたいけど実際の所ちょっと重い。環境によっては不安定になる可能性もある？
 
 ** TODO 設定/デフォルトプロパティ設定をdefcustomにしたい
 -userという変数を作って、変更時に本番変数に反映させるのはどうか。
@@ -557,6 +543,21 @@ rgbaはもはやrgbの別名。それにカンマでなく空白で区切って�
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO ソース/defgenericをどうするか
 defgenericは全部に必要？ どこに書くべき？
+** TODO ORG/org-activate-linksがdefsubstになっている
+ので、adviceをかけるのはやめた方が良さそう。なんで動いているのだろう。インライン展開されない条件になってる？　いや、関数名シンボルが org-font-lock-keywords に載ってるからインライン展開されないのは当たり前だった。
+
+org-agenda.elにはorg-activate-linksを直接呼び出しているところがある。そこにはadviceが引っかからないのだが、良いのだろうか。なぜ呼び出しているのか調べる必要あり。
+
+本来はadviceをやめて独立したkeywordにした方がおそらく良いのだと思う。そのほうが効率も良いのでは？　org-activate-linksは一つのfontify対象リンクを見つけるたびにリターンするわけだし。そのほとんどはedrawリンクではないはず。
+
+** TODO ORG/org-mode 9.3(Emacs 27.1バンドル)でエクスポートできない
+org-link-parametersの:export関数が3引数だから(引数infoが無い)。
+
+edraw-org-link-exportのinfoを&optionalにすれば動くっぽい。
+完全にはテストしていないし動く原理も確かめていない。
+
+対応すべきだろうか。
+
 ** TODO ORG/ファイル名を付けていないOrgバッファでimage要素が表示できない
 仕組みを知っていればそりゃそうだろうとしか言いようが無いけど……。
 デフォルトのbase-uriはbuffer-file-nameなので。
@@ -3220,3 +3221,19 @@ CLOSED: [2023-12-28 Thu 10:36]
 2. ?キーにedraw-editor-show-help-for-selected-toolを割り当てる
 3. ツール切り替え時にヘルプを表示するかをカスタマイズできるようにする
    (edraw-editor-show-help-when-selecting-tool-p変数)
+** DONE パスに矢印を付けるキーを割り当てたい
+CLOSED: [2023-12-28 Thu 12:24]
+~p m s a~ (property marker start arrow) さすがにダメだよね？
+
+~p <~ と ~p >~ というのはどうだろう。
+
+押すたびに次のマーカー種類に変更する。
+
+- edraw-set-marker-start-next-selected
+  (edraw-editor-set-marker-start-next-selected)
+- edraw-set-marker-end-next-selected
+  (edraw-editor-set-marker-end-next-selected)
+- edraw-set-marker-start-next
+- edraw-set-marker-end-next
+
+pathに対するメニューと選択オブジェクトに対するメニューにNext Typeを追加する。

@@ -1437,6 +1437,16 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
     ;; Ignore "" or "none"
     ))
 
+(defun edraw-svg-marker-type-next (type)
+  (if (null type)
+      (caar edraw-svg-marker-types)
+    (cl-loop for x on edraw-svg-marker-types
+             when (equal (caar x) type)
+             return (caadr x))))
+;; TEST: (edraw-svg-marker-type-next nil) => "arrow"
+;; TEST: (edraw-svg-marker-type-next "arrow") => "circle"
+;; TEST: (edraw-svg-marker-type-next "circle") => nil
+
 (defun edraw-svg-marker-prop-info-list (type)
   (when-let ((props (alist-get type edraw-svg-marker-types nil nil #'equal)))
     (plist-get props :prop-info-list)))

@@ -156,6 +156,7 @@
      "Move Forward" "前へ移動"
      "Move by Coordinates..." "座標による移動..."
      "Moving Distance: " "移動距離: "
+     "Next Type" "次の種類へ変更"
      "Next" "次"
      "No editor here" "ここにエディタはありません"
      "No entries at point" "この場所に項目がありません"
