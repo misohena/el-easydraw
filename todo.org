@@ -74,7 +74,6 @@ edraw-multiple-shapesに対するedraw-edit-hrefが実装されていないか�
 しかし、fillとかと同じようにedraw-properties-holderに対して実装すべき？
 いや、edraw-properties-holderに対してedraw-edit-fillがあること自体がおかしいような気もするけど。
 
-** TODO ?キーでツールのヘルプを表示する
 ** TODO パスに矢印を付けるキーを割り当てたい
 ~p m s a~ (property marker start arrow) さすがにダメだよね？
 
@@ -3213,3 +3212,11 @@ default-shape-propertiesやdefault-shape-properties-for-each-toolは、edraw-edi
 CLOSED: [2023-12-05 Tue 17:10]
 ~:keymap~ でエディタのキーマップを直接指定出来るようにする。
 edraw-editorオブジェクトの構築が簡潔に書けるようになるので。
+** DONE ?キーでツールのヘルプを表示する
+CLOSED: [2023-12-28 Thu 10:36]
+同時に、ツールを切り替えたときにヘルプを表示しないオプションを追加する。
+
+1. edraw-editor-show-help-for-selected-toolを作る
+2. ?キーにedraw-editor-show-help-for-selected-toolを割り当てる
+3. ツール切り替え時にヘルプを表示するかをカスタマイズできるようにする
+   (edraw-editor-show-help-when-selecting-tool-p変数)

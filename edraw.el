@@ -211,6 +211,11 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
                                    (const :tag "max-image-size" nil)
                                    (integer :tag "Pixels" :value 2048)))))))
 
+(defcustom edraw-editor-show-help-when-selecting-tool-p t
+  "Non-nil means display help for tool when it is selected."
+  :group 'edraw-editor
+  :type 'boolean)
+
 (defconst edraw-grid-display-min-interval 4.0)
 
 (defconst edraw-anchor-point-radius 3.5)
@@ -250,6 +255,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "u" 'edraw-editor-select-tool-custom-shape)
     (define-key km "F" 'edraw-editor-edit-tool-default-fill)
     (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
+    (define-key km "?" 'edraw-editor-show-help-for-selected-tool)
     (define-key km "#" 'edraw-editor-toggle-grid-visible)
     (define-key km (kbd "M-#") 'edraw-editor-set-grid-interval)
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
@@ -4012,7 +4018,8 @@ position where the EVENT occurred."
     (setq tool new-tool)
     (when tool
       (edraw-on-selected tool editor)
-      (edraw-print-help tool))
+      (when edraw-editor-show-help-when-selecting-tool-p
+        (edraw-print-help tool)))
     (edraw-update-toolbar editor)))
 
 (cl-defmethod edraw-selected-tool ((editor edraw-editor))
@@ -4040,6 +4047,12 @@ position where the EVENT occurred."
     (let ((shape-type (when tool (edraw-shape-type-to-create tool))))
       (when shape-type
         (edraw-set-default-shape-property editor shape-type prop-name value)))))
+
+(edraw-editor-defcmd edraw-show-help-for-selected-tool ((editor edraw-editor))
+  "Show help text for currently selected tool."
+  (with-slots (tool) editor
+    (when tool
+      (edraw-print-help tool))))
 
 
 
