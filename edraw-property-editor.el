@@ -1027,30 +1027,67 @@ once. widget-value-set updates the same property four times."
   (widget-insert (make-string indent ? ))
   (let (field-widget)
     (widget-insert (symbol-name prop-name) ": ")
-    (widget-create
-     'push-button :notify
-     (lambda (&rest _ignore)
-       (edraw-property-editor-prop-widget-value-set
-        field-widget
-        (if edraw-property-editor-apply-immediately ;;@todo or target cannot preview
-            (edraw-property-editor-read-property-paint-color-with-preview
-             target prop-name field-widget options)
-          (edraw-property-editor-read-property-paint-color-without-preview
-           prop-name field-widget options))))
-     (edraw-msg "Color"))
-    ;;(widget-insert " ")
     (setq field-widget
           (widget-create
            'editable-field
            :keymap edraw-property-editor-field-map
-           :format "%v"
            :value (edraw-property-editor-prop-value-to-widget-value
                    prop-value prop-info)
-           :notify notify))
+           :completions (mapcar #'car edraw-color-web-keywords)
+           :size 24
+           :format "%v %{      %}"
+           ;; See: (widget-color-value-create)
+           :value-create
+           (lambda (widget)
+             (widget-field-value-create widget)
+             ;;(widget-insert " ")
+             (widget-create-child-and-convert
+              widget 'push-button
+              :tag (edraw-msg "Color") :action
+              (lambda (&rest _)
+                (edraw-property-editor-read-and-set-property-paint-color
+                 target prop-name field-widget options))))
+           :notify
+           (lambda (widget child &optional event)
+             (overlay-put (widget-get widget :sample-overlay)
+                          'face (widget-apply widget :sample-face-get))
+             (funcall notify widget child event))
+           :sample-face-get
+           (lambda (widget)
+             (let ((color (edraw-color-from-string (widget-value widget))))
+               (if color
+                   (list
+                    (cons 'background-color
+                          ;; @todo Show transparency. Use SVG?
+                          (edraw-to-string-hex (edraw-change-a color 1.0))))
+                 'default)))
+           ))
+    ;; Maybe it's better to add the button here rather than using :value-create?
+    ;; (widget-insert " ")
+    ;; (widget-create
+    ;;  'push-button :action
+    ;;  (lambda (&rest _ignore)
+    ;;    (edraw-property-editor-read-and-set-property-paint-color
+    ;;     target prop-name field-widget options))
+    ;;  (edraw-msg "Color"))
+
+    ;; @todo Add color preview using SVG here.
+    (widget-insert "\n")
+
     (edraw-property-editor-prop-widget
      :widget field-widget
      :target target
      :prop-info prop-info)))
+
+(defun edraw-property-editor-read-and-set-property-paint-color
+    (target prop-name field-widget options)
+  (edraw-property-editor-prop-widget-value-set
+   field-widget
+   (if edraw-property-editor-apply-immediately ;;@todo or target cannot preview
+       (edraw-property-editor-read-property-paint-color-with-preview
+        target prop-name field-widget options)
+     (edraw-property-editor-read-property-paint-color-without-preview
+      prop-name field-widget options))))
 
 (defun edraw-property-editor-read-property-paint-color-without-preview
     (prop-name field-widget options)

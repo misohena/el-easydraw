@@ -3280,3 +3280,12 @@ edraw-multiple-shapesに対するedraw-edit-hrefが実装されていないか�
 複数のテキストに対するfont-size設定も同様にエラーになる。
 
 うーん、まぁ、edraw-properties-holderに対して実装するしか無いかなぁ。一応hrefやfont-sizeプロパティがあることを確認して入力・設定を行う。
+** DONE プロパティエディタ/色編集フィールドに色サンプルを表示する(+補完)
+CLOSED: [2024-01-04 Thu 17:19]
+color widgetの実装を参考にする。
+[[elisp-function:widget-color-value-create]]やら[[elisp-function:widget-color-sample-face-get]]やらが参考になる。
+
+:formatを"%v %{      %}"のようにして、%vの中で値と一緒にボタンを追加する。
+本当はfaceではなくSVGで色サンプルを表示した方が良い(枠線が描けたり、半透明が表現できたりするので)が、色々面倒なのでそのうち気が向いたら。
+
+ついでに:completionsを指定したので、フィールド上でカラーキーワードを補完できるようになった。
