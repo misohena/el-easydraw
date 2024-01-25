@@ -1,6 +1,15 @@
 
 
 * Inbox
+** TODO widget/チェックリストの操作で表示が乱れることがある？
+edraw-default-shape-properties等のカスタマイズでチェックボックスをON/OFFしたときに関係ない場所が消えることがあるような気がする。例えばrectをOFFにしたらellipseのチェックボックスがrectのチェックボックスと同じ行に来たり。再現の仕方が今ひとつ分からない。
+** TODO widget/marker型のshape propertyをカスタマイズできるようにする
+edraw-default-shape-propertiesのカスタマイズでmarker-startやmarker-endの値を指定出来るようにする。
+edraw-widget.elのedraw-widget-properties-prop-field関数の部分。
+** TODO widget/デフォルト値をちゃんと設定する
+カスタマイズ時にチェックボックスをONにしたとき、0.0等になるのが使いづらい。
+markerWidthとかで。
+prop-info-listに:default-valueでも追加する？
 ** TODO edraw-get-actionsを整理する。
 [[*選択オブジェクトに対するキー操作をコンテキストメニューに表示する][選択オブジェクトに対するキー操作をコンテキストメニューに表示する]]の続き。
 
@@ -223,11 +232,6 @@ UNDO時には接続の更新を抑制するような仕組みがあればよい�
 ** TODO edraw-mode/バッファをkillするときに未保存があったら確認する
 ** TODO edraw-mode/ビューを常にウィンドウサイズに合わせる
 やりたいけど実際の所ちょっと重い。環境によっては不安定になる可能性もある？
-
-** TODO 設定/デフォルトプロパティ設定をdefcustomにしたい
--userという変数を作って、変更時に本番変数に反映させるのはどうか。
-もちろんプロパティ値がnilの場合はプロパティを削除する。
-無指定の物は-initialという定数のものを採用する。
 
 ** TODO 設定/カスタムシェイプツールのデフォルトプロパティ問題
 現在はpath要素用のデフォルトプロパティを適用している。
@@ -3289,3 +3293,23 @@ color widgetの実装を参考にする。
 本当はfaceではなくSVGで色サンプルを表示した方が良い(枠線が描けたり、半透明が表現できたりするので)が、色々面倒なのでそのうち気が向いたら。
 
 ついでに:completionsを指定したので、フィールド上でカラーキーワードを補完できるようになった。
+** DONE widget/デフォルトプロパティ設定をdefcustomにしたい
+CLOSED: [2024-01-25 Thu 20:47]
+
+[[*プリセット/初期デフォルトを設定できるようにする][プリセット/初期デフォルトを設定できるようにする]]によって既に初期デフォルトを変更できるようになっているが、一応defcustomでも設定できるようにしておく。同時に設定された場合プリセットの方を優先する。
+
+まずEmacs Widget Libraryの勉強をした。Widgetの作成方法について詳しく調べた。ブログにもいくつか記事を書いた。
+
+- [[https://misohena.jp/blog/2024-01-07-study-of-emacs-widget-library.html][Emacs Widget Libraryについて調べる | Misohena Blog]]
+- [[https://misohena.jp/blog/2024-01-16-define-web-color-widget.html][Webカラーwidgetを作る(Emacs Widget Libraryについて調べる2) | Misohena Blog]]
+
+edraw-widget.elを追加し、Webカラーを編集するwidget(edraw-color)とプロパティのリスト(決まった型のプロパティ群を持つplistまたはalist)を編集するwidget(edraw-attribute-list、edraw-attribute-plist、edraw-attribute-alist、edraw-properties)を作成した。
+
+次の変数をdefvarからdefcustomへ変更し、:typeに上記widgetを適用した。
+
+- edraw-default-document-properties
+- edraw-default-shape-properties
+- edraw-default-shape-properties-for-each-tool
+- edraw-default-marker-properties
+
+元の初期値はedraw-package-default-という名前のdefconstに、上記カスタマイズ変数はそこから変更するプロパティだけを指定する形とした。それによってユーザーがカスタマイズした後でも将来プロパティを増やしたときに適切な初期値を設定することが出来る。

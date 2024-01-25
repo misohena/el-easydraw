@@ -1437,6 +1437,9 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
     ;; Ignore "" or "none"
     ))
 
+(defun edraw-svg-marker-type-all ()
+  (mapcar #'car edraw-svg-marker-types))
+
 (defun edraw-svg-marker-type-next (type)
   (if (null type)
       (caar edraw-svg-marker-types)

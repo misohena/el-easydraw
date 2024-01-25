@@ -35,6 +35,7 @@
 (require 'mwheel)
 (require 'cl-lib)
 (require 'eieio)
+(require 'edraw-widget)
 (require 'edraw-math)
 (require 'edraw-path)
 (require 'edraw-dom-svg)
@@ -77,14 +78,44 @@
   :prefix "edraw-editor-"
   :group 'edraw)
 
-(defvar edraw-default-document-properties
+
+(defconst edraw-package-default-document-properties
   '((width . 560)
     (height . 420)
-    (background . "#fff")))
-(defvar edraw-default-shape-properties
-  ;; To customize property, do the following:
-  ;; (with-eval-after-load "edraw"
-  ;;   (setf (alist-get 'font-family (alist-get 'text edraw-default-shape-properties)) "Yu Gothic"))
+    (background . "#fff"))
+  "Default document properties provided by the package.
+
+More properties may be added to this list in the future.")
+
+(defcustom edraw-default-document-properties
+  nil
+  "Default document properties.
+
+Values of properties not specified in this variable are retrieved
+from the `edraw-package-default-document-properties' variable."
+  :group 'edraw-editor
+  :type `(edraw-attribute-alist
+          :tag "Properties"
+          :show-all-attributes t
+          ;;:default-attributes ,edraw-package-default-document-properties
+          (width (integer :tag "Width" :value 560))
+          (height (integer :tag "Height" :value 420))
+          (background (edraw-web-color :tag "Background Color" :value "#fff"))))
+
+(defun edraw-default-document-property-get (key)
+  (cdr (or (assq key edraw-default-document-properties)
+           (assq key edraw-package-default-document-properties))))
+
+
+
+(defcustom edraw-editor-share-default-shape-properties nil
+  "non-nil means that the editors change edraw-default-shape-properties directly."
+  :group 'edraw-editor
+  :type 'boolean)
+
+
+
+(defconst edraw-package-default-shape-properties
   '((rect
      (stroke . "none")
      (fill . "#ddd")
@@ -103,9 +134,69 @@
      (font-family . "sans-serif")
      (font-size . 18)
      (text-anchor . "middle")
-     (fill . "#222"))))
+     (fill . "#222"))
+    (image))
+  "Default shape properties provided by the package.
 
-(defvar edraw-default-shape-properties-for-each-tool
+More shape types and properties may be added to this list in the future.")
+
+;; NOTE:
+;; Default properties can also be customized in the following ways
+;; (for compatibility):
+;; (with-eval-after-load "edraw"
+;;   (setf (alist-get 'font-family
+;;                    (alist-get 'text edraw-default-shape-properties))
+;;         "Yu Gothic"))
+
+(defcustom edraw-default-shape-properties
+  nil
+  "Default shape properties.
+
+Values of properties not specified in this variable are retrieved
+from the `edraw-package-default-shape-properties' variable.
+
+If initial defaults are saved as presets, they will take precedence."
+  :group 'edraw-editor
+  :type `(edraw-attribute-alist
+          :tag "Shape Types"
+          :show-all-attributes t
+          :convert-widget edraw-default-shape-properties--convert-widget))
+
+(defun edraw-default-shape-properties--convert-widget (widget)
+  (widget-put
+   widget :args
+   ;; NOTE: This function cannot be called when determining the :type
+   ;; of defcustom. edraw-shape-type-to-create,
+   ;; edraw-get-property-info-list, etc. are not defined at that point.
+   ;; Also, shape-type may be added later from other packages.
+   (mapcar (lambda (shape-type)
+             `(,shape-type
+               (edraw-properties
+                :tag ,(capitalize (symbol-name shape-type))
+                :prop-info-list ,(edraw-get-property-info-list
+                                  (edraw-shape-type-to-class
+                                   shape-type)))))
+           (mapcar #'car edraw-package-default-shape-properties)))
+  widget)
+
+(defun edraw-default-shape-properties--get ()
+  "Return the default shape properties alist."
+  (let ((dsprops
+         (if edraw-editor-share-default-shape-properties
+             ;;@todo observe changes made by other editors
+             edraw-default-shape-properties
+           (copy-tree edraw-default-shape-properties))))
+    ;; Apply package default
+    (cl-loop for (shape-type . props) in edraw-package-default-shape-properties
+             do
+             (cl-loop for (key . value) in props
+                      unless (assq key (alist-get shape-type dsprops))
+                      do (setf (alist-get key (alist-get shape-type dsprops))
+                               ;; Protect package-default
+                               (copy-tree value))))
+    dsprops))
+
+(defconst edraw-package-default-shape-properties-for-each-tool
   '(;; (<tool-class-symbol> . shape-type-default | <properties-alist>)
     (edraw-editor-tool-rect . shape-type-default)
     (edraw-editor-tool-ellipse . shape-type-default)
@@ -117,17 +208,89 @@
     (edraw-editor-tool-text . shape-type-default)
     (edraw-editor-tool-image . shape-type-default)
     (edraw-editor-tool-custom-shape . shape-type-default))
-  "Specifies default properties for shapes created by each tool.")
+  "Default shape properties for each tool provided by the package.
 
-(defvar edraw-default-marker-properties
+More tools may be added to this list in the future.")
+
+(defcustom edraw-default-shape-properties-for-each-tool
   nil
-   ;; '(("arrow" (markerWidth . "20") (markerHeight . "10")))
-  )
+  "Default properties for shapes created by each tool.
 
-(defcustom edraw-editor-share-default-shape-properties nil
-  "non-nil means that the editors change edraw-default-shape-properties directly."
+If properties are not specified, the
+`edraw-default-shape-properties' variable specifications will be
+used.
+
+If initial defaults are saved as presets, they will take precedence."
   :group 'edraw-editor
-  :type 'boolean)
+  :type `(edraw-attribute-alist
+          :tag "Tools"
+          :show-all-attributes t
+          :convert-widget
+          edraw-default-shape-properties-for-each-tool--convert-widget))
+
+(defun edraw-default-shape-properties-for-each-tool--convert-widget (widget)
+  (widget-put
+   widget :args
+   ;; NOTE: This function cannot be called when determining the :type
+   ;; of defcustom. edraw-shape-type-to-create,
+   ;; edraw-get-property-info-list, etc. are not defined at that point.
+   ;; Also, tool-class may be added later from other packages.
+   (cl-loop for (tool-class . _)
+            in edraw-package-default-shape-properties-for-each-tool
+            for shape-type = (edraw-shape-type-to-create tool-class)
+            when shape-type
+            collect
+            `(,tool-class
+              (choice
+               :value shape-type-default ;;default value
+               :tag ,(edraw-name tool-class)
+               (const :tag "Use shape type defaults" shape-type-default)
+               (edraw-properties
+                :tag "Specify properties"
+                :prop-info-list ,(edraw-get-property-info-list
+                                  (edraw-shape-type-to-class
+                                   shape-type)))))))
+  widget)
+
+(defun edraw-default-shape-properties-for-each-tool--get ()
+  (let ((tool-props
+         (if edraw-editor-share-default-shape-properties
+             ;;@todo observe changes made by other editors
+             edraw-default-shape-properties-for-each-tool
+           (copy-tree edraw-default-shape-properties-for-each-tool))))
+    (cl-loop for (tool-class . value)
+             in edraw-package-default-shape-properties-for-each-tool
+             unless (assq tool-class tool-props)
+             do (setf (alist-get tool-class tool-props)
+                      ;; Protect package-default
+                      (copy-tree value)))
+    tool-props))
+
+
+
+(defcustom edraw-default-marker-properties
+  ;; '(("arrow" (markerWidth . "20") (markerHeight . "10")))
+  nil
+  "Default marker properties.
+
+If initial defaults are saved as presets, they will take precedence."
+  :group 'edraw-editor
+  :type `(edraw-attribute-alist
+          :tag "Marker Types"
+          :show-all-attributes t
+          :args
+          ,(cl-loop for marker-type in (edraw-svg-marker-type-all)
+                    collect
+                    `(,marker-type
+                      (edraw-properties
+                       :tag ,marker-type
+                       :prop-info-list ,(edraw-svg-marker-prop-info-list
+                                         marker-type))))))
+
+(defun edraw-default-marker-properties--get ()
+  (copy-tree edraw-default-marker-properties))
+
+
 
 ;;NOTE: Referenced by edraw-property-editor.el, edraw-shape-picker.el for read color
 (defcustom edraw-editor-image-scaling-factor nil
@@ -423,17 +586,11 @@ line-prefix and wrap-prefix are used in org-indent.")
     "A storage area for users of the edraw-editor class. It is never
 used by the edraw-editor class.")
    (default-shape-properties
-    :initform (if edraw-editor-share-default-shape-properties
-                  ;;@todo observe changes made by other editors
-                  edraw-default-shape-properties
-                (copy-tree edraw-default-shape-properties)))
+    :initform (identity (edraw-default-shape-properties--get)))
    (default-shape-properties-for-each-tool
-    :initform (if edraw-editor-share-default-shape-properties
-                  ;;@todo observe changes made by other editors
-                  edraw-default-shape-properties-for-each-tool
-                (copy-tree edraw-default-shape-properties-for-each-tool)))
+    :initform (identity (edraw-default-shape-properties-for-each-tool--get)))
    (default-marker-properties
-    :initform (copy-tree edraw-default-marker-properties))
+    :initform (identity (edraw-default-marker-properties--get)))
    (tool :initform nil :type (or null edraw-editor-tool))
    (selected-shapes :initform nil :type list)
    (selected-anchor :initform nil :type (or null edraw-shape-point))
@@ -927,8 +1084,8 @@ For use with `edraw-editor-with-temp-undo-list',
             (when (or (null w) (null h))
               (warn "Width and height are not specified for svg element. Apply default document size."))
             (cons
-             (or w (alist-get 'width edraw-default-document-properties))
-             (or h (alist-get 'height edraw-default-document-properties)))))
+             (or w (edraw-default-document-property-get 'width))
+             (or h (edraw-default-document-property-get 'height)))))
     ;; Backup SVG View Box
     (setq svg-document-view-box (dom-attr svg 'viewBox))
 
@@ -957,9 +1114,9 @@ For use with `edraw-editor-with-temp-undo-list',
         (edraw-restore-point-connections shape)))))
 
 (defun edraw-create-document-svg (&optional width height background children)
-  (let* ((width (or width (alist-get 'width edraw-default-document-properties)))
-         (height (or height (alist-get 'height edraw-default-document-properties)))
-         (background (or background (alist-get 'background edraw-default-document-properties)))
+  (let* ((width (or width (edraw-default-document-property-get 'width)))
+         (height (or height (edraw-default-document-property-get 'height)))
+         (background (or background (edraw-default-document-property-get 'background)))
          (svg (edraw-svg-create width height)))
     (when (and background (not (equal background "none")))
       (edraw-svg-rect 0 0 width height
