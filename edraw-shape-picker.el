@@ -458,7 +458,9 @@
 \\{edraw-shape-picker-thumbnail-map}"
   ;; Local Variables
   (setq-local line-move-visual t
-              line-spacing 0)
+              line-spacing 0
+              ;; Disable context-menu-mode
+              minor-mode-overriding-map-alist '((context-menu-mode . nil)))
   (edraw-shape-picker-init-entry-folding)
 
   ;; Hook

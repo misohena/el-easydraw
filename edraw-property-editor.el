@@ -434,7 +434,11 @@ editor when the selected shape changes."
 
 ;;;; Major Mode
 
-(define-derived-mode edraw-property-editor-mode nil "Eprops")
+(define-derived-mode edraw-property-editor-mode nil "Eprops"
+  ;; Disable context-menu-mode
+  (setq-local minor-mode-overriding-map-alist
+              '((context-menu-mode . nil))))
+
 
 ;;;; Property Editor
 

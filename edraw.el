@@ -403,6 +403,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km [S-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [double-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [down-mouse-2] 'edraw-editor-scroll-by-dragging)
+    (define-key km [down-mouse-3] 'edraw-editor-dispatch-event) ;; Disable context-menu-mode
     (define-key km [mouse-3] 'edraw-editor-dispatch-event)
     (define-key km (vector (intern (format "C-%s" mouse-wheel-up-event))) 'edraw-editor-zoom-out-by-mouse)
     (define-key km (vector (intern (format "C-%s" mouse-wheel-down-event))) 'edraw-editor-zoom-in-by-mouse)

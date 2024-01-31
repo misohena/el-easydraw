@@ -358,6 +358,7 @@ the time `edraw-org-link-recover-mouse-face' is called."
 (defconst edraw-org-link-image-map
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km org-mouse-map)
+    (define-key km [down-mouse-3] 'ignore) ;; Disable context-menu-mode
     (define-key km [mouse-3] 'edraw-org-link-image-menu-at-mouse)
     (define-key km (kbd "C-c C-o") 'edraw-org-link-image-open-at-point)
     km))
