@@ -9931,7 +9931,21 @@ This function is for registering with the `kill-buffer-query-functions' hook."
                (eq (current-buffer) buffer))
       (quit-window t))))
 
+(defun edraw-deactivate-global-context-menu (menu event)
+  "Deactivate the global context menu.
+Just return nil as member of `context-menu-functions'.
+See `context-menu-functions' for the arguments MENU and EVENT."
+  (if-let (((mouse-event-p event))
+	     (posn (event-start event))
+	     (window (posn-window posn))
+	     (buffer (window-buffer window))
+	     (point (posn-point posn))
+	     ((with-current-buffer buffer
+		(edraw-editor-at point))))
+      nil ;; deactivate context menu at edraw-editor
+    menu))
 
+(add-hook 'context-menu-functions #'edraw-deactivate-global-context-menu 100)
 
 (provide 'edraw)
 ;;; edraw.el ends here
