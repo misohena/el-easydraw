@@ -3313,3 +3313,24 @@ edraw-widget.elを追加し、Webカラーを編集するwidget(edraw-color)と�
 - edraw-default-marker-properties
 
 元の初期値はedraw-package-default-という名前のdefconstに、上記カスタマイズ変数はそこから変更するプロパティだけを指定する形とした。それによってユーザーがカスタマイズした後でも将来プロパティを増やしたときに適切な初期値を設定することが出来る。
+
+** DONE 右クリック時にcontext-menu-modeが優先される問題を修正する。
+CLOSED: [2024-02-01 Thu 16:34]
+[[https://github.com/misohena/el-easydraw/issues/21][edraw context menu interferes with context-menu-mode · Issue #21 · misohena/el-easydraw]]
+
+[[elisp-function:context-menu-mode][context-menu-mode]]はグローバルマイナーモード。minor-modeのキーマップ([[elisp-variable:context-menu-mode-map][context-menu-mode-map]])に割り当てられたdown-mouse-3に対するコマンドでメニューを開いている。
+
+なので、エディタのkeymapにdown-mouse-3を追加してしまう方が良さそう。他のマウスのボタンも同じようにして既に定義されている動作を上書きしているので。
+
+同様に mouse-3 を使用しているところは他にもある。検索した限り:
+- edraw-orgのインライン画像
+- プロパティエディタ
+- シェイプピッカー
+
+インライン画像はエディタと同様にオーバーレイのキーマップで対処可能。
+
+プロパティエディタとシェイプピッカーはメジャーモードのキーマップでコンテキストメニューを出している。そこでdown-mouse-3を無視しても、マイナーモードのキーマップの方が優先されてしまい、context-menu-modeを無効化できない。
+
+マイナーモードマップについてマニュアルをあたったところ、[[elisp-variable:minor-mode-overriding-map-alist][minor-mode-overriding-map-alist]]という変数があった。メジャーモードからマイナーモードの割り当てを上書きできる。ちょうど良い。それを使ってcontext-menu-modeのキーマップを全て無効化した。
+
+down-mouse-3以外のキー割り当てを残すか迷ったが、context-menu-modeを使っていないのにcontext-menu-mode-mapにアクセスするのがためらわれたのでやめておいた。context-menu-modeはmouse.el内にあり、mouse.elはおそらく必ず読み込まれるのではないかと思うが、確信が無かった。
