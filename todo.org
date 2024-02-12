@@ -3334,3 +3334,19 @@ CLOSED: [2024-02-01 Thu 16:34]
 マイナーモードマップについてマニュアルをあたったところ、[[elisp-variable:minor-mode-overriding-map-alist][minor-mode-overriding-map-alist]]という変数があった。メジャーモードからマイナーモードの割り当てを上書きできる。ちょうど良い。それを使ってcontext-menu-modeのキーマップを全て無効化した。
 
 down-mouse-3以外のキー割り当てを残すか迷ったが、context-menu-modeを使っていないのにcontext-menu-mode-mapにアクセスするのがためらわれたのでやめておいた。context-menu-modeはmouse.el内にあり、mouse.elはおそらく必ず読み込まれるのではないかと思うが、確信が無かった。
+** DONE テキスト/空行が無視されるのを直す
+CLOSED: [2024-02-12 Mon 22:54]
+
+[[edraw:data=H4sIAC0iymUAA7VSvU7DMBB+FeuYEycpP00VZ2NAQrxDiJ3ESmJXtmlSNjowsDHyCLwCEi9Dh74Gl6QCBhB0YPCdTvf96eTErkrSt42yDCrnlgtKu67zu5mvTUmjIAgoImCCLPpGqvo7YBjHMR23QDrJXcUgPA2AVEKWldsPK2Gs1AonP4Q0MSJ3pGeAm/VYfyRKzkBwk3XedZbXpdE3igOxzuhaMFBaCSCFbBoGR0VRAKFpUn4lab5GPyd6R4bicZFrk7kxC0oJg8HFmOIY3TDSHFuhlfOsvEWHcA4TMVN5pQ2DVnLefJpGUTTo22WmSN5kFm85wifZSS+9vLg6DxM6on4F/xFHOGaORDupz/5V/eQQVjiwyMGMwefs7f5x9/yye3rd3m22m4cPEToQsZX48E+m7zr08DS7AgAA]]
+
+tspanのdyはdy="1,2,3"のように内容の各文字に対して指定出来るらしい。そして数値に対応する文字が無い場合は効果が無いと規定されているとのこと。なので空の文字列の場合は効果が無い。
+
+空白文字を入れて回避しようかと思ったが、アンダーラインなどに影響が出ては面白くないのでやめた。実際には空白を入れても何も効果が無かった。
+
+y=を指定しようとも思ったが、x=と同様にテキストが動くたびに更新しなければならないのでやめた。
+
+dy=の値を空行があるたびに増やし、空行以外でリセットする方法に落ち着いた。
+
+ちなみに増分を1.5などにすれば行間を増やすことも可能。
+
+空白だけを含む行の扱いは非常に微妙でよく分からない。tspan要素の前後に改行や空白を入れると空行扱いされたり、微妙に(tspanの前のインデントの分だけ?)位置がずれたりする。とりあえずインデント等は一切無しで出力する分には、空白が入っている行は普通の行として扱って問題ないみたい。

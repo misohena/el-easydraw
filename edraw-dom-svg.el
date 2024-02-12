@@ -1123,17 +1123,22 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
          (attr-col (if vertical-p 'y 'x))
          (col (or (edraw-svg-attr-coord element attr-col) 0))
          (attr-line-delta (if vertical-p 'dx 'dy))
-         (line-delta (if negative-dir-p "-1em" "1em"))
-         (first-line (car lines)))
+         (line-delta-step (if negative-dir-p -1 1))
+         (line-delta 0))
     (dolist (line lines)
       (dom-append-child
        element
        (dom-node 'tspan
                  (append (list (cons 'class "text-line")
                                (cons attr-col col))
-                         (unless (eq line first-line)
-                           (list (cons attr-line-delta line-delta))))
-                 line)))))
+                         (when (and (/= line-delta 0)
+                                    (not (string-empty-p line)))
+                           (list (cons attr-line-delta
+                                       (format "%sem" line-delta)))))
+                 line))
+      (unless (string-empty-p line)
+        (setq line-delta 0))
+      (cl-incf line-delta line-delta-step))))
 
 (defun edraw-svg-text-get-text (element)
   (if (stringp (car (dom-children element)))
