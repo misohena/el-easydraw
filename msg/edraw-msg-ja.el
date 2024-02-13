@@ -257,6 +257,7 @@
      "The crop range is empty." "切り抜き範囲が空です。"
      "The extension is not .edraw.svg" "拡張子が .edraw.svg ではありません"
      "The link at point is not of type `file:'" "ポイントにあるリンクが `file:' タイプではありません"
+     "The operation is not supported on this object" "このオブジェクトではその操作はサポートされていません"
      "The root entry cannot be deleted" "ルート項目は削除できません"
      "This shape picker is not connected to an editor" "このシェイプピッカーはエディタと接続されていません"
      "To Frame" "フレーム化"

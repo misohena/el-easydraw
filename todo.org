@@ -1,12 +1,6 @@
 
 
 * Inbox
-** TODO テキスト/テキストのアンカーポイントを削除しようとするとエラーになる
-選択してDeleteキーを押すと次のようなエラーになる。
-: cl-no-applicable-method: No applicable method: edraw-delete-point, #s(edraw-shape-point-text ...
-空の文字列に対して範囲選択すると点が表示され、それを選択してDeleteキーを押すとこうなる。
-出来ればテキストそのものを削除したい。
-
 ** TODO widget/チェックリストの操作で表示が乱れることがある？
 edraw-default-shape-properties等のカスタマイズでチェックボックスをON/OFFしたときに関係ない場所が消えることがあるような気がする。例えばrectをOFFにしたらellipseのチェックボックスがrectのチェックボックスと同じ行に来たり。再現の仕方が今ひとつ分からない。
 ** TODO widget/marker型のshape propertyをカスタマイズできるようにする
@@ -3382,3 +3376,13 @@ CLOSED: [2024-02-13 Tue 14:10]
 RETで改行できるようになると自動インデントが邪魔なので無効化する。[[elisp-variable:indent-line-function]]に何もしない関数を指定すれば良いはず。
 
 また、二行目以降を正しくインデントする。line-prefixとwrap-prefixを指定すれば実現可能。widgetを配置した後にput-text-propertyで設定してしまえば十分。fieldの前の空白にも設定しておくことで、値が空になっても次の入力にはそのテキストプロパティが継承される。また、フィールド直後の改行にも設定しておかないと、最後が改行で終わる場合にインデントされない。
+** DONE アンカーポイントをDeleteキーで削除しようとするとエラーになる
+CLOSED: [2024-02-13 Tue 14:49]
+テキストのアンカーポイントを選択してDeleteキーを押すと次のようなエラーになる。
+: cl-no-applicable-method: No applicable method: edraw-delete-point, #s(edraw-shape-point-text ...
+空の文字列に対して範囲選択すると点が表示され、それを選択してDeleteキーを押すとこうなる。
+出来ればテキストそのものを削除したい。
+
+そもそもpath以外の全ての図形でエラーになる。edraw-delete-pointを実装しているのはedraw-shape-point-pathのみだから。
+
+なので一般的なedraw-shape-pointに対するedraw-delete-pointを実装して、実行時には明示的なエラーメッセージを表示する。そしてテキスト(edraw-shape-point-text)に対しては、親オブジェクトを削除する。

@@ -7677,6 +7677,9 @@ may be replaced by another mechanism."
              (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
     (edraw-move spt (edraw-matrix-mul-mat-xy inv-mat xy))))
 
+(cl-defmethod edraw-delete-point ((_spt edraw-shape-point))
+  (message (edraw-msg "The operation is not supported on this object")))
+
 
 ;;;;; Shape Point - Rect Boundary
 
@@ -7721,6 +7724,9 @@ may be replaced by another mechanism."
                              (or xy (edraw-read-shape-point-xy spt))))
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-text) spt2)
   (eq spt1 spt2))
+
+(cl-defmethod edraw-delete-point ((spt edraw-shape-point-text))
+  (edraw-remove (edraw-parent-shape spt)))
 
 ;;;;; Shape Point - Path
 
