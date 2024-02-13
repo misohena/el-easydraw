@@ -713,7 +713,8 @@ editor when the selected shape changes."
     (widget new-w-value)
   "Same as widget-value-set, but suppresses widget change notifications."
   (let ((edraw-property-editor-prop-widget--notification-suppressed t))
-    (widget-value-set widget new-w-value)))
+    (save-excursion ;; `widget-field-value-set' will change the current point!
+      (widget-value-set widget new-w-value))))
 
 (defun edraw-property-editor-prop-widget-value-set (widget new-w-value)
   "Same as widget-value-set, but suppresses property update

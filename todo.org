@@ -3386,3 +3386,10 @@ CLOSED: [2024-02-13 Tue 14:49]
 そもそもpath以外の全ての図形でエラーになる。edraw-delete-pointを実装しているのはedraw-shape-point-pathのみだから。
 
 なので一般的なedraw-shape-pointに対するedraw-delete-pointを実装して、実行時には明示的なエラーメッセージを表示する。そしてテキスト(edraw-shape-point-text)に対しては、親オブジェクトを削除する。
+** DONE プロパティエディタ/値の自動更新時にポイントが動かないようにする
+CLOSED: [2024-02-13 Tue 15:03]
+接着されたテキストのテキスト内容を編集しているとき、境界矩形が変化して接着に従ってx,y属性が変化し、そのときにポイントがyプロパティの場所へ移動してしまう。
+
++なぜ移動してしまうのかよく分からないが、とりあえず変更フック→タイマーで更新するときにsave-excursionした。+
+
+一応もう少し調査した。[[elisp-function:widget-field-value-set]]がgoto-charを使っているにもかかわらずsave-excursionしていないのが原因。widget-value-setの唯一の使用箇所であるedraw-property-editor-prop-widget-value-set-without-notifyでwidget-value-setする前にsave-excursionした。通知先でポイントを移動したい場合がもしあったら困るが、そんなものは無いと信じる。
