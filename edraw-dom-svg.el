@@ -941,7 +941,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      (marker-mid attr-marker marker nil)
      (marker-end attr-marker marker nil))
     (text
-     (text inner-text string (required geometry))
+     (text inner-text text (required geometry))
      ;; librsvg does not support list-of-coordinates
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/183
      (x attr coordinate (required geometry))

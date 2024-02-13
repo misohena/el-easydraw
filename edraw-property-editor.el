@@ -402,19 +402,28 @@ editor when the selected shape changes."
     (define-key km [triple-down-mouse-1] 'edraw-property-editor-widget-button-click)
     km))
 
+(defun edraw-property-editor-define-field-map-keys (km)
+  (define-key km (kbd "C-c C-c") 'edraw-property-editor--apply)
+  (define-key km (kbd "C-c C-k") 'edraw-property-editor--close)
+  (define-key km [drag-mouse-1] 'ignore)
+  (define-key km [double-mouse-1] 'ignore)
+  (define-key km [triple-mouse-1] 'ignore)
+  (define-key km [down-mouse-2] 'ignore)
+  (define-key km [mouse-2] 'edraw-property-editor--close)
+  (define-key km [mouse-3] 'edraw-property-editor--menu)
+  (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-decrease)
+  (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-increase))
+
 (defvar edraw-property-editor-field-map
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km widget-field-keymap)
-    (define-key km (kbd "C-c C-c") 'edraw-property-editor--apply)
-    (define-key km (kbd "C-c C-k") 'edraw-property-editor--close)
-    (define-key km [drag-mouse-1] 'ignore)
-    (define-key km [double-mouse-1] 'ignore)
-    (define-key km [triple-mouse-1] 'ignore)
-    (define-key km [down-mouse-2] 'ignore)
-    (define-key km [mouse-2] 'edraw-property-editor--close)
-    (define-key km [mouse-3] 'edraw-property-editor--menu)
-    (define-key km [C-wheel-down] 'edraw-property-editor-field-wheel-decrease)
-    (define-key km [C-wheel-up] 'edraw-property-editor-field-wheel-increase)
+    (edraw-property-editor-define-field-map-keys km)
+    km))
+
+(defvar edraw-property-editor-text-map
+  (let ((km (make-sparse-keymap)))
+    (set-keymap-parent km widget-text-keymap) ;;For multiline
+    (edraw-property-editor-define-field-map-keys km)
     km))
 
 (defvar edraw-property-editor-mode-map
@@ -437,8 +446,13 @@ editor when the selected shape changes."
 (define-derived-mode edraw-property-editor-mode nil "Eprops"
   ;; Disable context-menu-mode
   (setq-local minor-mode-overriding-map-alist
-              '((context-menu-mode . nil))))
+              '((context-menu-mode . nil)))
+  ;; Disable indentation
+  (setq-local indent-line-function
+              #'edraw-property-editor-mode-indent))
 
+(defun edraw-property-editor-mode-indent ()
+  nil)
 
 ;;;; Property Editor
 
@@ -807,6 +821,10 @@ once. widget-value-set updates the same property four times."
       (edraw-property-editor-create-marker-widget
        margin-left indent target prop-name prop-value prop-info notify
        pedit))
+     ((eq prop-type 'text)
+      (edraw-property-editor-create-text-field-widget
+       (+ margin-left indent) target prop-name prop-value prop-info notify
+       t))
      (t
       (edraw-property-editor-create-text-field-widget
        (+ margin-left indent) target prop-name prop-value prop-info notify)))))
@@ -862,20 +880,34 @@ as a string."
 (defun edraw-property-editor-create-text-field-widget (indent
                                                        target
                                                        prop-name prop-value
-                                                       prop-info notify)
-  (widget-insert (make-string indent ? ))
-  (edraw-property-editor-prop-widget
-   :widget (widget-create
-            'editable-field
-            :keymap edraw-property-editor-field-map
-            :format (format
-                     "%s: %%v"
-                     (edraw-property-editor-property-display-name prop-name))
-            :value (edraw-property-editor-prop-value-to-widget-value
-                    prop-value prop-info)
-            :notify notify)
-   :target target
-   :prop-info prop-info))
+                                                       prop-info notify
+                                                       &optional
+                                                       multiline)
+  (let* ((disp-name (edraw-property-editor-property-display-name prop-name))
+         (field-indent (make-string (+ indent (length disp-name) 2) ? ))
+         (_ (widget-insert (make-string indent ? )))
+         (widget (widget-create
+                  'editable-field
+                  :keymap (if multiline
+                              edraw-property-editor-text-map
+                            edraw-property-editor-field-map)
+                  :format (format "%s: %%v" disp-name)
+                  :value (edraw-property-editor-prop-value-to-widget-value
+                          prop-value prop-info)
+                  :edraw-indent field-indent
+                  :notify notify))
+         (prop-widget (edraw-property-editor-prop-widget
+                       :widget widget
+                       :target target
+                       :prop-info prop-info)))
+
+    ;; Set line-prefix and wrap-prefix for multiline indentation
+    (let ((beg (1- (widget-field-start widget))) ;;Before value part
+          (end (1+ (widget-field-end widget)))) ;;Include \n
+      (put-text-property beg end 'line-prefix field-indent)
+      (put-text-property beg end 'wrap-prefix field-indent))
+    ;; Return prop widget object
+    prop-widget))
 
 ;;;;;; Number Widget
 
@@ -1452,7 +1484,7 @@ as a string."
 (defun edraw-property-editor-prop-value-to-widget-value (prop-value prop-info)
   (pcase (plist-get prop-info :type)
     (`(or . ,_)
-     ;; string or nil
+     ;; string, text or nil
      prop-value)
     ('marker
      ;; marker descriptor

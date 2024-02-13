@@ -491,6 +491,7 @@ The following properties have special meanings for this widget:
         (list name (list 'number :tag tag)))
        ;; String
        ((or (eq type 'string)
+            (eq type 'text) ;;@todo text widget?
             (eq type 'font-family))
         (list name (list 'string :tag tag)))
        ;; Paint

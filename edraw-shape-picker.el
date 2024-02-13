@@ -739,6 +739,8 @@
            (new-val (pcase prop-type
                       ('string
                        (edraw-read-string-or-nil prompt curr-val))
+                      ('text
+                       (edraw-read-string-or-nil prompt curr-val))
                       ('integer
                        (edraw-read-integer-or-nil prompt curr-val))
                       ('cover

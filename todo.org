@@ -1,6 +1,12 @@
 
 
 * Inbox
+** TODO テキスト/テキストのアンカーポイントを削除しようとするとエラーになる
+選択してDeleteキーを押すと次のようなエラーになる。
+: cl-no-applicable-method: No applicable method: edraw-delete-point, #s(edraw-shape-point-text ...
+空の文字列に対して範囲選択すると点が表示され、それを選択してDeleteキーを押すとこうなる。
+出来ればテキストそのものを削除したい。
+
 ** TODO widget/チェックリストの操作で表示が乱れることがある？
 edraw-default-shape-properties等のカスタマイズでチェックボックスをON/OFFしたときに関係ない場所が消えることがあるような気がする。例えばrectをOFFにしたらellipseのチェックボックスがrectのチェックボックスと同じ行に来たり。再現の仕方が今ひとつ分からない。
 ** TODO widget/marker型のshape propertyをカスタマイズできるようにする
@@ -3369,3 +3375,10 @@ writing-mode:vertical-lr
 [[edraw:data=H4sIAFK0ymUAA7WUvW7bMBSFX4Vg1srUTxrEgak1S/oAHVmRkghTpCExkdOtY4EUfYBMXTJ26VCjr9Pm5zFySVmwEtiuHSSDJBM659zLj/KdNBcFmldKNxSX1s5OCGnbdtQmI1MXJA7DkIACd5KTuZJ6uk4Yjcdj4t9i1EpuS4rjwxCjUsiitBQnx7C4EHUjjaY4GkU4ndQis2hOMby59PeNRskpFrxmbfCJZdOiNueaY9TY2kwFxdpogVEulaL4IM9zjEg6KYYmwy+hnhVzi3KjbdDIz+CLIdkvc1ZJBS18PEenxpYyg1ZqaaUugspwUELjVmZMBar2vR6BExqPXIJLDZjOSlNTXEnO1aqZOI5d3WbGNMoUa4CxlwMn0Qel94ubu+vF3y/fbr//uv19MyFe/z8b4q4BUeH035+rhx9X99c/93cuvj5zEqdekuLMsqAD2GUIxgEJxe54Bhvcxmo9nN2OAFbR8Qr01m054UtA+gKOB+xpP5BPnVtBDllthBo4qm9HMgl3JOmELyHpCzgewd4on1k3sZwxWyL4T3+APbyLwzP3OHTWfg4cwAzqV0E/S/pPtRsSZDl1noqi1biJwtUcOuoGU7QkFw1LZXnsz3On8K2udZX9b1c6GdR+/fj4fRefdOmkgAuGffoIG4yaFxQGAAA=]]
 
 プロパティエディタ上でのプロパティ名が長くなるのでdata-edraw-の表示を省略したい。完全に消すのも何なので「(ed)text-leading」みたいなのでどう？
+** DONE テキスト/プロパティエディタ上で複数行編集が簡単にできるようにする
+CLOSED: [2024-02-13 Tue 14:10]
+現状でもC-q C-jで改行できるが、wid-edit.elのtext widgetと同じようにキーマップを変えることで普通にRETで改行できるようにする。
+
+RETで改行できるようになると自動インデントが邪魔なので無効化する。[[elisp-variable:indent-line-function]]に何もしない関数を指定すれば良いはず。
+
+また、二行目以降を正しくインデントする。line-prefixとwrap-prefixを指定すれば実現可能。widgetを配置した後にput-text-propertyで設定してしまえば十分。fieldの前の空白にも設定しておくことで、値が空になっても次の入力にはそのテキストプロパティが継承される。また、フィールド直後の改行にも設定しておかないと、最後が改行で終わる場合にインデントされない。
