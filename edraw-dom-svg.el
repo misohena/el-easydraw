@@ -964,6 +964,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
                    (or "horizontal-tb" "vertical-rl" "vertical-lr") (geometry))
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
      ;;(baseline-shift attr number nil)
+     (data-edraw-text-leading attr-update-text number (geometry))
      ,@edraw-svg-element-properties-common)
     (image
      (x attr coordinate (required geometry))
@@ -1123,7 +1124,12 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
          (attr-col (if vertical-p 'y 'x))
          (col (or (edraw-svg-attr-coord element attr-col) 0))
          (attr-line-delta (if vertical-p 'dx 'dy))
-         (line-delta-step (if negative-dir-p -1 1))
+         (leading (edraw-svg-attr-length element 'data-edraw-text-leading))
+         (line-delta-unit (if leading "" "em"))
+         (line-delta-step-abs (or leading 1))
+         (line-delta-step (if negative-dir-p
+                              (- line-delta-step-abs)
+                            line-delta-step-abs))
          (line-delta 0))
     (dolist (line lines)
       (dom-append-child
@@ -1134,7 +1140,9 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
                          (when (and (/= line-delta 0)
                                     (not (string-empty-p line)))
                            (list (cons attr-line-delta
-                                       (format "%sem" line-delta)))))
+                                       (format "%s%s"
+                                               line-delta
+                                               line-delta-unit)))))
                  line))
       (unless (string-empty-p line)
         (setq line-delta 0))
@@ -1627,20 +1635,31 @@ This function does not consider the effect of the transform attribute."
 
     (let* ((anchor-col (if vertical-p anchor-y anchor-x))
            (anchor-line (if vertical-p anchor-x anchor-y))
+           (num-lines (length lines))
+           (leading (or (edraw-svg-attr-length element 'data-edraw-text-leading)
+                        font-size)) ;; NOTE: Can be negative
+           (leading-total (if (= num-lines 0) 0 (* (1- num-lines) leading)))
+           (leading-total-abs (abs leading-total))
+           (leading-total-neg (- (min leading-total 0)))
            (text-w (* 0.5 font-size max-width))
-           (text-h (max 0
-                        (- (* font-size (length lines))
-                           (if edraw-svg-text-contents-aabb--remove-last-descent
-                               (- font-size font-ascent) 0))))
+           (text-h
+            (if (= num-lines 0)
+                0
+              (max 0
+                   (+ font-size
+                      leading-total-abs
+                      (if edraw-svg-text-contents-aabb--remove-last-descent
+                          (- (- font-size font-ascent)) 0)))))
            (text-col (- anchor-col
                         (* text-w (pcase text-anchor
                                     ("middle" 0.5) ("end" 1) (_ 0)))))
            (text-line (if vertical-p
                           (if vertical-rl-p
-                              (+ (- anchor-line text-h) (* 0.5 font-size))
+                              (+ (- anchor-line text-h) (* 0.5 font-size)
+                                 leading-total-neg)
                             ;; vertical-lr
-                            (- anchor-line (* 0.5 font-size)))
-                        (- anchor-line font-ascent))))
+                            (- anchor-line (* 0.5 font-size) leading-total-neg))
+                        (- anchor-line font-ascent leading-total-neg))))
       (if vertical-p
           (edraw-rect-xywh text-line text-col text-h text-w)
         (edraw-rect-xywh text-col text-line text-w text-h)))))

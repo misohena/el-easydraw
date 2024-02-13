@@ -618,7 +618,7 @@ editor when the selected shape changes."
                                   (mapcar
                                    (lambda (prop-info)
                                      (string-width
-                                      (symbol-name
+                                      (edraw-property-editor-property-display-name
                                        (plist-get prop-info :name))))
                                    prop-info-list))))
          widgets)
@@ -626,7 +626,8 @@ editor when the selected shape changes."
       (unless (plist-get prop-info :internal)
         (let* ((indent (- max-name-width
                           (string-width
-                           (symbol-name (plist-get prop-info :name))))))
+                           (edraw-property-editor-property-display-name
+                            (plist-get prop-info :name))))))
           (push (edraw-create-prop-widget pedit target prop-info margin-left indent)
                 widgets))))
     ;; Return widgets
@@ -810,6 +811,15 @@ once. widget-value-set updates the same property four times."
       (edraw-property-editor-create-text-field-widget
        (+ margin-left indent) target prop-name prop-value prop-info notify)))))
 
+(defun edraw-property-editor-property-display-name (prop-name)
+  "Return display name of the property PROP-NAME on property editor
+as a string."
+  (let ((str (format "%s" prop-name))
+        (edraw-prefix "data-edraw-"))
+    (if (string-prefix-p edraw-prefix str)
+        (concat "(ed)" (substring str (length edraw-prefix)))
+      str)))
+
 ;;;;;; Menu Choice Widget
 
 (defun edraw-property-editor-create-menu-choice-widget (indent
@@ -827,7 +837,10 @@ once. widget-value-set updates the same property four times."
           (apply
            #'widget-create
            `(menu-choice
-             :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
+             :format ,(format
+                       "%s: %%[%s%%] %%v"
+                       (edraw-property-editor-property-display-name prop-name)
+                       (edraw-msg "Choose"))
              :value ,(edraw-property-editor-prop-value-to-widget-value
                       prop-value prop-info)
              :notify ,notify
@@ -855,7 +868,9 @@ once. widget-value-set updates the same property four times."
    :widget (widget-create
             'editable-field
             :keymap edraw-property-editor-field-map
-            :format (format "%s: %%v" prop-name)
+            :format (format
+                     "%s: %%v"
+                     (edraw-property-editor-property-display-name prop-name))
             :value (edraw-property-editor-prop-value-to-widget-value
                     prop-value prop-info)
             :notify notify)
@@ -880,7 +895,9 @@ once. widget-value-set updates the same property four times."
          (name-end
           (progn
             (widget-insert
-             (format "%s%s: " (make-string indent ? ) prop-name))
+             (format "%s%s: "
+                     (make-string indent ? )
+                     (edraw-property-editor-property-display-name prop-name)))
             (point)))
          (widget (widget-create
                   'editable-field
@@ -1030,7 +1047,8 @@ once. widget-value-set updates the same property four times."
                                                   prop-info notify options)
   (widget-insert (make-string indent ? ))
   (let (field-widget)
-    (widget-insert (symbol-name prop-name) ": ")
+    (widget-insert (edraw-property-editor-property-display-name prop-name)
+                   ": ")
     (setq field-widget
           (widget-create
            'editable-field
@@ -1097,7 +1115,7 @@ once. widget-value-set updates the same property four times."
     (prop-name field-widget options)
   (let ((old-value (widget-value field-widget)))
     (edraw-color-picker-read-color
-     (format "%s: " prop-name)
+     (format "%s: " (edraw-property-editor-property-display-name prop-name))
      old-value
      '("" "none")
      `((:color-name-scheme . web)
@@ -1115,7 +1133,8 @@ once. widget-value-set updates the same property four times."
         (undo-backup (edraw-undo-block-begin target)))
     (unwind-protect
         (edraw-color-picker-read-color
-         (format "%s: " prop-name)
+         (format "%s: "
+                 (edraw-property-editor-property-display-name prop-name))
          old-value
          '("" "none")
          `((:color-name-scheme . web)
@@ -1187,7 +1206,10 @@ once. widget-value-set updates the same property four times."
           (apply
            #'widget-create
            `(menu-choice
-             :format ,(format "%s: %%[%s%%] %%v" prop-name (edraw-msg "Choose"))
+             :format ,(format
+                       "%s: %%[%s%%] %%v"
+                       (edraw-property-editor-property-display-name prop-name)
+                       (edraw-msg "Choose"))
              :value ,(cond
                       ((stringp prop-value)
                        (if (assoc prop-value edraw-svg-marker-types)
