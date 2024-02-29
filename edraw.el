@@ -748,7 +748,14 @@ edraw-editor initialization is now called automatically."
   ;;   ...)
   ;;
   ;; However, interactive can be specified.
-  (declare (indent 2))
+  (declare (indent 2) (debug
+		       (&define                    ; this means we are defining something
+			[&name [sexp   ;Allow (setf ...) additionally to symbols.
+				[&rest cl-generic--method-qualifier-p] ;qualifiers
+				listp]             ; arguments
+			       cl--generic-edebug-make-name nil]
+			lambda-doc                 ; documentation string
+			def-body)))
   (unless (equal (car arg-list) '(editor edraw-editor))
     (error "Defcmd's argument list must start with (editor edraw-editor)"))
 
@@ -903,7 +910,7 @@ This function deletes all redo data."
 ;; No Undo Data
 
 (defmacro edraw-editor-with-no-undo-data (&rest body)
-  (declare (indent 0))
+  (declare (indent 0) (debug (body)))
   `(let ((edraw-editor-inhibit-make-undo-data t))
      ,@body))
 
@@ -930,7 +937,7 @@ This function deletes all redo data."
 
 (defmacro edraw-make-undo-group (editor type &rest body)
   "Combine undo data pushed in BODY into one."
-  (declare (indent 2))
+  (declare (indent 2) (debug (sexp sexp body)))
   (let ((var-old-undo-list (gensym))
         (var-editor (gensym))
         (var-data (gensym)))
@@ -1012,7 +1019,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (defmacro edraw-editor-with-temp-undo-list (editor &rest body)
   "Evaluate the BODY under a new independent undo list."
-  (declare (indent 1))
+  (declare (indent 1) (debug (sexp body)))
   ;;@todo Increase undo limit?
   (let ((sym-editor (gensym 'editor-))
         (sym-old-undo-list (gensym 'old-undo-list-))
@@ -1030,7 +1037,7 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (defmacro edraw-editor-with-temp-modifications (editor &rest body)
   "Evaluate BODY and then execute all UNDO data recorded in EDITOR."
-  (declare (indent 1))
+  (declare (indent 1) (debug (sexp body)))
   (let ((sym-editor (gensym 'editor-)))
     `(let ((,sym-editor ,editor)
            (edraw-editor-inhibit-make-undo-data nil) ;; Record undo data
@@ -1168,7 +1175,7 @@ For use with `edraw-editor-with-temp-undo-list',
     modified-p))
 
 (defmacro edraw-editor-with-silent-modifications (&rest body)
-  (declare (indent 0))
+  (declare (indent 0) (debug (body)))
   `(let ((edraw-editor-inhibit-make-undo-data t)
          (edraw-editor-keep-modified-flag t))
      ,@body))
@@ -1554,6 +1561,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (list origin-xy sx sy)))
 
 (defmacro edraw-set-scale-params (aabb-expr)
+  (declare (debug (sexp)))
   `(let ((result (edraw-read-scale-params ,aabb-expr origin-xy sx sy)))
      (setq origin-xy (nth 0 result)
            sx (nth 1 result)
@@ -1585,6 +1593,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (list origin-xy angle)))
 
 (defmacro edraw-set-rotate-params (aabb-expr)
+  (declare (debug (sexp)))
   `(let ((result (edraw-read-rotate-params ,aabb-expr origin-xy angle)))
      (setq origin-xy (nth 0 result)
            angle (nth 1 result))))

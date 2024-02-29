@@ -2465,8 +2465,9 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
 ;; Path Data Syntax
 ;; https://www.w3.org/TR/SVG11/paths.html#PathDataBNF
 
+(defconst edraw-path-d-abs-number "\\(?:\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)\\(?:[eE][-+]?[0-9]+\\)?\\)")
 (defconst edraw-path-d-number
-  "\\(?:[-+]?\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)\\(?:[eE][-+]?[0-9]+\\)?\\)")
+  (format "\\(?:[-+]?%s\\)" edraw-path-d-abs-number))
 (defconst edraw-path-d-wsp "\\(?:[ \t\n\f\r]+\\)")
 (defconst edraw-path-d-wsp-opt "[ \t\n\f\r]*")
 (defconst edraw-path-d-comma-wsp "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
@@ -2476,8 +2477,18 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
    "\\([A-Z]\\)" ;; (1) command type
    "\\(?:" edraw-path-d-wsp-opt
    "\\(" edraw-path-d-number ;;(2) command arguments
-   "\\(?:" edraw-path-d-comma-wsp edraw-path-d-number "\\)*\\)" "\\)?"
-   edraw-path-d-wsp "?"))
+   "\\(?:" edraw-path-d-comma-wsp edraw-path-d-number "\\|[+-]" edraw-path-d-abs-number "\\)*\\)" "\\)?"
+   edraw-path-d-comma-wsp "?"))
+
+(defun edraw-path-d-split-numbers-str (numbers-str)
+  "Split NUMBERS-STR into a list of number strings."
+  (let (ret pos)
+    (while (string-match edraw-path-d-number numbers-str pos)
+      (setq pos (match-end 0))
+      (push (match-string 0 numbers-str) ret)
+      (when (eq pos (string-match edraw-path-d-comma-wsp numbers-str pos))
+	(setq pos (match-end 0))))
+    (nreverse ret)))
 
 (defun edraw-path-d-parse (d)
   "Parse path data D and return a list of (command type . a list of number)."
@@ -2491,12 +2502,12 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
              (numbers-str (match-string 2 d))
              (numbers (if numbers-str
                           (mapcar (lambda (str) (float (string-to-number str)))
-                                  (split-string numbers-str
-                                                edraw-path-d-comma-wsp)))))
+                                  (edraw-path-d-split-numbers-str numbers-str)))))
         (push (cons type numbers) commands)))
     (nreverse commands)))
 ;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => ((Z) (M 10.0 20.1) (L 0.1 20.0 200.0 -0.5))
 ;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => ((Z) (M 10.0 20.1) (L 0.1 20.0 200.0 -0.5))
+;; TEST: (edraw-path-d-parse "ZM10 20.1L.1-2e+1 20e1-5e-1") => ((Z) (M 10.0 20.1) (L 0.1 -20.0 200.0 -0.5))
 
 (defun edraw-path-d-from-command-list (command-list)
   (mapconcat (lambda (command)
