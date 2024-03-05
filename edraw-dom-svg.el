@@ -271,6 +271,17 @@ Attribute value is preserved."
       (setcdr cell (cons child (cdr cell)))))
   child)
 
+(defun edraw-dom-wrap-children-by-new-node (tag attributes children)
+  "Replace the list of CHILDREN with a list containing a single new NODE.
+NODE is constructed from TAG and ATTRIBUTES by `dom-node'
+and gets the original CHILDREN.
+Return the new node."
+  ;; depends on dom.el node structure
+  (let ((new-head (cons (car children) (cdr children))))
+    (setcar children (apply #'dom-node tag attributes new-head))
+    (setcdr children nil)
+    (car children)))
+;; Test: (edraw-dom-wrap-children-by-new-node 'g '((id . "edraw-body")) '((g (id . "page 1") (path (d . "first")) (path (d . "second")))))
 
 ;;;; SVG Print
 

@@ -1108,7 +1108,12 @@ For use with `edraw-editor-with-temp-undo-list',
                               (edraw-svg-defrefs-defs-element defrefs)))
 
     ;; #edraw-body
-    (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)
+    (unless (edraw-dom-get-by-id svg edraw-editor-svg-body-id)
+      (edraw-dom-wrap-children-by-new-node
+       'g
+       (list (cons 'id edraw-editor-svg-body-id))
+       (cdr (dom-children svg)) ;; skip defs
+       ))
 
     ;; Restore Point Connections
     (edraw-restore-point-connections editor)))
