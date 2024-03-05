@@ -271,17 +271,24 @@ Attribute value is preserved."
       (setcdr cell (cons child (cdr cell)))))
   child)
 
-(defun edraw-dom-wrap-children-by-new-node (tag attributes children)
+(defun edraw-dom-wrap-children-by-new-node (parent tag attributes children)
   "Replace the list of CHILDREN with a list containing a single new NODE.
 NODE is constructed from TAG and ATTRIBUTES by `dom-node'
 and gets the original CHILDREN.
-Return the new node."
-  ;; depends on dom.el node structure
-  (let ((new-head (cons (car children) (cdr children))))
-    (setcar children (apply #'dom-node tag attributes new-head))
-    (setcdr children nil)
-    (car children)))
-;; Test: (edraw-dom-wrap-children-by-new-node 'g '((id . "edraw-body")) '((g (id . "page 1") (path (d . "first")) (path (d . "second")))))
+Return the new node.
+
+If CHILDREN is empty just add the new node without children to PARENT
+and return it."
+  (if (consp children)
+      (let ((old-children (copy-list children)))
+	(dolist (child old-children)
+	  (dom-remove-node parent child))
+	(let ((new-node (apply #'svg-node parent tag attributes)))
+	  (dolist (child (nreverse old-children))
+	    (dom-add-child-before new-node child))))
+    (apply #'svg-node parent tag attributes)))
+;; Test: (let ((svg (dom-node 'svg nil '(g ((id . "page 1")) (path ((d . "first"))) (path ((d . "second"))))))) (edraw-dom-wrap-children-by-new-node svg 'g '(:id "edraw-body") (dom-children svg)) svg)
+;; Test: (edraw-dom-wrap-children-by-new-node (dom-node 'svg nil) 'g '(:id "edraw-body") nil)
 
 ;;;; SVG Print
 

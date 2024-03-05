@@ -1110,8 +1110,9 @@ For use with `edraw-editor-with-temp-undo-list',
     ;; #edraw-body
     (unless (edraw-dom-get-by-id svg edraw-editor-svg-body-id)
       (edraw-dom-wrap-children-by-new-node
+       svg
        'g
-       (list (cons 'id edraw-editor-svg-body-id))
+       (list :id edraw-editor-svg-body-id)
        (cdr (dom-children svg)) ;; skip defs
        ))
 
