@@ -3393,3 +3393,97 @@ CLOSED: [2024-02-13 Tue 15:03]
 +なぜ移動してしまうのかよく分からないが、とりあえず変更フック→タイマーで更新するときにsave-excursionした。+
 
 一応もう少し調査した。[[elisp-function:widget-field-value-set]]がgoto-charを使っているにもかかわらずsave-excursionしていないのが原因。widget-value-setの唯一の使用箇所であるedraw-property-editor-prop-widget-value-set-without-notifyでwidget-value-setする前にsave-excursionした。通知先でポイントを移動したい場合がもしあったら困るが、そんなものは無いと信じる。
+** DONE パス編集/path d=属性の字句区切り解析を直す
+CLOSED: [2024-03-02 Sat 18:25]
+
+TobiasZawadaさんからプルリクエストあり:
+[[https://github.com/misohena/el-easydraw/issues/23][comma/whitespace separators in svg path descriptors arguments are optional #23]]
+
+数字間の空白も省略可能なのだとか！　省略可能とは知っていたけれど、数字の間を符号で区切るという発想はなかった。
+
+https://www.w3.org/TR/SVG11/paths.html#PathDataBNF をよく見ると"M 100-200"という例がちゃんと書いてある。
+
+プルリクエストを確認し、若干修正してもらってからマージした。
+
+この関数([[elisp-function:edraw-path-d-parse]])には細かく見ていくといくつか問題がある。
+
+- dの末尾まで解析が終わったか確認していない
+- コマンド間の文法的な正しさを確認していない(例えば最初にMかmが来なければならないこと)
+- コマンド名の正しさを確認していない
+- コマンド引数の数を確認していない
+- M1e2233e4を M 1e2233 e 4 と解析してしまう
+- コマンド名の正規表現は大文字のみ指定されている([[elisp-variable:case-fold-search]]の影響を受ける)
+
+ただし、この関数は[[elisp-function:edraw-path-cmdlist-from-d]]からしか呼ばれず、そこではparse後のリストをある程度チェックしている。コマンド名や引数の数はそこでエラーになる。しかしいくつかの点は相変わらずスルーされている。
+
+- dの末尾まで解析が終わったか確認していない
+- コマンド間の文法的な正しさを確認していない(例えば最初にMかmが来なければならないこと)
+- コマンド名の正規表現は大文字のみ指定されている([[elisp-variable:case-fold-search]]の影響を受ける)
+
+最初にMまたはmが来るかはとりあえず保留。万が一動かなくなっても困るし。
+
+その他の末尾まで解析とcase-fold-searchは直した。
+
+その他numberの連接で何かおかしな事が起きないか検討したが、一応大丈夫そう。
+
+numberの全パターン:
+
+11         +11
+11e33      +11e33
+11e+33     +11e+33
+.22        +.22
+.22e33     +.22e33
+.22e+33    +.22e+33
+11.22      +11.22
+11.22e33   +11.22e33
+11.22e+33  +11.22e+33
+.22        +.22
+.22e33     +.22e33
+.22e+33    +.22e+33
+11.22      +11.22
+11.22e33   +11.22e33
+11.22e+33  +11.22e+33
+11.        +11.
+11.e33     +11.e33
+11.e+33    +11.e+33
+
+- 末尾: 整数部, 小数点, 小数部, 指数
+- 先頭: 符号, 整数部, 小数点
+
+- 組み合わせ (let ((str "1e34e5")) (when (string-match (format "\\(%s\\)\\(%s\\)*" edraw-path-d-number edraw-path-d-number) str) (list (match-string 1 str) (match-string 2 str))))
+  - 整数 符号     : 111+999   OK 受理(111 +999)
+  - 整数 整数     : 111999    NG 受理(111999)
+  - 整数 小数点   : 111.888   NG 受理(111.888 nil)
+  - 小数点 符号   : 111.+999  OK 受理(111. +999)
+  - 小数点 整数   : 111.999   NG 受理(111.999 nil)
+  - 小数点 小数点 : 111..888  OK 受理(111. .888)
+  - 小数 符号     : .222+999  OK 受理(.222 +999)
+  - 小数 整数     : .222999   NG 受理(.222999 nil)
+  - 小数 小数点   : .222.888  OK 受理(.222 .888)
+  - 指数 符号     : 1e3+999   OK 受理(1e3 +999)
+  - 指数 整数     : 1e3999    NG 受理(1e3999 nil)
+  - 指数 小数点   : 1e3.888   OK 受理(1e3 .888)
+
+1e234e5のような異常な文字列が次のような正規表現では数列の途中で区切られてしまうが……
+
+#+begin_src elisp :results pp
+(let ((str "1e234e5"))
+  (when (string-match (format "\\(%s\\)%s?\\(%s\\)" edraw-path-d-number edraw-path-d-comma-wsp edraw-path-d-number) str)
+    (list (match-string 1 str) (match-string 2 str))))
+#+end_src
+
+#+RESULTS:
+: ("1e23" "4e5")
+
+次のように1回以上の繰り返しの正規表現にすると単にe5の前でマッチングが終わるだけで済む。
+
+#+begin_src elisp :results pp
+(let ((str "1e234e5"))
+  (when (string-match (format "\\(%s\\)\\(%s?\\(%s\\)\\)*" edraw-path-d-number edraw-path-d-comma-wsp edraw-path-d-number) str)
+    (list (match-string 1 str) (match-string 2 str))))
+#+end_src
+
+#+RESULTS:
+: ("1e234" nil)
+
+その後e5がeコマンドの引数5として認識されてしまうのだけど、それは一応エラーになるので大丈夫。

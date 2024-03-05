@@ -628,7 +628,7 @@ The CMDLIST will be empty after calling this function. "
                (push-cmd
                 (cmd)
                 (edraw-path-cmdlist-push-back cmdlist cmd)))
-      (dolist (cmd-args (edraw-path-d-parse d))
+      (dolist (cmd-args (edraw-path-d-parse d));;@todo Check first cmd is m or M
         (let* ((cmd-type (car cmd-args))
                (cmd-type-char (elt (symbol-name cmd-type) 0))
                (rel-p (<= ?a cmd-type-char ?z))) ;;lowercase-p
@@ -2473,7 +2473,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
 (defconst edraw-path-d-command
   (concat
    edraw-path-d-wsp-opt
-   "\\([A-Z]\\)" ;; (1) command type
+   "\\([A-Za-z]\\)" ;; (1) command type
    "\\(?:" edraw-path-d-wsp-opt
    "\\(" edraw-path-d-number ;;(2) command arguments
    "\\(?:" edraw-path-d-comma-wsp "?" edraw-path-d-number "\\)*\\)" "\\)?"
@@ -2488,7 +2488,10 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
     (nreverse ret)))
 
 (defun edraw-path-d-parse (d)
-  "Parse path data D and return a list of (command type . a list of number)."
+  "Parse path data D and return ( (<command-type> <number>...)... ).
+
+Note: The command types (command names) and number of arguments
+are validated by `edraw-path-cmdlist-from-d'."
   (let ((pos 0)
         commands)
     (while (string-match edraw-path-d-command d pos)
@@ -2501,10 +2504,21 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
                           (mapcar (lambda (str) (float (string-to-number str)))
                                   (edraw-path-d-split-numbers-str numbers-str)))))
         (push (cons type numbers) commands)))
+    (when (/= pos (length d))
+      (error "Path data parsing error at %s" (substring d pos)))
     (nreverse commands)))
 ;; TEST: (edraw-path-d-parse "Z M 10 20.1 L .1 2e+1 20e1 -5e-1") => ((Z) (M 10.0 20.1) (L 0.1 20.0 200.0 -0.5))
 ;; TEST: (edraw-path-d-parse "ZM10 20.1L.1 2e+1 20e1 -5e-1") => ((Z) (M 10.0 20.1) (L 0.1 20.0 200.0 -0.5))
 ;; TEST: (edraw-path-d-parse "ZM10 20.1L.1-2e+1 20e1.5e-1") => ((Z) (M 10.0 20.1) (L 0.1 -20.0 200.0 0.05))
+;; TEST: (edraw-path-d-parse "M10 20.1L.1-2e+1 20e1+5e-1Z") => ((M 10.0 20.1) (L 0.1 -20.0 200.0 0.5) (Z))
+;; TEST: (edraw-path-d-parse "M100-200+300.5-400.6") => ((M 100.0 -200.0 300.5 -400.6))
+;; TEST: (edraw-path-d-parse "M100.200.300.400.500") => ((M 100.2 0.3 0.4 0.5))
+;; TEST: (edraw-path-d-parse "M100..200e2+.300-1.e3.500") => ((M 100.0 20.0 0.3 -1000.0 0.5))
+;; TEST: (edraw-path-d-parse "  M100 200\nL300 400 \n  ") => ((M 100.0 200.0) (L 300.0 400.0))
+;; TEST: (edraw-path-d-parse "M100 200,L300 400") => error
+;; TEST: (edraw-path-d-parse "M100 200L,300 400") => error
+;; TEST: (edraw-path-d-parse "M1e23e4") => ((M 1e+23) (e 4.0))
+;; TEST: (let ((case-fold-search nil)) (edraw-path-d-parse "M100 100l100 0l0 100")) => ((M 100.0 100.0) (l 100.0 0.0) (l 0.0 100.0))
 
 (defun edraw-path-d-from-command-list (command-list)
   (mapconcat (lambda (command)
