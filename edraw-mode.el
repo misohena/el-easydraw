@@ -97,6 +97,10 @@ The following commands are available:
     (setq major-mode 'edraw-mode)
     (setq cursor-type nil) ;;Hide cursor
 
+    ;; Disable context-menu-mode
+    (setq-local minor-mode-overriding-map-alist
+                '((context-menu-mode . nil)))
+
     (run-mode-hooks 'edraw-mode-hook)))
 
 (defun edraw-mode--parse-svg ()

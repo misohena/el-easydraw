@@ -3313,7 +3313,7 @@ edraw-widget.elを追加し、Webカラーを編集するwidget(edraw-color)と�
 
 元の初期値はedraw-package-default-という名前のdefconstに、上記カスタマイズ変数はそこから変更するプロパティだけを指定する形とした。それによってユーザーがカスタマイズした後でも将来プロパティを増やしたときに適切な初期値を設定することが出来る。
 
-** DONE 右クリック時にcontext-menu-modeが優先される問題を修正する。
+** DONE 右クリック時にcontext-menu-modeが優先される問題を修正する
 CLOSED: [2024-02-01 Thu 16:34]
 [[https://github.com/misohena/el-easydraw/issues/21][edraw context menu interferes with context-menu-mode · Issue #21 · misohena/el-easydraw]]
 
@@ -3487,3 +3487,7 @@ numberの全パターン:
 : ("1e234" nil)
 
 その後e5がeコマンドの引数5として認識されてしまうのだけど、それは一応エラーになるので大丈夫。
+** DONE edraw-modeでcontext-menu-modeが優先される問題を修正する
+CLOSED: [2024-03-05 Tue 21:33]
+右クリックした時にコンテキストメニューが出てきてしまう。
+[[*右クリック時にcontext-menu-modeが優先される問題を修正する][以前の問題]]の修正漏れ。
