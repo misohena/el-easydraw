@@ -3491,3 +3491,12 @@ numberの全パターン:
 CLOSED: [2024-03-05 Tue 21:33]
 右クリックした時にコンテキストメニューが出てきてしまう。
 [[*右クリック時にcontext-menu-modeが優先される問題を修正する][以前の問題]]の修正漏れ。
+** DONE edraw-modeでedrawが生成したSVG以外をエラーにする
+CLOSED: [2024-03-06 Wed 23:18]
+[[https://github.com/misohena/el-easydraw/issues/25][Scrolling & Zooming not working for SVG imported from dvisvgm · Issue #25 · misohena/el-easydraw]] より:
+
+#+begin_quote
+The current state is not really satisfying since it is possible to switch to edraw-mode for any SVG image. But, one does not get what one expects.
+#+end_quote
+
+というので g#edraw-body が存在しない場合はedraw-modeが立ち上がらないようにした。
