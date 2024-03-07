@@ -32,7 +32,7 @@
 
 (defvar edraw-svg-version "1.1")
 
-;;;; DOM Utility
+;;;; DOM Element Creation
 
 (defun edraw-dom-element (tag &rest attr-plist-and-children)
   "Return a new DOM element with TAG and ATTR-PLIST-AND-CHILDREN.
@@ -40,11 +40,11 @@
 ATTR-PLIST-AND-CHILDREN specifies the attributes and children of
 the new element. For example:
 
-(edraw-dom-element
-  \\='div
-  :class \"some-div\"
-  (edraw-dom-element \\='p \"Paragraph 1.\")
-  (edraw-dom-element \\='p \"Paragraph 2.\"))
+  (edraw-dom-element
+    \\='div
+    :class \"some-div\"
+    (edraw-dom-element \\='p \"Paragraph 1.\")
+    (edraw-dom-element \\='p \"Paragraph 2.\"))
 
 Attributes are specified in a property list starting at the
 beginning of ATTR-PLIST-AND-CHILDREN. A property list key must be
@@ -61,9 +61,20 @@ The following special properties can be specified.
 :children    A list of child DOM nodes.
 :attributes  An plist or alist of additional attributes.
 
-This function was intended to make it easier to express the
-structure of the DOM directly in the source code. If the
-attribute already exists in alist form, use dom-node."
+Commonly used SVG elements have their own creation functions:
+
+- `edraw-svg-create'
+- `edraw-svg-rect'
+- `edraw-svg-circle'
+- `edraw-svg-ellipse'
+- `edraw-svg-line'
+- `edraw-svg-path'
+- `edraw-svg-polygon'
+- `edraw-svg-polyline'
+- `edraw-svg-group'
+
+These functions can specify the same arguments as this function
+in the rest argument."
   (let ((children attr-plist-and-children)
         attr-alist)
     ;; Split ATTR-PLIST-AND-CHILDREN into ATTR-ALIST and CHILDREN.
@@ -109,6 +120,29 @@ attribute already exists in alist form, use dom-node."
         (edraw-dom-append-child parent element))
       element)))
 
+(defun edraw-dom-copy-tree (node)
+  "Duplicate the DOM tree NODE.
+
+Attribute keys and values, and text node strings are shared
+before and after copying.
+
+Attributes with names starting with a colon are not replicated."
+  (if (and (consp node)
+           (symbolp (car node)))
+      (let* ((tag (dom-tag node))
+             (attributes (cl-loop for (key . value) in (dom-attributes node)
+                                  unless (keywordp key)
+                                  ;;when (not (eq key :-edraw-parent-element))
+                                  collect (cons key value)))
+             (children (cl-loop for child in (dom-children node)
+                                collect (edraw-dom-copy-tree child))))
+        (apply #'dom-node tag attributes children)
+        ;;@todo Call `edraw-dom-set-parent'? or (edraw-dom-element tag :attributes attributes :children children)?
+        )
+    node))
+
+;;;; DOM Element Accessors
+
 (defun edraw-dom-element-p (node)
   (and node
        (listp node)
@@ -142,6 +176,50 @@ Since this is a macro, setf can be used."
 (defun edraw-dom-tag-eq (node tag)
   (eq (edraw-dom-tag node) tag))
 
+;;;; DOM Search
+
+(defun edraw-dom-get-by-id (parent id)
+  (car (dom-by-id parent (concat "\\`" (regexp-quote id) "\\'"))))
+
+(defun edraw-dom-get-or-create (parent tag id)
+  (or
+   (edraw-dom-get-by-id parent id)
+   (edraw-dom-element tag :id id :parent parent)))
+
+;;;; DOM Parent Tracking
+
+(defun edraw-dom-set-parent (node parent)
+  (when (edraw-dom-element-p node)
+    (dom-set-attribute node :-edraw-parent-element parent)))
+
+(defun edraw-dom-get-parent (node)
+  (when (edraw-dom-element-p node)
+    (dom-attr node :-edraw-parent-element)))
+
+(defun edraw-dom-reset-parent (node)
+  (when (edraw-dom-element-p node)
+    (edraw-dom-remove-attr node :-edraw-parent-element)))
+
+(defun edraw-dom-update-parents (tree)
+  "Make it possible to retrieve parents of all elements in TREE."
+  (when (edraw-dom-element-p tree)
+    (dolist (child (dom-children tree))
+      (edraw-dom-set-parent child tree)
+      (edraw-dom-update-parents child))))
+
+(defun edraw-dom-get-root (node)
+  (let (parent)
+    (while (setq parent (edraw-dom-get-parent node))
+      (setq node parent))
+    node))
+
+(defun edraw-dom-get-ancestor-by-tag (node tag)
+  (let (parent)
+    (while (and (setq parent (edraw-dom-get-parent node))
+                (not (eq (dom-tag parent) tag)))
+      (setq node parent))
+    parent))
+
 (defun edraw-dom-parent (dom node)
   "Return the parent of NODE in DOM.
 
@@ -153,60 +231,7 @@ the DOM and quickly identify the parent."
         parent
       (dom-parent dom node))))
 
-(defun edraw-dom-split-top-nodes (dom)
-  "Split DOM into pre comment nodes, top-level element, and post
-comment nodes.
-
-Return (ROOT-ELEMENT . (PRE-COMMENTS . POST-COMMENTS)).
-
-`libxml-parse-xml-region' returns an element with the tag top if
-there are comments before or after root element. This function
-splits the DOM into pre comment nodes, root element, and post
-comment nodes."
-  (if (edraw-dom-tag-eq dom 'top)
-      ;; DOM contains comments directly below
-      (let* ((top-nodes (dom-children dom))
-             (p top-nodes)
-             (pre-comments nil))
-        (while (and p (edraw-dom-tag-eq (car p) 'comment))
-          (push (car p) pre-comments)
-          (setq p (cdr p)))
-
-        (if p
-            ;; (ROOT-ELEMENT . (PRE-COMMENTS . POST-COMMENTS))
-            (cons (car p) (cons (nreverse pre-comments) (cdr p)))
-          ;; No elements!
-          (cons nil (cons top-nodes nil))))
-    (cons dom nil)))
-
-(defun edraw-dom-merge-top-nodes (root-element pre-comments post-comments)
-  "Reverse operation of `edraw-dom-split-top-nodes'."
-  ;;@todo If (edraw-dom-tag-eq root-element 'top)?
-  (if (or pre-comments post-comments)
-      (apply #'dom-node 'top nil
-             (append pre-comments (list root-element) post-comments))
-    root-element))
-
-(defun edraw-dom-do (node function &optional ancestors)
-  (funcall function node ancestors)
-  (when (edraw-dom-element-p node)
-    (let ((ancestors (cons node ancestors))
-          (children (dom-children node)))
-      (cond
-       ((listp children)
-        (dolist (child-node children)
-          (edraw-dom-do child-node function ancestors)))
-       ;; Comment Node (comment nil "comment text")
-       ((stringp children)
-        (funcall function children ancestors))))))
-
-(defun edraw-dom-get-by-id (parent id)
-  (car (dom-by-id parent (concat "\\`" (regexp-quote id) "\\'"))))
-
-(defun edraw-dom-get-or-create (parent tag id)
-  (or
-   (edraw-dom-get-by-id parent id)
-   (svg-node parent tag :id id)))
+;;;; DOM Removing
 
 (defun edraw-dom-remove-node (dom node)
   (prog1 (dom-remove-node dom node)
@@ -230,15 +255,58 @@ comment nodes."
 (defun edraw-dom-remove-attr-if (node pred)
   (dom-set-attributes node (cl-delete-if pred (dom-attributes node))))
 
-(defun edraw-dom-set-attribute-name (node old-name new-name)
-  "Rename OLD-NAME attribute in NODE to NEW-NAME if it exists.
-If the attribute named OLD-NAME does not exist, do nothing.
-Attribute value is preserved."
+;;;; DOM Insertion
+
+(defun edraw-dom-add-child-before (node child &optional before)
+  (prog1 (dom-add-child-before node child before)
+    (edraw-dom-set-parent child node)))
+
+(defun edraw-dom-append-child (node child)
+  (prog1 (dom-append-child node child)
+    (edraw-dom-set-parent child node)))
+
+(defun edraw-dom-insert-first (node child)
+  (prog1 (dom-add-child-before node child)
+    (edraw-dom-set-parent child node)))
+
+(defun edraw-dom-insert-nth (node child index)
   (setq node (dom-ensure-node node))
-  (let* ((attributes (cadr node))
-         (old-cell (assoc old-name attributes)))
-    (when old-cell
-      (setcar old-cell new-name))))
+  ;; depends on dom.el node structure
+  (if (<= index 0)
+      (setcdr (cdr node) (cons child (cddr node)))
+    (let ((cell (or (nthcdr (1- index) (cddr node))
+                    (last (cddr node)))))
+      (setcdr cell (cons child (cdr cell)))))
+  (edraw-dom-set-parent child node)
+  child)
+
+;;;; DOM Retrieve Siblings
+
+(defun edraw-dom-first-child (node)
+  (car (dom-children node)))
+
+(defun edraw-dom-last-child (node)
+  (car (last (dom-children node))))
+
+(defun edraw-dom-next-sibling (dom node)
+  (when-let ((parent (edraw-dom-parent dom node)))
+    (let ((siblings (dom-children parent)))
+      (while (and siblings
+                  (not (eq (car siblings) node)))
+        (setq siblings (cdr siblings)))
+      (cadr siblings))))
+
+(defun edraw-dom-previous-sibling (dom node)
+  (when-let ((parent (edraw-dom-parent dom node)))
+    (let ((siblings (dom-children parent)))
+      (if (eq (car siblings) node)
+          nil
+        (while (and (cadr siblings)
+                    (not (eq (cadr siblings) node)))
+          (setq siblings (cdr siblings)))
+        (car siblings)))))
+
+;;;; DOM Ordering
 
 (defun edraw-dom-first-node-p (dom node)
   (if-let ((parent (edraw-dom-parent dom node)))
@@ -289,102 +357,68 @@ Attribute value is preserved."
       (dom-append-child parent node)
       t)))
 
-(defun edraw-dom-add-child-before (node child &optional before)
-  (prog1 (dom-add-child-before node child before)
-    (edraw-dom-set-parent child node)))
+;;;; DOM Attributes
 
-(defun edraw-dom-append-child (node child)
-  (prog1 (dom-append-child node child)
-    (edraw-dom-set-parent child node)))
-
-(defun edraw-dom-insert-first (node child)
-  (prog1 (dom-add-child-before node child)
-    (edraw-dom-set-parent child node)))
-
-(defun edraw-dom-first-child (node)
-  (car (dom-children node)))
-
-(defun edraw-dom-last-child (node)
-  (car (last (dom-children node))))
-
-(defun edraw-dom-next-sibling (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
-    (let ((siblings (dom-children parent)))
-      (while (and siblings
-                  (not (eq (car siblings) node)))
-        (setq siblings (cdr siblings)))
-      (cadr siblings))))
-
-(defun edraw-dom-previous-sibling (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
-    (let ((siblings (dom-children parent)))
-      (if (eq (car siblings) node)
-          nil
-        (while (and (cadr siblings)
-                    (not (eq (cadr siblings) node)))
-          (setq siblings (cdr siblings)))
-        (car siblings)))))
-
-(defun edraw-dom-insert-nth (node child index)
+(defun edraw-dom-set-attribute-name (node old-name new-name)
+  "Rename OLD-NAME attribute in NODE to NEW-NAME if it exists.
+If the attribute named OLD-NAME does not exist, do nothing.
+Attribute value is preserved."
   (setq node (dom-ensure-node node))
-  ;; depends on dom.el node structure
-  (if (<= index 0)
-      (setcdr (cdr node) (cons child (cddr node)))
-    (let ((cell (or (nthcdr (1- index) (cddr node))
-                    (last (cddr node)))))
-      (setcdr cell (cons child (cdr cell)))))
-  (edraw-dom-set-parent child node)
-  child)
+  (let* ((attributes (cadr node))
+         (old-cell (assoc old-name attributes)))
+    (when old-cell
+      (setcar old-cell new-name))))
 
-(defun edraw-dom-copy-tree (node)
-  (if (and (consp node)
-           (symbolp (car node)))
-      (let* ((tag (dom-tag node))
-             (attributes (cl-loop for (key . value) in (dom-attributes node)
-                                  unless (keywordp key)
-                                  ;;when (not (eq key :-edraw-parent-element))
-                                  collect (cons key value)))
-             (children (cl-loop for child in (dom-children node)
-                                collect (edraw-dom-copy-tree child))))
-        (apply #'dom-node tag attributes children)
-        ;;@todo Call `edraw-dom-set-parent'? or (edraw-dom-element tag :attributes attributes :children children)?
-        )
-    node))
+;;;; DOM Mapping
 
-
-;;;; DOM Parent Tracking
-
-(defun edraw-dom-set-parent (node parent)
+(defun edraw-dom-do (node function &optional ancestors)
+  (funcall function node ancestors)
   (when (edraw-dom-element-p node)
-    (dom-set-attribute node :-edraw-parent-element parent)))
+    (let ((ancestors (cons node ancestors))
+          (children (dom-children node)))
+      (cond
+       ((listp children)
+        (dolist (child-node children)
+          (edraw-dom-do child-node function ancestors)))
+       ;; Comment Node (comment nil "comment text")
+       ((stringp children)
+        (funcall function children ancestors))))))
 
-(defun edraw-dom-get-parent (node)
-  (when (edraw-dom-element-p node)
-    (dom-attr node :-edraw-parent-element)))
+;;;; DOM Top Level Handling
 
-(defun edraw-dom-reset-parent (node)
-  (when (edraw-dom-element-p node)
-    (edraw-dom-remove-attr node :-edraw-parent-element)))
+(defun edraw-dom-split-top-nodes (dom)
+  "Split DOM into pre comment nodes, top-level element, and post
+comment nodes.
 
-(defun edraw-dom-update-parents (tree)
-  "Make it possible to retrieve parents of all elements in TREE."
-  (when (edraw-dom-element-p tree)
-    (dolist (child (dom-children tree))
-      (edraw-dom-set-parent child tree)
-      (edraw-dom-update-parents child))))
+Return (ROOT-ELEMENT . (PRE-COMMENTS . POST-COMMENTS)).
 
-(defun edraw-dom-get-root (node)
-  (let (parent)
-    (while (setq parent (edraw-dom-get-parent node))
-      (setq node parent))
-    node))
+`libxml-parse-xml-region' returns an element with the tag top if
+there are comments before or after root element. This function
+splits the DOM into pre comment nodes, root element, and post
+comment nodes."
+  (if (edraw-dom-tag-eq dom 'top)
+      ;; DOM contains comments directly below
+      (let* ((top-nodes (dom-children dom))
+             (p top-nodes)
+             (pre-comments nil))
+        (while (and p (edraw-dom-tag-eq (car p) 'comment))
+          (push (car p) pre-comments)
+          (setq p (cdr p)))
 
-(defun edraw-dom-get-ancestor-by-tag (node tag)
-  (let (parent)
-    (while (and (setq parent (edraw-dom-get-parent node))
-                (not (eq (dom-tag parent) tag)))
-      (setq node parent))
-    parent))
+        (if p
+            ;; (ROOT-ELEMENT . (PRE-COMMENTS . POST-COMMENTS))
+            (cons (car p) (cons (nreverse pre-comments) (cdr p)))
+          ;; No elements!
+          (cons nil (cons top-nodes nil))))
+    (cons dom nil)))
+
+(defun edraw-dom-merge-top-nodes (root-element pre-comments post-comments)
+  "Reverse operation of `edraw-dom-split-top-nodes'."
+  ;;@todo If (edraw-dom-tag-eq root-element 'top)?
+  (if (or pre-comments post-comments)
+      (apply #'dom-node 'top nil
+             (append pre-comments (list root-element) post-comments))
+    root-element))
 
 
 ;;;; SVG Print
@@ -1027,7 +1061,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 Attributes and children are specified by ATTR-PLIST-AND-CHILDREN.
 
 For example:
-(edraw-svg-group
+  (edraw-svg-group
   :class \"red-cross\"
   :stroke \"red\"
   :stroke-width 10
