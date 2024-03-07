@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'svg)
 (require 'cl-lib)
 (require 'text-property-search)
 (require 'eieio)

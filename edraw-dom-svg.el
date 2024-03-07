@@ -23,7 +23,7 @@
 ;; 
 
 ;;; Code:
-(require 'svg)
+(require 'dom)
 (require 'seq)
 (require 'subr-x)
 (require 'edraw-math)
