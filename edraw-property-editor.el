@@ -24,7 +24,6 @@
 
 ;;; Code:
 
-(require 'svg)
 (require 'widget)
 (require 'wid-edit)
 (require 'edraw-util)
@@ -1059,18 +1058,20 @@ as a string."
                 'display
                 (let* ((width (window-body-width window t))
                        (height 32)
-                       (svg (svg-create width height))
                        (bar-h 6)
                        (thumb-w 2)
                        (thumb-h 20)
                        (cy (* 0.5 height)))
-                  (svg-rectangle svg
-                                 0 (- cy (* 0.5 bar-h)) width bar-h :fill "#ccc")
-                  (svg-rectangle svg
-                                 (- (edraw-clamp x min-x max-x) (* 0.5 thumb-w))
-                                 (- cy (* 0.5 thumb-h))
-                                 thumb-w thumb-h :fill "#fff")
-                  (svg-image svg :scale 1.0)))))
+                  (edraw-svg-to-image
+                   (edraw-svg-create
+                    width height
+                    (edraw-svg-rect 0 (- cy (* 0.5 bar-h)) width bar-h
+                                    :fill "#ccc")
+                    (edraw-svg-rect (- (edraw-clamp x min-x max-x)
+                                       (* 0.5 thumb-w))
+                                    (- cy (* 0.5 thumb-h))
+                                    thumb-w thumb-h :fill "#fff"))
+                   :scale 1.0)))))
 
 ;;;;;; Paint Widget
 

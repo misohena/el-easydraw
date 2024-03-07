@@ -24,7 +24,6 @@
 
 ;;; Code:
 
-(require 'svg)
 (require 'cl-lib)
 (require 'text-property-search)
 (require 'eieio)
@@ -1578,21 +1577,21 @@ ROOT is the top level entry of the tree containing ENTRY."
          (shape (edraw-shape-picker-shape-entry-shape-get entry))
          (svg-node-list (edraw-shape-picker-shape-to-svg-node-list shape)))
     (when svg-node-list
-      (svg-image (edraw-svg-shape-thumbnail
-                  ;; to single element
-                  (if (<= (length svg-node-list) 1)
-                      (car svg-node-list)
-                    (apply #'dom-node 'g nil svg-node-list))
-                  (plist-get props :width)
-                  (plist-get props :height)
-                  (plist-get props :padding)
-                  (plist-get props :background)
-                  (when selected
-                    (plist-get props :foreground-selected))
-                  (plist-get props :max-width)
-                  (plist-get props :max-height))
-                 :ascent 'center
-                 :margin (plist-get props :margin)))))
+      (edraw-svg-to-image (edraw-svg-shape-thumbnail
+                           ;; to single element
+                           (if (<= (length svg-node-list) 1)
+                               (car svg-node-list)
+                             (apply #'dom-node 'g nil svg-node-list))
+                           (plist-get props :width)
+                           (plist-get props :height)
+                           (plist-get props :padding)
+                           (plist-get props :background)
+                           (when selected
+                             (plist-get props :foreground-selected))
+                           (plist-get props :max-width)
+                           (plist-get props :max-height))
+                          :ascent 'center
+                          :margin (plist-get props :margin)))))
 
 ;;;; Shape Selection
 

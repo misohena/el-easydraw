@@ -1,8 +1,6 @@
 
 
 * Inbox
-** TODO svg-imageの使用をedraw-svg-to-imageに置き換える
-そうすればsvg.elへの依存は一切無くなるはず。
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
 現状ではAABBは0になるけど表示は画像の幅・高さになっているように見える。
@@ -698,11 +696,12 @@ edraw-org-shape-picker-minor-modeが必要？
 ** TODO パスの内外判定、線のつなぎ目ですり抜けるケースがまだあると思う
 ** TODO dom.el/svg.elの代わりを作る
 - dom.elは兄弟や親へリンクが無いので効率が悪い。いろんな関数の引数にいちいち親・祖先ノードが必要になってコードが見づらくなるし、いちいち探索処理が走る。
-- svg.elの要素を作る関数の一部は正直dom-nodeで直接作った方が簡単。
+- +svg.elの要素を作る関数の一部は正直dom-nodeで直接作った方が簡単。+ →edraw-dom-elementを使うようになった。
 - svg.elのグラデーションサポートは中途半端。
-- svg-printは属性やテキストをエスケープしていない。
+- +svg-printは属性やテキストをエスケープしていない。+ →edraw-svg-printで対応済み。
 - svg-printにフィルタ関数を指定したい。-edraw-で始まるクラスを持つ要素を消したい。
-- 親を隠し属性で持たせても良い。
+- +親を隠し属性で持たせても良い。+ →実現した。
+
 ** TODO edraw-path-cmdlist系をパスクラスに置き換える
 edraw-path-cmdlist系はSVGパスコマンドの仕様に合わせすぎた気がする。
 もっと抽象的なパスクラス(cmdlist相当)、パスセグメントクラス(cmd相当)を作った方が良かったかもしれない。パスセグメントはL、C、(可能なら)Aの線を表現する。cmdはMとかZがあって純粋にパスセグメントに相当しないから気持ち悪い。
@@ -712,7 +711,7 @@ SVGパスデータは複数のMが書ける(複数のサブパスを持てる)�
 次のあたりを修正すれば動くっぽい。
 - (require 'seq)
 - (require 'subr-x) when-let, if-let等
-- svg-node関数を使わないようにする
+- +svg-node関数を使わないようにする+ →すでに使用していない
 ただ、Emacs26の時代はlibrsvgのバージョンも古いのであえて対応しない方が良いかも。
 
 * Finished
@@ -3653,4 +3652,6 @@ edraw-svg-printのattr-filter引数には必ずedraw-svg-print-attr-filterが指
 edraw-dom-attr-internal-pを作ったので、必ずそれを使って内部使用目的の属性は出力しないようにする。
 edraw-svg-print-attr-filterもはや必要ない。しかし、マニュアルにも書かれている関数なのでひとまずobsoleteにする。常にtを返すようにする。
 edraw-svg-printやedraw-svg-to-stringに'edraw-svg-print-attr-filterを引き渡しているところはnilへ変更する。
-
+** DONE svg-imageの使用をedraw-svg-to-imageに置き換える
+CLOSED: [2024-03-08 Fri 01:16]
+そうすればsvg.elへの依存はかなり減るはず。

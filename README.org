@@ -181,16 +181,11 @@ The following code is an example of inserting an editor into a buffer from Emacs
                             (overlay-put overlay 'evaporate t)
                             overlay)
                  ;; Initial SVG
-                 :svg (let ((initial-svg (svg-create 400 300)))
-                        (dom-append-child
-                         initial-svg
-                         (dom-node 'g (list (cons 'id "edraw-body")) ;; g#edraw-body is the edit target area
-                                   (dom-node 'rect (list (cons 'x "100")
-                                                         (cons 'y "100")
-                                                         (cons 'width "200")
-                                                         (cons 'height "100")
-                                                         (cons 'fill "blue")))))
-                        initial-svg)
+                 :svg (edraw-svg-create
+                       400 300
+                       (edraw-svg-group
+                        :id "edraw-body" ;; g#edraw-body is the edit target area
+                        (edraw-svg-rect 100 100 200 100 :fill "blue")))
                  ;; Function called when saving
                  :document-writer (lambda (svg &rest _)
                                     (pop-to-buffer "*svg output*")
@@ -213,7 +208,8 @@ The following code is an example of inserting an editor into a buffer from Emacs
     ;; Manipulate the editor object if necessary
     ;; Set user extra data
     (edraw-set-extra-prop editor 'my-extra-data 12345)
-    editor))
+    editor
+    nil))
 #+end_src
 
 * Color Picker
