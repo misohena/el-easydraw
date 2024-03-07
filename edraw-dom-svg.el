@@ -1767,12 +1767,16 @@ This function does not consider the effect of the transform attribute."
           "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
          (xs
           (if (stringp x)
-              (or (mapcar #'string-to-number (split-string x separator t))
+              (or (mapcar
+                   (lambda (n) (edraw-svg-attr-length-to-number n element 'x))
+                   (split-string x separator t))
                   (list 0))
             (list x)))
          (ys
           (if (stringp y)
-              (or (mapcar #'string-to-number (split-string y separator t))
+              (or (mapcar
+                   (lambda (n) (edraw-svg-attr-length-to-number n element 'y))
+                   (split-string y separator t))
                   (list 0))
             (list y)))
          (anchor-x (car xs))
