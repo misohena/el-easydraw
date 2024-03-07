@@ -1204,9 +1204,7 @@ For use with `edraw-editor-with-temp-undo-list',
                    svg-document-comments)
       editor
     (let ((doc-svg (edraw-dom-copy-tree svg)))
-      ;; @todo Call `edraw-dom-update-parents'?
       (edraw-editor-remove-ui-elements-from-svg doc-svg)
-      (edraw-editor-remove-internal-attributes-from-svg doc-svg)
       (edraw-editor-remove-scroll-transform doc-svg)
       (edraw-editor-remove-root-transform doc-svg
                                           svg-document-size
@@ -1938,17 +1936,6 @@ For use with `edraw-editor-with-temp-undo-list',
   "Remove elements that starts with `#edraw-ui-'."
   (dolist (elem (dom-by-id svg "\\`edraw-ui-"))
     (edraw-dom-remove-node svg elem)))
-
-(defun edraw-editor-internal-attr-p (attribute)
-  (not (null (string-match-p "\\`:-edraw-" (symbol-name (car attribute))))))
-
-(defun edraw-editor-remove-internal-attributes-from-svg (svg)
-  "Remove attributes that starts with `:-edraw-'."
-  (edraw-dom-do
-   svg
-   (lambda (node _ancestors)
-     (when (edraw-dom-element-p node)
-       (edraw-dom-remove-attr-if node #'edraw-editor-internal-attr-p)))))
 
 ;;;;;; Editor - View - Transparent Background
 
@@ -5563,6 +5550,8 @@ Only shape types registered in `edraw-shape-types' are valid."
                                       (alist-get shape-type edraw-shape-types)))
               (shape (funcall constructor element editor)))
     ;; Attach the created SHAPE object to the ELEMENT.
+    ;; :-edraw-shape is an attribute for internal use.
+    ;; (See: `edraw-dom-attr-internal-p')
     (dom-set-attribute element :-edraw-shape shape)
     shape))
 

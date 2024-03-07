@@ -126,18 +126,22 @@ in the rest argument."
 Attribute keys and values, and text node strings are shared
 before and after copying.
 
-Attributes with names starting with a colon are not replicated."
+Each element in the cloned tree has no link to its parent
+element. Call `edraw-dom-update-parents' explicitly if necessary.
+
+Attributes for internal use are not duplicated.
+Whether it is for internal use is determined by `edraw-dom-attr-internal-p'."
   (if (and (consp node)
            (symbolp (car node)))
       (let* ((tag (dom-tag node))
              (attributes (cl-loop for (key . value) in (dom-attributes node)
-                                  unless (keywordp key)
-                                  ;;when (not (eq key :-edraw-parent-element))
+                                  unless (edraw-dom-attr-internal-p key)
                                   collect (cons key value)))
              (children (cl-loop for child in (dom-children node)
                                 collect (edraw-dom-copy-tree child))))
         (apply #'dom-node tag attributes children)
-        ;;@todo Call `edraw-dom-set-parent'? or (edraw-dom-element tag :attributes attributes :children children)?
+        ;; Do not call `edraw-dom-set-parent' and
+        ;; (edraw-dom-element tag :attributes attributes :children children)
         )
     node))
 
@@ -190,15 +194,17 @@ Since this is a macro, setf can be used."
 
 (defun edraw-dom-set-parent (node parent)
   (when (edraw-dom-element-p node)
-    (dom-set-attribute node :-edraw-parent-element parent)))
+    ;; :-edraw-dom-parent is an attribute for internal use.
+    ;; (See: `edraw-dom-attr-internal-p')
+    (dom-set-attribute node :-edraw-dom-parent parent)))
 
 (defun edraw-dom-get-parent (node)
   (when (edraw-dom-element-p node)
-    (dom-attr node :-edraw-parent-element)))
+    (dom-attr node :-edraw-dom-parent)))
 
 (defun edraw-dom-reset-parent (node)
   (when (edraw-dom-element-p node)
-    (edraw-dom-remove-attr node :-edraw-parent-element)))
+    (edraw-dom-remove-attr node :-edraw-dom-parent)))
 
 (defun edraw-dom-update-parents (tree)
   "Make it possible to retrieve parents of all elements in TREE."
@@ -358,6 +364,28 @@ the DOM and quickly identify the parent."
       t)))
 
 ;;;; DOM Attributes
+
+(defun edraw-dom-attr-internal-p (attr-name)
+  "Return non-nil if the attribute's name ATTR-NAME is for internal use.
+
+ATTR-NAME is a symbol or string.
+
+Attribute names starting with a colon are for internal use."
+  (cond
+   ((symbolp attr-name) (keywordp attr-name))
+   ((stringp attr-name) (and (not (string-empty-p attr-name))
+                             (eq (aref attr-name 0) ?:)))))
+
+(defun edraw-dom-remove-internal-attributes (node)
+  (when (edraw-dom-element-p node)
+    (edraw-dom-remove-attr-if node #'edraw-dom-attr-internal-p))
+  node)
+
+(defun edraw-dom-remove-internal-attributes-from-tree (node)
+  (edraw-dom-do
+   node
+   (lambda (node _ancestors)
+     (edraw-dom-remove-internal-attributes node))))
 
 (defun edraw-dom-set-attribute-name (node old-name new-name)
   "Rename OLD-NAME attribute in NODE to NEW-NAME if it exists.
