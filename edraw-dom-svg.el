@@ -234,8 +234,13 @@ Attribute value is preserved."
       (dom-append-child parent node)
       t)))
 
+(defun edraw-dom-append-child (node child)
+  (prog1 (dom-append-child node child)
+    (edraw-dom-set-parent child node)))
+
 (defun edraw-dom-insert-first (node child)
-  (dom-add-child-before node child))
+  (prog1 (dom-add-child-before node child)
+    (edraw-dom-set-parent child node)))
 
 (defun edraw-dom-first-child (node)
   (car (dom-children node)))
@@ -269,7 +274,52 @@ Attribute value is preserved."
     (let ((cell (or (nthcdr (1- index) (cddr node))
                     (last (cddr node)))))
       (setcdr cell (cons child (cdr cell)))))
+  (edraw-dom-set-parent child node)
   child)
+
+(defun edraw-dom-copy-tree (node)
+  (if (and (consp node)
+           (symbolp (car node)))
+      (let* ((tag (dom-tag node))
+             (attributes (cl-loop for (key . value) in (dom-attributes node)
+                                  unless (keywordp key)
+                                  ;;when (not (eq key :-edraw-parent-element))
+                                  collect (cons key value)))
+             (children (cl-loop for child in (dom-children node)
+                                collect (edraw-dom-copy-tree child))))
+        (cons tag (cons attributes children)))
+    node))
+
+
+;;;; DOM Parent Tracking
+
+(defun edraw-dom-set-parent (node parent)
+  (when (edraw-dom-element-p node)
+    (dom-set-attribute node :-edraw-parent-element parent)))
+
+(defun edraw-dom-get-parent (node)
+  (when (edraw-dom-element-p node)
+    (dom-attr node :-edraw-parent-element)))
+
+(defun edraw-dom-update-parents (tree)
+  "Make it possible to retrieve parents of all elements in TREE."
+  (when (edraw-dom-element-p tree)
+    (dolist (child (dom-children tree))
+      (edraw-dom-set-parent child tree)
+      (edraw-dom-update-parents child))))
+
+(defun edraw-dom-get-root (node)
+  (let (parent)
+    (while (setq parent (edraw-dom-get-parent node))
+      (setq node parent))
+    node))
+
+(defun edraw-dom-get-ancestor-by-tag (node tag)
+  (let (parent)
+    (while (and (setq parent (edraw-dom-get-parent node))
+                (not (eq (dom-tag parent) tag)))
+      (setq node parent))
+    parent))
 
 
 ;;;; SVG Print
@@ -442,17 +492,119 @@ Attribute value is preserved."
 
 ;;;; SVG Attributes
 
+;;;;; Regexp
+
+;; https://www.w3.org/TR/SVG11/types.html#DataTypeNumber
+(defconst edraw-svg-number-re
+  ;; Valid: 12  12.34  .34
+  ;; Invalid: 12.
+  "\\([+-]?\\(?:[0-9]+\\|[0-9]*\\.[0-9]+\\)\\(?:[Ee][+-]?[0-9]+\\)?\\)")
+
+;; https://www.w3.org/TR/SVG11/types.html#DataTypeLength
+(defconst edraw-svg-unit-re
+  "\\(em\\|ex\\|px\\|in\\|cm\\|mm\\|pt\\|pc\\|\\%\\)?")
+
+(defconst edraw-svg-length-re
+  (concat edraw-svg-number-re edraw-svg-unit-re))
+
+(defconst edraw-svg-attr-length-re
+  (concat "\\`[ \t\n\r]*" edraw-svg-length-re "[ \t\n\r]*\\'"))
+
+(defun edraw-svg-attr-length-match (value)
+  (when (string-match edraw-svg-attr-length-re value)
+    (cons (string-to-number (match-string 1 value))
+          (match-string 2 value))))
+
+;;;;; Length
+
+;;@todo default values
+(defconst edraw-svg-attr-default-font-size 16)
+(defconst edraw-svg-attr-default-dpi 96)
+
+(defun edraw-svg-attr-length-dpi ()
+  edraw-svg-attr-default-dpi)
+
+(defun edraw-svg-attr-length-em (element)
+  ;; @todo Is there a way to get the exact em?
+  ;; @todo Style should be considered.
+  (or (edraw-svg-attr-length-or-inherited element 'font-size)
+      edraw-svg-attr-default-font-size))
+
+(defun edraw-svg-attr-length-ex (element)
+  ;; @todo Is there a way to get the exact ex?
+  ;; @todo Style should be considered.
+  (/ (edraw-svg-attr-length-em element) 2))
+
+(defun edraw-svg-attr-length-viewport-size (element)
+  (if-let ((svg (if (eq (dom-tag element) 'svg)
+                    element
+                  (edraw-dom-get-ancestor-by-tag element 'svg))))
+      (if-let ((vbox (dom-attr svg 'viewBox)))
+          ;; viewBox="<min-x> <min-y> <width> <height>"
+          (let* ((vbox-vals
+                  (save-match-data
+                    (split-string vbox
+                                  "\\([ \t\n\r]*,[ \t\n\r]*\\|[ \t\n\r]+\\)")))
+                 (width (string-to-number (or (nth 2 vbox-vals) "")))
+                 (height (string-to-number (or (nth 3 vbox-vals) ""))))
+            (cons
+             (max 0 width)
+             (max 0 height)))
+        ;; width= height=
+        (cons
+         (or (edraw-svg-attr-length element 'width) 0)
+         (or (edraw-svg-attr-length element 'height) 0)))
+    (cons 0 0)))
+
+(defun edraw-svg-attr-length-percentage (element attr)
+  (pcase attr
+    ('font-size
+     (or (edraw-svg-attr-length-or-inherited (edraw-dom-get-parent element)
+                                             'font-size)
+         edraw-svg-attr-default-font-size))
+    ((or 'x 'rx 'cx 'width)
+     (car (edraw-svg-attr-length-viewport-size element)))
+    ((or 'y 'ry 'cy 'height)
+     (cdr (edraw-svg-attr-length-viewport-size element)))
+    (_
+     ;; https://www.w3.org/TR/SVG11/coords.html#Units_viewport_percentage
+     (let* ((vsize (edraw-svg-attr-length-viewport-size element))
+            (vw (car vsize))
+            (vh (cdr vsize)))
+       (/ (sqrt (+ (* vw vw) (* vh vh))) (sqrt 2))))))
+
+(defun edraw-svg-attr-length-match-to-number (num-unit element attr)
+  ;; <length> ::=  number ("em"|"ex"|"px"|"in"|"cm"|"mm"|"pt"|"pc"|"%")?
+  (if num-unit
+      (let ((num (car num-unit))
+            (unit (cdr num-unit)))
+        (pcase unit
+          ('nil num)
+          ("" num)
+          ("px" num)
+          ("in" (* num (edraw-svg-attr-length-dpi)))
+          ("cm" (/ (* num (edraw-svg-attr-length-dpi)) 2.54))
+          ("mm" (/ (* num (edraw-svg-attr-length-dpi)) 25.4))
+          ("pt" (/ (* num (edraw-svg-attr-length-dpi)) 72.0))
+          ("pc" (/ (* num (edraw-svg-attr-length-dpi)) 6.0))
+          ("em" (* (edraw-svg-attr-length-em element) num))
+          ("ex" (* (edraw-svg-attr-length-ex element) num))
+          ("%" (/ (* (edraw-svg-attr-length-percentage element attr) num)
+                  100.0))
+          (_ 0)))
+    0))
+
 ;;;;; Conversion
 
-(defun edraw-svg-attr-length-to-number (value)
+(defun edraw-svg-attr-length-to-number (value &optional element attr)
   "Convert length attribute value to number."
-  ;; <length> ::=  number ("em"|"ex"|"px"|"in"|"cm"|"mm"|"pt"|"pc"|"%")?
   (cond
    ((null value)
     value)
    ((stringp value)
-    ;;@todo support unit? (px,em,ex,in,cm,mm,pt,pc,%) error?
-    (string-to-number value)) ;;@todo invalid format
+    (edraw-svg-attr-length-match-to-number (edraw-svg-attr-length-match value)
+                                           element
+                                           attr))
    ((numberp value)
     value)
    ;; symbol?
@@ -492,7 +644,16 @@ Attribute value is preserved."
 
 (defun edraw-svg-attr-length (element attr)
   "Return the length attribute ATTR from ELEMENT."
-  (edraw-svg-attr-length-to-number (dom-attr element attr)))
+  (edraw-svg-attr-length-to-number (dom-attr element attr)
+                                   element
+                                   attr))
+
+(defun edraw-svg-attr-length-or-inherited (element attr)
+  (when element
+    (if (dom-attr element attr)
+        (edraw-svg-attr-length element attr)
+      (edraw-svg-attr-length-or-inherited (edraw-dom-get-parent element)
+                                          attr))))
 
 ;;;;; Set Attribute
 
@@ -1132,7 +1293,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
                             line-delta-step-abs))
          (line-delta 0))
     (dolist (line lines)
-      (dom-append-child
+      (edraw-dom-append-child
        element
        (dom-node 'tspan
                  (append (list (cons 'class "text-line")
@@ -1270,7 +1431,8 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
       (edraw-svg-defref-add-referrer defref referrer-element)
       (edraw-svg-set-attr-string def-element 'id
                                  (format "edraw-def-%s-%s" idnum prop-value))
-      (dom-append-child (edraw-svg-defrefs-defs-element defrefs) def-element)
+      (edraw-dom-append-child (edraw-svg-defrefs-defs-element defrefs)
+                              def-element)
       (format "url(#edraw-def-%s-%s)" idnum prop-value))))
 
 (defun edraw-svg-defrefs-remove-ref-by-idnum (defrefs idnum element)
@@ -1621,7 +1783,8 @@ This function does not consider the effect of the transform attribute."
          (max-width (cl-loop for line in lines
                              maximize (string-width line)))
          (text-anchor (or (dom-attr element 'text-anchor) "start"))
-         (font-size (or (edraw-svg-attr-number element 'font-size) 12)) ;;@todo default font size
+         (font-size (or (edraw-svg-attr-length element 'font-size)
+                        edraw-svg-attr-default-font-size)) ;;@todo default font size
          (font-ascent (/ (* font-size 80) 100)) ;;@todo default font ascent
          (writing-mode (edraw-svg-text-writing-mode element))
          (vertical-p (edraw-svg-text-vertical-writing-p element))
@@ -2127,7 +2290,7 @@ This function does not consider the effect of the transform attribute."
                    (cons (- cx crx) top) (cons cx top))
            (vector (cons cx top) (cons (+ cx crx) top)
                    (cons right (- cy cry)) (cons right cy)))))
-         segments))
+    segments))
 
 (defun edraw-svg-circle-contents-to-seglist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
@@ -2218,7 +2381,7 @@ This function does not consider the effect of the transform attribute."
                         (not (equal stroke ""))
                         (not (equal stroke "none"))))
          (stroke-width (if stroke-p
-                           (or (edraw-svg-attr-number element 'stroke-width) 1)
+                           (or (edraw-svg-attr-length element 'stroke-width) 1)
                          0))
          (stroke-square-r (/ stroke-width (* 2 (sqrt 2))))
          (segments (edraw-svg-shape-contents-to-seglist element)

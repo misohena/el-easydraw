@@ -1,6 +1,33 @@
 
 
 * Inbox
+** TODO svg要素のwidth=, height=が単位付きの場合に対応する
+そもそもEmacsではどのように扱われるのか。
+
+** TODO edraw-get-property-as-lengthは直接edraw-svg-関数を呼び出すべきではない
+edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼んでいるが、shapeが要素であることやprop-nameがその属性名であることは保証されていないので、呼び出すべきではないのでは？
+
+** TODO transform属性の長さの単位に対応する
+[[elisp-function:edraw-svg-transform-parse-numbers]]という関数にTODOコメントがある。
+[[*長さの単位に対応する][長さの単位に対応する]]でlength値は既に対応したので、同じように対応すべき。
+
+** TODO DOMの親を取得する機能をちゃんとする
+[[*長さの単位に対応する][長さの単位に対応する]]で百分率の計算に必要な部分は実装したが、全体的にはちゃんと実装していない。正しい親が取得できないシチュエーションがある。
+- edraw-dom-set-parentを呼んでいない箇所がある
+- remove時にnilにしていない
+
+** TODO DOMの内部使用属性名の処理をedraw-dom-svg.elにまとめる
+現在はedraw.elで :-edraw-shape を使っており、一方でedraw-dom-svg.elで :-edraw-parent-element を使っている。
+
+次の関数がedraw.elにあるが、これはedraw-dom-svg.elにあるべきではないか？
+- edraw-editor-internal-attr-p
+- edraw-editor-remove-internal-attributes-from-svg
+
+** TODO プロパティエディタで単位を維持したままホイール・ドラッグ操作をしたい
+数値をホイールやドラッグで変更するとき、単位を維持したい。
+
+また、プロパティ情報に :to-number という関数があるが、これは廃止したい。おそらくプロパティエディタのホイール・ドラッグ数値変更でしか使っていない。この関数はem、ex、%といった相対指定を処理できない。
+
 ** TODO widget/チェックリストの操作で表示が乱れることがある？
 edraw-default-shape-properties等のカスタマイズでチェックボックスをON/OFFしたときに関係ない場所が消えることがあるような気がする。例えばrectをOFFにしたらellipseのチェックボックスがrectのチェックボックスと同じ行に来たり。再現の仕方が今ひとつ分からない。
 ** TODO widget/marker型のshape propertyをカスタマイズできるようにする
@@ -3500,3 +3527,65 @@ The current state is not really satisfying since it is possible to switch to edr
 #+end_quote
 
 というので g#edraw-body が存在しない場合はedraw-modeが立ち上がらないようにした。
+** DONE 長さの単位に対応する
+CLOSED: [2024-03-07 Thu 18:00]
+[[elisp-function:edraw-svg-transform-parse-numbers]]という関数に次のコードがある:
+#+begin_src elisp
+(pcase unit
+  ((or 'nil "") num)
+  ;; angle to degrees
+  ("deg" num)
+  ("rad" (radians-to-degrees num))
+  ("grad" (/ (* num 180) 200.0))
+  ("turn" (* 360 num))
+  ;; length to px
+  ;;@todo relative
+  ("cm" (/ (* num 96) 2.54))
+  ("mm" (/ (* num 96) 25.4))
+  ("Q" (/ (* num 96) 2.54 40))
+  ("in" (* num 96))
+  ("pc" (/ (* num 96) 6))
+  ("pt" (/ (* num 96) 72))
+  ("px" num)
+  (_ (cons num unit)))
+#+end_src
+
+これを一般化できないだろうか。
+
+[[elisp-function:edraw-svg-attr-length-to-number]]を修正すれば良いが
+- em, exの情報をどこから持ってくるか。
+- %は縦と横を区別する必要がある。
+
+次のようにする。
+- elementから親をたどれるようにすべき。
+  - 基本
+    - edraw-dom-set-parent
+    - edraw-dom-get-parent
+    - edraw-dom-update-parents
+  - setする関数
+    - edraw-dom-insert-first
+    - edraw-dom-insert-nth
+    - edraw-dom-append-child (新規追加)
+- 継承された属性値を求める関数を追加すべき。
+  - edraw-svg-attr-length-or-inherited
+- %は属性によって基準となる値が変わる。(edraw-svg-attr-length-percentage)
+  - font-sizeは属性を親からルートへたどって探す。
+  - ビューポートサイズは一番近い祖先svg要素を探す。
+- emやexはfont-sizeを基準に決めるしかない。
+  - edraw-svg-attr-length-em
+  - edraw-svg-attr-length-ex
+- [[elisp-function:edraw-svg-attr-length-to-number]]に引数elementとattrを追加する。
+
+無指定の場合のデフォルト値はDPIが96、フォントサイズが16となっている(手元のEmacsで実際に試してみた限り)。emはフォントサイズで代用し、exはその半分とする。
+
+やり残し:
+- 要素の親子関係は不正確(属性値を解決するのに十分な程度しか処理していない)
+  - edraw-dom-set-parentを呼んでいない箇所がある
+  - remove時にnilにしていない
+  - できれば :-edraw- の表記はedraw-dom-svg.el側でサポートしたい
+
+ - プロパティ情報 :to-number は廃止したい(文字列を数値へ変換するには対象オブジェクトとプロパティ名が必要。それ込みで:to-numberを生成するのは無駄)
+  - プロパティエディタは単位を保持したままホイール・ドラッグ操作をしたい
+    (:to-numberと関係あり)
+
+[[edraw:data=H4sIAAiC6WUAA3WS0W6DIBSGX4WcZpeK2narjXi37AHWm106ASWl0CCtdk8/jsVsS9YQ5ej5///zGKrh2pHppM3AoPf+vKd0HMd0XKfWdbTIsowGBdwl+0krc/xPmJdlSecukFFx3zPYPmdAeqG63jPYFOHhKtygrGGQpznUlROtJxOD0LnN94dGxRkI7pox+WzaY+fsxXAgg3f2KBgYawQQqbRmsJJSAqF11f02WX4LPKG1Og8i+pKF9gTEBf5LOlfTUrXh3TbDYorFwlvlGa4FecfTOA9GrWMQ7sscOSZE5FwHXY6DBh1ufz+qeEhbyR2uGejF5Im0xieD+hKYG4OL4h682aAPBbI5KR06HxfyZn2vWiDoThrT9tYxOCnO9c9fjMz68Pp+qCgq64p24Qpnof4G//6jyjMCAAA=]]

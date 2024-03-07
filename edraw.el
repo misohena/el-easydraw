@@ -1110,6 +1110,9 @@ For use with `edraw-editor-with-temp-undo-list',
     ;; #edraw-body
     (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)
 
+    ;; Make it possible to retrieve parents of elements
+    (edraw-dom-update-parents svg)
+
     ;; Restore Point Connections
     (edraw-restore-point-connections editor)))
 
@@ -1200,7 +1203,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (svg svg-document-size svg-document-view-box
                    svg-document-comments)
       editor
-    (let ((doc-svg (copy-tree svg)))
+    (let ((doc-svg (edraw-dom-copy-tree svg)))
       (edraw-editor-remove-ui-elements-from-svg doc-svg)
       (edraw-editor-remove-internal-attributes-from-svg doc-svg)
       (edraw-editor-remove-scroll-transform doc-svg)
@@ -1457,7 +1460,7 @@ For use with `edraw-editor-with-temp-undo-list',
           ;; change fill
           (edraw-svg-set-attr-string element 'fill fill)
         ;; add background
-        (dom-add-child-before
+        (dom-add-child-before ;;@todo Call edraw-dom-set-parent
          svg
          (edraw-svg-rect 0 0 0 0 :fill fill :id edraw-editor-svg-background-id)
          (edraw-svg-body editor))
@@ -5656,7 +5659,7 @@ markers) to the EDITOR."
     (when parent
       (if index
           (edraw-dom-insert-nth parent element index)
-        (dom-append-child parent element)))
+        (edraw-dom-append-child parent element)))
     element))
 
 (defun edraw-shape--create-element (tag props-alist defrefs)
@@ -5906,7 +5909,7 @@ Return nil if undefined.")
            )))
     (when children-descriptor
       (dolist (child-descriptor children-descriptor)
-        (dom-append-child
+        (edraw-dom-append-child
          element
          (edraw-shape-descriptor-to-svg-element child-descriptor))))
     element))
@@ -6278,7 +6281,10 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-get-property-as-length ((shape edraw-shape) prop-name
                                             &optional default-value)
-  (or (edraw-svg-attr-length-to-number (edraw-get-property shape prop-name))
+  ;;@todo Use :to-number of property-info ?
+  (or (edraw-svg-attr-length-to-number (edraw-get-property shape prop-name)
+                                       (edraw-element shape)
+                                       prop-name)
       (or default-value 0)))
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape) prop-list)
