@@ -1,6 +1,9 @@
 
 
 * Inbox
+** TODO edraw-editorに入力フィルタを設定できるようにする
+自己責任で入力SVGを変換できるようにする。
+
 ** TODO svg要素のwidth=, height=が単位付きの場合に対応する
 そもそもEmacsではどのように扱われるのか。
 
@@ -10,11 +13,6 @@ edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼ん
 ** TODO transform属性の長さの単位に対応する
 [[elisp-function:edraw-svg-transform-parse-numbers]]という関数にTODOコメントがある。
 [[*長さの単位に対応する][長さの単位に対応する]]でlength値は既に対応したので、同じように対応すべき。
-
-** TODO DOMの親を取得する機能をちゃんとする
-[[*長さの単位に対応する][長さの単位に対応する]]で百分率の計算に必要な部分は実装したが、全体的にはちゃんと実装していない。正しい親が取得できないシチュエーションがある。
-- edraw-dom-set-parentを呼んでいない箇所がある
-- remove時にnilにしていない
 
 ** TODO DOMの内部使用属性名の処理をedraw-dom-svg.elにまとめる
 現在はedraw.elで :-edraw-shape を使っており、一方でedraw-dom-svg.elで :-edraw-parent-element を使っている。
@@ -3621,3 +3619,16 @@ CLOSED: [2024-03-07 Thu 18:00]
 ** DONE text要素のx、y属性を単位指定に対応させる
 CLOSED: [2024-03-07 Thu 18:36]
 textのxとyはlengthのリストなので特別処理をしている。
+** DONE DOMの親を取得する機能をちゃんとする
+CLOSED: [2024-03-07 Thu 21:39]
+[[*長さの単位に対応する][長さの単位に対応する]]で百分率の計算に必要な部分は実装したが、全体的にはちゃんと実装していない。正しい親が取得できないシチュエーションがある。
+- edraw-dom-set-parentを呼んでいない箇所がある
+- remove時にnilにしていない
+
+対策:
+- できるだけノードの追加・削除にかかわるdom-関数は使わないようにする。
+- 代わりにedraw-dom-関数を整備する。
+- そのedraw-dom-関数ではedraw-dom-set-parentとedraw-dom-reset-parentを適切に使用して親を記録する。
+- edraw-dom-parentを作成し、親情報が適切ならそれを使い、そうでなければdom-parentを呼び出すようにする。
+- ノードを作成するdom-nodeもできるだけ使わないようにする。
+- 代わりにedraw-dom-elementやedraw-svg-rect等を使うようにする。

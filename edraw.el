@@ -1142,7 +1142,7 @@ For use with `edraw-editor-with-temp-undo-list',
       (let ((body (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)))
         (dolist (child children)
           (when child ;;Enable '(nil) to create body node only.
-            (dom-append-child body child)))))
+            (edraw-dom-append-child body child)))))
     svg))
 
 (defun edraw-get-document-body (svg)
@@ -1204,6 +1204,7 @@ For use with `edraw-editor-with-temp-undo-list',
                    svg-document-comments)
       editor
     (let ((doc-svg (edraw-dom-copy-tree svg)))
+      ;; @todo Call `edraw-dom-update-parents'?
       (edraw-editor-remove-ui-elements-from-svg doc-svg)
       (edraw-editor-remove-internal-attributes-from-svg doc-svg)
       (edraw-editor-remove-scroll-transform doc-svg)
@@ -1213,7 +1214,7 @@ For use with `edraw-editor-with-temp-undo-list',
       ;; Remove empty defs
       (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
         (when (null (dom-children defs))
-          (dom-remove-node doc-svg defs)))
+          (edraw-dom-remove-node doc-svg defs)))
       ;; Add xmlns
       (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
       ;; Adjust xmlns:xlink and xlink:href
@@ -1460,7 +1461,7 @@ For use with `edraw-editor-with-temp-undo-list',
           ;; change fill
           (edraw-svg-set-attr-string element 'fill fill)
         ;; add background
-        (dom-add-child-before ;;@todo Call edraw-dom-set-parent
+        (edraw-dom-add-child-before
          svg
          (edraw-svg-rect 0 0 0 0 :fill fill :id edraw-editor-svg-background-id)
          (edraw-svg-body editor))
@@ -1909,7 +1910,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (svg) editor
     (when-let ((style (edraw-dom-get-by-id svg "edraw-ui-style")))
       (edraw-dom-remove-all-children style)
-      (dom-append-child style edraw-editor-ui-style))))
+      (edraw-dom-append-child style edraw-editor-ui-style))))
 
 (cl-defmethod edraw-update-root-transform ((editor edraw-editor))
   (with-slots (svg image-scale) editor
@@ -1936,7 +1937,7 @@ For use with `edraw-editor-with-temp-undo-list',
 (defun edraw-editor-remove-ui-elements-from-svg (svg)
   "Remove elements that starts with `#edraw-ui-'."
   (dolist (elem (dom-by-id svg "\\`edraw-ui-"))
-    (dom-remove-node svg elem)))
+    (edraw-dom-remove-node svg elem)))
 
 (defun edraw-editor-internal-attr-p (attribute)
   (not (null (string-match-p "\\`:-edraw-" (symbol-name (car attribute))))))
@@ -1952,7 +1953,7 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;;; Editor - View - Transparent Background
 
 (cl-defmethod edraw-initialize-transparent-bg ((editor edraw-editor))
-  (dom-append-child
+  (edraw-dom-append-child
    (edraw-ui-defs-svg editor)
    (edraw-svg-ui-transparent-bg-pattern)))
 
@@ -3685,7 +3686,7 @@ position where the EVENT occurred."
                   (svg-gradient svg "icon-fg-gradient" 'linear
                                 '((0 . "rgba(255,255,255,0.5)")
                                   (100 . "rgba(255,255,255,0.0)")))
-                  (dom-append-child
+                  (edraw-dom-append-child
                    (dom-by-tag svg 'defs)
                    (edraw-svg-ui-transparent-bg-pattern))
                   (edraw-svg-group ;;root-g
@@ -3724,7 +3725,7 @@ position where the EVENT occurred."
                     :parent parent
                     :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
     (edraw-svg-set-attr-string icon 'transform (format "translate(%s %s)" x0 y0))
-    (dom-append-child parent icon)
+    (edraw-dom-append-child parent icon)
 
     (list (cons 'rect
                 (cons (cons (round (* image-scale x0))
@@ -3814,7 +3815,7 @@ position where the EVENT occurred."
 ;;     "ICON" 'display
 ;;     (let ((svg (svg-create 30 24)))
 ;;       (svg-rectangle svg 0 0 40 24 :fill "#888")
-;;       (dom-append-child svg (edraw-editor-make-icon (intern name)))
+;;       (edraw-dom-append-child svg (edraw-editor-make-icon (intern name)))
 ;;       (svg-image svg)))))
 
 (cl-defmethod edraw-make-toolbar-color-button ((editor edraw-editor)
@@ -4135,7 +4136,7 @@ position where the EVENT occurred."
                        1
                        :class "edraw-ui-read-rectangle"))
           move-xy)
-      (dom-append-child ui-parent ui-preview)
+      (edraw-dom-append-child ui-parent ui-preview)
       (unwind-protect
           (edraw-track-dragging
            down-event
@@ -4151,7 +4152,7 @@ position where the EVENT occurred."
               (edraw-scroll-transform-xy editor down-xy)
               (edraw-scroll-transform-xy editor move-xy))
              (edraw-invalidate-image editor)))
-        (dom-remove-node ui-parent ui-preview)
+        (edraw-dom-remove-node ui-parent ui-preview)
         (edraw-invalidate-image editor))
       (edraw-aabb down-xy (or move-xy down-xy)))))
 
@@ -5667,7 +5668,7 @@ markers) to the EDITOR."
 
 Unlike `dom-node' etc., attributes are set by the
 `edraw-svg-element-set-property' function."
-  (let ((element (dom-node tag)))
+  (let ((element (edraw-dom-element tag)))
     ;; Initialize attributes in the manner of the edraw-dom-svg.el library.
     (dolist (prop props-alist)
       (let ((prop-name (car prop))
@@ -5732,7 +5733,7 @@ Return nil if undefined.")
 (cl-defmethod edraw-parent-element ((shape edraw-shape))
   "Used only internally."
   (with-slots (editor) shape
-    (dom-parent
+    (edraw-dom-parent
      (edraw-svg-body editor)
      (edraw-element shape))))
 
@@ -5898,7 +5899,7 @@ Return nil if undefined.")
          (props (alist-get :properties shape-descriptor))
          (children-descriptor (alist-get :children shape-descriptor))
          ;;@todo defrefs??? What happens when use marker attributes?
-         (defrefs (edraw-svg-defrefs (dom-node 'defs))) ;;Dummy defrefs
+         (defrefs (edraw-svg-defrefs (edraw-dom-element 'defs))) ;;Dummy defrefs
          (element
           (edraw-create-shape-svg-element
            shape-type
@@ -6035,7 +6036,7 @@ Return nil if undefined.")
                (edraw-parent-element shape)
                shape
                (edraw-node-position shape)))
-        (dom-remove-node (edraw-parent-element shape) element)
+        (edraw-dom-remove-node (edraw-parent-element shape) element)
         (setq removed-p t)
         (edraw-on-shape-changed shape 'shape-remove))))) ;; Call edraw-update-related-point-connections
 
@@ -6062,7 +6063,7 @@ Return nil if undefined.")
                          (list 'edraw-set-node-position shape old-pos))
         (let ((parent (edraw-parent-element shape))
               (element (edraw-element shape)))
-          (dom-remove-node parent element)
+          (edraw-dom-remove-node parent element)
           (edraw-dom-insert-nth parent element new-pos))
         (edraw-on-shape-changed shape 'shape-z-order)))))
 
@@ -8879,8 +8880,7 @@ possible. Because undoing invalidates all point objects."
                          (cons (list 'center) (cdr scaled-aabb))) ;;Bottom
             scaling-points (append corner-points side-points)
             origin-point (cons (cons 'ratio 0.5) (cons 'ratio 0.5))
-            ui-svg (edraw-dom-element
-                    'g
+            ui-svg (edraw-svg-group
                     :parent (edraw-ui-foreground-svg (edraw-get-editor target))
                     :class "edraw-ui-transform"))
       transformer)))
@@ -9026,8 +9026,7 @@ REF is a point reference in scaling-points."
   (let* ((ox (edraw-x xy))
          (oy (edraw-y xy))
          (or edraw-transform-origin-outer-radius))
-    (edraw-dom-element
-     'g
+    (edraw-svg-group
      :parent parent
      :class "edraw-ui-transform-origin"
      :children
@@ -9072,8 +9071,9 @@ REF is a point reference in scaling-points."
 
 (cl-defmethod edraw-remove-ui-svg ((transformer edraw-shape-transformer))
   (with-slots (ui-svg) transformer
-    (dom-remove-node (edraw-ui-foreground-svg (edraw-get-editor transformer))
-                     ui-svg)))
+    (edraw-dom-remove-node (edraw-ui-foreground-svg (edraw-get-editor
+                                                     transformer))
+                           ui-svg)))
 
 (cl-defmethod edraw-update-ui-pointer ((transformer edraw-shape-transformer))
   (with-slots (ui-svg pointer-xy pointer-type pointer-angle) transformer

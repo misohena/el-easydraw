@@ -57,8 +57,9 @@ treated as children.
 
 The following special properties can be specified.
 
-:parent    Parent DOM element.
-:children  A list of child DOM nodes.
+:parent      Parent DOM element.
+:children    A list of child DOM nodes.
+:attributes  An plist or alist of additional attributes.
 
 This function was intended to make it easier to express the
 structure of the DOM directly in the source code. If the
@@ -73,22 +74,39 @@ attribute already exists in alist form, use dom-node."
               (cond
                ((keywordp key) (intern (substring (symbol-name key) 1)))
                ((symbolp key) key))))
-        (when (and key-symbol
-                   ;; Ignore :parent and :children
-                   (not (memq key-symbol '(parent children))))
-          (push (cons key-symbol value) attr-alist))
+        (pcase key-symbol
+          ;; Ignore :parent and :children
+          ((or 'nil 'parent 'children))
+          ;; Support :attributes (key value ...) notation
+          ('attributes
+           (when (consp value)
+             (cond
+              ((consp (car value)) ;; alist
+               (setcdr (cdr children) (nconc
+                                       (cl-loop for (k . v) in value
+                                                collect k collect v)
+                                       (cddr children))))
+              ((plistp value) ;; plist
+               (setcdr (cdr children) (nconc
+                                       value
+                                       (cddr children)))))))
+          (_
+           (push (cons key-symbol value) attr-alist)))
         (setq children (cddr children))))
     (setq attr-alist (nreverse attr-alist))
 
-    ;; :Support :children (list ...) notation.
+    ;; Support :children (list ...) notation.
     (when-let ((attr-children (plist-get attr-plist-and-children :children)))
       (setq children (nconc children attr-children)))
 
     ;; Create an element
     (let ((element (apply 'dom-node tag attr-alist children)))
+      ;; Set ELEMENT as parent for children
+      (dolist (child children)
+        (edraw-dom-set-parent child element))
       ;; Append the element to parent
       (when-let ((parent (plist-get attr-plist-and-children :parent)))
-        (dom-append-child parent element))
+        (edraw-dom-append-child parent element))
       element)))
 
 (defun edraw-dom-element-p (node)
@@ -97,14 +115,43 @@ attribute already exists in alist form, use dom-node."
        (not (null (car node)))
        (symbolp (car node))))
 
-(defsubst edraw-dom-tag (node)
+(defmacro edraw-dom-tag (node)
   "Return the NODE tag.
 Unlike `dom-tag', this function doesn't consider NODE if is's a
-list of nodes."
-  (car-safe node))
+list of nodes.
+Since this is a macro, setf can be used."
+  ;; depends on dom.el node structure
+  `(car-safe ,node))
+
+(defmacro edraw-dom-attributes (node)
+  "Return the NODE attribute list.
+Unlike `dom-attributes', this function doesn't consider NODE if
+is's a list of nodes.
+Since this is a macro, setf can be used."
+  ;; depends on dom.el node structure
+  `(cadr ,node))
+
+(defmacro edraw-dom-children (node)
+  "Return the NODE child list.
+Unlike `dom-children', this function doesn't consider NODE if
+is's a list of nodes.
+Since this is a macro, setf can be used."
+  ;; depends on dom.el node structure
+  `(cddr ,node))
 
 (defun edraw-dom-tag-eq (node tag)
   (eq (edraw-dom-tag node) tag))
+
+(defun edraw-dom-parent (dom node)
+  "Return the parent of NODE in DOM.
+
+Same as `dom-parent', but if NODE has the parent node information
+set by `dom-set-parent', this function will skip searching from
+the DOM and quickly identify the parent."
+  (let ((parent (edraw-dom-get-parent node)))
+    (if (and parent (memq node (edraw-dom-children parent)))
+        parent
+      (dom-parent dom node))))
 
 (defun edraw-dom-split-top-nodes (dom)
   "Split DOM into pre comment nodes, top-level element, and post
@@ -161,15 +208,21 @@ comment nodes."
    (edraw-dom-get-by-id parent id)
    (svg-node parent tag :id id)))
 
+(defun edraw-dom-remove-node (dom node)
+  (prog1 (dom-remove-node dom node)
+    ;; @todo Should check to see if it has really been removed.
+    (edraw-dom-reset-parent node)))
+
 (defun edraw-dom-remove-all-children (node)
-  (when node
-    ;; depends on dom.el node structure
-    (setcdr (cdr node) nil))
+  (when (consp node)
+    (dolist (child (dom-children node))
+      (edraw-dom-reset-parent child))
+    (setf (edraw-dom-children node) nil))
   node)
 
 (defun edraw-dom-remove-by-id (dom id)
   (when-let ((node (edraw-dom-get-by-id dom id)))
-    (dom-remove-node dom node)))
+    (edraw-dom-remove-node dom node)))
 
 (defun edraw-dom-remove-attr (node attr)
   (dom-set-attributes node (assq-delete-all attr (dom-attributes node))))
@@ -188,17 +241,17 @@ Attribute value is preserved."
       (setcar old-cell new-name))))
 
 (defun edraw-dom-first-node-p (dom node)
-  (if-let ((parent (dom-parent dom node)))
+  (if-let ((parent (edraw-dom-parent dom node)))
       (eq (car (dom-children parent)) node)
     t))
 
 (defun edraw-dom-last-node-p (dom node)
-  (if-let ((parent (dom-parent dom node)))
+  (if-let ((parent (edraw-dom-parent dom node)))
       (eq (car (last (dom-children parent))) node)
     t))
 
 (defun edraw-dom-reorder-prev (dom node)
-  (when-let ((parent (dom-parent dom node)))
+  (when-let ((parent (edraw-dom-parent dom node)))
     (let ((index (seq-position (dom-children parent) node #'eq)))
       (when (> index 0)
         (let* ((prev-cell (nthcdr (1- index) (dom-children parent)))
@@ -209,7 +262,7 @@ Attribute value is preserved."
         t))))
 
 (defun edraw-dom-reorder-next (dom node)
-  (when-let ((parent (dom-parent dom node)))
+  (when-let ((parent (edraw-dom-parent dom node)))
     (let* ((index (seq-position (dom-children parent) node #'eq))
            (curr-cell (nthcdr index (dom-children parent)))
            (next-cell (cdr curr-cell))
@@ -221,18 +274,24 @@ Attribute value is preserved."
         t))))
 
 (defun edraw-dom-reorder-first (dom node)
-  (when-let ((parent (dom-parent dom node)))
+  (when-let ((parent (edraw-dom-parent dom node)))
     (when (not (eq (car (dom-children parent)) node))
+      ;; The parent of NODE does not change.
       (dom-remove-node parent node)
       (dom-add-child-before parent node (car (dom-children parent)))
       t)))
 
 (defun edraw-dom-reorder-last (dom node)
-  (when-let ((parent (dom-parent dom node)))
+  (when-let ((parent (edraw-dom-parent dom node)))
     (when (not (eq (car (last (dom-children parent))) node))
+      ;; The parent of NODE does not change.
       (dom-remove-node parent node)
       (dom-append-child parent node)
       t)))
+
+(defun edraw-dom-add-child-before (node child &optional before)
+  (prog1 (dom-add-child-before node child before)
+    (edraw-dom-set-parent child node)))
 
 (defun edraw-dom-append-child (node child)
   (prog1 (dom-append-child node child)
@@ -249,7 +308,7 @@ Attribute value is preserved."
   (car (last (dom-children node))))
 
 (defun edraw-dom-next-sibling (dom node)
-  (when-let ((parent (dom-parent dom node)))
+  (when-let ((parent (edraw-dom-parent dom node)))
     (let ((siblings (dom-children parent)))
       (while (and siblings
                   (not (eq (car siblings) node)))
@@ -257,7 +316,7 @@ Attribute value is preserved."
       (cadr siblings))))
 
 (defun edraw-dom-previous-sibling (dom node)
-  (when-let ((parent (dom-parent dom node)))
+  (when-let ((parent (edraw-dom-parent dom node)))
     (let ((siblings (dom-children parent)))
       (if (eq (car siblings) node)
           nil
@@ -287,7 +346,9 @@ Attribute value is preserved."
                                   collect (cons key value)))
              (children (cl-loop for child in (dom-children node)
                                 collect (edraw-dom-copy-tree child))))
-        (cons tag (cons attributes children)))
+        (apply #'dom-node tag attributes children)
+        ;;@todo Call `edraw-dom-set-parent'? or (edraw-dom-element tag :attributes attributes :children children)?
+        )
     node))
 
 
@@ -300,6 +361,10 @@ Attribute value is preserved."
 (defun edraw-dom-get-parent (node)
   (when (edraw-dom-element-p node)
     (dom-attr node :-edraw-parent-element)))
+
+(defun edraw-dom-reset-parent (node)
+  (when (edraw-dom-element-p node)
+    (edraw-dom-remove-attr node :-edraw-parent-element)))
 
 (defun edraw-dom-update-parents (tree)
   "Make it possible to retrieve parents of all elements in TREE."
@@ -1274,7 +1339,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (let ((lines (split-string text "\n")))
       (if (null (cdr lines))
           ;; single line
-          (dom-append-child element (car lines))
+          (edraw-dom-append-child element (car lines)) ;; string
         ;; multi-line
         (edraw-svg-text--set-text-multiline element lines)))))
 
@@ -1293,18 +1358,19 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
                             line-delta-step-abs))
          (line-delta 0))
     (dolist (line lines)
-      (edraw-dom-append-child
-       element
-       (dom-node 'tspan
-                 (append (list (cons 'class "text-line")
-                               (cons attr-col col))
+      (edraw-dom-element 'tspan
+                         :parent element
+                         :class "text-line"
+                         attr-col col
+                         :attributes
                          (when (and (/= line-delta 0)
                                     (not (string-empty-p line)))
-                           (list (cons attr-line-delta
-                                       (format "%s%s"
-                                               line-delta
-                                               line-delta-unit)))))
-                 line))
+                           (list attr-line-delta
+                                 (format "%s%s"
+                                         line-delta
+                                         line-delta-unit)))
+                         ;; string
+                         line)
       (unless (string-empty-p line)
         (setq line-delta 0))
       (cl-incf line-delta line-delta-step))))
@@ -1339,8 +1405,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 (defun edraw-svg-defs-as-defrefs (id)
   (edraw-svg-defrefs
-   (dom-node 'defs
-             (list (cons 'id id)))))
+   (edraw-dom-element 'defs :id id)))
 
 
 ;;;;; Definition and Referrers Pair
@@ -1446,7 +1511,7 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
         ;; when no referrer
         (when (edraw-svg-defref-empty-p defref)
           ;; remove definition element
-          (dom-remove-node
+          (edraw-dom-remove-node
            (edraw-svg-defrefs-defs-element defrefs)
            (edraw-svg-defref-def-element defref))
           ;; remove defref pair
@@ -1501,7 +1566,8 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
     ;; Remove unreferenced definitions
     (dolist (defref (edraw-svg-defrefs-defrefs defrefs))
       (when (edraw-svg-defref-empty-p defref)
-        (dom-remove-node defs-node (edraw-svg-defref-def-element defref))))
+        (edraw-dom-remove-node defs-node
+                               (edraw-svg-defref-def-element defref))))
     (setcdr (edraw-svg-defrefs-defrefs--head defrefs)
             (seq-remove 'edraw-svg-defref-empty-p
                         (edraw-svg-defrefs-defrefs defrefs)))
@@ -1544,28 +1610,30 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
    (cons 'refX (alist-get 'refX marker-attrs "0"))))
 
 (defun edraw-svg-marker-arrow-create (prop-name element marker)
-  (dom-node 'marker
-            `((markerWidth . ,(edraw-svg-marker-prop-str marker 'markerWidth "6"))
-              (markerHeight . ,(edraw-svg-marker-prop-str marker 'markerHeight "6"))
-              (preserveAspectRatio . "none")
-              (viewBox . "-10 -10 20 20")
-              (refX . ,(edraw-svg-marker-prop-str marker 'refX "0"))
-              (refY . "0")
-              (orient . "auto")
-              (stroke . "none")
-              (fill .
-                    ;; @todo I want to use context-stroke and remove edraw-svg-update-marker-properties
-                    ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
-                    ,(let ((stroke (dom-attr element 'stroke)))
-                       (if (or (null stroke) (equal stroke "none"))
-                           "none" ;;stroke may change later
-                         stroke))))
-            (dom-node 'path
-                      ;; @todo I want to use auto-start-reverse
-                      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
-                      (if (eq prop-name 'marker-start)
-                          `((d . "M10,-7 10,7 -4,0Z")) ;; <|
-                        `((d . "M-10,-7 -10,7 4,0Z")))))) ;; |>
+  (edraw-dom-element
+   'marker
+   :markerWidth (edraw-svg-marker-prop-str marker 'markerWidth "6")
+   :markerHeight (edraw-svg-marker-prop-str marker 'markerHeight "6")
+   :preserveAspectRatio "none"
+   :viewBox "-10 -10 20 20"
+   :refX (edraw-svg-marker-prop-str marker 'refX "0")
+   :refY "0"
+   :orient "auto"
+   :stroke "none"
+   :fill
+   ;; @todo I want to use context-stroke and remove edraw-svg-update-marker-properties
+   ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
+   (let ((stroke (dom-attr element 'stroke)))
+     (if (or (null stroke) (equal stroke "none"))
+         "none" ;;stroke may change later
+       stroke))
+   ;; Children
+   (edraw-svg-path
+    ;; @todo I want to use auto-start-reverse
+    ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
+    (if (eq prop-name 'marker-start)
+        "M10,-7 10,7 -4,0Z" ;; <|
+      "M-10,-7 -10,7 4,0Z")))) ;; |>
 
 (defun edraw-svg-marker-circle-props (marker-attrs)
   (list
@@ -1574,24 +1642,25 @@ DEFS-ELEMENT is a <defs> element for storing definitions."
    (cons 'refX (alist-get 'refX marker-attrs "0"))))
 
 (defun edraw-svg-marker-circle-create (_prop-name element marker)
-  (dom-node 'marker
-            `((markerWidth . ,(edraw-svg-marker-prop-str marker 'markerWidth "4"))
-              (markerHeight . ,(edraw-svg-marker-prop-str marker 'markerHeight "4"))
-              (preserveAspectRatio . "none")
-              (viewBox . "-5 -5 10 10")
-              (refX . ,(edraw-svg-marker-prop-str marker 'refX "0"))
-              (refY . "0")
-              (orient . "auto")
-              (stroke . "none")
-              (fill .
-                    ;; @todo I want to use context-stroke
-                    ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
-                    ,(let ((stroke (dom-attr element 'stroke)))
-                       (if (or (null stroke) (equal stroke "none"))
-                           "none" ;;stroke may change later
-                         stroke))))
-            (dom-node 'circle
-                      `((cx . "0") (cy . "0") (r . "4")))))
+  (edraw-dom-element
+   'marker
+   :markerWidth (edraw-svg-marker-prop-str marker 'markerWidth "4")
+   :markerHeight (edraw-svg-marker-prop-str marker 'markerHeight "4")
+   :preserveAspectRatio "none"
+   :viewBox "-5 -5 10 10"
+   :refX (edraw-svg-marker-prop-str marker 'refX "0")
+   :refY "0"
+   :orient "auto"
+   :stroke "none"
+   :fill
+   ;; @todo I want to use context-stroke
+   ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
+   (let ((stroke (dom-attr element 'stroke)))
+     (if (or (null stroke) (equal stroke "none"))
+         "none" ;;stroke may change later
+       stroke))
+   ;; Children
+   (edraw-svg-circle "0" "0" "4")))
 
 (defconst edraw-svg-marker-types
   `(("arrow"
@@ -2501,15 +2570,10 @@ This function does not consider the effect of the transform attribute."
        (setq bl pl bt pt bw cw bh ch attrs alist))
       (`(full . ,alist)
        (setq attrs alist)))
-    (dom-append-child
-     svg
-     (dom-node 'rect
-               `((id . ,id)
-                 (x . ,bl)
-                 (y . ,bt)
-                 (width . ,bw)
-                 (height . ,bh)
-                 ,@attrs)))))
+    (edraw-svg-rect bl bt bw bh
+                    :parent svg
+                    :id id
+                    :attributes attrs)))
 
 (defun edraw-svg-shape-thumbnail (shape svg-width svg-height
                                         &optional
@@ -2558,21 +2622,19 @@ This function does not consider the effect of the transform attribute."
              background pl pt cw ch "background"))
 
           ;; Body
-          (dom-append-child
-           svg
-           (dom-node 'g
-                     `((id . "body")
-                       (transform
-                        .
-                        ,(concat
-                          (format "translate(%s %s)"
-                                  (+ pl (/ (- cw (* bw scale)) 2))
-                                  (+ pt (/ (- ch (* bh scale)) 2)))
-                          " "
-                          (format "scale(%s)" scale)
-                          " "
-                          (format "translate(%s %s)" (- bl) (- bt)))))
-                     shape))
+          (edraw-svg-group :parent svg
+                           :id "body"
+                           :transform
+                           (concat
+                            (format "translate(%s %s)"
+                                    (+ pl (/ (- cw (* bw scale)) 2))
+                                    (+ pt (/ (- ch (* bh scale)) 2)))
+                            " "
+                            (format "scale(%s)" scale)
+                            " "
+                            (format "translate(%s %s)" (- bl) (- bt)))
+                           ;; Children
+                           shape)
 
           (when foreground
             (edraw-svg-shape-thumbnail-cover
