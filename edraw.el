@@ -1228,10 +1228,7 @@ For use with `edraw-editor-with-temp-undo-list',
 (edraw-editor-defcmd edraw-export-to-buffer ((editor edraw-editor))
   (pop-to-buffer "*Easy Draw SVG*")
   (erase-buffer)
-  (edraw-svg-print
-   (edraw-document-svg editor t)
-   nil
-   'edraw-svg-print-attr-filter 0)
+  (edraw-svg-print (edraw-document-svg editor t) nil nil 0)
   (xml-mode))
 
 (edraw-editor-defcmd edraw-export-to-file ((editor edraw-editor)
@@ -1250,18 +1247,12 @@ For use with `edraw-editor-with-temp-undo-list',
       (user-error "Canceled"))
     (with-temp-file filename
       (set-buffer-file-coding-system 'utf-8)
-      (edraw-svg-print
-       (edraw-document-svg editor t)
-       nil
-       'edraw-svg-print-attr-filter 0))))
+      (edraw-svg-print (edraw-document-svg editor t) nil nil 0))))
 
 (edraw-editor-defcmd edraw-export-debug-svg-to-buffer ((editor edraw-editor))
   (pop-to-buffer "*Easy Draw SVG*")
   (erase-buffer)
-  (edraw-svg-print
-   (oref editor svg)
-   nil
-   'edraw-svg-print-attr-filter 0)
+  (edraw-svg-print (oref editor svg) nil nil 0)
   (xml-mode))
 
 
@@ -5731,8 +5722,7 @@ Return nil if undefined.")
 (cl-defgeneric edraw-svg-string (obj)
   "Make SVG string from OBJ.")
 (cl-defmethod edraw-svg-string ((shape edraw-shape))
-  (edraw-svg-to-string (edraw-element shape)
-                       nil 'edraw-svg-print-attr-filter 0 t))
+  (edraw-svg-to-string (edraw-element shape) nil nil 0 t))
 
 ;;;;;; Clone
 

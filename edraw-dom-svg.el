@@ -455,7 +455,7 @@ comment nodes."
 (defun edraw-svg-to-image (svg &rest props)
   (apply
    #'create-image
-   (edraw-svg-to-string svg nil #'edraw-svg-print-attr-filter)
+   (edraw-svg-to-string svg nil nil)
    'svg t
    props))
 
@@ -512,7 +512,8 @@ comment nodes."
       (insert (make-string indent ? )))
     (insert (format "<%s" tag))
     (dolist (attr attrs)
-      (when (or (null attr-filter) (funcall attr-filter attr))
+      (when (and (or (null attr-filter) (funcall attr-filter attr))
+                 (not (edraw-dom-attr-internal-p (car attr))))
         (insert (format " %s=\"%s\""
                         (car attr)
                         ;;@todo add true attribute filter and add number format option on export
@@ -539,11 +540,10 @@ comment nodes."
     (unless no-indent (insert "\n" (make-string indent ? )))
     (insert (format "</%s>" tag))))
 
-(defun edraw-svg-print-attr-filter (attr)
-  (/= (aref (edraw-svg-symbol-name (car attr)) 0) ?:))
-
-(defun edraw-svg-symbol-name (symbol-or-str)
-  (format "%s" symbol-or-str))
+(make-obsolete 'edraw-svg-print-attr-filter nil "2024-05-08")
+(defun edraw-svg-print-attr-filter (_attr)
+  "Always return t."
+  t)
 
 (defun edraw-svg-escape-chars (str)
   (replace-regexp-in-string
@@ -588,10 +588,7 @@ comment nodes."
 
 (defun edraw-svg-encode (svg base64-p gzip-p)
   (with-temp-buffer
-    (edraw-svg-print
-     svg
-     nil
-     'edraw-svg-print-attr-filter)
+    (edraw-svg-print svg nil nil)
     (edraw-encode-buffer base64-p gzip-p)
     (buffer-string)))
 

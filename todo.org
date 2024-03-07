@@ -1,10 +1,8 @@
 
 
 * Inbox
-** TODO edraw-svg-printが内部使用属性を必ず出力しないようにする
-edraw-svg-printのattr-filter引数には必ずedraw-svg-print-attr-filterが指定されているので意味が無い。
-edraw-dom-attr-internal-pを作ったので、必ずそれを使って内部使用目的の属性は出力しないようにする。
-
+** TODO svg-imageの使用をedraw-svg-to-imageに置き換える
+そうすればsvg.elへの依存は一切無くなるはず。
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
 現状ではAABBは0になるけど表示は画像の幅・高さになっているように見える。
@@ -3649,3 +3647,10 @@ CLOSED: [2024-03-08 Fri 00:44]
 edraw-dom-copy-treeはedraw-dom-attr-internal-pに該当する属性は複製しないようにした。
 
 edraw-svg-printについても後でそのようにする。
+** DONE edraw-svg-printが内部使用属性を必ず出力しないようにする
+CLOSED: [2024-03-08 Fri 01:04]
+edraw-svg-printのattr-filter引数には必ずedraw-svg-print-attr-filterが指定されているので意味が無い。
+edraw-dom-attr-internal-pを作ったので、必ずそれを使って内部使用目的の属性は出力しないようにする。
+edraw-svg-print-attr-filterもはや必要ない。しかし、マニュアルにも書かれている関数なのでひとまずobsoleteにする。常にtを返すようにする。
+edraw-svg-printやedraw-svg-to-stringに'edraw-svg-print-attr-filterを引き渡しているところはnilへ変更する。
+

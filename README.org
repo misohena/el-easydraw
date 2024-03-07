@@ -195,8 +195,7 @@ The following code is an example of inserting an editor into a buffer from Emacs
                  :document-writer (lambda (svg &rest _)
                                     (pop-to-buffer "*svg output*")
                                     (erase-buffer)
-                                    (edraw-svg-print
-                                     svg nil 'edraw-svg-print-attr-filter 0))
+                                    (edraw-svg-print svg nil nil 0))
                  ;; Add one item to the main menu
                  :menu-filter (lambda (menu-type items &rest _)
                                 (pcase menu-type
