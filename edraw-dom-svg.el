@@ -983,14 +983,16 @@ are set as strings."
 (defun edraw-svg-transform-to-matrix (str &optional
                                           transform-functions-alist
                                           element)
-  (seq-reduce #'edraw-matrix-mul-mat-mat
-              (mapcar #'edraw-svg-transform-apply
-                      (edraw-svg-transform-parse
-                       str
-                       (or transform-functions-alist
-                           edraw-svg-attr-transform-functions)
-                       element))
-              (edraw-matrix)))
+  (let ((transform-functions-alist (or transform-functions-alist
+                                       edraw-svg-attr-transform-functions)))
+    (seq-reduce
+     #'edraw-matrix-mul-mat-mat
+     (mapcar (lambda (fname-args)
+               (edraw-svg-transform-apply fname-args transform-functions-alist))
+             (edraw-svg-transform-parse str
+                                        transform-functions-alist
+                                        element))
+     (edraw-matrix))))
 
 ;;TEST: (edraw-svg-transform-to-matrix "translate(10 20)") => [1 0 0 0 0 1 0 0 0 0 1 0 10 20 0 1]
 ;;TEST: (edraw-svg-transform-to-matrix "translate(10)") => [1 0 0 0 0 1 0 0 0 0 1 0 10 0 0 1]
