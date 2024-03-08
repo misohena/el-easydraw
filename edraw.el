@@ -748,14 +748,15 @@ edraw-editor initialization is now called automatically."
   ;;   ...)
   ;;
   ;; However, interactive can be specified.
-  (declare (indent 2) (debug
-		       (&define                    ; this means we are defining something
-			[&name [sexp   ;Allow (setf ...) additionally to symbols.
-				[&rest cl-generic--method-qualifier-p] ;qualifiers
-				listp]             ; arguments
-			       cl--generic-edebug-make-name nil]
-			lambda-doc                 ; documentation string
-			def-body)))
+  (declare (indent 2)
+           (debug
+            (&define                    ; this means we are defining something
+             [&name [sexp             ;Allow (setf ...) additionally to symbols.
+                     [&rest cl-generic--method-qualifier-p] ;qualifiers
+                     listp]             ; arguments
+                    cl--generic-edebug-make-name nil]
+             lambda-doc                 ; documentation string
+             def-body)))
   (unless (equal (car arg-list) '(editor edraw-editor))
     (error "Defcmd's argument list must start with (editor edraw-editor)"))
 
