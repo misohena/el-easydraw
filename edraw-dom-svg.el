@@ -618,24 +618,52 @@ comment nodes."
 
 ;;;;; Regexp
 
-;; https://www.w3.org/TR/SVG11/types.html#DataTypeNumber
-(defconst edraw-svg-number-re
-  ;; Valid: 12  12.34  .34
-  ;; Invalid: 12.
-  "\\([+-]?\\(?:[0-9]+\\|[0-9]*\\.[0-9]+\\)\\(?:[Ee][+-]?[0-9]+\\)?\\)")
+(defconst edraw-svg-re-wsp "\\(?:[ \t\n\f\r]+\\)")
+(defconst edraw-svg-re-wsp-opt "[ \t\n\f\r]*")
+(defconst edraw-svg-re-comma-wsp
+  "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
 
-;; https://www.w3.org/TR/SVG11/types.html#DataTypeLength
-(defconst edraw-svg-unit-re
-  "\\(em\\|ex\\|px\\|in\\|cm\\|mm\\|pt\\|pc\\|\\%\\)?")
+(defconst edraw-svg-re-number
+  (concat "\\(?:"
+          "[-+]?"
+          ;; Valid: 12  12.34  .34  Invalid: 12.
+          "\\(?:[0-9]+\\(?:\\.[0-9]+\\)?\\|\\.[0-9]+\\)"
+          "\\(?:[eE][-+]?[0-9]+\\)?"
+          "\\)")
+  "A regular expression that matches CSS numbers.
 
-(defconst edraw-svg-length-re
-  (concat edraw-svg-number-re edraw-svg-unit-re))
+URL `https://www.w3.org/TR/SVG11/types.html#DataTypeNumber'
+URL `https://www.w3.org/TR/css-syntax-3/#number-token-diagram'
 
-(defconst edraw-svg-attr-length-re
-  (concat "\\`[ \t\n\r]*" edraw-svg-length-re "[ \t\n\r]*\\'"))
+NOTE: This is different from the number in d attribute of path.")
+
+(defconst edraw-svg-re-number-with-dot
+  (concat "\\(?:"
+          "[-+]?"
+          ;; Valid: 12  12.34  .34  12.
+          "\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)"
+          "\\(?:[eE][-+]?[0-9]+\\)?"
+          "\\)")
+  "A regular expression for numbers that can end with a dot.
+
+Matches the number syntax in the transform, d, and points
+attributes of the SVG1.1 specification.
+However, SVG2's transform attribute does not allow trailing dots.")
+
+(defconst edraw-svg-re-length-unit
+  "\\(?:em\\|ex\\|px\\|in\\|cm\\|mm\\|pt\\|pc\\|\\%\\)?"
+  "URL `https://www.w3.org/TR/SVG11/types.html#DataTypeLength'")
+
+(defconst edraw-svg-re-length
+  (concat "\\(" edraw-svg-re-number "\\)"
+          "\\(" edraw-svg-re-length-unit "\\)"))
+
+(defconst edraw-svg-re-attr-length
+  (concat "\\`" edraw-svg-re-wsp-opt edraw-svg-re-length edraw-svg-re-wsp-opt
+          "\\'"))
 
 (defun edraw-svg-attr-length-match (value)
-  (when (string-match edraw-svg-attr-length-re value)
+  (when (string-match edraw-svg-re-attr-length value)
     (cons (string-to-number (match-string 1 value))
           (match-string 2 value))))
 
@@ -794,60 +822,115 @@ are set as strings."
   (dom-set-attribute element attribute value))
 
 
-;;;; SVG Transform Attribute
+;;;; SVG Transform Syntax (CSS Properties and SVG Attributes)
 
 (defconst edraw-svg-transform-number
-  "\\(?:[-+]?\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)\\(?:[eE][-+]?[0-9]+\\)?\\)")
+  ;;edraw-svg-re-number-with-dot
+  ;; Use CSS <number-token> even if it is an attribute rather than a
+  ;; CSS property.
+  ;; Both browsers and librsvg treat numbers like "123." as errors.
+  edraw-svg-re-number)
+
 (defconst edraw-svg-transform-unit "\\(?:[a-z]+\\|%\\)")
 (defconst edraw-svg-transform-number-unit
   (concat edraw-svg-transform-number edraw-svg-transform-unit "?"))
-(defconst edraw-svg-transform-wsp "\\(?:[ \t\n\f\r]+\\)")
-(defconst edraw-svg-transform-wsp-opt "[ \t\n\f\r]*")
-(defconst edraw-svg-transform-comma-wsp "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
 (defconst edraw-svg-transform-function
   (concat
-   edraw-svg-transform-wsp-opt
+   edraw-svg-re-wsp-opt
    ;; (1) function name
    "\\([A-Za-z0-9_]+\\)"
-   edraw-svg-transform-wsp-opt
+   edraw-svg-re-wsp-opt
    "("
-   edraw-svg-transform-wsp-opt
+   edraw-svg-re-wsp-opt
    ;;(2) command arguments
    "\\(" edraw-svg-transform-number-unit
-   "\\(?:" edraw-svg-transform-comma-wsp edraw-svg-transform-number-unit "\\)*\\)?"
-   edraw-svg-transform-wsp-opt ")" edraw-svg-transform-wsp-opt))
+   "\\(?:" edraw-svg-re-comma-wsp edraw-svg-transform-number-unit "\\)*\\)?"
+   edraw-svg-re-wsp-opt ")" edraw-svg-re-wsp-opt))
 
-(defun edraw-svg-transform-parse-numbers (numbers-str)
-  (when numbers-str
-    (mapcar
-     (lambda (ns)
-       (when (string-match
-              (concat "\\(" edraw-svg-transform-number "\\)"
-                      "\\(" edraw-svg-transform-unit "\\)?")
-              ns)
-         (let ((num (string-to-number (match-string 1 ns)))
-               (unit (match-string 2 ns)))
-           (pcase unit
-             ((or 'nil "") num)
-             ;; angle to degrees
-             ("deg" num)
-             ("rad" (radians-to-degrees num))
-             ("grad" (/ (* num 180) 200.0))
-             ("turn" (* 360 num))
-             ;; length to px
-             ;;@todo relative
-             ("cm" (/ (* num 96) 2.54))
-             ("mm" (/ (* num 96) 25.4))
-             ("Q" (/ (* num 96) 2.54 40))
-             ("in" (* num 96))
-             ("pc" (/ (* num 96) 6))
-             ("pt" (/ (* num 96) 72))
-             ("px" num)
-             (_ (cons num unit))))))
-     (split-string numbers-str
-                   edraw-svg-transform-comma-wsp))))
+(defvar edraw-svg-css-transform-functions
+  ;; https://www.w3.org/TR/css-transforms-1/#transform-functions
+  '(("matrix" edraw-svg-transform--matrix
+     (number number number number number number) (6))
+    ("translate" edraw-svg-transform--translate (length length) (1 2))
+    ("translateX" edraw-svg-transform--translateX (length) (1))
+    ("translateY" edraw-svg-transform--translateY (length) (1))
+    ("scale" edraw-svg-transform--scale (number number) (1 2))
+    ("scaleX" edraw-svg-transform--scaleX (number) (1))
+    ("scaleY" edraw-svg-transform--scaleY (number) (1))
+    ("rotate" edraw-svg-transform--rotate (angle) (1))
+    ("skew" edraw-svg-transform--skew (angle angle) (1 2))
+    ("skewX" edraw-svg-transform--skewX (angle) (1))
+    ("skewY" edraw-svg-transform--skewY (angle) (1))))
 
-(defun edraw-svg-transform-parse (str)
+(defvar edraw-svg-attr-transform-functions
+  ;; https://www.w3.org/TR/css-transforms-1/#svg-transform
+  ;; For backwards compatibility reasons, the syntax of the transform,
+  ;; patternTransform, gradientTransform attributes differ from the
+  ;; syntax of the transform CSS property.
+  ;; See: https://www.w3.org/TR/css-transforms-1/#svg-syntax
+  '(("matrix" edraw-svg-transform--matrix
+     (number number number number number number) (6))
+    ("translate" edraw-svg-transform--translate (number number) (1 2))
+    ("scale" edraw-svg-transform--scale (number number) (1 2))
+    ("rotate" edraw-svg-transform--rotate (number number number ) (1 3))
+    ("skewX" edraw-svg-transform--skewX (number) (1))
+    ("skewY" edraw-svg-transform--skewY (number) (1))))
+
+(defun edraw-svg-transform-parse-numbers (numbers-str
+                                          transform-functions-alist
+                                          element fname)
+  (let* ((f-info (assoc fname transform-functions-alist))
+         (arg-types (nth 2 f-info))
+         (arg-counts (nth 3 f-info))
+         (args (split-string numbers-str edraw-svg-re-comma-wsp)))
+    (unless f-info
+      (error "Unknown transform function `%s'" fname))
+    (when (and arg-counts (not (memq (length args) arg-counts)))
+      (error "Wrong number of arguments for transform function `%s' %s"
+             fname (length args)))
+
+    (cl-loop for ns in args
+             for index from 0
+             collect
+             (when (string-match
+                    (concat "\\(" edraw-svg-transform-number "\\)"
+                            "\\(" edraw-svg-transform-unit "\\)?")
+                    ns)
+               (let ((num (string-to-number (match-string 1 ns)))
+                     (unit (match-string 2 ns))
+                     (arg-type (nth index arg-types)))
+                 ;; @todo Support more length units (See: https://www.w3.org/TR/css-values-4/#lengths)
+                 ;; Reject invalid units for FNAME's arguments
+                 (unless (pcase arg-type
+                           ('number (member unit '(nil "")))
+                           ('length (or (member unit '("px" "in" "cm" "mm"
+                                                       "pt" "pc"
+                                                       "em" "ex" "%"))
+                                        (= num 0)))
+                           ('angle (or (member unit '("deg" "rad" "grad"
+                                                      "turn"))
+                                       (= num 0))))
+                   (error "Invalid unit `%s' (arg:%s fun:%s)" unit index fname))
+
+                 (pcase unit
+                   ((or 'nil "") num)
+                   ;; angle to degrees
+                   ("deg" num)
+                   ("rad" (radians-to-degrees num))
+                   ("grad" (/ (* num 180) 200.0))
+                   ("turn" (* 360 num))
+                   ;; length to px
+                   (_
+                    ;; @todo Support transform-box
+                    (edraw-svg-attr-length-match-to-number
+                     (cons num unit)
+                     element
+                     (pcase fname
+                       ("translateX" 'x)
+                       ("translateY" 'y)
+                       ("translate" (pcase index (0 'x) (1 'y))))))))))))
+
+(defun edraw-svg-transform-parse (str transform-functions-alist element)
   (let ((pos 0)
         functions)
     (while (and (string-match edraw-svg-transform-function str pos)
@@ -855,21 +938,68 @@ are set as strings."
       (setq pos (match-end 0))
       (let* ((fname (match-string 1 str))
              (numbers-str (match-string 2 str))
-             (numbers (edraw-svg-transform-parse-numbers numbers-str)))
+             (numbers (edraw-svg-transform-parse-numbers
+                       numbers-str transform-functions-alist element fname)))
         (push (cons fname numbers) functions)))
     (when (/= pos (length str))
       (error "transform value parsing error at %s" (substring str pos)))
     (nreverse functions)))
 
-;;TEST: (edraw-svg-transform-parse "") => nil
-;;TEST: (edraw-svg-transform-parse "translate(10 20)") => (("translate" 10 20))
-;;TEST: (edraw-svg-transform-parse "rotate(180deg)") => (("rotate" 180))
-;;TEST: (edraw-svg-transform-parse "scale(2) rotate(0.125turn)") => (("scale" 2) ("rotate" 45.0))
+;; [CSS]
+;;TEST: (edraw-svg-transform-parse "" edraw-svg-css-transform-functions nil) => nil
+;;TEST: (edraw-svg-transform-parse "translate(10px 20px)" edraw-svg-css-transform-functions nil) => (("translate" 10 20))
+;;TEST: (edraw-svg-transform-parse "rotate(180deg)" edraw-svg-css-transform-functions nil) => (("rotate" 180))
+;;TEST: (edraw-svg-transform-parse "scale(2) rotate(0.125turn)" edraw-svg-css-transform-functions nil) => (("scale" 2) ("rotate" 45.0))
+;;TEST: (edraw-svg-transform-parse "translate(20% 70%)" edraw-svg-css-transform-functions nil) => (("translate" 0.0 0.0))
+;;TEST: (edraw-svg-transform-parse "translate(20% 70%)" edraw-svg-css-transform-functions (edraw-svg-create 200 100)) => (("translate" 40.0 70.0))
 
-(defun edraw-svg-transform-apply (fname-args)
-  (let ((fname (car fname-args))
-        (args (cdr fname-args)))
-    (apply (intern (concat "edraw-svg-transform--" fname)) args)))
+;; [ATTR]
+;;TEST: (edraw-svg-transform-parse "" edraw-svg-attr-transform-functions nil) => nil
+;;TEST: (edraw-svg-transform-parse "translate(10)" edraw-svg-attr-transform-functions nil) => (("translate" 10))
+;;TEST: (edraw-svg-transform-parse "translate(10 20)" edraw-svg-attr-transform-functions nil) => (("translate" 10 20))
+;;TEST: (edraw-svg-transform-parse "translateX(10)" edraw-svg-attr-transform-functions nil) => error
+;;TEST: (edraw-svg-transform-parse "rotate(180deg)" edraw-svg-attr-transform-functions nil) => error
+;;TEST: (edraw-svg-transform-parse "rotate(180)" edraw-svg-attr-transform-functions nil) => (("rotate" 180))
+;;TEST: (edraw-svg-transform-parse "rotate(180 320 240)" edraw-svg-attr-transform-functions nil) => (("rotate" 180 320 240))
+;;TEST: (edraw-svg-transform-parse "scale(2.5)" edraw-svg-attr-transform-functions nil) => (("scale" 2.5))
+;;TEST: (edraw-svg-transform-parse "scale(2.5 -1)" edraw-svg-attr-transform-functions nil) => (("scale" 2.5 -1))
+;;TEST: (edraw-svg-transform-parse "skewX(30.5)" edraw-svg-attr-transform-functions nil) => (("skewX" 30.5))
+;;TEST: (edraw-svg-transform-parse "skewY(-.34)" edraw-svg-attr-transform-functions nil) => (("skewY" -0.34))
+;;TEST: (edraw-svg-transform-parse "scale(2) rotate(45.0)" edraw-svg-attr-transform-functions nil) => (("scale" 2) ("rotate" 45.0))
+;;TEST: (edraw-svg-transform-parse "scale(2) rotate(0.125turn)" edraw-svg-attr-transform-functions nil) => error
+
+(defun edraw-svg-css-transform-to-matrix (str element)
+  (edraw-svg-transform-to-matrix str
+                                 edraw-svg-css-transform-functions
+                                 element))
+
+(defun edraw-svg-transform-to-matrix (str &optional
+                                          transform-functions-alist
+                                          element)
+  (seq-reduce #'edraw-matrix-mul-mat-mat
+              (mapcar #'edraw-svg-transform-apply
+                      (edraw-svg-transform-parse
+                       str
+                       (or transform-functions-alist
+                           edraw-svg-attr-transform-functions)
+                       element))
+              (edraw-matrix)))
+
+;;TEST: (edraw-svg-transform-to-matrix "translate(10 20)") => [1 0 0 0 0 1 0 0 0 0 1 0 10 20 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "translate(10)") => [1 0 0 0 0 1 0 0 0 0 1 0 10 0 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "scale(2) translate(10 20)") => [2 0 0 0 0 2 0 0 0 0 1 0 20 40 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "scale(2 -4) translate(10 20)") => [2 0 0 0 0 -4 0 0 0 0 1 0 20 -80 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "rotate(45)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0 0 1 0 0 0 0 1]
+;;TEST: (edraw-svg-transform-to-matrix "rotate(45 10 10)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 10.0 -4.142135623730951 0.0 1.0]
+
+;;;; SVG Transform Functions
+
+(defun edraw-svg-transform-apply (fname-args transform-functions-alist)
+  (let* ((fname (car fname-args))
+         (args (cdr fname-args))
+         (f-info (assoc fname transform-functions-alist))
+         (fun (nth 1 f-info)))
+    (apply fun args)))
 
 (defun edraw-svg-transform--matrix (a b c d e f)
   (edraw-matrix (vector a b c d e f)))
@@ -910,16 +1040,7 @@ are set as strings."
 (defun edraw-svg-transform--skewY (ay-deg)
   (edraw-matrix-skew 0 ay-deg))
 
-(defun edraw-svg-transform-to-matrix (str)
-  (seq-reduce #'edraw-matrix-mul-mat-mat
-              (mapcar #'edraw-svg-transform-apply
-                      (edraw-svg-transform-parse str))
-              (edraw-matrix)))
-
-;;TEST: (edraw-svg-transform-to-matrix "translate(10 20)") => [1 0 0 0 0 1 0 0 0 0 1 0 10 20 0 1]
-;;TEST: (edraw-svg-transform-to-matrix "scale(2) translate(10 20)") => [2 0 0 0 0 2 0 0 0 0 1 0 20 40 0 1]
-;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0 0 1 0 0 0 0 1]
-;;TEST: (edraw-svg-transform-to-matrix "rotate(45deg 10 10)") => [0.7071067811865476 0.7071067811865475 0.0 0.0 -0.7071067811865475 0.7071067811865476 0.0 0.0 0.0 0.0 1.0 0.0 10.0 -4.142135623730951 0.0 1.0]
+;;;; SVG Transform Attribute
 
 (defun edraw-svg-transform-from-matrix (mat)
   (when mat
@@ -1301,7 +1422,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
                                  (_ nil))
                     )
               (edraw-svg-elem-prop-attrs prop-def)))))
-;; TEST: (edraw-svg-element-get-property-info-list-by-tag 'rect)
+;; EXAMPLE: (edraw-svg-element-get-property-info-list-by-tag 'rect)
 
 (defun edraw-svg-element-can-have-property-p (element prop-name)
   (edraw-svg-tag-can-have-property-p (dom-tag element) prop-name))

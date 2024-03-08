@@ -13,10 +13,6 @@ widthやheightが指定されていないときは画像の幅や高さになる
 ** TODO edraw-get-property-as-lengthは直接edraw-svg-関数を呼び出すべきではない
 edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼んでいるが、shapeが要素であることやprop-nameがその属性名であることは保証されていないので、呼び出すべきではないのでは？
 
-** TODO transform属性の長さの単位に対応する
-[[elisp-function:edraw-svg-transform-parse-numbers]]という関数にTODOコメントがある。
-[[*長さの単位に対応する][長さの単位に対応する]]でlength値は既に対応したので、同じように対応すべき。
-
 ** TODO プロパティエディタで単位を維持したままホイール・ドラッグ操作をしたい
 数値をホイールやドラッグで変更するとき、単位を維持したい。
 
@@ -29,7 +25,7 @@ edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼ん
   - svg widthとheightが単位無しまたはpxでなければならない。
   - svg直下にedraw-bodyとedraw-defsがあること。
 - 編集対象図形検証
-  - 使用される単位は全て無指定であること。
+  - +使用される単位は全て無指定であること。+
   - スタイル検証
     - スタイルにtransformが使われていないこと。
     - スタイルにwriting-modeが使われていないこと。
@@ -412,12 +408,16 @@ mouse.el内のmouse-drag-lineではset-transient-mapを使っている。一時�
 また、プロパティエディタのUIも、markerのようにサブ項目が操作できればなお良い。
 横の拡大率だけ入力したいのに、現状だとそれは行列の意味を知っていないと難しい。
 
+** TODO 変形/CSSのtransformプロパティに対応する
+スタイルシートを考慮すべき。style属性からでも変形できるので、様々な場面でそれを考慮すべき。
+
+先にstyle属性の解析を補助する仕組みが必要。
+
+その上で、大枠は既にedraw-svg-css-transform-to-matrixに用意してある。
+ただし、色々と改善点は多い。
+
 ** TODO 変形/接着されている図形のGUI変形で枠線が図とずれる
 接着されている図形の変形を禁止しても良いが、枠線を接着された位置に合わせても良い。
-** TODO 変形/スタイルシートを考慮する
-style属性からでも変形できるので、様々な場面でそれを考慮すべき。
-そもそもstyle属性のparserが必要。
-
 ** TODO 座標を表示する機能を追加する
 何らかの方法で座標が知りたい場合がある。
 問題はEmacsではモーションイベントを積極的に使いづらい所。
@@ -3655,3 +3655,15 @@ edraw-svg-printやedraw-svg-to-stringに'edraw-svg-print-attr-filterを引き渡
 ** DONE svg-imageの使用をedraw-svg-to-imageに置き換える
 CLOSED: [2024-03-08 Fri 01:16]
 そうすればsvg.elへの依存はかなり減るはず。
+** CANCELLED transform属性の長さの単位に対応する
+CLOSED: [2024-03-08 Fri 11:09]
+[[elisp-function:edraw-svg-transform-parse-numbers]]という関数にTODOコメントがある。
+[[*長さの単位に対応する][長さの単位に対応する]]でlength値は既に対応したので、同じように対応すべき。
+
+[2024-03-08 Fri]SVGのtransform属性はCSSプロパティと異なり単位を指定出来ない。
+[[*SVGのtransform属性の構文解析を正確にする。][SVGのtransform属性の構文解析を正確にする。]]
+** DONE SVGのtransform属性の構文解析を正確にする。
+CLOSED: [2024-03-08 Fri 12:28]
+[[https://www.w3.org/TR/css-transforms-1/#svg-syntax][7.2. Syntax of the SVG transform attribute - CSS Transforms Module Level 1]]に書かれているように、後方互換性のためにSVGのtransform属性の構文はCSSプロパティとは違う。これを区別できるようにすべき。
+
+一部余計な関数(translateXとか)が使えてしまうが、まあいいか。
