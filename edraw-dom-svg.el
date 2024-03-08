@@ -685,7 +685,7 @@ However, SVG2's transform attribute does not allow trailing dots.")
 (defun edraw-svg-attr-length-ex (element)
   ;; @todo Is there a way to get the exact ex?
   ;; @todo Style should be considered.
-  (/ (edraw-svg-attr-length-em element) 2))
+  (/ (edraw-svg-attr-length-em element) 2.0))
 
 (defun edraw-svg-attr-length-viewport-size (element)
   (if-let ((svg (if (eq (dom-tag element) 'svg)
