@@ -212,7 +212,7 @@
      "Rotate %.2fdeg" "回転 %.2f度"
      "Rotate All..." "全回転..."
      "Rotate..." "回転..."
-     "SVG viewBox: " "SVG viewBox: "
+     "SVG viewBox ([<min-x> <min-y> <width> <height>] or empty): " "SVG viewBox ([<min-x> <min-y> <width> <height>] or 空): "
      "Save as Initial %s Default" "編集開始時の%sのデフォルトとして保存"
      "Save as Initial %s Marker Default" "編集開始時の%sマーカーのデフォルトとして保存"
      "Save as Initial %s Shape Default" "編集開始時の%s図形のデフォルトとして保存"

@@ -426,7 +426,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "db" 'edraw-editor-set-background)
     (define-key km "dr" 'edraw-editor-set-size)
     (define-key km "dc" 'edraw-editor-crop)
-    (define-key km "dvb" 'edraw-editor-set-view-box)
+    (define-key km "dvb" 'edraw-editor-set-viewbox)
     (define-key km "dtt" 'edraw-editor-translate-all-shapes)
     (define-key km "dts" 'edraw-editor-scale-all-shapes)
     (define-key km "dtr" 'edraw-editor-rotate-all-shapes)
@@ -545,7 +545,10 @@ line-prefix and wrap-prefix are used in org-indent.")
    (keymap :initarg :keymap :initform (identity edraw-editor-map))
    (svg :initarg :svg :initform nil)
    (svg-document-size)
-   (svg-document-view-box)
+   (svg-document-viewbox)
+   (svg-document-original-width)
+   (svg-document-original-height)
+   (svg-document-original-viewbox)
    (svg-document-comments :initform nil) ;; (PRE-COMMENTS . POST-COMMENTS)
    (defrefs)
    (document-writer :initarg :document-writer :initform nil)
@@ -638,6 +641,7 @@ edraw-editor initialization is now called automatically."
     (overlay-put overlay 'face 'default)) ;;Suppress org link's underline
 
   (edraw-initialize-svg editor)
+  (edraw-reset-scroll-and-zoom editor)
   (edraw-update-image editor)
 
   (edraw-update-toolbar editor)
@@ -1068,7 +1072,11 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-initialize-svg-document ((editor edraw-editor))
   (with-slots (svg
-               svg-document-size svg-document-view-box
+               svg-document-size
+               svg-document-viewbox
+               svg-document-original-width
+               svg-document-original-height
+               svg-document-original-viewbox
                svg-document-comments defrefs)
       editor
     ;; Strip top-level comments
@@ -1086,7 +1094,16 @@ For use with `edraw-editor-with-temp-undo-list',
     (when (null svg)
       (setq svg (edraw-create-document-svg)))
 
-    ;; Backup SVG Size
+    ;; Backup SVG Attributes
+    (setq svg-document-original-width (dom-attr svg 'width))
+    (setq svg-document-original-height (dom-attr svg 'height))
+    (setq svg-document-original-viewbox (dom-attr svg 'viewBox))
+
+    ;; SVG View Box
+    (setq svg-document-viewbox (edraw-svg-parse-viewbox
+                                svg-document-original-viewbox))
+
+    ;; SVG Editor Size
     (setq svg-document-size
           (let ((w (edraw-svg-attr-length svg 'width))
                 (h (edraw-svg-attr-length svg 'height)))
@@ -1095,8 +1112,6 @@ For use with `edraw-editor-with-temp-undo-list',
             (cons
              (or w (edraw-default-document-property-get 'width))
              (or h (edraw-default-document-property-get 'height)))))
-    ;; Backup SVG View Box
-    (setq svg-document-view-box (dom-attr svg 'viewBox))
 
     ;; #edraw-defs
     (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
@@ -1201,15 +1216,19 @@ For use with `edraw-editor-with-temp-undo-list',
 
 (cl-defmethod edraw-document-svg ((editor edraw-editor)
                                   &optional with-top-level-comments-p)
-  (with-slots (svg svg-document-size svg-document-view-box
-                   svg-document-comments)
+  (with-slots (svg
+               svg-document-original-width
+               svg-document-original-height
+               svg-document-original-viewbox
+               svg-document-comments)
       editor
     (let ((doc-svg (edraw-dom-copy-tree svg)))
       (edraw-editor-remove-ui-elements-from-svg doc-svg)
       (edraw-editor-remove-scroll-transform doc-svg)
       (edraw-editor-remove-root-transform doc-svg
-                                          svg-document-size
-                                          svg-document-view-box)
+                                          svg-document-original-width
+                                          svg-document-original-height
+                                          svg-document-original-viewbox)
       ;; Remove empty defs
       (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
         (when (null (dom-children defs))
@@ -1290,6 +1309,32 @@ For use with `edraw-editor-with-temp-undo-list',
 (cl-defmethod edraw-height ((editor edraw-editor))
   (cdr (oref editor svg-document-size)))
 
+(cl-defmethod edraw-viewbox-left ((editor edraw-editor))
+  (if-let ((vbox (oref editor svg-document-viewbox))) (nth 0 vbox) 0))
+
+(cl-defmethod edraw-viewbox-top ((editor edraw-editor))
+  (if-let ((vbox (oref editor svg-document-viewbox))) (nth 1 vbox) 0))
+
+(cl-defmethod edraw-viewbox-right ((editor edraw-editor))
+  (if-let ((vbox (oref editor svg-document-viewbox)))
+      (+ (nth 0 vbox) (nth 2 vbox))
+    (edraw-width editor)))
+
+(cl-defmethod edraw-viewbox-bottom ((editor edraw-editor))
+  (if-let ((vbox (oref editor svg-document-viewbox)))
+      (+ (nth 1 vbox) (nth 3 vbox))
+    (edraw-height editor)))
+
+(cl-defmethod edraw-viewbox-width ((editor edraw-editor))
+  (if-let ((vbox (oref editor svg-document-viewbox)))
+      (nth 2 vbox)
+    (edraw-width editor)))
+
+(cl-defmethod edraw-viewbox-height ((editor edraw-editor))
+  (if-let ((vbox (oref editor svg-document-viewbox)))
+      (nth 3 vbox)
+    (edraw-height editor)))
+
 (edraw-editor-defcmd edraw-set-size ((editor edraw-editor) width height)
   (interactive
    (let* ((editor (edraw-current-editor))
@@ -1298,15 +1343,24 @@ For use with `edraw-editor-with-temp-undo-list',
           (height (read-number
                    (edraw-msg "Document Height: ") (edraw-height editor))))
      (list editor width height)))
-  (with-slots (svg-document-size) editor
-    (let ((old-width (car svg-document-size))
-          (old-height (cdr svg-document-size)))
+  (with-slots (svg-document-size
+               svg-document-original-width
+               svg-document-original-height)
+      editor
+    (let* ((width-str (edraw-to-string width))
+           (height-str (edraw-to-string height))
+           (width (string-to-number width-str)) ;; Avoid numerical errors
+           (height (string-to-number height-str)) ;; Avoid numerical errors
+           (old-width (car svg-document-size))
+           (old-height (cdr svg-document-size)))
       (when (or (/= width old-width)
                 (/= height old-height))
         (edraw-push-undo
          editor 'document-size
          (list 'edraw-set-size editor old-width old-height))
         (setq svg-document-size (cons width height))
+        (setq svg-document-original-width width-str)
+        (setq svg-document-original-height height-str)
         (edraw-update-background editor) ;; Update Document Background
         (edraw-invalidate-ui-parts editor 'all) ;; Update <svg width= height=> etc...
         (edraw-on-document-changed editor 'document-size)))))
@@ -1351,47 +1405,82 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;;;;;; Editor - Document - View Box
 
-(edraw-editor-defcmd edraw-set-view-box ((editor edraw-editor) new-value)
+(edraw-editor-defcmd edraw-set-viewbox ((editor edraw-editor) new-value)
   (interactive
    (let* ((editor (edraw-current-editor))
-          (view-box (read-string
-                     (edraw-msg "SVG viewBox: ")
-                     (or (oref editor svg-document-view-box) ""))))
-     (list editor (if (string-empty-p view-box) nil view-box))))
+          (prompt (edraw-msg "SVG viewBox ([<min-x> <min-y> <width> <height>] or empty): "))
+          (initial-input (or (oref editor svg-document-original-viewbox) "")))
+     (list
+      editor
+      (let (input)
+        (while (progn
+                 (setq input (read-string prompt initial-input))
+                 (not (or (string-empty-p input)
+                          (edraw-svg-parse-viewbox input)))))
+        (if (string-empty-p input) nil input)))))
 
-  (with-slots (svg-document-view-box) editor
-    (let ((old-value svg-document-view-box))
+  (with-slots (svg-document-viewbox svg-document-original-viewbox) editor
+    (let ((old-value svg-document-original-viewbox))
       (unless (equal new-value old-value)
         (edraw-push-undo
-         editor 'document-view-box
-         (list 'edraw-set-view-box editor old-value))
+         editor 'document-viewbox
+         (list 'edraw-set-viewbox editor old-value))
         ;; The value set here is reflected to the SVG element by
         ;; `edraw-editor-remove-root-transform' function
-        (setq svg-document-view-box new-value)
-        (edraw-on-document-changed editor 'document-view-box)))))
+        (setq svg-document-original-viewbox new-value)
+        (setq svg-document-viewbox (edraw-svg-parse-viewbox new-value))
+        (edraw-update-background editor) ;; Update Document Background
+        (edraw-invalidate-ui-parts editor 'all) ;; Update <svg width= height=> etc...
+        (edraw-on-document-changed editor 'document-viewbox)
+        (edraw-reset-view editor)))))
 
 ;;;;;; Editor - Document - Background
+
+(defcustom edraw-editor-background-align 'viewbox
+  "Target to align the range of the background rectangle.
+
+This setting will be reflected the next time you change the
+document size or view box."
+  :group 'edraw-editor
+  :type '(choice (const viewbox)
+                 (const document)))
 
 (cl-defmethod edraw-svg-background ((editor edraw-editor))
   (edraw-dom-get-by-id (oref editor svg) edraw-editor-svg-background-id))
 
-(cl-defmethod edraw-background-left ((_editor edraw-editor))
-  0)
+(cl-defmethod edraw-background-left ((editor edraw-editor))
+  (pcase edraw-editor-background-align
+    ('viewbox (or (nth 0 (oref editor svg-document-viewbox)) 0))
+    (_ 0)))
 
-(cl-defmethod edraw-background-top ((_editor edraw-editor))
-  0)
+(cl-defmethod edraw-background-top ((editor edraw-editor))
+  (pcase edraw-editor-background-align
+    ('viewbox (or (nth 1 (oref editor svg-document-viewbox)) 0))
+    (_ 0)))
 
 (cl-defmethod edraw-background-right ((editor edraw-editor))
-  (edraw-width editor))
+  (pcase edraw-editor-background-align
+    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+                  (+ (nth 0 vbox) (nth 2 vbox)) (edraw-width editor)))
+    (_ (edraw-width editor))))
 
 (cl-defmethod edraw-background-bottom ((editor edraw-editor))
-  (edraw-height editor))
+  (pcase edraw-editor-background-align
+    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+                  (+ (nth 1 vbox) (nth 3 vbox)) (edraw-height editor)))
+    (_ (edraw-height editor))))
 
 (cl-defmethod edraw-background-width ((editor edraw-editor))
-  (edraw-width editor))
+  (pcase edraw-editor-background-align
+    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+                  (nth 2 vbox) (edraw-width editor)))
+    (_ (edraw-width editor))))
 
 (cl-defmethod edraw-background-height ((editor edraw-editor))
-  (edraw-height editor))
+  (pcase edraw-editor-background-align
+    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+                  (nth 3 vbox) (edraw-height editor)))
+    (_ (edraw-height editor))))
 
 (cl-defmethod edraw-update-background ((editor edraw-editor))
   (when-let ((element (edraw-svg-background editor)))
@@ -1571,7 +1660,10 @@ For use with `edraw-editor-with-temp-undo-list',
      (cons
       editor
       (edraw-read-scale-params
-       (edraw-rect 0 0 (edraw-width editor) (edraw-height editor))))))
+       ;;(edraw-rect 0 0 (edraw-width editor) (edraw-height editor))
+       (edraw-rect (edraw-viewbox-left editor) (edraw-viewbox-top editor)
+                   (edraw-viewbox-right editor) (edraw-viewbox-bottom editor))
+       ))))
 
   (when-let ((shapes (edraw-all-shapes editor)))
     (edraw-make-undo-group editor 'all-shapes-scale
@@ -1601,9 +1693,11 @@ For use with `edraw-editor-with-temp-undo-list',
        (error (edraw-msg "No shapes")))
      (cons
       editor
-      (edraw-read-rotate-params (edraw-rect 0 0
-                                            (edraw-width editor)
-                                            (edraw-height editor))))))
+      (edraw-read-rotate-params
+       ;;(edraw-rect 0 0 (edraw-width editor) (edraw-height editor))
+       (edraw-rect (edraw-viewbox-left editor) (edraw-viewbox-top editor)
+                   (edraw-viewbox-right editor) (edraw-viewbox-bottom editor))
+       ))))
   (when-let ((shapes (edraw-all-shapes editor)))
     (edraw-make-undo-group editor 'all-shapes-rotate
       (let ((matrix (edraw-matrix-move-origin-xy
@@ -1668,7 +1762,7 @@ For use with `edraw-editor-with-temp-undo-list',
       (((edraw-msg "Set Background...") edraw-editor-set-background)
        ((edraw-msg "Resize...") edraw-editor-set-size)
        ((edraw-msg "Crop...") edraw-editor-crop)
-       ((edraw-msg "View Box...") edraw-editor-set-view-box)
+       ((edraw-msg "View Box...") edraw-editor-set-viewbox)
        ((edraw-msg "Transform")
         (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
          ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
@@ -1914,13 +2008,15 @@ For use with `edraw-editor-with-temp-undo-list',
         (edraw-svg-set-attr-string svg 'viewBox
                                    (format "0 0 %s %s" width height))))))
 
-(defun edraw-editor-remove-root-transform (svg svg-document-size
-                                               svg-document-view-box)
+(defun edraw-editor-remove-root-transform (svg
+                                           svg-document-original-width
+                                           svg-document-original-height
+                                           svg-document-original-viewbox)
   (when svg
-    (edraw-svg-set-attr-number svg 'width (car svg-document-size))
-    (edraw-svg-set-attr-number svg 'height (cdr svg-document-size))
-    (if svg-document-view-box
-        (edraw-svg-set-attr-string svg 'viewBox svg-document-view-box)
+    (edraw-svg-set-attr-number svg 'width svg-document-original-width)
+    (edraw-svg-set-attr-number svg 'height svg-document-original-height)
+    (if svg-document-original-viewbox
+        (edraw-svg-set-attr-string svg 'viewBox svg-document-original-viewbox)
       (edraw-dom-remove-attr svg 'viewBox)))
   svg)
 
@@ -2238,13 +2334,17 @@ For use with `edraw-editor-with-temp-undo-list',
   (with-slots (view-size) editor
     (if view-size
         (car view-size)
-      (edraw-width editor))))
+      ;;(edraw-width editor)
+      (edraw-viewbox-width editor)
+      )))
 
 (cl-defmethod edraw-scroll-view-height ((editor edraw-editor))
   (with-slots (view-size) editor
     (if view-size
         (cdr view-size)
-      (edraw-height editor))))
+      ;;(edraw-height editor)
+      (edraw-viewbox-height editor)
+      )))
 
 (cl-defmethod edraw-scroll-view-xy-from-mouse-event ((editor edraw-editor) event)
   (edraw-xy-round ;;@todo round or not?
@@ -2320,14 +2420,18 @@ For use with `edraw-editor-with-temp-undo-list',
             (curr-view-h (edraw-scroll-view-height editor)))
         (let ((new-view-w
                (edraw-clamp
-                (* (edraw-width editor) new-scale)
+                (* ;;(edraw-width editor)
+                   (edraw-viewbox-width editor)
+                   new-scale)
                 curr-view-w
                 (max
                  curr-view-w
                  (edraw-auto-view-enlargement-max editor t))))
               (new-view-h
                (edraw-clamp
-                (* (edraw-height editor) new-scale)
+                (* ;;(edraw-height editor)
+                   (edraw-viewbox-height editor)
+                   new-scale)
                 curr-view-h
                 (max
                  curr-view-h
@@ -2373,7 +2477,10 @@ For use with `edraw-editor-with-temp-undo-list',
 ;;;;;;; Commands
 
 (edraw-editor-defcmd edraw-reset-scroll-and-zoom ((editor edraw-editor))
-  (edraw-set-scroll-transform editor 0 0 1))
+  (edraw-set-scroll-transform editor
+                              (- (edraw-viewbox-left editor))
+                              (- (edraw-viewbox-top editor))
+                              1))
 
 (cl-defmethod edraw-scroll ((editor edraw-editor) dx dy)
   (edraw-set-scroll-transform
@@ -3402,7 +3509,7 @@ For use with `edraw-editor-with-temp-undo-list',
          (((edraw-msg "Set Background...") edraw-editor-set-background)
           ((edraw-msg "Resize...") edraw-editor-set-size)
           ((edraw-msg "Crop...") edraw-editor-crop)
-          ((edraw-msg "View Box...") edraw-editor-set-view-box)
+          ((edraw-msg "View Box...") edraw-editor-set-viewbox)
           ((edraw-msg "Transform")
            (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
             ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)

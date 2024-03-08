@@ -658,6 +658,15 @@ However, SVG2's transform attribute does not allow trailing dots.")
   (concat "\\(" edraw-svg-re-number "\\)"
           "\\(" edraw-svg-re-length-unit "\\)"))
 
+(defconst edraw-svg-re-attr-viewbox
+  (concat "\\`" edraw-svg-re-wsp-opt
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-wsp-opt "\\'"))
+
+;;;;; Length
+
 (defconst edraw-svg-re-attr-length
   (concat "\\`" edraw-svg-re-wsp-opt edraw-svg-re-length edraw-svg-re-wsp-opt
           "\\'"))
@@ -666,8 +675,6 @@ However, SVG2's transform attribute does not allow trailing dots.")
   (when (string-match edraw-svg-re-attr-length value)
     (cons (string-to-number (match-string 1 value))
           (match-string 2 value))))
-
-;;;;; Length
 
 ;;@todo default values
 (defconst edraw-svg-attr-default-font-size 16)
@@ -1109,6 +1116,24 @@ are set as strings."
   (if (version<= edraw-svg-version "1.1")
       'xlink:href
     'href))
+
+;;;; SVG View Box
+
+(defun edraw-svg-parse-viewbox-string (viewbox)
+  (when (and (stringp viewbox)
+             (string-match edraw-svg-re-attr-viewbox viewbox))
+    (list (match-string 1 viewbox)
+          (match-string 2 viewbox)
+          (match-string 3 viewbox)
+          (match-string 4 viewbox))))
+;; TEST: (edraw-svg-parse-viewbox-string "  11 , 22 , 33 , 44  ") => ("11" "22" "33" "44")
+;; TEST: (edraw-svg-parse-viewbox-string "11 22 33 44") => ("11" "22" "33" "44")
+;; TEST: (edraw-svg-parse-viewbox-string "  11 , 22 , 33 , 44, 55  ") => nil
+;; TEST: (edraw-svg-parse-viewbox-string "") => nil
+;; TEST: (edraw-svg-parse-viewbox-string nil) => nil
+
+(defun edraw-svg-parse-viewbox (viewbox)
+  (mapcar #'string-to-number (edraw-svg-parse-viewbox-string viewbox)))
 
 ;;;; SVG Element Creation
 

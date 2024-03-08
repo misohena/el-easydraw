@@ -1,14 +1,38 @@
 
 
 * Inbox
+** TODO 画像が大きすぎる(viewBoxが大きすぎる)場合は初期拡大率を小さくする
+viewBoxのwidthやheightまたはsvg要素のwidth= height=が大きすぎる場合は、初期拡大率を小さくする。起動時や0やv0を押したとき。
+** TODO 背景をどこへ合わせるかはデータ毎に持つべき？
+今はカスタマイズ変数([[elisp-variable:edraw-editor-background-align]])で指定するが、図毎に持つべきではないか。
+data-edraw-background-alignみたいな属性が必要になる。
+そこまで必要かは疑問。最悪自分で背景rectを作れば良いんだし。
+
+** TODO edraw-import-svg.elを作成する
+インポーターの役割は、現在のバッファの内容(またはSVG DOMツリー)をedrawが読み込めるだろうSVG DOMツリーへ変換すること。将来的にはSVG以外のフォーマットからインポートすることも考えられる。
+
+インポーターが呼び出されるシチュエーション:
+- edraw-modeを起動したとき。
+- (これは微妙) [[elisp-function:edraw-initialize-svg-document]]で、edraw-bodyが無かったとき(SVG用のインポーターのみ呼び出す可能性がある)
+- edraw-org-edit-linkやedraw-org-edit-regular-file-linkでファイルを開くときにedraw-bodyが無かったとき(SVG用のインポーターのみ呼び出す可能性がある)(dataは、まぁ、いいでしょ)
+- 専用の変換コマンド(.edraw.svgへ変換する。magicコメントも入れる)。
+
+変換は次の点に留意する:
+- 必要な要素(rect、ellipse、path、text、image、g)以外は全て破棄する。descやtitle等は要らない。
+- defsは一応残す。(SVG直下にまとめて配置する？　専用のgの中に入れる？)
+- 必要な属性以外は全て破棄する。
+- polyline、polygonはpathへ変換する。
+- circleはellipseへ変換する。
+- 複数のサブパスを持つパスデータは警告を出す。
+- style属性を使っていたら警告を出す。
+- textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。
+- 
+
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
 現状ではAABBは0になるけど表示は画像の幅・高さになっているように見える。
 ** TODO edraw-editorに入力フィルタを設定できるようにする
 自己責任で入力SVGを変換できるようにする。
-
-** TODO svg要素のwidth=, height=が単位付きの場合に対応する
-そもそもEmacsではどのように扱われるのか。
 
 ** TODO edraw-get-property-as-lengthは直接edraw-svg-関数を呼び出すべきではない
 edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼んでいるが、shapeが要素であることやprop-nameがその属性名であることは保証されていないので、呼び出すべきではないのでは？
@@ -3667,3 +3691,15 @@ CLOSED: [2024-03-08 Fri 12:28]
 [[https://www.w3.org/TR/css-transforms-1/#svg-syntax][7.2. Syntax of the SVG transform attribute - CSS Transforms Module Level 1]]に書かれているように、後方互換性のためにSVGのtransform属性の構文はCSSプロパティとは違う。これを区別できるようにすべき。
 
 一部余計な関数(translateXとか)が使えてしまうが、まあいいか。
+** DONE svg要素のwidth=, height=が単位付きの場合やviewBox=の扱いを改善する
+CLOSED: [2024-03-08 Fri 22:23]
+width、height、viewboxはオリジナルを別途保持する。これによって単位を破壊しないようにする。
+
+ビューのデフォルト表示範囲はviewBoxと同じであるべき。viewBoxが無い場合はwidthとheightをピクセル単位に変換したものを表示範囲とする(左上は0,0)。とりあえずスケールまではviewBoxとwidth, heightとの関係に合わせなくても良い。編集はviewBoxを基準にすべき。
+
+背景をviewBoxに合わせるかどうかは迷う。おそらく合わせた方が良い。カスタマイズオプションで設定するか？([[elisp-variable:edraw-editor-background-align]]を追加)　本当はsvg内にどこに合わせるかの状態を持たせなければならない。data-edraw-background-alignみたいな属性が必要になる。まぁ、そこまでは要らないかなぁ。本当に必要なら自分で背景rectを置けば良いだけだもんね。
+
+まとめ:
+- svg要素のwidthやheightが単位付きの場合、その元々の指定をできるだけ維持する。
+- svg要素のviewBoxが指定されている場合、デフォルトビュー範囲はそのviewBoxの範囲とする。viewBoxが指定されていない場合は、svgのwidthとheightをピクセル単位に直したものを範囲とする(左上は0,0)。
+- 背景矩形はviewBoxの範囲に合わせる。カスタマイズオプション([[elisp-variable:edraw-editor-background-align]])で昔の挙動にもできる。
