@@ -726,9 +726,9 @@ However, SVG2's transform attribute does not allow trailing dots.")
      (or (edraw-svg-attr-length-or-inherited (edraw-dom-get-parent element)
                                              'font-size)
          edraw-svg-attr-default-font-size))
-    ((or 'x 'rx 'cx 'width 'x1 'x2)
+    ((or 'x 'rx 'cx 'x1 'x2 'dx 'width)
      (car (edraw-svg-attr-length-viewport-size element)))
-    ((or 'y 'ry 'cy 'height 'y1 'y2)
+    ((or 'y 'ry 'cy 'y1 'y2 'dy 'height)
      (cdr (edraw-svg-attr-length-viewport-size element)))
     (_
      ;; https://www.w3.org/TR/SVG11/coords.html#Units_viewport_percentage
