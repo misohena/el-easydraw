@@ -89,10 +89,7 @@ in the rest argument."
                 (symbolp (car rest)))
       (let* ((key (car rest))
              (value (cadr rest))
-             (attr-name
-              (cond
-               ((keywordp key) (intern (substring (symbol-name key) 1)))
-               ((symbolp key) key))))
+             (attr-name (edraw-dom-element--strip-colon key)))
         (pcase attr-name
           ;; Support :parent <parent> notation.
           ('parent
@@ -107,11 +104,13 @@ in the rest argument."
               ((consp (car value)) ;; alist
                (cl-loop for (k . v) in value
                         when (and k (symbolp k))
-                        do (push (cons k v) attr-alist)))
+                        do (push (cons (edraw-dom-element--strip-colon k) v)
+                                 attr-alist)))
               ((plistp value) ;; plist
                (cl-loop for (k v) on value by #'cddr
                         when (and k (symbolp k))
-                        do (push (cons k v) attr-alist))))))
+                        do (push (cons (edraw-dom-element--strip-colon k) v)
+                                 attr-alist))))))
           (_
            (push (cons attr-name value) attr-alist)))
         (setq rest (cddr rest))))
@@ -130,10 +129,15 @@ in the rest argument."
         (edraw-dom-append-child parent element))
       element)))
 ;; TEST: (edraw-dom-element 'rect :x 1 :y 2 :width 3 :height 4) => (rect ((x . 1) (y . 2) (width . 3) (height . 4)))
-;; TEST: (edraw-dom-element 'rect :x 1 :attributes '(:y 2 :width 3) :height 4) => (rect ((x . 1) (:y . 2) (:width . 3) (height . 4)))
-;; TEST: (edraw-dom-element 'rect :x 1 :attributes '(:y 2 :width 3 nil 10) :attributes '((:height . 4) (nil . 11)) nil) => (rect ((x . 1) (:y . 2) (:width . 3) (:height . 4)))
+;; TEST: (edraw-dom-element 'rect :x 1 :attributes '(:y 2 :width 3) :height 4) => (rect ((x . 1) (y . 2) (width . 3) (height . 4)))
+;; TEST: (edraw-dom-element 'rect :x 1 :attributes '(:y 2 :width 3 nil 10) :attributes '((:height . 4) (nil . 11)) nil) => (rect ((x . 1) (y . 2) (width . 3) (height . 4)))
 ;; TEST: (let ((edraw-dom-inhibit-parent-links t)) (edraw-dom-element 'g :stroke "red" :children (list (edraw-dom-element 'rect :x 11 :y 22 :width 33 :height 44) nil) (edraw-dom-element 'rect :x 111 :y 222 :width 333 :height 444) nil)) => (g ((stroke . "red")) (rect ((x . 11) (y . 22) (width . 33) (height . 44))) (rect ((x . 111) (y . 222) (width . 333) (height . 444))))
 ;; TEST: (let ((edraw-dom-inhibit-parent-links t) (g (dom-node 'g))) (edraw-dom-element 'rect :parent g :x 11 :y 22 :width 33 :height 44) g) => (g nil (rect ((x . 11) (y . 22) (width . 33) (height . 44))))
+
+(defun edraw-dom-element--strip-colon (key)
+  (cond
+   ((keywordp key) (intern (substring (symbol-name key) 1)))
+   ((symbolp key) key)))
 
 (defun edraw-dom-copy-tree (node)
   "Duplicate the DOM tree NODE.
