@@ -134,7 +134,7 @@
      "Group" "グループ化"
      "Handle Point" "ハンドルポイント"
      "Href..." "Href..."
-     "If you import diagrams generated with other software into Edraw, they may not be displayed correctly or the editing operation may become unstable. The original information is lost in the converted data. Do you want to convert to a format for Edraw?" "他のソフトウェアで生成した図をEdrawで読み込んだ場合、正しく表示されなかったり、編集動作が不安定になる場合があります。変換後のデータからは元の情報が失われます。Edrawのための形式へ変換しますか？"
+     "If you import diagrams generated with other software into Edraw, they may not be displayed correctly or the editing operation may become unstable. The original information is lost in the converted data. Do you want to convert to a format for Edraw?" "他のソフトウェアで生成した図をedrawで読み込んだ場合、正しく表示されなかったり、編集動作が不安定になる場合があります。変換後のデータからは元の情報が失われます。edrawのための形式へ変換しますか？"
      "Image File: " "画像ファイル: "
      "Image Tool" "画像ツール"
      "Import Section Before" "この前にセクションをインポート"
