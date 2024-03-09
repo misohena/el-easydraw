@@ -32,6 +32,8 @@
 
 (defvar edraw-svg-version "1.1")
 
+(defvar edraw-dom-inhibit-parent-links nil)
+
 ;;;; DOM Element Creation
 
 (defun edraw-dom-element (tag &rest attr-plist-and-children)
@@ -113,8 +115,9 @@ in the rest argument."
     ;; Create an element
     (let ((element (apply 'dom-node tag attr-alist children)))
       ;; Set ELEMENT as parent for children
-      (dolist (child children)
-        (edraw-dom-set-parent child element))
+      (unless edraw-dom-inhibit-parent-links
+        (dolist (child children)
+          (edraw-dom-set-parent-auto child element)))
       ;; Append the element to parent
       (when-let ((parent (plist-get attr-plist-and-children :parent)))
         (edraw-dom-append-child parent element))
@@ -127,7 +130,7 @@ Attribute keys and values, and text node strings are shared
 before and after copying.
 
 Each element in the cloned tree has no link to its parent
-element. Call `edraw-dom-update-parents' explicitly if necessary.
+element. Call `edraw-dom-update-parent-links' explicitly if necessary.
 
 Attributes for internal use are not duplicated.
 Whether it is for internal use is determined by `edraw-dom-attr-internal-p'."
@@ -192,11 +195,17 @@ Since this is a macro, setf can be used."
 
 ;;;; DOM Parent Tracking
 
+(defun edraw-dom-set-parent-auto (node parent)
+  (unless edraw-dom-inhibit-parent-links
+    (edraw-dom-set-parent node parent))
+  node)
+
 (defun edraw-dom-set-parent (node parent)
   (when (edraw-dom-element-p node)
     ;; :-edraw-dom-parent is an attribute for internal use.
     ;; (See: `edraw-dom-attr-internal-p')
-    (dom-set-attribute node :-edraw-dom-parent parent)))
+    (dom-set-attribute node :-edraw-dom-parent parent))
+  node)
 
 (defun edraw-dom-get-parent (node)
   (when (edraw-dom-element-p node)
@@ -206,12 +215,19 @@ Since this is a macro, setf can be used."
   (when (edraw-dom-element-p node)
     (edraw-dom-remove-attr node :-edraw-dom-parent)))
 
-(defun edraw-dom-update-parents (tree)
+(defun edraw-dom-update-parent-links (tree)
   "Make it possible to retrieve parents of all elements in TREE."
   (when (edraw-dom-element-p tree)
     (dolist (child (dom-children tree))
       (edraw-dom-set-parent child tree)
-      (edraw-dom-update-parents child))))
+      (edraw-dom-update-parent-links child))))
+
+(defun edraw-dom-remove-parent-links (tree)
+  "Remove links to parent from all nodes in TREE."
+  (edraw-dom-reset-parent tree)
+  (when (edraw-dom-element-p tree)
+    (dolist (child (dom-children tree))
+      (edraw-dom-remove-parent-links child))))
 
 (defun edraw-dom-get-root (node)
   (let (parent)
@@ -265,15 +281,15 @@ the DOM and quickly identify the parent."
 
 (defun edraw-dom-add-child-before (node child &optional before)
   (prog1 (dom-add-child-before node child before)
-    (edraw-dom-set-parent child node)))
+    (edraw-dom-set-parent-auto child node)))
 
 (defun edraw-dom-append-child (node child)
   (prog1 (dom-append-child node child)
-    (edraw-dom-set-parent child node)))
+    (edraw-dom-set-parent-auto child node)))
 
 (defun edraw-dom-insert-first (node child)
   (prog1 (dom-add-child-before node child)
-    (edraw-dom-set-parent child node)))
+    (edraw-dom-set-parent-auto child node)))
 
 (defun edraw-dom-insert-nth (node child index)
   (setq node (dom-ensure-node node))
@@ -283,7 +299,7 @@ the DOM and quickly identify the parent."
     (let ((cell (or (nthcdr (1- index) (cddr node))
                     (last (cddr node)))))
       (setcdr cell (cons child (cdr cell)))))
-  (edraw-dom-set-parent child node)
+  (edraw-dom-set-parent-auto child node)
   child)
 
 ;;;; DOM Retrieve Siblings

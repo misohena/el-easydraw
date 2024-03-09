@@ -77,7 +77,7 @@
 
       ;; `edraw-svg-attr-length' requires ability to get parent from
       ;; child element only.
-      (edraw-dom-update-parents svg)
+      (edraw-dom-update-parent-links svg)
 
       (let* ((context '(nil))
              (body (apply #'dom-node

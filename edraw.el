@@ -1127,7 +1127,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)
 
     ;; Make it possible to retrieve parents of elements
-    (edraw-dom-update-parents svg)
+    (edraw-dom-update-parent-links svg)
 
     ;; Restore Point Connections
     (edraw-restore-point-connections editor)))

@@ -3703,3 +3703,8 @@ width、height、viewboxはオリジナルを別途保持する。これによ�
 - svg要素のwidthやheightが単位付きの場合、その元々の指定をできるだけ維持する。
 - svg要素のviewBoxが指定されている場合、デフォルトビュー範囲はそのviewBoxの範囲とする。viewBoxが指定されていない場合は、svgのwidthとheightをピクセル単位に直したものを範囲とする(左上は0,0)。
 - 背景矩形はviewBoxの範囲に合わせる。カスタマイズオプション([[elisp-variable:edraw-editor-background-align]])で昔の挙動にもできる。
+** DONE 親リンクまわりを改善する
+CLOSED: [2024-03-09 Sat 22:16]
+- edraw-dom-update-parents→edraw-dom-update-parent-linksへ改名
+- edraw-dom-remove-parent-linksを追加
+- 親リンクの作成を抑止できるようにする (edraw-dom-inhibit-
