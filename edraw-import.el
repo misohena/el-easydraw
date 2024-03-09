@@ -79,22 +79,22 @@
       ;; child element only.
       (edraw-dom-update-parent-links svg)
 
-      (let* ((context '(nil))
-             (body (apply #'dom-node
-                          'g
-                          (list (cons 'id "edraw-body"))
-                          (edraw-import-svg-convert-children svg context)))
+      (let* ((edraw-dom-inhibit-parent-links t) ;; Do not create parent links(?)
+             (context '(nil))
+             (converted (edraw-import-svg-convert-children svg context))
              (definitions (plist-get (car context) :definitions)))
-        (apply #'dom-node
-               'svg
-               (edraw-import-svg-convert-element-attributes svg context)
-               (nconc
-                (when definitions
-                  (list (apply #'dom-node
-                               'g
-                               (list (cons 'id "edraw-imported-definitions"))
-                               definitions)))
-                (list body)))))))
+        (edraw-dom-element
+         'svg
+         :attributes
+         (edraw-import-svg-convert-element-attributes svg context)
+         ;; Children
+         (when definitions
+           (edraw-dom-element 'g
+                              :id "edraw-imported-definitions"
+                              :children definitions))
+         (edraw-dom-element 'g
+                            :id "edraw-body"
+                            :children converted))))))
 
 ;;;;; Convert Children
 
@@ -176,27 +176,25 @@
   nil)
 
 (defun edraw-import-svg-convert-group (elem context)
-  (apply #'dom-node
-         (edraw-dom-tag elem)
-         (edraw-import-svg-convert-element-attributes elem context)
-         (edraw-import-svg-convert-children elem context)))
+  (edraw-dom-element
+   (edraw-dom-tag elem)
+   :attributes (edraw-import-svg-convert-element-attributes elem context)
+   :children (edraw-import-svg-convert-children elem context)))
 
 (defun edraw-import-svg-convert-shape (elem context)
-  (dom-node
+  (edraw-dom-element
    (edraw-dom-tag elem)
-   (edraw-import-svg-convert-element-attributes elem context)))
+   :attributes (edraw-import-svg-convert-element-attributes elem context)))
 
 (defun edraw-import-svg-convert-circle (elem context)
   (let ((r (dom-attr elem 'r)))
     (when r
-      (dom-node
+      (edraw-dom-element
        'ellipse
-       (nconc
-        (list
-         (cons 'rx r)
-         (cons 'ry r))
-        (edraw-import-svg-convert-element-attributes elem context
-                                                     '(r)))))))
+       :rx r
+       :ry r
+       :attributes (edraw-import-svg-convert-element-attributes
+                    elem context '(r))))))
 
 (defun edraw-import-svg-convert-line (elem context)
   (let ((x1 (edraw-svg-attr-length elem 'x1))
@@ -204,13 +202,11 @@
         (x2 (edraw-svg-attr-length elem 'x2))
         (y2 (edraw-svg-attr-length elem 'y2)))
     (when (and x1 y1 x2 y2)
-      (dom-node
+      (edraw-dom-element
        'path
-       (nconc
-        (list
-         (cons 'd (edraw-path-d-from-command-list `((M ,x1 ,y1 ,x2 ,y2)))))
-        (edraw-import-svg-convert-element-attributes elem context
-                                                     '(x1 y1 x2 y2)))))))
+       :d (edraw-path-d-from-command-list `((M ,x1 ,y1 ,x2 ,y2)))
+       :attributes (edraw-import-svg-convert-element-attributes
+                    elem context '(x1 y1 x2 y2))))))
 
 (defun edraw-import-svg-convert-poly-shape (elem context) ;; polyline or polygon
   (let* ((closepath (eq (edraw-dom-tag elem) 'polygon))
@@ -226,23 +222,22 @@
                          (edraw-dom-tag elem))
       nil)
      (t
-      (dom-node
+      (edraw-dom-element
        'path
-       (cons
-        (cons 'd (edraw-path-d-from-command-list
-                  (nconc
-                   (list (cons 'M (cl-loop for (x . y) in points
-                                           collect x collect y)))
-                   (when closepath (list (list 'Z))))))
-        (edraw-import-svg-convert-element-attributes elem context
-                                                     '(points))))))))
+       :d (edraw-path-d-from-command-list
+           (nconc
+            (list (cons 'M (cl-loop for (x . y) in points
+                                    collect x collect y)))
+            (when closepath (list (list 'Z)))))
+       :attributes (edraw-import-svg-convert-element-attributes
+                    elem context '(points)))))))
 
 (defun edraw-import-svg-convert-text (elem context)
   ;;@todo impl
-  (apply #'dom-node
-         (edraw-dom-tag elem)
-         (edraw-import-svg-convert-element-attributes elem context)
-         (edraw-import-svg-convert-children elem context)))
+  (edraw-dom-element
+   (edraw-dom-tag elem)
+   :attributes (edraw-import-svg-convert-element-attributes elem context)
+   :children (edraw-import-svg-convert-children elem context)))
 
 
 ;;;;; Convert Attribute
