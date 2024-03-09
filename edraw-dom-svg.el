@@ -50,18 +50,20 @@ the new element. For example:
 
 Attributes are specified in a property list starting at the
 beginning of ATTR-PLIST-AND-CHILDREN. A property list key must be
-a symbol. If the symbol is a keyword, the leading colon is
-ignored (i.e. :x and \\='x are the same).
+a symbol (and non-nil). If the symbol is a keyword, the leading
+colon is ignored (i.e. :x and \\='x are the same).
 
-If a non-symbol appears at the position where the key symbol of
-the property list should appear, the subsequent elements are
-treated as children.
+If a non-symbol (or nil) appears at the position where the key
+symbol of the property list should appear, the subsequent
+elements are treated as children. Children that are nil are
+automatically removed.
 
 The following special properties can be specified.
 
-:parent      Parent DOM element.
-:children    A list of child DOM nodes.
-:attributes  An plist or alist of additional attributes.
+:parent      Parent DOM element. Can be specified only once.
+:children    A list of child DOM nodes. Can be specified multiple.
+:attributes  A plist or alist of additional attributes. Can be specified
+            multiple.
 
 Commonly used SVG elements have their own creation functions:
 
@@ -77,51 +79,61 @@ Commonly used SVG elements have their own creation functions:
 
 These functions can specify the same arguments as this function
 in the rest argument."
-  (let ((children attr-plist-and-children)
+  (let ((rest attr-plist-and-children)
+        parent
+        children
         attr-alist)
     ;; Split ATTR-PLIST-AND-CHILDREN into ATTR-ALIST and CHILDREN.
-    (while (and children (symbolp (car children)))
-      (let* ((key (car children))
-             (value (cadr children))
-             (key-symbol
+    (while (and rest
+                (car rest) ;; Nil means invalid child
+                (symbolp (car rest)))
+      (let* ((key (car rest))
+             (value (cadr rest))
+             (attr-name
               (cond
                ((keywordp key) (intern (substring (symbol-name key) 1)))
                ((symbolp key) key))))
-        (pcase key-symbol
-          ;; Ignore :parent and :children
-          ((or 'nil 'parent 'children))
-          ;; Support :attributes (key value ...) notation
+        (pcase attr-name
+          ;; Support :parent <parent> notation.
+          ('parent
+           (setq parent value))
+          ;; Support :children (<child> ...) notation.
+          ('children
+           (setq children (nconc children (delq nil (copy-sequence value)))))
+          ;; Support :attributes (<key> <value> ...) or ((<key> . <value>) ...)
           ('attributes
            (when (consp value)
              (cond
               ((consp (car value)) ;; alist
-               (setcdr (cdr children) (nconc
-                                       (cl-loop for (k . v) in value
-                                                collect k collect v)
-                                       (cddr children))))
+               (cl-loop for (k . v) in value
+                        when (and k (symbolp k))
+                        do (push (cons k v) attr-alist)))
               ((plistp value) ;; plist
-               (setcdr (cdr children) (nconc
-                                       value
-                                       (cddr children)))))))
+               (cl-loop for (k v) on value by #'cddr
+                        when (and k (symbolp k))
+                        do (push (cons k v) attr-alist))))))
           (_
-           (push (cons key-symbol value) attr-alist)))
-        (setq children (cddr children))))
-    (setq attr-alist (nreverse attr-alist))
+           (push (cons attr-name value) attr-alist)))
+        (setq rest (cddr rest))))
 
-    ;; Support :children (list ...) notation.
-    (when-let ((attr-children (plist-get attr-plist-and-children :children)))
-      (setq children (nconc children attr-children)))
+    (setq attr-alist (nreverse attr-alist))
+    (setq children (nconc children (delq nil (copy-sequence rest))))
 
     ;; Create an element
-    (let ((element (apply 'dom-node tag attr-alist children)))
+    (let ((element (apply #'dom-node tag attr-alist children)))
       ;; Set ELEMENT as parent for children
       (unless edraw-dom-inhibit-parent-links
         (dolist (child children)
           (edraw-dom-set-parent-auto child element)))
       ;; Append the element to parent
-      (when-let ((parent (plist-get attr-plist-and-children :parent)))
+      (when parent
         (edraw-dom-append-child parent element))
       element)))
+;; TEST: (edraw-dom-element 'rect :x 1 :y 2 :width 3 :height 4) => (rect ((x . 1) (y . 2) (width . 3) (height . 4)))
+;; TEST: (edraw-dom-element 'rect :x 1 :attributes '(:y 2 :width 3) :height 4) => (rect ((x . 1) (:y . 2) (:width . 3) (height . 4)))
+;; TEST: (edraw-dom-element 'rect :x 1 :attributes '(:y 2 :width 3 nil 10) :attributes '((:height . 4) (nil . 11)) nil) => (rect ((x . 1) (:y . 2) (:width . 3) (:height . 4)))
+;; TEST: (let ((edraw-dom-inhibit-parent-links t)) (edraw-dom-element 'g :stroke "red" :children (list (edraw-dom-element 'rect :x 11 :y 22 :width 33 :height 44) nil) (edraw-dom-element 'rect :x 111 :y 222 :width 333 :height 444) nil)) => (g ((stroke . "red")) (rect ((x . 11) (y . 22) (width . 33) (height . 44))) (rect ((x . 111) (y . 222) (width . 333) (height . 444))))
+;; TEST: (let ((edraw-dom-inhibit-parent-links t) (g (dom-node 'g))) (edraw-dom-element 'rect :parent g :x 11 :y 22 :width 33 :height 44) g) => (g nil (rect ((x . 11) (y . 22) (width . 33) (height . 44))))
 
 (defun edraw-dom-copy-tree (node)
   "Duplicate the DOM tree NODE.

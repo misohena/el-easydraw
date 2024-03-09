@@ -3708,3 +3708,24 @@ CLOSED: [2024-03-09 Sat 22:16]
 - edraw-dom-update-parents→edraw-dom-update-parent-linksへ改名
 - edraw-dom-remove-parent-linksを追加
 - 親リンクの作成を抑止できるようにする (edraw-dom-inhibit-
+** DONE edraw-dom-elementで空の属性や空の子どもをどう扱うか考える
+CLOSED: [2024-03-09 Sat 22:29]
+できればnilは自動的に削除したい。
+
+(edraw-dom-element :id "hoge" nil child2 child3)のときnilは属性なのか子なのか。
+→現在は属性名として扱われている。
+
+値がnilの属性はどうなるのか。
+(edraw-dom-element 'g :id nil)
+→そのまま値がnilとなる。
+
+edraw-svg-printは属性名がnilの場合や値がnilの場合はどうしているのか。
+(edraw-svg-to-string (dom-node 'rect '((nil . 1) (x . nil))) nil nil)
+属性名nilはnilという属性名で出力される。
+属性値nilは空文字列で出力される。
+*属性名としてnilを指定することはありえない。*
+→なのでnilは無効な子として扱う。
+
+nilの子は自動的に取り除く。
+
+複数の:childrenを書きたい。
