@@ -102,8 +102,14 @@
   (let (new-children)
     (dolist (node (dom-children parent))
       (if (edraw-dom-element-p node)
-          (if-let ((new-elem (edraw-import-svg-convert-element node context)))
-              (push new-elem new-children)
+          (if-let ((new-node (edraw-import-svg-convert-element node context)))
+              (if (and (consp new-node)
+                       (consp (car new-node)))
+                  ;; List of node
+                  (dolist (node new-node)
+                    (push node new-children))
+                ;; Single node (element or text)
+                (push new-node new-children))
             ;; Discard element
             nil)
         (push node new-children)))
@@ -124,8 +130,8 @@
     (polygon . edraw-import-svg-convert-poly-shape)
     (text . edraw-import-svg-convert-text)
     (comment . edraw-import-svg-convert-comment)
+    (a . edraw-import-svg-convert-a)
     ;; Not supported:
-    ;; a
     ;; animate
     ;; animateMotion
     ;; animateTransform
@@ -169,6 +175,11 @@
 (defun edraw-import-svg-convert-comment (_elem _context)
   ;; Discard comment
   nil)
+
+(defun edraw-import-svg-convert-a (elem context)
+  ;; Expose contents
+  ;; @todo check style?
+  (edraw-import-svg-convert-children elem context))
 
 (defun edraw-import-svg-convert-definition (elem context)
   ;; @todo Clone ELEM?

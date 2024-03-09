@@ -24,10 +24,10 @@ data-edraw-background-alignみたいな属性が必要になる。
 - [X] polyline、polygonはpathへ変換する。
 - [X] circleはellipseへ変換する。
 - [X] dom-nodeの代わりにedraw-dom-elementを使う。
+- [X] aは内部だけを変換して露出させる。
 - [ ] 複数のサブパスを持つパスデータは警告を出す。
 - [ ] style属性を使っていたら警告を出す。
 - [ ] textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。
-- [ ] aは内部だけを変換して露出させる。
 
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
