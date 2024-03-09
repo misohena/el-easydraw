@@ -616,12 +616,14 @@ comment nodes."
 
 ;;;; SVG Attributes
 
-;;;;; Regexp
+;;;;; White Spaces
 
 (defconst edraw-svg-re-wsp "\\(?:[ \t\n\f\r]+\\)")
 (defconst edraw-svg-re-wsp-opt "[ \t\n\f\r]*")
 (defconst edraw-svg-re-comma-wsp
   "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
+
+;;;;; Number
 
 (defconst edraw-svg-re-number
   (concat "\\(?:"
@@ -637,18 +639,30 @@ URL `https://www.w3.org/TR/css-syntax-3/#number-token-diagram'
 
 NOTE: This is different from the number in d attribute of path.")
 
-(defconst edraw-svg-re-number-with-dot
+(defconst edraw-svg-re-abs-number-with-dot
   (concat "\\(?:"
-          "[-+]?"
           ;; Valid: 12  12.34  .34  12.
           "\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)"
           "\\(?:[eE][-+]?[0-9]+\\)?"
+          "\\)")
+  "A regular expression for numbers without sign that can end with a dot.
+
+Matches the number syntax in the transform, d, and points
+attributes of the SVG1.1 specification.
+However, SVG2's transform attribute does not allow trailing dots.")
+
+(defconst edraw-svg-re-number-with-dot
+  (concat "\\(?:"
+          "[-+]?"
+          edraw-svg-re-abs-number-with-dot
           "\\)")
   "A regular expression for numbers that can end with a dot.
 
 Matches the number syntax in the transform, d, and points
 attributes of the SVG1.1 specification.
 However, SVG2's transform attribute does not allow trailing dots.")
+
+;;;;; Length
 
 (defconst edraw-svg-re-length-unit
   "\\(?:em\\|ex\\|px\\|in\\|cm\\|mm\\|pt\\|pc\\|\\%\\)?"
@@ -657,15 +671,6 @@ However, SVG2's transform attribute does not allow trailing dots.")
 (defconst edraw-svg-re-length
   (concat "\\(" edraw-svg-re-number "\\)"
           "\\(" edraw-svg-re-length-unit "\\)"))
-
-(defconst edraw-svg-re-attr-viewbox
-  (concat "\\`" edraw-svg-re-wsp-opt
-          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
-          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
-          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
-          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-wsp-opt "\\'"))
-
-;;;;; Length
 
 (defconst edraw-svg-re-attr-length
   (concat "\\`" edraw-svg-re-wsp-opt edraw-svg-re-length edraw-svg-re-wsp-opt
@@ -721,9 +726,9 @@ However, SVG2's transform attribute does not allow trailing dots.")
      (or (edraw-svg-attr-length-or-inherited (edraw-dom-get-parent element)
                                              'font-size)
          edraw-svg-attr-default-font-size))
-    ((or 'x 'rx 'cx 'width)
+    ((or 'x 'rx 'cx 'width 'x1 'x2)
      (car (edraw-svg-attr-length-viewport-size element)))
-    ((or 'y 'ry 'cy 'height)
+    ((or 'y 'ry 'cy 'height 'y1 'y2)
      (cdr (edraw-svg-attr-length-viewport-size element)))
     (_
      ;; https://www.w3.org/TR/SVG11/coords.html#Units_viewport_percentage
@@ -1089,6 +1094,58 @@ are set as strings."
       (edraw-svg-element-transform-set element transform))))
 
 
+;;;; SVG Points Attribute
+
+
+;; https://www.w3.org/TR/SVG11/shapes.html#PointsBNF
+(defconst edraw-svg-re-coordinate-pair
+  (concat edraw-svg-re-wsp-opt
+          "\\(" edraw-svg-re-number-with-dot "\\)" ;;(1)
+          "\\(?:"
+          edraw-svg-re-comma-wsp "\\(" edraw-svg-re-number-with-dot "\\)" ;;(2)
+          "\\|"
+          "\\(" "-" edraw-svg-re-abs-number-with-dot "\\)" ;;(3)
+          "\\)"))
+
+(defun edraw-svg-parse-points (points-str)
+  (let ((pos 0) result)
+    (while (and
+            ;; comma-wsp
+            (or (= pos 0)
+                (when (eq (string-match
+                           edraw-svg-re-comma-wsp points-str pos)
+                          pos)
+                  (setq pos (match-end 0))
+                  t))
+            ;; coordinate-pair
+            (when (eq (string-match
+                       edraw-svg-re-coordinate-pair points-str pos)
+                      pos)
+              (setq pos (match-end 0))
+              t))
+
+      (push (cons (string-to-number (match-string 1 points-str))
+                  (string-to-number (or (match-string 2 points-str)
+                                        (match-string 3 points-str))))
+            result))
+    ;; wsp*
+    (when (eq (string-match edraw-svg-re-wsp-opt points-str pos) pos)
+      (setq pos (match-end 0)))
+    (when (/= pos (length points-str))
+      (error "Failed to parse list-of-points at %s"
+             (substring points-str pos)))
+    (nreverse result)))
+;; TEST: (edraw-svg-parse-points "") => nil
+;; TEST: (edraw-svg-parse-points "1") => error
+;; TEST: (edraw-svg-parse-points "1 2") => ((1 . 2))
+;; TEST: (edraw-svg-parse-points "11.-2e-2") => ((11 . -0.02))
+;; TEST: (edraw-svg-parse-points "11-22,33 44") => ((11 . -22) (33 . 44))
+;; TEST: (edraw-svg-parse-points "11-22 33 44") => ((11 . -22) (33 . 44))
+;; TEST: (edraw-svg-parse-points " 11-22 33 44 ") => ((11 . -22) (33 . 44))
+;; TEST: (edraw-svg-parse-points " 11-22 33 44 hh") => error
+;; TEST: (edraw-svg-parse-points " 11,-22 33,44") => ((11 . -22) (33 . 44))
+
+
 ;;;; SVG Compatibility
 
 (defun edraw-svg-compatibility-fix (svg)
@@ -1120,6 +1177,13 @@ are set as strings."
     'href))
 
 ;;;; SVG View Box
+
+(defconst edraw-svg-re-attr-viewbox
+  (concat "\\`" edraw-svg-re-wsp-opt
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-comma-wsp
+          "\\(" edraw-svg-re-number "\\)" edraw-svg-re-wsp-opt "\\'"))
 
 (defun edraw-svg-parse-viewbox-string (viewbox)
   (when (and (stringp viewbox)
