@@ -1646,6 +1646,13 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
         ;; multi-line
         (edraw-svg-text--set-text-multiline element lines)))))
 
+(defconst edraw-svg-text--line-class-name
+  "edraw-text-line")
+
+(defconst edraw-svg-text--line-class-name-re
+  ;; `text-line' was used until 2024-03-10
+  "\\`\\(?:edraw-text-line\\|text-line\\)\\'")
+
 (defun edraw-svg-text--set-text-multiline (element lines)
   (let* ((vertical-p (edraw-svg-text-vertical-writing-p element))
          (negative-dir-p (eq (edraw-svg-text-writing-mode element)
@@ -1663,7 +1670,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (dolist (line lines)
       (edraw-dom-element 'tspan
                          :parent element
-                         :class "text-line"
+                         :class edraw-svg-text--line-class-name
                          attr-col col
                          :attributes
                          (when (and (/= line-delta 0)
@@ -1681,20 +1688,20 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 (defun edraw-svg-text-get-text (element)
   (if (stringp (car (dom-children element)))
       (car (dom-children element))
-    (let ((tspans (dom-by-class element "\\`text-line\\'")))
+    (let ((tspans (dom-by-class element edraw-svg-text--line-class-name-re)))
       (mapconcat (lambda (tspan) (dom-text tspan)) tspans "\n"))))
 
 (defun edraw-svg-text-set-x (element x)
   (edraw-svg-set-attr-number element 'x x)
   (unless (edraw-svg-text-vertical-writing-p element)
-    (let ((tspans (dom-by-class element "\\`text-line\\'")))
+    (let ((tspans (dom-by-class element edraw-svg-text--line-class-name-re)))
       (dolist (tspan tspans)
         (edraw-svg-set-attr-number tspan 'x x)))))
 
 (defun edraw-svg-text-set-y (element y)
   (edraw-svg-set-attr-number element 'y y)
   (when (edraw-svg-text-vertical-writing-p element)
-    (let ((tspans (dom-by-class element "\\`text-line\\'")))
+    (let ((tspans (dom-by-class element edraw-svg-text--line-class-name-re)))
       (dolist (tspan tspans)
         (edraw-svg-set-attr-number tspan 'y y)))))
 
