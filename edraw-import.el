@@ -182,6 +182,7 @@ The result value might look like this:
     (polyline . edraw-import-svg-convert-poly-shape)
     (polygon . edraw-import-svg-convert-poly-shape)
     (text . edraw-import-svg-convert-text)
+    (tspan . edraw-import-svg-convert-tspan)
     (comment . edraw-import-svg-convert-comment)
     (a . edraw-import-svg-convert-a)
     ;; Not supported:
@@ -318,7 +319,13 @@ The result value might look like this:
                     elem context '(points)))))))
 
 (defun edraw-import-svg-convert-text (elem context)
-  ;;@todo impl
+  ;;@todo Extract text attributes from style properties? Should edraw-dom-svg.el parse style?
+  (edraw-dom-element
+   (edraw-dom-tag elem)
+   :attributes (edraw-import-svg-convert-element-attributes elem context)
+   :children (edraw-import-svg-convert-children elem context)))
+
+(defun edraw-import-svg-convert-tspan (elem context)
   (edraw-dom-element
    (edraw-dom-tag elem)
    :attributes (edraw-import-svg-convert-element-attributes elem context)
@@ -396,7 +403,11 @@ The result value might look like this:
     (viewBox . edraw-import-svg-convert-attr-keep)
     (version . edraw-import-svg-convert-attr-keep)
     (xmlns . edraw-import-svg-convert-attr-keep)
-    (xmlns:xlink . edraw-import-svg-convert-attr-keep)))
+    (xmlns:xlink . edraw-import-svg-convert-attr-keep)
+    ;; Inkscape
+    (role\(http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\)
+     . edraw-import-svg-convert-attr-inkscape-role)
+    ))
 
 (defun edraw-import-svg-convert-attribute (attr-name value elem context)
   (let* ((attr-name-ns (edraw-import-svg-normalize-name attr-name context)))
@@ -436,6 +447,15 @@ The result value might look like this:
   ;;@todo impl
   (cons attr-name value))
 
+(defun edraw-import-svg-convert-attr-inkscape-role (attr-name
+                                                    value elem _context)
+  (if (and (eq (edraw-dom-tag elem) 'tspan)
+           (string= value "line"))
+      (cons 'class "edraw-text-line") ;;@todo If elem already has a class?
+    ;; Otherwise discard
+    (edraw-import-warn (edraw-msg "Discard unsupported attribute: %s")
+                       attr-name)
+    nil))
 
 ;;;; XML
 

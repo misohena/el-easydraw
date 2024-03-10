@@ -26,10 +26,15 @@ data-edraw-background-alignみたいな属性が必要になる。
 - [X] dom-nodeの代わりにedraw-dom-elementを使う。
 - [X] aは内部だけを変換して露出させる。
 - [X] XML名前空間を認識・変換する。Inkscapeの出力したSVGを変換できるようにする。libxmlは名前空間を全て捨ててしまうので、_ns-xlink--hrefのようにエスケープしてからlibxmlでDOMツリーにし、変換過程で名前空間を処理する。
+- [X] +textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。+ textはedraw-editor側がもう少しちゃんと解析をすべき。行以外のtspanやaを考慮する。その上で、tspanとa以外は除去すれば良い。
 - [ ] 複数のサブパスを持つパスデータは警告を出す。
 - [ ] style属性を使っていたら警告を出す。
-- [ ] textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。
 
+** TODO インポート/Inkscapeの行の変換でclassが既に使われていたときの問題
+[[elisp-function:edraw-import-svg-convert-attr-inkscape-role]]関数で、tspanのrole="line"のとき、属性をclass="edraw-text-line"へ変換しているが、すでにclassをtspanに設定しているときはどうするか。何か既存のclassを消す仕組みが必要。
+** TODO インポート/style属性を対応するSVG属性へ変換する
+基本的にはその方が良い。
+カスタマイズ変数で変換しないようにできてもよい。
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
 現状ではAABBは0になるけど表示は画像の幅・高さになっているように見える。
