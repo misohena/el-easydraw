@@ -519,13 +519,13 @@ To split an escaped name string on a colon, use `edraw-xml-unescape-ns-name'."
     (while (re-search-forward edraw-xml-re-start nil t) ;; Skip CharData
       (cond
        ((match-beginning 1)
-        (re-search-forward "-->")) ;; error if not found
+        (search-forward "-->")) ;; error if not found
        ((match-beginning 2)
-        (re-search-forward "]]>")) ;; error if not found
+        (search-forward "]]>")) ;; error if not found
        ((match-beginning 3)
-        (re-search-forward "\\?>")) ;; error if not found
+        (search-forward "?>")) ;; error if not found
        ((match-beginning 6)
-        (re-search-forward ">")) ;; error if not found
+        (search-forward ">")) ;; error if not found
        ((match-beginning 4)
         ;; Replace <(4):(5) with <_ns-(4)--(5)
         (when (match-beginning 5)
