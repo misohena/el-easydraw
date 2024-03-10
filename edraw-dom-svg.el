@@ -1685,11 +1685,37 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
         (setq line-delta 0))
       (cl-incf line-delta line-delta-step))))
 
+(defun edraw-svg-text--element-content-to-string (element first-p)
+  (cl-loop for node in (edraw-dom-children element)
+           for curr-first = first-p
+           ;; https://www.w3.org/TR/SVG11/text.html#TextElement
+           concat
+           (cond
+            ((edraw-dom-element-p node)
+             (pcase (edraw-dom-tag node)
+               ('a
+                (setq first-p nil)
+                (edraw-svg-text--element-content-to-string node curr-first))
+               ('tspan
+                (setq first-p nil)
+                (concat
+                 (when (and (string-match-p edraw-svg-text--line-class-name-re
+                                            (or (dom-attr node 'class) ""))
+                            (not curr-first))
+                   "\n")
+                 ;; @todo Save NODE attributes and styles as text properties
+                 (edraw-svg-text--element-content-to-string node curr-first)))
+               ;; Ignore altGlyph, textPath, tref, animation elements and
+               ;; descriptive elements
+               ))
+            ((stringp node)
+             (setq first-p nil)
+             node)
+            ;; Ignore malformed node
+            )))
+
 (defun edraw-svg-text-get-text (element)
-  (if (stringp (car (dom-children element)))
-      (car (dom-children element))
-    (let ((tspans (dom-by-class element edraw-svg-text--line-class-name-re)))
-      (mapconcat (lambda (tspan) (dom-text tspan)) tspans "\n"))))
+  (edraw-svg-text--element-content-to-string element t))
 
 (defun edraw-svg-text-set-x (element x)
   (edraw-svg-set-attr-number element 'x x)
