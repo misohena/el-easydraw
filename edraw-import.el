@@ -525,16 +525,16 @@ To split an escaped name string on a colon, use `edraw-xml-unescape-ns-name'."
        ((match-beginning 3)
         (search-forward "?>")) ;; error if not found
        ((match-beginning 6)
+        ;; Replace </(6):(7) with </_ns-(6)--(7)
+        (when (match-beginning 7)
+          (replace-match
+           (concat "</" "_ns-" (match-string 6) "--" (match-string 7)) t))
         (search-forward ">")) ;; error if not found
        ((match-beginning 4)
         ;; Replace <(4):(5) with <_ns-(4)--(5)
         (when (match-beginning 5)
           (replace-match
            (concat "<" "_ns-" (match-string 4) "--" (match-string 5)) t))
-        ;; Replace </(6):(7) with </_ns-(6)--(7)
-        (when (match-beginning 7)
-          (replace-match
-           (concat "</" "_ns-" (match-string 6) "--" (match-string 7)) t))
 
         ;; Replace attribute names
         (save-match-data
