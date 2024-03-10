@@ -25,6 +25,7 @@ data-edraw-background-alignみたいな属性が必要になる。
 - [X] circleはellipseへ変換する。
 - [X] dom-nodeの代わりにedraw-dom-elementを使う。
 - [X] aは内部だけを変換して露出させる。
+- [X] XML名前空間を認識・変換する。Inkscapeの出力したSVGを変換できるようにする。libxmlは名前空間を全て捨ててしまうので、_ns-xlink--hrefのようにエスケープしてからlibxmlでDOMツリーにし、変換過程で名前空間を処理する。
 - [ ] 複数のサブパスを持つパスデータは警告を出す。
 - [ ] style属性を使っていたら警告を出す。
 - [ ] textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。
