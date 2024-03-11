@@ -3605,7 +3605,15 @@ document size or view box."
     ;; Must be able to point to integer pixel coordinates on
     ;; high DPI environment(image-scale > 1.0).
     ;;@todo Add settings to snap to coordinates below 1.0
-    (edraw-xy-round xy)))
+    (let ((scroll-scale (edraw-scroll-scale editor)))
+      (if (<= scroll-scale 1)
+          ;; When not zooming
+          (edraw-xy-round xy)
+        ;; When zooming, Snap to coordinates of reciprocal of the scale
+        (let ((inv-scale (/ 1.0 scroll-scale)))
+          (edraw-xy
+           (edraw-grid-round (edraw-x xy) inv-scale)
+           (edraw-grid-round (edraw-y xy) inv-scale)))))))
 
 ;;;;; Editor - Input Event
 
