@@ -49,8 +49,31 @@
 (defun edraw-import-error (string &rest args)
   (apply #'error string args))
 
+(defvar edraw-import-warning-messages nil)
+(defvar edraw-import-warning-count 0)
+(defvar edraw-import-warning-blocks 0)
+
 (defun edraw-import-warn (string &rest args)
-  (apply #'warn string args))
+  (let ((msg (apply #'format string args)))
+    (unless (member msg edraw-import-warning-messages)
+      (push msg edraw-import-warning-messages)
+      (cl-incf edraw-import-warning-count)
+      (apply #'warn string args))))
+
+(defmacro edraw-import-warning-block (&rest body)
+  `(progn
+     (when (= edraw-import-warning-blocks 0)
+       (setq edraw-import-warning-count 0
+             edraw-import-warning-messages nil))
+     (unwind-protect
+         (let ((edraw-import-warning-blocks (1+ edraw-import-warning-blocks)))
+           ,@body)
+       (when (= edraw-import-warning-blocks 0)
+         (when (> edraw-import-warning-count 0)
+           (warn (edraw-msg "edraw-import: %s warnings raised")
+                 edraw-import-warning-count))
+         (setq edraw-import-warning-count 0
+               edraw-import-warning-messages nil)))))
 
 ;;;; Import From General SVG
 
@@ -61,52 +84,54 @@
 
 ;;;###autoload
 (defun edraw-import-from-svg-buffer (buffer)
-  (edraw-import-from-svg-dom
-   (with-temp-buffer
-     (insert-buffer-substring-no-properties buffer)
-     (edraw-xml-escape-ns-buffer)
-     (libxml-parse-xml-region (point-min) (point-max)))))
+  (edraw-import-warning-block
+   (edraw-import-from-svg-dom
+    (with-temp-buffer
+      (insert-buffer-substring-no-properties buffer)
+      (edraw-xml-escape-ns-buffer)
+      (libxml-parse-xml-region (point-min) (point-max))))))
 
 ;;;###autoload
 (defun edraw-import-from-svg-dom (dom)
-  (let* ((svg-comments (edraw-dom-split-top-nodes dom))
-         (svg (car svg-comments)))
+  (edraw-import-warning-block
+   (let* ((svg-comments (edraw-dom-split-top-nodes dom))
+          (svg (car svg-comments)))
 
-    (unless (eq (edraw-dom-tag svg) 'svg)
-      (edraw-import-error (edraw-msg "Not SVG data")))
+     (unless (eq (edraw-dom-tag svg) 'svg)
+       (edraw-import-error (edraw-msg "Not SVG data")))
 
-    (if (edraw-dom-get-by-id svg "edraw-body")
-        (progn
-          (edraw-import-warn (edraw-msg "Already an SVG for Edraw"))
-          dom)
+     (if (edraw-dom-get-by-id svg "edraw-body")
+         (progn
+           (edraw-import-warn (edraw-msg "Already an SVG for Edraw"))
+           dom)
 
-      ;; `edraw-svg-attr-length' requires ability to get parent from
-      ;; child element only.
-      (edraw-dom-update-parent-links svg)
+       ;; `edraw-svg-attr-length' requires ability to get parent from
+       ;; child element only.
+       (edraw-dom-update-parent-links svg)
 
-      (let* ((edraw-dom-inhibit-parent-links t) ;; Do not create parent links(?)
-             (context
-              (list
-               ;; plist
+       (let* ((edraw-dom-inhibit-parent-links t) ;; Do not create parent links(?)
+              (context
                (list
-                :namespaces
-                (edraw-xml-collect-ns-decls svg))))
-             (converted (edraw-import-svg-convert-children svg context))
-             (definitions (plist-get (car context) :definitions)))
-        (edraw-dom-element
-         'svg
-         :attributes
-         (edraw-import-svg-convert-element-attributes svg context)
-         :xmlns "http://www.w3.org/2000/svg"
-         :xmlns:xlink "http://www.w3.org/1999/xlink"
-         ;; Children
-         (when definitions
-           (edraw-dom-element 'g
-                              :id "edraw-imported-definitions"
-                              :children definitions))
-         (edraw-dom-element 'g
-                            :id "edraw-body"
-                            :children converted))))))
+                ;; plist
+                (list
+                 :namespaces
+                 (edraw-xml-collect-ns-decls svg))))
+              (converted (edraw-import-svg-convert-children svg context))
+              (definitions (plist-get (car context) :definitions)))
+         (edraw-dom-element
+          'svg
+          :attributes
+          (edraw-import-svg-convert-element-attributes svg context)
+          :xmlns "http://www.w3.org/2000/svg"
+          :xmlns:xlink "http://www.w3.org/1999/xlink"
+          ;; Children
+          (when definitions
+            (edraw-dom-element 'g
+                               :id "edraw-imported-definitions"
+                               :children definitions))
+          (edraw-dom-element 'g
+                             :id "edraw-body"
+                             :children converted)))))))
 
 ;;;;; Convert Children
 

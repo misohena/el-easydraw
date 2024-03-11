@@ -322,6 +322,7 @@ S-クリック・ドラッグ: 45度単位指定"
      "a:auto  t:transform property  p:anchor points" "a:自動  t:transformプロパティ  p:アンカーポイント"
      "all, none, property names separated by spaces, or empty: " "all, none, 空白区切りのプロパティ名列, or 空: "
      "drag:Scroll, wheel:Zoom, 0:reset, q/r-click:quit" "ドラッグ:スクロール, ホイール:ズーム, 0:リセット, q/右クリック:終了"
+     "edraw-import: %s warnings raised" "edraw-import: %s 件の警告が発生しました"
      "q/R-Click:Cancel, RET/Dbl-Click:Commit,\ns:Scale(%.2f%% %.2f%%), r:Rotate(%.2fdeg), t:Translate,\no:Origin(%s %s), m:Transform Method(%s)" "q/右クリック:キャンセル, RET/ダブルクリック:確定,\ns:拡大縮小(%.2f%% %.2f%%), r:回転(%.2f度), t:平行移動,\no:原点(%s %s), m:変形方式(%s)"
      ;; [END MSG DATA]
      )))

@@ -27,8 +27,15 @@ data-edraw-background-alignみたいな属性が必要になる。
 - [X] aは内部だけを変換して露出させる。
 - [X] XML名前空間を認識・変換する。Inkscapeの出力したSVGを変換できるようにする。libxmlは名前空間を全て捨ててしまうので、_ns-xlink--hrefのようにエスケープしてからlibxmlでDOMツリーにし、変換過程で名前空間を処理する。
 - [X] +textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。+ textはedraw-editor側がもう少しちゃんと解析をすべき。行以外のtspanやaを考慮する。その上で、tspanとa以外は除去すれば良い。
+- [X] 同じ警告は抑制する。
+- [X] 終了時に警告の数を報告する。
 - [ ] 複数のサブパスを持つパスデータは警告を出す。
 - [ ] style属性を使っていたら警告を出す。
+
+** TODO インポート/Inkscapeのコネクタに対応する？
+簡易的になら対応できそうな気もする。
+ただ、IDを参照しているので、それをdata-edraw-idへ変換しなければならない。
+結線情報をcontextに保存して、後で一括で処理するくらいか？
 
 ** TODO インポート/Inkscapeの行の変換でclassが既に使われていたときの問題
 [[elisp-function:edraw-import-svg-convert-attr-inkscape-role]]関数で、tspanのrole="line"のとき、属性をclass="edraw-text-line"へ変換しているが、すでにclassをtspanに設定しているときはどうするか。何か既存のclassを消す仕組みが必要。
