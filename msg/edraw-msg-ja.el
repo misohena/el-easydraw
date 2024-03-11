@@ -259,6 +259,7 @@
      "Start Marker" "始点マーカー"
      "Stroke" "線"
      "Stroke..." "線..."
+     "Support for `style' attributes is insufficient and may cause display and operation problems" "style属性のサポートは不十分であり、表示や操作に支障を来す可能性があります"
      "Text Tool" "テキストツール"
      "Text" "テキスト"
      "Text: " "テキスト: "

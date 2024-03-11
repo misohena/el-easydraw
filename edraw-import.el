@@ -393,7 +393,7 @@ The result value might look like this:
     (stroke-linejoin . edraw-import-svg-convert-attr-keep)
     (stroke-miterlimit . edraw-import-svg-convert-attr-keep)
 
-    (style . edraw-import-svg-convert-attr-keep)
+    (style . edraw-import-svg-convert-attr-style)
     (transform . edraw-import-svg-convert-attr-keep)
     ;; geometry
     (x . edraw-import-svg-convert-attr-keep) ;;@todo check text's x
@@ -467,6 +467,9 @@ The result value might look like this:
 (defun edraw-import-svg-convert-attr-keep (attr-name value _elem _context)
   (cons attr-name value))
 
+(defun edraw-import-svg-convert-attr-style (attr-name value _elem _context)
+  (edraw-import-warn (edraw-msg "Support for `style' attributes is insufficient and may cause display and operation problems"))
+  (cons attr-name value))
 
 (defun edraw-import-svg-convert-attr-d (attr-name value _elem _context)
   ;;@todo impl
