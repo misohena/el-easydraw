@@ -472,8 +472,46 @@ The result value might look like this:
   (cons attr-name value))
 
 (defun edraw-import-svg-convert-attr-d (attr-name value _elem _context)
-  ;;@todo impl
-  (cons attr-name value))
+  ;; Check multiple subpaths and A command
+  (let ((cmds (condition-case err
+                  (edraw-path-d-parse value)
+                (error
+                 (edraw-import-warn (edraw-msg "Parsing error: %s") err)
+                 (setq value nil) ;;Discard
+                 nil))))
+    ;; Check empty path data
+    (unless cmds
+      (setq value nil cmds nil) ;;Discard
+      (edraw-import-warn (edraw-msg "Empty path data")))
+
+    ;; Check unsupported path command
+    ;;@todo Call `edraw-path-cmdlist-from-d'?
+    (when-let ((c (seq-find (lambda (cmd)
+                              (not (memq
+                                    (car cmd)
+                                    '(M m Z z L l H h V v C c S s Q q T t))))
+                            cmds)))
+      ;; As of 2024-03-11, if there is an unsupported command, an
+      ;; error will occur during editing, so discard it.
+      (unless (eq edraw-import-svg-level 'loose)
+        (setq value nil cmds nil)) ;;Discard
+      (edraw-import-warn (edraw-msg "Unsupported path command: `%s'") (car c)))
+
+    ;; Check not start with M
+    (when (and cmds (not (memq (caar cmds) '(M m))))
+      (setq value nil cmds nil) ;;Discard
+      (edraw-import-warn (edraw-msg "Path data does not start with M")))
+
+    ;; Check multiple subpaths (multiple M or command after Z)
+    (when (and cmds (cl-loop for x on (cdr cmds)
+                             when (or (memq (car x) '(M m))
+                                      (and (memq (car x) '(Z z))
+                                           (cdr x)))
+                             return t))
+      (edraw-import-warn (edraw-msg "Multiple subpaths are not supported and may cause display and operation problems"))))
+
+  (when value
+    (cons attr-name value)))
 
 (defun edraw-import-svg-convert-attr-inkscape-role (attr-name
                                                     value elem _context)

@@ -8,30 +8,6 @@ viewBoxのwidthやheightまたはsvg要素のwidth= height=が大きすぎる場
 data-edraw-background-alignみたいな属性が必要になる。
 そこまで必要かは疑問。最悪自分で背景rectを作れば良いんだし。
 
-** TODO edraw-import-svg.elを作成する
-インポーターの役割は、現在のバッファの内容(またはSVG DOMツリー)をedrawが読み込めるだろうSVG DOMツリーへ変換すること。将来的にはSVG以外のフォーマットからインポートすることも考えられる。
-
-インポーターが呼び出されるシチュエーション:
-- edraw-modeを起動したとき。
-- (これは微妙) [[elisp-function:edraw-initialize-svg-document]]で、edraw-bodyが無かったとき(SVG用のインポーターのみ呼び出す可能性がある)
-- edraw-org-edit-linkやedraw-org-edit-regular-file-linkでファイルを開くときにedraw-bodyが無かったとき(SVG用のインポーターのみ呼び出す可能性がある)(dataは、まぁ、いいでしょ)
-- 専用の変換コマンド(.edraw.svgへ変換する。magicコメントも入れる)。
-
-変換は次の点に留意する:
-- [X] 必要な要素(rect、ellipse、path、text、image、g)以外は全て破棄する。descやtitle等は要らない。
-- [X] defsは一応残す。(SVG直下にまとめて配置する？　専用のgの中に入れる？)
-- [X] 必要な属性以外は全て破棄する。
-- [X] polyline、polygonはpathへ変換する。
-- [X] circleはellipseへ変換する。
-- [X] dom-nodeの代わりにedraw-dom-elementを使う。
-- [X] aは内部だけを変換して露出させる。
-- [X] XML名前空間を認識・変換する。Inkscapeの出力したSVGを変換できるようにする。libxmlは名前空間を全て捨ててしまうので、_ns-xlink--hrefのようにエスケープしてからlibxmlでDOMツリーにし、変換過程で名前空間を処理する。
-- [X] +textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。+ textはedraw-editor側がもう少しちゃんと解析をすべき。行以外のtspanやaを考慮する。その上で、tspanとa以外は除去すれば良い。
-- [X] 同じ警告は抑制する。
-- [X] 終了時に警告の数を報告する。
-- [X] style属性を使っていたら警告を出す。
-- [ ] 複数のサブパスを持つパスデータは警告を出す。
-
 ** TODO インポート/Inkscapeのコネクタに対応する？
 簡易的になら対応できそうな気もする。
 ただ、IDを参照しているので、それをdata-edraw-idへ変換しなければならない。
@@ -505,6 +481,8 @@ Emacsの window-text-pixel-size で比率を求めてはどうか。
 etc
 
 ** TODO テキスト/textPathに対応する
+** TODO パス編集/Aコマンドがあると編集中にエラーが発生するのを直す
+クリックしようとすると「Unsupported path command found」というエラーが発生する。
 ** TODO パス編集/アンカーポイントの複数選択・移動機能を追加する
 図形を調整するときに無いと不便。
 
@@ -3757,3 +3735,27 @@ text要素以下を文字列へ変換する方法を改善する。現在はstri
 - tspan.edraw-text-line : 先頭に新しい行を作成する(ただし先頭の要素でないとき)。
 - tspan (その他) : 現在の行に内容を追加する。(将来的には属性・styleを解析してテキストプロパティに付与する)
 - a : 現在の行に内容を追加する。
+** DONE edraw-import-svg.elを作成する
+CLOSED: [2024-03-11 Mon 13:19]
+インポーターの役割は、現在のバッファの内容(またはSVG DOMツリー)をedrawが読み込めるだろうSVG DOMツリーへ変換すること。将来的にはSVG以外のフォーマットからインポートすることも考えられる。
+
+インポーターが呼び出されるシチュエーション:
+- edraw-modeを起動したとき。
+- (これは微妙) [[elisp-function:edraw-initialize-svg-document]]で、edraw-bodyが無かったとき(SVG用のインポーターのみ呼び出す可能性がある)
+- edraw-org-edit-linkやedraw-org-edit-regular-file-linkでファイルを開くときにedraw-bodyが無かったとき(SVG用のインポーターのみ呼び出す可能性がある)(dataは、まぁ、いいでしょ)
+- 専用の変換コマンド(.edraw.svgへ変換する。magicコメントも入れる)。
+
+変換は次の点に留意する:
+- [X] 必要な要素(rect、ellipse、path、text、image、g)以外は全て破棄する。descやtitle等は要らない。
+- [X] defsは一応残す。(SVG直下にまとめて配置する？　専用のgの中に入れる？)
+- [X] 必要な属性以外は全て破棄する。
+- [X] polyline、polygonはpathへ変換する。
+- [X] circleはellipseへ変換する。
+- [X] dom-nodeの代わりにedraw-dom-elementを使う。
+- [X] aは内部だけを変換して露出させる。
+- [X] XML名前空間を認識・変換する。Inkscapeの出力したSVGを変換できるようにする。libxmlは名前空間を全て捨ててしまうので、_ns-xlink--hrefのようにエスケープしてからlibxmlでDOMツリーにし、変換過程で名前空間を処理する。
+- [X] +textはテキストノードが入っているのみの単純なもの以外は色々警告を出す。+ textはedraw-editor側がもう少しちゃんと解析をすべき。行以外のtspanやaを考慮する。その上で、tspanとa以外は除去すれば良い。
+- [X] 同じ警告は抑制する。
+- [X] 終了時に警告の数を報告する。
+- [X] style属性を使っていたら警告を出す。
+- [X] 複数のサブパスを持つパスデータは警告を出す。
