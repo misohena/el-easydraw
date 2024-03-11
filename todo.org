@@ -1,6 +1,13 @@
 
 
 * Inbox
+** TODO 外部フレーム状態から子フレーム状態へ変更したときに消える？
+いや、今やったら大丈夫だな。何か条件がある？
+
+** TODO エディタはCtrl+中ボタンを消費すべき。
+C-down-mouse-2 がfacemenu-menuに割り当てられているので。
+スクロールの時によく誤操作してしまう。
+
 ** TODO 画像が大きすぎる(viewBoxが大きすぎる)場合は初期拡大率を小さくする
 viewBoxのwidthやheightまたはsvg要素のwidth= height=が大きすぎる場合は、初期拡大率を小さくする。起動時や0やv0を押したとき。
 ** TODO 背景をどこへ合わせるかはデータ毎に持つべき？
@@ -18,6 +25,8 @@ data-edraw-background-alignみたいな属性が必要になる。
 ** TODO インポート/style属性を対応するSVG属性へ変換する
 基本的にはその方が良い。
 カスタマイズ変数で変換しないようにできてもよい。
+** TODO インポート/paint値を検証する
+** TODO インポート/マーカーを検証する
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
 現状ではAABBは0になるけど表示は画像の幅・高さになっているように見える。
@@ -31,35 +40,6 @@ edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼ん
 数値をホイールやドラッグで変更するとき、単位を維持したい。
 
 また、プロパティ情報に :to-number という関数があるが、これは廃止したい。おそらくプロパティエディタのホイール・ドラッグ数値変更でしか使っていない。この関数はem、ex、%といった相対指定を処理できない。
-
-** TODO SVGの検証・変換を行う関数を作る
-任意DOMツリーがedrawで扱えるかを検証する。
-
-- トップレベル検証
-  - svg widthとheightが単位無しまたはpxでなければならない。
-  - svg直下にedraw-bodyとedraw-defsがあること。
-- 編集対象図形検証
-  - +使用される単位は全て無指定であること。+
-  - スタイル検証
-    - スタイルにtransformが使われていないこと。
-    - スタイルにwriting-modeが使われていないこと。
-  - color (stroke, fill)
-  - opacity-value (fill-opacity, stroke-opacity, opacity)
-  - stroke-dasharray
-  - stroke-dashoffset
-  - path d=
-  - marker-start
-  - marker-mid
-  - marker-end
-  - text
-  - data-*
-  - id
-  - class
-  - 使用不可属性
-    - clip, clipPathUnits, clip-rule
-    - その他基本的に知らない属性は全て
-
-edraw-import-from-svg
 
 ** TODO widget/チェックリストの操作で表示が乱れることがある？
 edraw-default-shape-properties等のカスタマイズでチェックボックスをON/OFFしたときに関係ない場所が消えることがあるような気がする。例えばrectをOFFにしたらellipseのチェックボックスがrectのチェックボックスと同じ行に来たり。再現の仕方が今ひとつ分からない。
@@ -360,6 +340,11 @@ x-popup-menuか番号入力させる。
 ** TODO プリセット/サブタイプをnilにして保存できるようにする?
 ** TODO プリセット/プリセットリストをファイルへ保存できるようにする
 ** TODO プリセット/プリセットリストをファイルから(追加)読み込めるようにする
+** TODO 変形/Shift+ドラッグで拡縮するときに縦横比が失われる
+ドラッグした点から45度単位の方向へスケーリングしようとしてしまう。
+[[*SHIFT+ドラッグで矩形をリサイズするときの原点を対角点にすべき][SHIFT+ドラッグで矩形をリサイズするときの原点を対角点にすべき]]も関係ある？
+** TODO 変形/インタラクティブ変形時にsを押したときyのデフォルトがxにならない
+ドキュメントの変形ではxを入れたらyのデフォルトはxになるのに。
 ** TODO 変形/GUI変形時に代替マウスポインターが消えることがある
 Corfuによるinvisibleな子フレームがあると、その上では正しい座標が来なくなる。
 ~(make-frame-invisible frame t)~ しただけでは完全には消えていないらしい。

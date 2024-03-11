@@ -26,6 +26,12 @@
 
 (require 'edraw-dom-svg)
 
+(defgroup edraw-import nil
+  "Edraw import feature."
+  :tag "Edraw Import"
+  :prefix "edraw-import-"
+  :group 'edraw)
+
 ;;;; Common
 
 ;;;###autoload
@@ -58,7 +64,7 @@
     (unless (member msg edraw-import-warning-messages)
       (push msg edraw-import-warning-messages)
       (cl-incf edraw-import-warning-count)
-      (apply #'warn string args))))
+      (apply #'lwarn 'edraw-import :warning string args))))
 
 (defmacro edraw-import-warning-block (&rest body)
   `(progn
@@ -70,15 +76,24 @@
            ,@body)
        (when (= edraw-import-warning-blocks 0)
          (when (> edraw-import-warning-count 0)
-           (warn (edraw-msg "edraw-import: %s warnings raised")
-                 edraw-import-warning-count))
+           (lwarn 'edraw-import :warning
+                  (edraw-msg "edraw-import: %s warnings raised")
+                  edraw-import-warning-count))
          (setq edraw-import-warning-count 0
                edraw-import-warning-messages nil)))))
 
 ;;;; Import From General SVG
 
-(defconst edraw-import-svg-level 'strict) ;; 'loose
-(defconst edraw-import-svg-keep-unsupported-defs t)
+(defcustom edraw-import-svg-level 'strict
+  "Level to verify and keep unsupported SVG features."
+  :group 'edraw-import
+  :type '(choice (const strict)
+                 (const loose)))
+
+(defcustom edraw-import-svg-keep-unsupported-defs t
+  "Non-nil means that unsupported definition elements are not discarded."
+  :group 'edraw-import
+  :type 'boolean)
 
 (defvar edraw-import-svg-in-defs nil)
 
