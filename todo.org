@@ -3746,3 +3746,7 @@ CLOSED: [2024-03-11 Mon 21:15]
 もしスナップを改良するなら edraw-snap-xy を修正すること。
 
 [2024-03-11 Mon]ズーム時のみ、拡大率の逆数座標へスナップするようにした。小さなSVGをedraw用に変換していじるときに不便なので。縮小時はそのまま。とりあえずこれで様子見。
+** DONE シェイプピッカー/edraw-shape-picker-file-last-selection-putを修正する
+CLOSED: [2024-03-11 Mon 21:58]
+変数edraw-shape-picker-file-last-selectionが選択のたびに際限なく増えてしまう。
+alist-getでファイル名をキーにしているにもかかわらずTESTFNを指定していなかったから。#'equalを指定する。

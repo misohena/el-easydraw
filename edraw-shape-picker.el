@@ -1669,7 +1669,7 @@ ROOT is the top level entry of the tree containing ENTRY."
   (when-let ((file (buffer-file-name)))
     (let* ((entry (edraw-shape-picker-selected-shape-entry))
            (indices (mapcar #'cdr (edraw-shape-picker-entry-path entry))))
-      (setf (alist-get file edraw-shape-picker-file-last-selection)
+      (setf (alist-get file edraw-shape-picker-file-last-selection nil nil #'equal)
             (cons indices entry)))))
 
 (defun edraw-shape-picker-file-last-selection-get ()
