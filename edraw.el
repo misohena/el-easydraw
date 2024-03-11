@@ -117,24 +117,24 @@ from the `edraw-package-default-document-properties' variable."
 
 (defconst edraw-package-default-shape-properties
   '((rect
-     (stroke . "none")
-     (fill . "#ddd")
-     (rx . 10)
-     (ry . 10))
+     (fill . "#f8f8f8")
+     (stroke . "#101010")
+     (stroke-width . 2))
     (ellipse
-     (stroke . "none")
-     (fill . "#ddd"))
+     (fill . "#f8f8f8")
+     (stroke . "#101010")
+     (stroke-width . 2))
     (path
-     (stroke . "#999")
-     (stroke-width . 4)
      (fill . "none")
+     (stroke . "#101010")
+     (stroke-width . 2)
      ;;(marker-end . "arrow")
      )
     (text
+     (fill . "#101010")
+     (font-size . 16)
      (font-family . "sans-serif")
-     (font-size . 18)
-     (text-anchor . "middle")
-     (fill . "#222"))
+     (text-anchor . "middle"))
     (image))
   "Default shape properties provided by the package.
 
@@ -207,7 +207,7 @@ If initial defaults are saved as presets, they will take precedence."
     ;;(edraw-editor-tool-freehand . ((stroke . "#222") (stroke-width . 1) (fill . "none")))
     (edraw-editor-tool-text . shape-type-default)
     (edraw-editor-tool-image . shape-type-default)
-    (edraw-editor-tool-custom-shape . shape-type-default))
+    (edraw-editor-tool-custom-shape . ((fill . "#f8f8f8") (stroke . "#101010") (stroke-width . 2))))
   "Default shape properties for each tool provided by the package.
 
 More tools may be added to this list in the future.")
