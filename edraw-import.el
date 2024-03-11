@@ -518,10 +518,11 @@ The result value might look like this:
       (edraw-import-warn (edraw-msg "Path data does not start with M")))
 
     ;; Check multiple subpaths (multiple M or command after Z)
-    (when (and cmds (cl-loop for x on (cdr cmds)
-                             when (or (memq (car x) '(M m))
-                                      (and (memq (car x) '(Z z))
-                                           (cdr x)))
+    (when (and cmds (cl-loop for rest on (cdr cmds)
+                             for cmd = (car rest)
+                             when (or (memq (car cmd) '(M m))
+                                      (and (memq (car cmd) '(Z z))
+                                           (cdr rest)))
                              return t))
       (edraw-import-warn (edraw-msg "Multiple subpaths are not supported and may cause display and operation problems"))))
 
