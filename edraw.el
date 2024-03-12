@@ -4375,14 +4375,18 @@ position where the EVENT occurred."
                                       selected-shapes))
                       (setq actions (edraw-get-actions target-spoint))))
             (edraw-popup-menu
-             (let ((point-type (edraw-get-point-type target-spoint)))
-               (pcase point-type
-                 ('anchor (edraw-msg "Anchor Point"))
-                 ('handle (edraw-msg "Handle Point"))
-                 (_ (format (edraw-msg "%s Point")
-                            (capitalize
-                             (symbol-name
-                              point-type))))))
+             (let* ((point-type (edraw-get-point-type target-spoint))
+                    (point-type-name (pcase point-type
+                                       ('anchor (edraw-msg "Anchor"))
+                                       ('handle (edraw-msg "Handle"))
+                                       (_ (capitalize
+                                           (symbol-name
+                                            point-type)))))
+                    (xy (edraw-get-xy-transformed target-spoint)))
+               (format "%s (%s, %s)"
+                       point-type-name
+                       (edraw-to-string (edraw-x xy))
+                       (edraw-to-string (edraw-y xy))))
              actions target-spoint)
             t)))
        ;; Shape

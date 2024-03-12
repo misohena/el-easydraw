@@ -36,7 +36,6 @@
      ;; (edraw-msg-update-catalog-buffer)
      ;; M-x edraw-msg-search at point
      ;; [BEGIN MSG DATA]
-     "%s Point" "%sポイント"
      "%s Selected Shapes" "%s個の選択図形"
      "%s shapes" "%s個の図形"
      "(Initial %s Marker Default)" "(編集開始時の%sマーカーのデフォルト)"
@@ -44,8 +43,8 @@
      "(Initial %s Tool Default)" "(編集開始時の%sツールのデフォルト)"
      "<no name>" "<無名>"
      "Already an SVG for Edraw" "既にedraw用のSVGです"
-     "Anchor Point" "アンカーポイント"
      "Anchor Points" "アンカーポイント"
+     "Anchor" "アンカー"
      "Angle: " "角度: "
      "Apply group's transform property to children?" "グループのtransformプロパティをグループ内に適用しますか?"
      "Apply transform property to anchors" "transformプロパティをアンカーポイントへ適用"
@@ -133,7 +132,7 @@
      "Grid Interval: " "グリッド間隔: "
      "Grid" "グリッド"
      "Group" "グループ化"
-     "Handle Point" "ハンドルポイント"
+     "Handle" "ハンドル"
      "Href..." "Href..."
      "If you import diagrams generated with other software into Edraw, they may not be displayed correctly or the editing operation may become unstable. The original information is lost in the converted data. Do you want to convert to a format for Edraw?" "他のソフトウェアで生成した図をedrawで読み込んだ場合、正しく表示されなかったり、編集動作が不安定になる場合があります。変換後のデータからは元の情報が失われます。edrawのための形式へ変換しますか？"
      "Image File: " "画像ファイル: "
