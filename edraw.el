@@ -4072,9 +4072,11 @@ position where the EVENT occurred."
                              (edraw-pick-anchor-point shp down-xy))
                            (edraw-selected-shapes editor))))
     (when anchor
-      (let ((original-xy (edraw-get-xy anchor))
-            (shift-p (memq 'shift (event-modifiers down-event)))
-            (move-xy nil))
+      (let* ((original-xy (edraw-get-xy-transformed anchor))
+             (shift-p (memq 'shift (event-modifiers down-event)))
+             (opposite-vecs (when shift-p
+                              (edraw-get-opposite-point-vectors anchor)))
+             (move-xy nil))
         (edraw-editor-with-temp-modifications editor
           (edraw-track-dragging
            down-event
@@ -4082,7 +4084,10 @@ position where the EVENT occurred."
              (edraw-undo-all editor) ;; Cancel previous move
              (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
              (when shift-p
-               (setq move-xy (edraw-xy-snap-to-45deg move-xy original-xy)))
+               (setq move-xy
+                     (if opposite-vecs
+                         (edraw-xy-snap-to-rect-diagonal move-xy original-xy (car opposite-vecs) (cdr opposite-vecs))
+                       (edraw-xy-snap-to-45deg move-xy original-xy))))
              (edraw-move-on-transformed anchor move-xy)))) ;;notify modification
         (if move-xy
             ;; Fix position
@@ -6762,6 +6767,12 @@ may be replaced by another mechanism."
        (if px (car px) (* 0.5 (+ (caar p0p1) (cadr p0p1))))
        (if py (cdr py) (* 0.5 (+ (cdar p0p1) (cddr p0p1))))))))
 
+(cl-defmethod edraw-get-anchor-point-by-ref-xy ((shape edraw-shape-with-rect-boundary) ref-x ref-y)
+  (seq-find (lambda (spt)
+              (and (eq (edraw-ref-x spt) ref-x)
+                   (eq (edraw-ref-y spt) ref-y)))
+            (oref shape anchor-points)))
+
 (cl-defmethod edraw-set-rect ((shape edraw-shape-with-rect-boundary) xy0 xy1)
   (edraw-make-anchor-points-from-element shape) ;;Make sure p0p1 is initialized
   ;;@todo
@@ -7759,6 +7770,24 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-get-actions ((_spt edraw-shape-point))
   nil)
 
+(cl-defmethod edraw-get-opposite-point ((_spt edraw-shape-point))
+  "Return opposite point on rectangle boundary of SPT.
+
+Return nil if SPT is not a point on rectangle boundary.
+
+If SPT is a corner point, return the diagonal point.
+If SPT is a midpoint of side, return the midpoint of the opposite side."
+  nil)
+
+(cl-defmethod edraw-get-opposite-point-vectors ((_spt edraw-shape-point))
+  "Return two vectors from SPT on rectangle boundary to diagonal point.
+
+The two vectors are along the vertical and horizontal directions
+of the rectangle.
+
+Adding two vectors to SPT leads to the opposite point."
+  nil)
+
 (cl-defmethod edraw-anchor-p ((spt edraw-shape-point))
   (eq (edraw-get-point-type spt) 'anchor))
 
@@ -7821,6 +7850,32 @@ may be replaced by another mechanism."
     (edraw-xy
      (read-number (edraw-msg "X: ") (edraw-x xy))
      (read-number (edraw-msg "Y: ") (edraw-y xy)))))
+
+(cl-defmethod edraw-get-opposite-point ((spt edraw-shape-point-rect-boundary))
+  (let ((ref-x (edraw-ref-x spt))
+        (ref-y (edraw-ref-y spt)))
+    (edraw-get-anchor-point-by-ref-xy (oref spt shape)
+                                      (and ref-x (logxor ref-x 1))
+                                      (and ref-y (logxor ref-y 1)))))
+
+(cl-defmethod edraw-get-opposite-point-vectors ((spt edraw-shape-point-rect-boundary))
+  (let ((ref-x (edraw-ref-x spt))
+        (ref-y (edraw-ref-y spt))
+        (origin-xy (edraw-get-xy-transformed spt))) ;;@todo transformed?
+    (cons
+     (edraw-xy-sub
+      (edraw-get-xy-transformed (edraw-get-anchor-point-by-ref-xy
+                                 (oref spt shape)
+                                 (and ref-x (logxor ref-x 1))
+                                 ref-y))
+      origin-xy)
+     (edraw-xy-sub
+      (edraw-get-xy-transformed (edraw-get-anchor-point-by-ref-xy
+                                 (oref spt shape)
+                                 ref-x
+                                 (and ref-y (logxor ref-y 1))))
+      origin-xy))))
+
 
 ;;;;; Shape Point - Text
 
@@ -8988,7 +9043,7 @@ possible. Because undoing invalidates all point objects."
                                        ref)
   "Returns the position of REF in scaled-aabb.
 REF is a point reference in scaling-points."
-  (with-slots (scaled-aabb corner-points side-points) transformer
+  (with-slots (scaled-aabb) transformer
     (cons
      (cond
       ((eq (car scaled-aabb) (car ref)) 'left)
@@ -8998,6 +9053,36 @@ REF is a point reference in scaling-points."
       ((eq (car scaled-aabb) (cdr ref)) 'top)
       ((eq (cdr scaled-aabb) (cdr ref)) 'bottom)
       (t 'center)))))
+
+(cl-defmethod edraw-get-scaling-point-by-dir ((transformer
+                                               edraw-shape-transformer)
+                                              dir-x dir-y)
+  (let ((dir (cons dir-x dir-y)))
+    (seq-find (lambda (ref) (equal (edraw-scaling-point-dir transformer ref)
+                                   dir))
+              (oref transformer scaling-points))))
+
+(cl-defmethod edraw-get-opposite-scaling-point-vectors
+  ((transformer edraw-shape-transformer) ref)
+  (let ((ref-xy (edraw-ref-xy-on-global transformer ref))
+        (ref-dir (edraw-scaling-point-dir transformer ref)))
+    (cons
+     (edraw-xy-sub
+      (edraw-ref-xy-on-global
+       transformer
+       (edraw-get-scaling-point-by-dir
+        transformer
+        (pcase (car ref-dir) ('left 'right) ('right 'left) (x x))
+        (cdr ref-dir)))
+      ref-xy)
+     (edraw-xy-sub
+      (edraw-ref-xy-on-global
+       transformer
+       (edraw-get-scaling-point-by-dir
+        transformer
+        (car ref-dir)
+        (pcase (cdr ref-dir) ('top 'bottom) ('bottom 'top) (y y))))
+      ref-xy))))
 
 (cl-defmethod edraw-get-editor ((transformer edraw-shape-transformer))
   (edraw-get-editor (oref transformer target)))
@@ -9436,16 +9521,25 @@ REF is a point reference in scaling-points."
   (let* ((editor (edraw-get-editor transformer))
          (ref (edraw-find-scaling-point transformer down-event)))
     (when ref
-      (let ((old-xy (edraw-ref-xy-on-scaled transformer ref))
-            (matrix-inv (edraw-get-inverse-transform-matrix-without-scaling transformer))
-            (shift-p (memq 'shift (event-modifiers down-event))))
+      (let* ((old-xy (edraw-ref-xy-on-global transformer ref))
+             (matrix-inv (edraw-get-inverse-transform-matrix-without-scaling transformer))
+             (shift-p (memq 'shift (event-modifiers down-event)))
+             (opposite-vecs (when shift-p
+                              (edraw-get-opposite-scaling-point-vectors
+                               transformer ref))))
+        (message "old-xy=%s opposite-vecs=%s" old-xy opposite-vecs)
         (edraw-track-dragging
          down-event
          (lambda (move-event)
            (edraw-on-mouse-move transformer move-event 'scale ref)
            (let ((move-xy (edraw-mouse-event-to-xy-snapped editor move-event)))
              (when shift-p
-               (setq move-xy (edraw-xy-snap-to-45deg move-xy old-xy)));;@todo keep aspect ratio?
+               (setq move-xy
+                     (if opposite-vecs
+                         (edraw-xy-snap-to-rect-diagonal move-xy old-xy
+                                                         (car opposite-vecs)
+                                                         (cdr opposite-vecs))
+                       (edraw-xy-snap-to-45deg move-xy old-xy))))
              (edraw-ref-xy-set
               transformer
               ref

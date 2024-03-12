@@ -191,6 +191,21 @@
   (- (* (car a) (cdr b))
      (* (cdr a) (car b))))
 
+(defun edraw-xy-proj (v onto)
+  "Return vector projection of V onto ONTO."
+  (if (edraw-xy-zero-p onto)
+      (edraw-xy 0 0)
+    (let ((d (edraw-xy-dot onto v))
+          (s (edraw-xy-length-squared onto)))
+      (edraw-xy (/ (* (edraw-x onto) d) s)
+                (/ (* (edraw-y onto) d) s)))))
+
+(defun edraw-xy-proj-on-line (p line-p0 line-p1)
+  "Return point projection of P onto line LINE-P0 to LINE-P1."
+  (edraw-xy-add
+   line-p0
+   (edraw-xy-proj (edraw-xy-sub p line-p0) (edraw-xy-sub line-p1 line-p0))))
+
 (defun edraw-xy-atan (xy)
   (atan (cdr xy) (car xy)))
 
@@ -313,6 +328,50 @@
     (if (< adx ady)
         (edraw-xy (+ ox (if (< dx 0) (- ady) ady)) y)
       (edraw-xy x (+ oy (if (< dy 0) (- adx) adx) )))))
+
+(defun edraw-xy-snap-to-rect-diagonal (pm pc ax ay)
+  "Snap coordinates PM to diagonal of rectangle represented by PC, AX, AY.
+
+The rectangle may be transformed.
+
+PM = Mouse coordinates of drag destination
+PC = Coordinates of corner of rectangle being dragged
+AX = Vector from PC to an adjacent corner
+AY = Vector from PC to another adjacent corner
+
+PO +----+--   (PO(Point of Opposite Corner)=PC+AX+AY)
+   |\\   | ^
+   | \\  | AY
+   |  \\ |
+   |   \\|
+   +----+ PC
+   |<AX  \\
+          \\
+    result * <---* PM (1)
+           ^\\
+           | \\
+    PM (2) *"
+  (let* ((vco (edraw-xy-add ax ay))
+         (vcm (edraw-xy-sub pm pc)))
+    (if (or (edraw-xy-zero-p vco) ;; Empty rectangle
+            (edraw-xy-zero-p vcm)) ;; Not moved (PM=PC)
+        ;; Free to move
+        pm
+      (let* (;; Use ax or ay?
+             (dir (if (= (edraw-sign (edraw-xy-perpdot vco vcm))
+                         (edraw-sign (edraw-xy-perpdot vco ay)))
+                      (if (edraw-xy-zero-p ax) ay ax)
+                    (if (edraw-xy-zero-p ay) ax ay)))
+             ;; Intersection (pm -> dir) and (pc -> vco)
+             (t-numer (edraw-xy-perpdot vco vcm))
+             (t-denom (edraw-xy-perpdot dir vco)))
+        (if (= t-denom 0)
+            pm
+          (edraw-xy-add
+           pm
+           (edraw-xy-divn (edraw-xy-nmul t-numer dir) (float t-denom))))))))
+;; TEST: (edraw-xy-snap-to-diagonal (edraw-xy 200 100) (edraw-xy 100 100) (edraw-xy -50 0) (edraw-xy 0 -50)) => (100.0 . 100.0)
+;; TEST: (edraw-xy-snap-to-diagonal (edraw-xy 300 100) (edraw-xy 200 100) (edraw-xy -50 -50) (edraw-xy 50 -50)) => (200.0 . 0.0)
 
 ;;;; Rectangle
 
