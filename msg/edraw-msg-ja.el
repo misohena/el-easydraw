@@ -95,6 +95,7 @@
      "Discard unsupported element: %s" "未対応の要素を破棄: %s"
      "Do you want to delete all presets?" "全てのプリセットを削除しますか?"
      "Document Height: " "ドキュメント高さ: "
+     "Document Quick" "ドキュメント クイック"
      "Document Width: " "ドキュメント幅: "
      "Document" "ドキュメント"
      "Drag the cropping range." "切り抜き範囲をドラッグで指定してください。"

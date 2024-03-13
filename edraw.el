@@ -1754,42 +1754,51 @@ document size or view box."
 
 ;;;;;; Editor - Document - Menu
 
-(cl-defmethod edraw-get-actions-for-document ((editor edraw-editor))
-  (edraw-filter-menu
-   editor
-   'context-document
-   `(((edraw-msg "Document")
-      (((edraw-msg "Set Background...") edraw-editor-set-background)
-       ((edraw-msg "Resize...") edraw-editor-set-size)
-       ((edraw-msg "Crop...") edraw-editor-crop)
-       ((edraw-msg "View Box...") edraw-editor-set-viewbox)
-       ((edraw-msg "Transform")
-        (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
-         ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
-         ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)
-         ,(edraw-transform-method-menu editor)))
-       ((edraw-msg "Clear...") edraw-editor-clear)
-       ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
-       ((edraw-msg "Export to File") edraw-editor-export-to-file)))
-     ((edraw-msg "Select All") edraw-editor-toggle-selection-all
-      :visible ,(not (edraw-selected-shapes editor))
-      :enable ,(not (edraw-selected-shapes editor)))
-     ((edraw-msg "Deselect All") edraw-editor-toggle-selection-all
-      :visible ,(not (null (edraw-selected-shapes editor)))
-      :enable ,(not (null (edraw-selected-shapes editor))))
-     ((edraw-msg "Undo") edraw-editor-undo
-      :enable ,(not (edraw-empty-undo-p editor)))
-     ((edraw-msg "Redo") edraw-editor-redo
-      :enable ,(not (edraw-empty-redo-p editor)))
-     ((edraw-msg "Paste") edraw-editor-paste-and-select
-      :enable ,(not (edraw-clipboard-empty-p))))))
+(cl-defmethod edraw-menu-document ((editor edraw-editor))
+  `(,(edraw-msg "Document")
+    ,(edraw-filter-menu-items
+      editor 'document
+      `(((edraw-msg "Set Background...") edraw-editor-set-background)
+        ((edraw-msg "Resize...") edraw-editor-set-size)
+        ((edraw-msg "Crop...") edraw-editor-crop)
+        ((edraw-msg "View Box...") edraw-editor-set-viewbox)
+        ((edraw-msg "Transform")
+         (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
+          ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
+          ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)
+          ,(edraw-transform-method-menu editor)))
+        ((edraw-msg "Clear...") edraw-editor-clear)
+        ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
+        ((edraw-msg "Export to File") edraw-editor-export-to-file)))))
+
+(cl-defmethod edraw-menu-document-quick ((editor edraw-editor))
+  `(,(edraw-msg "Document Quick")
+    ,(edraw-filter-menu-items
+      editor 'document-quick
+      `(;;((edraw-msg "Search Object") edraw-editor-search-object)
+        ((edraw-msg "Select All") edraw-editor-toggle-selection-all
+         :visible ,(not (edraw-selected-shapes editor))
+         :enable ,(not (edraw-selected-shapes editor)))
+        ((edraw-msg "Deselect All") edraw-editor-toggle-selection-all
+         :visible ,(not (null (edraw-selected-shapes editor)))
+         :enable ,(not (null (edraw-selected-shapes editor))))
+        ((edraw-msg "Undo") edraw-editor-undo
+         :enable ,(not (edraw-empty-undo-p editor)))
+        ((edraw-msg "Redo") edraw-editor-redo
+         :enable ,(not (edraw-empty-redo-p editor)))
+        ((edraw-msg "Paste") edraw-editor-paste-and-select
+         :enable ,(not (edraw-clipboard-empty-p)))))))
+
+(cl-defmethod edraw-menu-document-context ((editor edraw-editor))
+  `(,(edraw-msg "Document")
+    ,(edraw-filter-menu-items
+      editor 'context-document
+      `(,(edraw-menu-document editor)
+        ,@(cadr (edraw-menu-document-quick editor))))))
 
 (cl-defmethod edraw-popup-context-menu-for-document ((editor edraw-editor))
   (let ((edraw-current-editor editor))
-    (edraw-popup-menu
-     (edraw-msg "Document")
-     (edraw-get-actions-for-document editor)
-     editor)))
+    (edraw-popup-menu nil (edraw-menu-document-context editor) editor)))
 
 ;;;;; Editor - View
 ;;;;;; Editor - View - SVG Image Update
@@ -2820,78 +2829,90 @@ document size or view box."
 
 ;;;;; Editor - Manipulate Selected Shapes
 
-(cl-defmethod edraw-get-actions-for-selected-shapes ((editor edraw-editor))
+(cl-defmethod edraw-menu-items-selected-shapes ((editor edraw-editor))
   (when-let* ((selected-shapes (edraw-selected-shapes editor))
               (shapes (edraw-multiple-shapes
                        :shapes selected-shapes :editor editor)))
-    ;; NOTE: Use edraw-editor-* commands instead of methods for
-    ;; edraw-multiple-shapes to show key bindings.
-    `(((edraw-msg "Properties...") edraw-editor-edit-properties-of-selected-shapes)
-      ((edraw-msg "Set")
-       (((edraw-msg "Fill...") edraw-editor-edit-fill-selected
-         :visible ,(edraw-can-have-property-p shapes 'fill))
-        ((edraw-msg "Stroke...") edraw-editor-edit-stroke-selected
-         :visible ,(edraw-can-have-property-p shapes 'stroke))
-        ((edraw-msg "Href...") edraw-editor-edit-href-selected
-         :visible ,(edraw-can-have-property-p shapes (edraw-svg-href-symbol)))
-        ((edraw-msg "Font Size...") edraw-editor-edit-font-size-selected
-         :visible ,(edraw-can-have-property-p shapes 'font-size))
+    (edraw-filter-menu-items
+     editor 'selected-shapes
+     ;; NOTE: Use edraw-editor-* commands instead of methods for
+     ;; edraw-multiple-shapes to show key bindings.
+     `(((edraw-msg "Properties...") edraw-editor-edit-properties-of-selected-shapes)
+       ((edraw-msg "Set")
+        (((edraw-msg "Fill...") edraw-editor-edit-fill-selected
+          :visible ,(edraw-can-have-property-p shapes 'fill))
+         ((edraw-msg "Stroke...") edraw-editor-edit-stroke-selected
+          :visible ,(edraw-can-have-property-p shapes 'stroke))
+         ((edraw-msg "Href...") edraw-editor-edit-href-selected
+          :visible ,(edraw-can-have-property-p shapes (edraw-svg-href-symbol)))
+         ((edraw-msg "Font Size...") edraw-editor-edit-font-size-selected
+          :visible ,(edraw-can-have-property-p shapes 'font-size))
 
-        ((edraw-msg "Start Marker")
-         (((edraw-msg "None") edraw-editor-set-marker-start-none-selected
-           :button (:toggle . ,(null (edraw-get-property shapes 'marker-start))))
-          ((edraw-msg "Arrow") edraw-editor-set-marker-start-arrow-selected
-           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "arrow")))
-          ((edraw-msg "Circle") edraw-editor-set-marker-start-circle-selected
-           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "circle")))
-          ("--single-line")
-          ((edraw-msg "Next Type") edraw-editor-set-marker-start-next-selected))
-         :visible ,(edraw-can-have-property-p shapes 'marker-start))
-        ((edraw-msg "End Marker")
-         (((edraw-msg "None") edraw-editor-set-marker-end-none-selected
-           :button (:toggle . ,(null (edraw-get-property shapes 'marker-end))))
-          ((edraw-msg "Arrow") edraw-editor-set-marker-end-arrow-selected
-           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "arrow")))
-          ((edraw-msg "Circle") edraw-editor-set-marker-end-circle-selected
-           :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "circle")))
-          ("--single-line")
-          ((edraw-msg "Next Type") edraw-editor-set-marker-end-next-selected))
-         :visible ,(edraw-can-have-property-p shapes 'marker-end))))
-      ((edraw-msg "Transform")
-       (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)
-        ((edraw-msg "Translate...") edraw-editor-translate-selected)
-        ((edraw-msg "Scale...") edraw-editor-scale-selected)
-        ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
-        ,(edraw-transform-method-menu editor)))
-      ((edraw-msg "Z-Order")
-       ;;@todo check :enable when multiple shapes are selected
-       (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
-         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
-        ((edraw-msg "Bring Forward") edraw-editor-bring-selected-forward
-         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
-        ((edraw-msg "Send Backward") edraw-editor-send-selected-backward
-         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
-        ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
-         :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
-      ((edraw-msg "Delete") edraw-editor-delete-selected)
-      ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes)
-      ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
-      ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
-      ((edraw-msg "Group") edraw-editor-group-selected-shapes)
-      ((edraw-msg "Ungroup") edraw-editor-ungroup-selected-shapes)
-      ((edraw-msg "Select Next Above") edraw-editor-select-next-shape)
-      ((edraw-msg "Select Next Below") edraw-editor-select-previous-shape))))
+         ((edraw-msg "Start Marker")
+          (((edraw-msg "None") edraw-editor-set-marker-start-none-selected
+            :button (:toggle . ,(null (edraw-get-property shapes 'marker-start))))
+           ((edraw-msg "Arrow") edraw-editor-set-marker-start-arrow-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "arrow")))
+           ((edraw-msg "Circle") edraw-editor-set-marker-start-circle-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-start)) "circle")))
+           ("--single-line")
+           ((edraw-msg "Next Type") edraw-editor-set-marker-start-next-selected))
+          :visible ,(edraw-can-have-property-p shapes 'marker-start))
+         ((edraw-msg "End Marker")
+          (((edraw-msg "None") edraw-editor-set-marker-end-none-selected
+            :button (:toggle . ,(null (edraw-get-property shapes 'marker-end))))
+           ((edraw-msg "Arrow") edraw-editor-set-marker-end-arrow-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "arrow")))
+           ((edraw-msg "Circle") edraw-editor-set-marker-end-circle-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type (edraw-get-property shapes 'marker-end)) "circle")))
+           ("--single-line")
+           ((edraw-msg "Next Type") edraw-editor-set-marker-end-next-selected))
+          :visible ,(edraw-can-have-property-p shapes 'marker-end))))
+       ((edraw-msg "Transform")
+        (((edraw-msg "Transform...") edraw-editor-transform-selected-interactive)
+         ((edraw-msg "Translate...") edraw-editor-translate-selected)
+         ((edraw-msg "Scale...") edraw-editor-scale-selected)
+         ((edraw-msg "Rotate...") edraw-editor-rotate-selected)
+         ,(edraw-transform-method-menu editor)))
+       ((edraw-msg "Z-Order")
+        ;;@todo check :enable when multiple shapes are selected
+        (((edraw-msg "Bring to Front") edraw-editor-bring-selected-to-front
+          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
+         ((edraw-msg "Bring Forward") edraw-editor-bring-selected-forward
+          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-front-p (car selected-shapes))))))))
+         ((edraw-msg "Send Backward") edraw-editor-send-selected-backward
+          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))
+         ((edraw-msg "Send to Back") edraw-editor-send-selected-to-back
+          :enable ,(not (null (and selected-shapes (or (cdr selected-shapes) (not (edraw-back-p (car selected-shapes))))))))))
+       ((edraw-msg "Delete") edraw-editor-delete-selected)
+       ((edraw-msg "Duplicate") edraw-editor-duplicate-selected-shapes)
+       ((edraw-msg "Copy") edraw-editor-copy-selected-shapes)
+       ((edraw-msg "Cut") edraw-editor-cut-selected-shapes)
+       ((edraw-msg "Group") edraw-editor-group-selected-shapes)
+       ((edraw-msg "Ungroup") edraw-editor-ungroup-selected-shapes)
+       ((edraw-msg "Select Next Above") edraw-editor-select-next-shape)
+       ((edraw-msg "Select Next Below") edraw-editor-select-previous-shape)))))
+
+(cl-defmethod edraw-menu-selected-shapes ((editor edraw-editor))
+  (if (edraw-selected-shapes editor)
+      `(,(edraw-msg "Selected Object")
+        ,(edraw-menu-items-selected-shapes editor))
+    `(,(edraw-msg "Selected Object")
+      (("Dummy" ignore))
+      :enable nil)))
+
+(cl-defmethod edraw-menu-selected-shapes-context ((editor edraw-editor))
+  `(,(edraw-get-summary-for-selected-shapes editor)
+    ,(edraw-menu-items-selected-shapes editor)))
 
 (cl-defmethod edraw-get-summary-for-selected-shapes ((editor edraw-editor))
   (let ((selected-shapes (edraw-selected-shapes editor)))
     (format (edraw-msg "%s Selected Shapes") (length selected-shapes))))
 
-(cl-defmethod edraw-popup-context-menu-for-selected-shapes ((editor edraw-editor))
+(cl-defmethod edraw-popup-context-menu-for-selected-shapes ((editor
+                                                             edraw-editor))
   (let ((edraw-current-editor editor))
-    (edraw-popup-menu
-     (edraw-get-summary-for-selected-shapes editor)
-     (edraw-get-actions-for-selected-shapes editor)
-     editor)))
+    (edraw-popup-menu nil (edraw-menu-selected-shapes-context editor) editor)))
 
 (defvar edraw-editor-move-selected-by-arrow-key--last-op nil)
 (defvar edraw-editor-move-selected-by-arrow-key--delta nil)
@@ -3496,76 +3517,55 @@ document size or view box."
 
 ;;;;; Editor - Main Menu
 
-(edraw-editor-defcmd edraw-main-menu ((editor edraw-editor))
-  "Show the main menu of EDITOR."
-  (let ((selected-shapes (edraw-selected-shapes editor))
-        (edraw-current-editor editor))
-    (edraw-popup-menu
-     (edraw-msg "Main Menu")
-     (edraw-filter-menu
-      editor
-      'main-menu
-      `(((edraw-msg "Document")
-         (((edraw-msg "Set Background...") edraw-editor-set-background)
-          ((edraw-msg "Resize...") edraw-editor-set-size)
-          ((edraw-msg "Crop...") edraw-editor-crop)
-          ((edraw-msg "View Box...") edraw-editor-set-viewbox)
-          ((edraw-msg "Transform")
-           (((edraw-msg "Translate All...") edraw-editor-translate-all-shapes)
-            ((edraw-msg "Scale All...") edraw-editor-scale-all-shapes)
-            ((edraw-msg "Rotate All...") edraw-editor-rotate-all-shapes)
-            ,(edraw-transform-method-menu editor)))
-          ((edraw-msg "Clear...") edraw-editor-clear)
-          ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
-          ((edraw-msg "Export to File") edraw-editor-export-to-file)))
-        ((edraw-msg "View")
-         (((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
-           :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
-          ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
-           :button (:toggle . ,(edraw-get-grid-visible editor)))
-          ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)
-          ((edraw-msg "Set View Size...") edraw-editor-set-view-size-spec)
-          ((edraw-msg "Reset View") edraw-editor-reset-view)
-          ((edraw-msg "Zoom In") edraw-editor-zoom-in)
-          ((edraw-msg "Zoom Out") edraw-editor-zoom-out)
-          ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)
-          ((edraw-msg "Scroll and Zoom") edraw-editor-interactive-scroll-and-zoom)))
-        ((edraw-msg "Selected Object")
-         (,@(or
-             (edraw-get-actions-for-selected-shapes editor)
-             '(("Dummy" ignore))))
-         :enable ,(not (null selected-shapes)))
-        ((edraw-msg "Default Config")
-         (((edraw-msg "Shape")
-           (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
-            ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
-            ((edraw-msg "Text") edraw-editor-edit-default-text-props)
-            ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
-          ((edraw-msg "Marker")
-           (((edraw-msg "Arrow") edraw-editor-edit-default-marker-arrow-props)
-            ((edraw-msg "Circle") edraw-editor-edit-default-marker-circle-props))))
-         )
-        ;;((edraw-msg "Search Object") edraw-editor-search-object)
-        ((edraw-msg "Select All") edraw-editor-toggle-selection-all
-         :visible ,(not (edraw-selected-shapes editor))
-         :enable ,(not (edraw-selected-shapes editor)))
-        ((edraw-msg "Deselect All") edraw-editor-toggle-selection-all
-         :visible ,(not (null (edraw-selected-shapes editor)))
-         :enable ,(not (null (edraw-selected-shapes editor))))
-        ((edraw-msg "Undo") edraw-editor-undo
-         :enable ,(not (edraw-empty-undo-p editor)))
-        ((edraw-msg "Redo") edraw-editor-redo
-         :enable ,(not (edraw-empty-redo-p editor)))
-        ((edraw-msg "Paste") edraw-editor-paste-and-select
-         :enable ,(not (edraw-clipboard-empty-p)))
+(cl-defmethod edraw-menu-view ((editor edraw-editor))
+  `(,(edraw-msg "View")
+    ,(edraw-filter-menu-items
+      editor 'view
+      `(((edraw-msg "Transparent BG") edraw-editor-toggle-transparent-bg-visible
+         :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
+        ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
+         :button (:toggle . ,(edraw-get-grid-visible editor)))
+        ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)
+        ((edraw-msg "Set View Size...") edraw-editor-set-view-size-spec)
+        ((edraw-msg "Reset View") edraw-editor-reset-view)
+        ((edraw-msg "Zoom In") edraw-editor-zoom-in)
+        ((edraw-msg "Zoom Out") edraw-editor-zoom-out)
+        ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)
+        ((edraw-msg "Scroll and Zoom") edraw-editor-interactive-scroll-and-zoom)))))
+
+(cl-defmethod edraw-menu-default-config ((editor edraw-editor))
+  `(,(edraw-msg "Default Config")
+    ,(edraw-filter-menu-items
+      editor 'default-config
+      `(((edraw-msg "Shape")
+         (((edraw-msg "Rect") edraw-editor-edit-default-rect-props)
+          ((edraw-msg "Ellipse") edraw-editor-edit-default-ellipse-props)
+          ((edraw-msg "Text") edraw-editor-edit-default-text-props)
+          ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
+        ((edraw-msg "Marker")
+         (((edraw-msg "Arrow") edraw-editor-edit-default-marker-arrow-props)
+          ((edraw-msg "Circle") edraw-editor-edit-default-marker-circle-props)))))))
+
+(cl-defmethod edraw-menu-main ((editor edraw-editor))
+  `(,(edraw-msg "Main Menu")
+    ,(edraw-filter-menu-items
+      editor 'main-menu
+      `(,(edraw-menu-document editor)
+        ,(edraw-menu-view editor)
+        ,(edraw-menu-selected-shapes editor)
+        ,(edraw-menu-default-config editor)
+        ,@(cadr (edraw-menu-document-quick editor))
 
         ((edraw-msg "Save") edraw-editor-save
          :visible ,(not (null (oref editor document-writer)))
-         :enable ,(edraw-modified-p editor))
-        ))
-     editor)))
+         :enable ,(edraw-modified-p editor))))))
 
-(cl-defmethod edraw-filter-menu ((editor edraw-editor) menu-type items)
+(edraw-editor-defcmd edraw-main-menu ((editor edraw-editor))
+  "Show the main menu of EDITOR."
+  (let ((edraw-current-editor editor))
+    (edraw-popup-menu nil (edraw-menu-main editor) editor)))
+
+(cl-defmethod edraw-filter-menu-items ((editor edraw-editor) menu-type items)
   (with-slots (menu-filter) editor
     (if menu-filter
         (funcall menu-filter menu-type items)
@@ -4360,40 +4360,18 @@ position where the EVENT occurred."
     (let ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))) ;;Do not any rounding coordinates
 
       (cond
-       ;; Handle, Anchor
-       ((let ((selected-anchor (edraw-selected-anchor editor))
-              (selected-shapes (edraw-selected-shapes editor))
-              target-spoint
-              actions)
-          (when (or
-                 ;; handle of selected anchor
-                 (and selected-anchor
-                      (setq target-spoint
-                            (edraw-shape-point-find
-                             (edraw-selectable-handles editor)
-                             click-xy))
-                      (setq actions (edraw-get-actions target-spoint)))
-                 ;; anchor of selected shape
-                 (and selected-shapes
-                      (setq target-spoint
-                            (seq-some (lambda (shp) (edraw-pick-anchor-point shp click-xy))
-                                      selected-shapes))
-                      (setq actions (edraw-get-actions target-spoint))))
-            (edraw-popup-menu
-             (let* ((point-type (edraw-get-point-type target-spoint))
-                    (point-type-name (pcase point-type
-                                       ('anchor (edraw-msg "Anchor"))
-                                       ('handle (edraw-msg "Handle"))
-                                       (_ (capitalize
-                                           (symbol-name
-                                            point-type)))))
-                    (xy (edraw-get-xy-transformed target-spoint)))
-               (format "%s (%s, %s)"
-                       point-type-name
-                       (edraw-to-string (edraw-x xy))
-                       (edraw-to-string (edraw-y xy))))
-             actions target-spoint)
-            t)))
+       ;; Handle
+       ((when-let ((target-spoint (and (edraw-selected-anchor editor)
+                                       (edraw-shape-point-find
+                                        (edraw-selectable-handles editor)
+                                        click-xy))))
+          (edraw-popup-context-menu target-spoint))) ;; Return t if popuped
+       ;; Anchor
+       ((when-let ((target-spoint (seq-some
+                                   (lambda (shp)
+                                     (edraw-pick-anchor-point shp click-xy))
+                                   (edraw-selected-shapes editor))))
+          (edraw-popup-context-menu target-spoint))) ;; Return t if popuped
        ;; Shape
        (t
         (edraw-context-menu-at-point editor click-xy))))))
@@ -6493,13 +6471,26 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
            z-index
            shape-descriptor-list))))))
 
+(cl-defmethod edraw-popup-context-menu ((shape edraw-shape))
+  (edraw-popup-menu nil (edraw-menu-shape shape) shape))
+
+(cl-defmethod edraw-menu-shape ((shape edraw-shape))
+  `(,(edraw-get-summary shape)
+    ,(edraw-filter-menu-items
+      shape 'shape
+      (edraw-get-actions shape))))
+
+(cl-defmethod edraw-filter-menu-items ((shape edraw-shape) menu-type items)
+  (when-let ((editor (edraw-get-editor shape)))
+    (edraw-filter-menu-items editor (list menu-type :target shape) items)))
+
 (cl-defmethod edraw-get-actions--keys ((shape edraw-shape) command)
   (when (edraw-only-one-selected-p shape)
     (when-let ((binding (edraw-where-is-string command nil t)))
       (list :keys binding))))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape))
-  ;;@todo Unify with `edraw-get-actions-for-selected-shapes'
+  ;;@todo Unify with `edraw-menu-items-selected-shapes'
   `(((edraw-msg "Select") edraw-select)
     ((edraw-msg "Properties...") edraw-edit-properties
      ;; Print key binding if SHAPE is the only selected shape.
@@ -6558,12 +6549,6 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
      ,@(edraw-get-actions--keys shape 'edraw-editor-copy-selected-shapes))
     ((edraw-msg "Cut") edraw-cut
      ,@(edraw-get-actions--keys shape 'edraw-editor-cut-selected-shapes))))
-
-(cl-defmethod edraw-popup-context-menu ((shape edraw-shape))
-  (edraw-popup-menu
-   (edraw-get-summary shape)
-   (edraw-get-actions shape)
-   shape))
 
 ;;;;;; Boundary
 
@@ -7767,8 +7752,36 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-get-handle-points ((_spt edraw-shape-point))
   nil)
 
+(cl-defmethod edraw-parent-shape ((_spt edraw-shape-point))
+  nil)
+
 (cl-defmethod edraw-get-actions ((_spt edraw-shape-point))
   nil)
+
+(cl-defmethod edraw-filter-menu-items ((spt edraw-shape-point) menu-type items)
+  (when-let ((shape (edraw-parent-shape spt))
+             (editor (edraw-get-editor shape)))
+    (edraw-filter-menu-items editor (list menu-type :target spt) items)))
+
+(cl-defmethod edraw-menu-shape-point ((spt edraw-shape-point))
+  (when-let ((actions (edraw-get-actions spt)))
+    `(,(let* ((point-type (edraw-get-point-type spt))
+              (point-type-name (pcase point-type
+                                 ('anchor (edraw-msg "Anchor"))
+                                 ('handle (edraw-msg "Handle"))
+                                 (_ (capitalize (symbol-name point-type)))))
+              (xy (edraw-get-xy-transformed spt)))
+         (format "%s (%s, %s)"
+                 point-type-name
+                 (edraw-to-string (edraw-x xy))
+                 (edraw-to-string (edraw-y xy))))
+      ,(edraw-filter-menu-items spt 'shape-point actions))))
+
+(cl-defmethod edraw-popup-context-menu ((spt edraw-shape-point))
+  (when-let ((menu (edraw-menu-shape-point spt)))
+    (edraw-popup-menu nil menu spt)
+    ;; Return t if popuped
+    t))
 
 (cl-defmethod edraw-get-opposite-point ((_spt edraw-shape-point))
   "Return opposite point on rectangle boundary of SPT.

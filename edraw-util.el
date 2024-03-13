@@ -155,27 +155,38 @@
       (call-interactively fn))))
 
 (defun edraw-make-menu-map (name items)
+  ;; Support ("Main Menu" ((item1) (item2)...)) form
+  ;;   => name="Main Menu" items=((item1) (item2)...)
+  (when (stringp (car items))
+    (unless name
+      (setq name (car items)))
+    (setq items (cadr items)))
+
   (nconc
-   (cons 'keymap (if name (list name)))
-   (let ((id 0))
-     (cl-loop for item in items
-              collect
-              (let ((id-symbol (intern (format "item%s" id))))
-                (setq id (1+ id))
-                (cond
-                 ((or (symbolp (cadr item))
-                      (functionp (cadr item)))
-                  (append
-                   (list id-symbol 'menu-item)
-                   item))
-                 ((listp (cadr item))
-                  (append
-                   (list id-symbol 'menu-item (car item)
-                         (edraw-make-menu-map nil (cadr item)))
-                   ;; item-property-list
-                   (cddr item)))
-                 (t (error "Unkonwn menu item format %s"
-                           (prin1-to-string item)))))))))
+   (list 'keymap)
+   ;; Menu Name
+   (when name
+     (list
+      (if (and (consp name) (functionp (car name)))
+          (eval name)
+        name)))
+   ;; Items
+   (cl-loop for item in items
+            for id from 0
+            for key = (intern (format "item%s" id))
+            for binding = (cadr item)
+            collect
+            (cond
+             ;; (<item-name> <function> . <properties>)
+             ((or (symbolp binding) (functionp binding))
+              (nconc (list key 'menu-item) item))
+             ;; (<item-name> <submenu> . <properties>)
+             ((listp binding)
+              (nconc (list key 'menu-item (car item)
+                           (edraw-make-menu-map nil binding))
+                     (cddr item)))
+             (t (error "Unkonwn menu item format %s"
+                       (prin1-to-string item)))))))
 
 
 

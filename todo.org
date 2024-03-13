@@ -24,6 +24,19 @@ data-edraw-background-alignみたいな属性が必要になる。
 カスタマイズ変数で変換しないようにできてもよい。
 ** TODO インポート/paint値を検証する
 ** TODO インポート/マーカーを検証する
+** TODO インポート/use要素を展開する
+参照先が同じSVG内で、対応している要素であれば展開しても良いかもしれない。
+オプションで。
+dvisvgmでは、--no-fontsを指定するとuseやpathを使い、--no-fonts=1だとpathのみを使うらしい。
+** TODO インポート/インポートサブメニューをメインメニューに追加する
+ドキュメントの下にすべき？　いや、ドキュメントはドキュメント自体のプロパティに対する操作なのでダメ。
+ドキュメントメニューには追加しても良い。
+
+- edraw用SVGのインポート
+- 一般的なSVGのインポート
+
+インポーターリストがあるべきかもしれない。
+
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
 現状ではAABBは0になるけど表示は画像の幅・高さになっているように見える。
@@ -50,11 +63,11 @@ prop-info-listに:default-valueでも追加する？
 ** TODO edraw-get-actionsを整理する。
 [[*選択オブジェクトに対するキー操作をコンテキストメニューに表示する][選択オブジェクトに対するキー操作をコンテキストメニューに表示する]]の続き。
 
-[[elisp-function:edraw-get-actions-for-selected-shapes][edraw-get-actions-for-selected-shapes]]と[[elisp-function:edraw-get-actions][edraw-get-actions]]メソッドを統合したい。可能？
+[[elisp-function:edraw-menu-selected-shapes]](旧edraw-get-actions-for-selected-shapes)と[[elisp-function:edraw-get-actions]]メソッドを統合したい。可能？
 
 複数選択時のメニュー表示は、edraw-multiple-shapesに対するedraw-get-actionsを使うべきだと思う。
 
-しかし[[elisp-function:edraw-get-actions-for-selected-shapes][edraw-get-actions-for-selected-shapes]]は[[elisp-function:edraw-main-menu][edraw-main-menu]]からも使われているのがネック。
+しかし[[elisp-function:edraw-menu-selected-shapes]]は[[elisp-function:edraw-main-menu][edraw-main-menu]]からも使われているのがネック。
 
 ** TODO 外部フレーム状態から子フレーム状態へ変更したときに消える？
 いや、今やったら大丈夫だな。何か条件がある？
@@ -3792,3 +3805,22 @@ CLOSED: [2024-03-12 Tue 20:09]
 
 →仕組みが違うので別なメソッドにしたが、やっていること自体はほぼ同じになった。
 出来ればまとめたいが、今はその時ではないだろう。
+** DONE メニューフィルターを改善する
+CLOSED: [2024-03-13 Wed 19:45]
+- 現在のメニューフィルターは全てのメニューを網羅していない。
+  → 全てのメニューをカスタマイズできるようにすべき。
+  - menu-typeに次を追加する。
+    - document : Documentサブメニュー
+    - document-quick : メインメニューやドキュメントコンテキストメニューの直下
+    - selected-shapes : 選択図形サブメニュー
+    - view : 表示サブメニュー
+    - default-config : デフォルト設定サブメニュー
+    - (shape . <plist>) : shapeメニュー
+    - (shape-point . <plist>) : shape-pointメニュー
+    次はこれまで通り:
+    - context-document
+    - main-menu
+- メニューを生成する関数は統一感が無い。関数名の規則性が弱い。
+  → ほぼ全ての関数をメニュー名も同時に生成するように変更し、 ~edraw-menu-~ で始まるようにした。ただし、メニュー項目のリストだけを生成する物は ~edraw-menu-items-~ で始めるようにした。
+- メニューを生成する関数は粒度がバラバラ。ドキュメントや表示などの大きめなサブメニューを生成する部分は別の関数に分割する。
+- ポップアップする部分のコードを少し整理する。マウスのイベントハンドラ側でゴチャゴチャやっているところはオブジェクト側のメソッドにする。
