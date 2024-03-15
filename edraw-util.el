@@ -179,7 +179,7 @@
             when (if-let ((visible (plist-member props :visible)))
                      (progn
                        ;; Remove :visible property
-                       (cl-remf props :visible)
+                       (setq props (edraw-plist-remove props :visible))
                        ;; Eval visible property
                        (eval (cadr visible)))
                    t)
@@ -465,6 +465,33 @@ and `event-end'."
 
 (cl-defmethod edraw-nth ((list edraw-list) n)
   (nth n (edraw-list-data list)))
+
+
+
+;;;; Property List
+
+(defun edraw-plist-take-while (plist pred)
+  (cl-loop for (k v) on plist by #'cddr
+           while (funcall pred k v)
+           collect k collect v))
+
+(defun edraw-plist-remove (plist prop)
+  "Return a property list with the property PROP removed from PLIST.
+
+The original PLIST will not be modified.
+
+The rest of the PLIST after the modified part is shared with the
+returned list.
+
+If there are multiple PROPs, the first one is removed.
+
+If you want to make destructive changes to the list, consider
+using `cl-remf'."
+  (if-let ((head (plist-member plist prop)))
+      (nconc
+       (edraw-plist-take-while plist (lambda (k _) (not (eq k prop))))
+       (cddr head))
+    plist))
 
 
 
