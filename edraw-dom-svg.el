@@ -410,14 +410,17 @@ Attribute names starting with a colon are for internal use."
 
 (defun edraw-dom-remove-internal-attributes (node)
   (when (edraw-dom-element-p node)
-    (edraw-dom-remove-attr-if node #'edraw-dom-attr-internal-p))
+    (edraw-dom-remove-attr-if node
+                              (lambda (attr)
+                                (edraw-dom-attr-internal-p (car attr)))))
   node)
 
 (defun edraw-dom-remove-internal-attributes-from-tree (node)
   (edraw-dom-do
    node
    (lambda (node _ancestors)
-     (edraw-dom-remove-internal-attributes node))))
+     (edraw-dom-remove-internal-attributes node)))
+  node)
 
 (defun edraw-dom-set-attribute-name (node old-name new-name)
   "Rename OLD-NAME attribute in NODE to NEW-NAME if it exists.
@@ -440,9 +443,11 @@ Attribute value is preserved."
        ((listp children)
         (dolist (child-node children)
           (edraw-dom-do child-node function ancestors)))
-       ;; Comment Node (comment nil "comment text")
-       ((stringp children)
-        (funcall function children ancestors))))))
+       ;; ;; Comment Node (comment nil "comment text")
+       ;; ;; @todo Isn't it unnecessary?
+       ;; ((stringp children)
+       ;;  (funcall function children ancestors))
+       ))))
 
 ;;;; DOM Top Level Handling
 
