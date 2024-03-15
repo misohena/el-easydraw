@@ -155,7 +155,7 @@
       (call-interactively fn))))
 
 (defun edraw-make-menu-map (name items)
-  ;; Support ("Main Menu" ((item1) (item2)...)) form
+  ;; Support name=nil items=("Main Menu" ((item1) (item2)...)) format
   ;;   => name="Main Menu" items=((item1) (item2)...)
   (when (stringp (car items))
     (unless name
@@ -171,22 +171,35 @@
           (eval name)
         name)))
    ;; Items
-   (cl-loop for item in items
+   (cl-loop with result = nil
+            for (item-name binding . props) in items
             for id from 0
             for key = (intern (format "item%s" id))
-            for binding = (cadr item)
-            collect
+            ;; Remove invisible item
+            when (if-let ((visible (plist-member props :visible)))
+                     (progn
+                       ;; Remove :visible property
+                       (cl-remf props :visible)
+                       ;; Eval visible property
+                       (eval (cadr visible)))
+                   t)
+            do
             (cond
+             ;; (<item-name> nil . <properties>) => Ignore
+             ((null binding) )
              ;; (<item-name> <function> . <properties>)
              ((or (symbolp binding) (functionp binding))
-              (nconc (list key 'menu-item) item))
+              (push (nconc (list key 'menu-item item-name binding) props)
+                    result))
              ;; (<item-name> <submenu> . <properties>)
              ((listp binding)
-              (nconc (list key 'menu-item (car item)
-                           (edraw-make-menu-map nil binding))
-                     (cddr item)))
-             (t (error "Unkonwn menu item format %s"
-                       (prin1-to-string item)))))))
+              (let ((sub-km (edraw-make-menu-map nil binding)))
+                (when (cdr sub-km)
+                  (push (nconc (list key 'menu-item item-name sub-km) props)
+                        result))))
+             (t (error "Unkonwn menu item binding %s"
+                       (prin1-to-string binding))))
+            finally return (nreverse result))))
 
 
 

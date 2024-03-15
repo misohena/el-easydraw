@@ -6616,7 +6616,7 @@ match all selected shapes in the editor."
         ;; @todo impl `edraw-get-point-connections' for multiple shapes
         :enable ,(and (edraw-shape-derived-p shape)
                       (not (null (edraw-get-point-connections shape))))))
-      :visible (edraw-shape-derived-p shape))
+      :visible ,(edraw-shape-derived-p shape))
      ((edraw-msg "Delete...") edraw-delete-with-confirm
       :cmd-for-selected edraw-editor-delete-selected)
      ((edraw-msg "Duplicate") edraw-duplicate-and-select

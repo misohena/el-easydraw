@@ -373,7 +373,7 @@ the time `edraw-org-link-recover-mouse-face' is called."
    "Edraw Link Menu"
    `(((edraw-msg "Edit") edraw-org-edit-link)
      ((edraw-msg "Find File") edraw-org-link-image-find-file-at-mouse
-      :visible (edraw-org-link-at-description-link-p))
+      :visible ,(edraw-org-link-at-description-link-p))
      ((edraw-msg "Copy Contents") edraw-org-link-copy-contents-at-point)
      ((edraw-msg "Show SVG") edraw-org-link-show-svg-at-point)
      ((edraw-msg "Export SVG") edraw-org-link-export-svg-at-point)
