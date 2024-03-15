@@ -110,7 +110,7 @@
 (defun edraw-import-from-svg-dom (dom)
   (edraw-import-warning-block
    (let* ((svg-comments (edraw-dom-split-top-nodes dom))
-          (svg (car svg-comments)))
+          (svg (edraw-import-svg-unescape-ns-element (car svg-comments) nil)))
 
      (unless (eq (edraw-dom-tag svg) 'svg)
        (edraw-import-error (edraw-msg "Not SVG data")))
@@ -128,9 +128,7 @@
               (context
                (list
                 ;; plist
-                (list
-                 :namespaces
-                 (edraw-xml-collect-ns-decls svg))))
+                (list)))
               (converted (edraw-import-svg-convert-children svg context))
               (definitions (plist-get (car context) :definitions)))
          (edraw-dom-element
@@ -169,22 +167,48 @@
 
 ;;;;; Resolve XML Namespace
 
-(defun edraw-import-svg-normalize-name (name-symbol context)
-  "Normalize the NAME of tags and attributes.
+(defun edraw-import-svg-unescape-ns-element (elem namespaces)
+  (let* ((namespaces (nconc
+                      (edraw-xml-collect-ns-decls elem)
+                      namespaces))
+         (tag (edraw-import-svg-normalize-name (edraw-dom-tag elem)
+                                               namespaces)))
+    (unless tag
+      (error "Unexpected xmlns decl in tag name"))
+
+    (edraw-dom-element
+     tag
+     :attributes
+     (cl-loop for (key . value) in (edraw-dom-attributes elem)
+              for attr-name = (edraw-import-svg-normalize-name key namespaces)
+              when attr-name ;; Ignore xmlns:<ns>= and xmlns=
+              collect (cons attr-name value))
+     :children
+     (cl-loop for child in (edraw-dom-children elem)
+              if (edraw-dom-element-p child)
+              collect (edraw-import-svg-unescape-ns-element child namespaces)
+              else
+              collect child))))
+
+(defun edraw-import-svg-normalize-name (name-symbol namespaces)
+  "Normalize the NAME-SYMBOL of tags and attributes.
 
 SVG names strip the namespace prefix. XLink names begin with
 xlink:. In other cases, the namespace URL is appended to the name
 in parentheses.
 
 The result value might look like this:
- SVG      :(rect . svg)
- XLink    :(xlink:href . xlink)
- XML      :(xml:space . xml)
- Otherwise:(version\\(http://www.inkscape.org/namespaces/inkscape\\) . unknown)"
+ xmlns    : nil
+ xmlns:?  : nil
+ SVG      : rect
+ XLink    : xlink:href
+ XML      : xml:space
+ Otherwise: <unknown>:version\\(http://www.inkscape.org/namespaces/inkscape\\)
+            <unknown>:hogehoge\\(unknownns\\)"
   (let* ((ns-name (edraw-xml-unescape-ns-name name-symbol))
          (ns-prefix (car ns-name))
          (name (cdr ns-name))
-         (ns-url (alist-get ns-prefix (plist-get (car context) :namespaces)
+         (ns-url (alist-get ns-prefix namespaces
                             nil nil #'equal)))
     (unless (eq ns-prefix 'xmlns)
       (pcase ns-url
@@ -192,21 +216,25 @@ The result value might look like this:
                ;; No xmlns declaration for default. SVG?
                ((null ns-prefix)
                 (edraw-import-warn "No xmlns declaration for default")
-                (cons name 'svg))
+                name)
                ;; For eample, xml:space, xml:lang
                ((equal ns-prefix "xml")
-                (cons (intern (format "%s:%s" ns-prefix name)) 'xml))
+                (intern (format "%s:%s" ns-prefix name)))
                ;; No xmlns declaration for NS-PREFIX
                (t
                 (edraw-import-warn "No xmlns declaration for `%s'" ns-prefix)
-                (cons (intern (format "%s:%s" ns-prefix name)) 'unknown))))
+                (intern (format "<unknown>:%s(%s)" name ns-prefix)))))
         ("http://www.w3.org/2000/svg"
-         (cons name 'svg))
+         name)
         ("http://www.w3.org/1999/xlink"
-         (cons (intern (format "xlink:%s" name)) 'xlink))
+         (intern (format "xlink:%s" name)))
         (_
          ;; Unknown namespace URL
-         (cons (intern (format "%s(%s)" name ns-url)) 'unknown))))))
+         (intern (format "<unknown>:%s(%s)" name ns-url)))))))
+
+(defun edraw-import-svg-unknown-ns-name-p (name-symbol)
+  (string-prefix-p "<unknown>:" (symbol-name name-symbol)))
+
 
 ;;;;; Convert Element
 
@@ -254,21 +282,11 @@ The result value might look like this:
     ))
 
 (defun edraw-import-svg-convert-element (elem context)
-  ;; Update namespace alist and normalize tag name
-  (cl-letf* (((plist-get (car context) :namespaces)
-              (nconc
-               (edraw-xml-collect-ns-decls elem)
-               (plist-get (car context) :namespaces)))
-             (tag-ns (edraw-import-svg-normalize-name (edraw-dom-tag elem)
-                                                      context))
-             (tag (car tag-ns))
-             (ns (cdr tag-ns)))
-    (unless tag-ns
-      (error "Unexpected xmlns decl in tag name"))
+  (let ((tag (edraw-dom-tag elem)))
     (if-let ((fun (alist-get tag edraw-import-svg-convert-element-alist)))
         (funcall fun elem context)
       (if (or (and edraw-import-svg-in-defs
-                   (not (eq ns 'unknown)))
+                   (not (edraw-import-svg-unknown-ns-name-p tag)))
               (eq edraw-import-svg-level 'loose))
           (progn
             (edraw-import-warn (edraw-msg "Keep unsupported element: %s") tag)
@@ -445,39 +463,34 @@ The result value might look like this:
     (xmlns . edraw-import-svg-convert-attr-keep)
     (xmlns:xlink . edraw-import-svg-convert-attr-keep)
     ;; Inkscape
-    (role\(http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\)
+    (<unknown>:role\(http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\)
      . edraw-import-svg-convert-attr-inkscape-role)
     ))
 
 (defun edraw-import-svg-convert-attribute (attr-name value elem context)
-  (let* ((attr-name-ns (edraw-import-svg-normalize-name attr-name context)))
-    ;; Ignore xmlns:<ns>= and xmlns=
-    (when attr-name-ns
-      (let* ((attr-name (car attr-name-ns))
-             (ns (cdr attr-name-ns))
-             (fun (alist-get attr-name
-                             edraw-import-svg-convert-attributes-alist)))
-        (cond
-         (fun
-          (funcall fun attr-name value elem context))
-         ;; Ignore internal attribute
-         ((edraw-dom-attr-internal-p attr-name)
-          nil)
-         ;; Keep data attribute
-         ((string-prefix-p "data-" (symbol-name attr-name))
-          (cons attr-name value))
-         ;; Unsupported attribute
-         (t
-          (if (or (and edraw-import-svg-in-defs
-                       (not (eq ns 'unknown)))
-                  (eq edraw-import-svg-level 'loose))
-              (progn
-                (edraw-import-warn (edraw-msg "Keep unsupported attribute: %s")
-                                   attr-name)
-                (cons attr-name value))
-            (edraw-import-warn (edraw-msg "Discard unsupported attribute: %s")
+  (let ((fun (alist-get attr-name
+                        edraw-import-svg-convert-attributes-alist)))
+    (cond
+     (fun
+      (funcall fun attr-name value elem context))
+     ;; Ignore internal attribute
+     ((edraw-dom-attr-internal-p attr-name)
+      nil)
+     ;; Keep data attribute
+     ((string-prefix-p "data-" (symbol-name attr-name))
+      (cons attr-name value))
+     ;; Unsupported attribute
+     (t
+      (if (or (and edraw-import-svg-in-defs
+                   (not (edraw-import-svg-unknown-ns-name-p attr-name)))
+              (eq edraw-import-svg-level 'loose))
+          (progn
+            (edraw-import-warn (edraw-msg "Keep unsupported attribute: %s")
                                attr-name)
-            nil)))))))
+            (cons attr-name value))
+        (edraw-import-warn (edraw-msg "Discard unsupported attribute: %s")
+                           attr-name)
+        nil)))))
 
 (defun edraw-import-svg-convert-attr-keep (attr-name value _elem _context)
   (cons attr-name value))
