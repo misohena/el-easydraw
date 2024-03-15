@@ -95,6 +95,22 @@
   :group 'edraw-import
   :type 'boolean)
 
+(defcustom edraw-import-svg-remove-referenced-from-use-in-defs t
+  "Non-nil means that elements used from `use' elements are
+removed from within defs elements.
+
+The importer replaces each `use' element with a clone of the
+element it references, so it is usually safe to remove referenced
+elements. However, problems can arise if the elements referenced
+by the `use' elements are also referenced elsewhere."
+  :group 'edraw-import
+  :type 'boolean)
+
+(defcustom edraw-import-svg-expand-use-element t
+  "Non-nil means that use elements are replaced with the referenced element."
+  :group 'edraw-import
+  :type 'boolean)
+
 (defvar edraw-import-svg-in-defs nil)
 
 ;;;###autoload
@@ -128,7 +144,9 @@
               (context
                (list
                 ;; plist
-                (list)))
+                (list
+                 :dom-original svg
+                 :ids-ref-from-use nil)))
               (converted (edraw-import-svg-convert-children svg context))
               (definitions (plist-get (car context) :definitions)))
          (edraw-dom-element
@@ -139,9 +157,11 @@
           :xmlns:xlink "http://www.w3.org/1999/xlink"
           ;; Children
           (when definitions
-            (edraw-dom-element 'g
-                               :id "edraw-imported-definitions"
-                               :children definitions))
+            (edraw-import-svg-remove-referenced-from-use-in-defs
+             (edraw-dom-element 'g
+                                :id "edraw-imported-definitions"
+                                :children definitions)
+             context))
           (edraw-dom-element 'g
                              :id "edraw-body"
                              :children converted)))))))
@@ -253,6 +273,7 @@ The result value might look like this:
     (tspan . edraw-import-svg-convert-tspan)
     (comment . edraw-import-svg-convert-comment)
     (a . edraw-import-svg-convert-a)
+    (use . edraw-import-svg-convert-use)
     ;; Not supported:
     ;; animate
     ;; animateMotion
@@ -277,7 +298,6 @@ The result value might look like this:
     ;; switch
     ;; symbol
     ;; textPath
-    ;; use
     ;; view
     ))
 
@@ -302,6 +322,91 @@ The result value might look like this:
   ;; Expose contents
   ;; @todo check style?
   (edraw-import-svg-convert-children elem context))
+
+(defun edraw-import-svg-convert-use (elem context)
+  ;; https://www.w3.org/TR/SVG11/struct.html#UseElement
+  (if (not edraw-import-svg-expand-use-element)
+      (progn
+        (edraw-import-warn (edraw-msg "Discard unsupported element: %s")
+                           (edraw-dom-tag elem))
+        nil)
+    (let* ((href (or (dom-attr elem 'xlink:href)
+                     (dom-attr elem 'href)))
+           (x (dom-attr elem 'x))
+           (y (dom-attr elem 'y))
+           ;;(width (dom-attr elem 'width))
+           ;;(height (dom-attr elem 'height))
+           (ref-id (and (stringp href)
+                        (not (string-empty-p href))
+                        (= (aref href 0) ?#)
+                        (substring href 1)))
+           (ref-elem (and ref-id
+                          (edraw-dom-get-by-id
+                           (plist-get (car context) :dom-original) ref-id)))
+           (supported-tag (and ref-elem
+                               (memq (edraw-dom-tag ref-elem)
+                                     '(id
+                                       rect ellipse path text image g
+                                       circle line polyline polygon
+                                       ;;@todo tspan?
+                                       ;;@todo a?
+                                       ;; Reject symbol and svg
+                                       ))))
+           (recursive (and ref-elem
+                           (memq ref-elem
+                                 (plist-get context :use-converting-elements))))
+           (converted-ref-elem
+            (and supported-tag
+                 (not recursive)
+                 (edraw-import-svg-convert-element
+                  ref-elem
+                  (edraw-plist-put
+                   context :use-converting-elements
+                   (cons ref-elem
+                         (plist-get context :use-converting-elements)))))))
+      ;;(message "href=%s ref-id=%s ref=elem=%s supported-tag=%s recursive=%s" href ref-id ref-elem supported-tag recursive)
+      (unless converted-ref-elem
+        (edraw-import-warn
+         (edraw-msg "Discard `use' element with unsupported format")))
+
+      (when converted-ref-elem
+        (let* ((new-attributes (seq-filter
+                                (lambda (attr)
+                                  (and (not (edraw-dom-attr-internal-p (car
+                                                                        attr)))
+                                       (not (memq (car attr)
+                                                  '(id x y width height
+                                                       href xlink:href
+                                                       transform)))))
+                                (dom-attributes elem)))
+               (old-transform (dom-attr elem 'transform)) ;;@todo Consider style's transform
+               (new-transform (if (or x y)
+                                  (concat old-transform ;; or nil
+                                          (when old-transform " ")
+                                          "translate("
+                                          (edraw-to-string (or x 0))
+                                          ","
+                                          (edraw-to-string (or y 0))
+                                          ")")
+                                old-transform)))
+          (when new-transform
+            (push (cons 'transform new-transform) new-attributes))
+          (push ref-id (plist-get (car context) :ids-ref-from-use))
+          (edraw-dom-element 'g
+                             :attributes new-attributes
+                             converted-ref-elem))))))
+
+(defun edraw-import-svg-remove-referenced-from-use-in-defs (dom context)
+  (when edraw-import-svg-remove-referenced-from-use-in-defs
+    (dolist (id (plist-get (car context) :ids-ref-from-use))
+      (let* ((referenced (edraw-dom-get-by-id dom id))
+             (p referenced))
+        (when referenced
+          (while (and (setq p (edraw-dom-parent dom p))
+                      (not (eq (edraw-dom-tag p) 'defs))))
+          (when p
+            (edraw-dom-remove-node dom referenced))))))
+  dom)
 
 (defun edraw-import-svg-convert-definition (elem context)
   (push
