@@ -61,9 +61,9 @@
 
 (defun edraw-import-warn (string &rest args)
   (let ((msg (apply #'format string args)))
+    (cl-incf edraw-import-warning-count)
     (unless (member msg edraw-import-warning-messages)
       (push msg edraw-import-warning-messages)
-      (cl-incf edraw-import-warning-count)
       (apply #'lwarn 'edraw-import :warning string args))))
 
 (defmacro edraw-import-warning-block (&rest body)
