@@ -3843,3 +3843,5 @@ CLOSED: [2024-03-15 Fri 21:16]
 dvisvgmでは、--no-fontsを指定するとuseやpathを使い、--no-fonts=1だとpathのみを使うらしい。
 
 その前に名前空間処理を先に全部済ませる必要があった。
+** DONE インポート/空のdefsを削除する
+CLOSED: [2024-03-15 Fri 21:17]

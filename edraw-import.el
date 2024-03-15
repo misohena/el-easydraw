@@ -157,14 +157,27 @@ by the `use' elements are also referenced elsewhere."
           :xmlns:xlink "http://www.w3.org/1999/xlink"
           ;; Children
           (when definitions
-            (edraw-import-svg-remove-referenced-from-use-in-defs
-             (edraw-dom-element 'g
-                                :id "edraw-imported-definitions"
-                                :children definitions)
-             context))
+            (edraw-import-svg-remove-empty-defs-and-group
+             (edraw-import-svg-remove-referenced-from-use-in-defs
+              (edraw-dom-element 'g
+                                 :id "edraw-imported-definitions"
+                                 :children definitions)
+              context)))
           (edraw-dom-element 'g
                              :id "edraw-body"
                              :children converted)))))))
+
+(defun edraw-import-svg-remove-empty-defs-and-group (dom)
+  (if (and (edraw-dom-element-p dom)
+           (memq (edraw-dom-tag dom) '(defs g)))
+      (progn
+        (dolist (child (copy-sequence (edraw-dom-children dom)))
+          (unless (edraw-import-svg-remove-empty-defs-and-group child)
+            (edraw-dom-remove-node dom child)))
+        (if (dom-children dom)
+            dom
+          nil))
+    dom))
 
 ;;;;; Convert Children
 
