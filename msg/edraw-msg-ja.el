@@ -89,6 +89,7 @@
      "Delta X: " "X移動量: "
      "Delta Y: " "Y移動量: "
      "Deselect All" "全選択解除"
+     "Deselect" "選択解除"
      "Discard changes?" "変更を破棄しますか?"
      "Discard unsupported attribute: %s" "未対応の属性を破棄: %s"
      "Do you want to close the current document?" "現在のドキュメントを閉じますか?"

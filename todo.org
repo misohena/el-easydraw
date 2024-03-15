@@ -1,7 +1,9 @@
 
 
 * Inbox
-** TODO エディタはCtrl+中ボタンを消費すべき。
+** TODO サブメニューが全て非表示の時に親項目を非表示にする
+選択図形に対するコンテキストメニューの「設定」で設定できるプロパティが無いときに「設定」だけ表示される。
+** TODO エディタはCtrl+中ボタンを消費すべき
 C-down-mouse-2 がfacemenu-menuに割り当てられているので。
 スクロールの時によく誤操作してしまう。
 
@@ -60,15 +62,6 @@ edraw-widget.elのedraw-widget-properties-prop-field関数の部分。
 カスタマイズ時にチェックボックスをONにしたとき、0.0等になるのが使いづらい。
 markerWidthとかで。
 prop-info-listに:default-valueでも追加する？
-** TODO edraw-get-actionsを整理する。
-[[*選択オブジェクトに対するキー操作をコンテキストメニューに表示する][選択オブジェクトに対するキー操作をコンテキストメニューに表示する]]の続き。
-
-[[elisp-function:edraw-menu-selected-shapes]](旧edraw-get-actions-for-selected-shapes)と[[elisp-function:edraw-get-actions]]メソッドを統合したい。可能？
-
-複数選択時のメニュー表示は、edraw-multiple-shapesに対するedraw-get-actionsを使うべきだと思う。
-
-しかし[[elisp-function:edraw-menu-selected-shapes]]は[[elisp-function:edraw-main-menu][edraw-main-menu]]からも使われているのがネック。
-
 ** TODO 外部フレーム状態から子フレーム状態へ変更したときに消える？
 いや、今やったら大丈夫だな。何か条件がある？
 
@@ -148,9 +141,6 @@ librsvgの仕様で基準ディレクトリ下以外のファイルは参照で�
 ところで(shape list)を取るメソッドはundoをまとめなくて良いのだろうか。
 
 正直そこまで積極的に必要というわけでもないが……。
-
-** TODO 選択済み図形に対するメニュー項目の「選択」を何か別のものにする
-「選択解除」にしたい。さもなくばメニュー項目を消すべき。
 
 ** TODO SVGのルート直下を直接編集できるようにする
 現在は ~<g id="edraw-body">~ 内に限定されている。<svg>直下を直接編集できるようになれば、他のツールで生成したSVGを手直しするのに使える場合もあるかもしれない。svgの中にsvgを入れることが出来るので、不可能では無いはず。
@@ -3824,3 +3814,29 @@ CLOSED: [2024-03-13 Wed 19:45]
   → ほぼ全ての関数をメニュー名も同時に生成するように変更し、 ~edraw-menu-~ で始まるようにした。ただし、メニュー項目のリストだけを生成する物は ~edraw-menu-items-~ で始めるようにした。
 - メニューを生成する関数は粒度がバラバラ。ドキュメントや表示などの大きめなサブメニューを生成する部分は別の関数に分割する。
 - ポップアップする部分のコードを少し整理する。マウスのイベントハンドラ側でゴチャゴチャやっているところはオブジェクト側のメソッドにする。
+** DONE edraw-get-actionsを整理する。
+CLOSED: [2024-03-15 Fri 10:07]
+[[*選択オブジェクトに対するキー操作をコンテキストメニューに表示する][選択オブジェクトに対するキー操作をコンテキストメニューに表示する]]の続き。
+
+[[elisp-function:edraw-menu-selected-shapes]](旧edraw-get-actions-for-selected-shapes)と[[elisp-function:edraw-get-actions]]メソッドを統合したい。可能？
+
+複数選択時のメニュー表示は、edraw-multiple-shapesに対するedraw-get-actionsを使うべきだと思う。→とりあえずこれは保留。統合すればいつでも出来るようになる。
+
+しかし[[elisp-function:edraw-menu-selected-shapes]]は[[elisp-function:edraw-main-menu][edraw-main-menu]]からも使われているのがネック。
+
+[2024-03-15 Fri]
+- edraw-menu-items-shape-common を追加。edraw-shape(基本クラス)に対するedraw-get-actionsと同じで、メニュー項目のbindingにはshapeに対するメソッドを指定する。
+- ただし、引数shapeはedraw-shapeとedraw-multiple-shapesのどちらも指定出来るようにする。共通する基本クラスはedraw-properties-holder。
+- メニュー項目のプロパティに :cmd-for-selected を追加して選択図形に対するコマンドを同時に指定する。
+- :enableや:visibleはshapeがedraw-shapeかedraw-multiple-shapesかによってある程度動作を変える。
+- どちらかの操作が存在しない場合はnilを指定する。このnilは何もしないダミーコマンドへ置換する。nilのままだと太文字で表示されてしまうので。ignoreはすでにignoreにキーが割り当てられているとそのキーシーケンスが表示されてしまう(私のところだとC-kanaと表示されてしまう)ので、専用のダミーコマンドを作る(edraw-menu-items-shape-common--dummy)。
+- ついでに修正:
+  - 複数選択時のZ順序操作のenable判定
+  - 選択のvisible判定
+  - 選択解除を追加
+  - 単一shapeに対する次選択・前選択操作を追加
+
+** DONE 選択済み図形に対するメニュー項目の「選択」を何か別のものにする
+CLOSED: [2024-03-15 Fri 10:07]
+「選択解除」にしたい。さもなくばメニュー項目を消すべき。
+
