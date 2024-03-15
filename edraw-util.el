@@ -475,7 +475,7 @@ and `event-end'."
            while (funcall pred k v)
            collect k collect v))
 
-(defun edraw-plist-remove (plist prop)
+(defun edraw-plist-remove (plist prop &optional predicate)
   "Return a property list with the property PROP removed from PLIST.
 
 The original PLIST will not be modified.
@@ -487,12 +487,22 @@ If there are multiple PROPs, the first one is removed.
 
 If you want to make destructive changes to the list, consider
 using `cl-remf'."
+  (unless predicate (setq predicate #'eq))
   (if-let ((head (plist-member plist prop)))
       (nconc
-       (edraw-plist-take-while plist (lambda (k _) (not (eq k prop))))
+       (edraw-plist-take-while plist (lambda (k _)
+                                       (not (funcall predicate k prop))))
        (cddr head))
     plist))
 
+(defun edraw-plist-put (plist prop value &optional predicate)
+  "Return a plist with the PROP of PLIST changed to VALUE.
+This is a non-destructive version of `plist-put'."
+  (cons
+   prop
+   (cons
+    value
+    (edraw-plist-remove plist prop predicate))))
 
 
 ;;;; Max Image Size
