@@ -2143,14 +2143,24 @@ PROPS is an alist of properties defined by the MARKER-TYPE."
   ;;(edraw-svg-defref-url-to-prop-value (dom-attr element prop-name))
   )
 
-(defun edraw-svg-update-marker-properties (element defrefs)
-  (edraw-svg-update-marker-property element 'marker-start defrefs)
-  (edraw-svg-update-marker-property element 'marker-mid defrefs)
-  (edraw-svg-update-marker-property element 'marker-end defrefs))
-
-(defun edraw-svg-update-marker-property (element prop-name defrefs)
-  (when-let ((marker (edraw-svg-marker-from-element element prop-name defrefs)))
+(defun edraw-svg-update-marker-property (element prop-name defrefs
+                                                 &optional src-defrefs)
+  (when-let ((marker (edraw-svg-marker-from-element element prop-name
+                                                    (or src-defrefs defrefs))))
     (edraw-svg-set-marker-property element prop-name marker defrefs)))
+
+(defun edraw-svg-update-marker-properties (element defrefs
+                                                   &optional src-defrefs)
+  (edraw-svg-update-marker-property element 'marker-start defrefs src-defrefs)
+  (edraw-svg-update-marker-property element 'marker-mid defrefs src-defrefs)
+  (edraw-svg-update-marker-property element 'marker-end defrefs src-defrefs))
+
+(defun edraw-svg-update-marker-properties-in-dom (dom defrefs
+                                                      &optional src-defrefs)
+  (when (edraw-dom-element-p dom)
+    (edraw-svg-update-marker-properties dom defrefs src-defrefs)
+    (dolist (child (edraw-dom-children dom))
+      (edraw-svg-update-marker-properties-in-dom child defrefs src-defrefs))))
 
 
 

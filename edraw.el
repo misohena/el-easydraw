@@ -43,6 +43,7 @@
 (require 'edraw-color-picker)
 (require 'edraw-property-editor)
 
+(autoload 'edraw-convert-file-to-edraw-svg "edraw-import")
 (autoload 'edraw-shape-picker-open "edraw-shape-picker")
 (declare-function edraw-shape-picker-connect "edraw-shape-picker")
 (declare-function edraw-shape-picker-disconnect "edraw-shape-picker")
@@ -1133,10 +1134,12 @@ For use with `edraw-editor-with-temp-undo-list',
     (edraw-restore-point-connections editor)))
 
 (cl-defmethod edraw-restore-point-connections ((editor edraw-editor))
+  (edraw-restore-point-connections--dom editor (edraw-svg-body editor)))
+
+(cl-defmethod edraw-restore-point-connections--dom ((editor edraw-editor) dom)
   (edraw-editor-with-no-undo-data
     (dolist (element
-             (dom-elements (edraw-svg-body editor)
-                           'data-edraw-point-connections ""))
+             (dom-elements dom 'data-edraw-point-connections ""))
       (when-let ((shape (edraw-shape-from-element element editor t)))
         (edraw-restore-point-connections shape)))))
 
@@ -1752,6 +1755,96 @@ document size or view box."
                   when (edraw-svg-element-intersects-rect-p node rect)
                   collect (edraw-shape-from-element node editor 'noerror)))))
 
+
+;;;;;; Editor - Document - Import
+
+(edraw-editor-defcmd edraw-import-from-file ((editor edraw-editor)
+                                             file)
+  (interactive
+   (list (edraw-current-editor)
+         (read-file-name "Import from File: ")))
+
+  (edraw-import-from-edraw-svg editor
+                               (edraw-convert-file-to-edraw-svg file)))
+
+(cl-defmethod edraw-import-from-edraw-svg ((editor edraw-editor) dom)
+  (let* ((src-svg (car (edraw-dom-split-top-nodes dom)))
+         (_ (unless (and (edraw-dom-element-p dom)
+                         (eq (edraw-dom-tag dom) 'svg))
+              (error (edraw-msg "Not SVG data"))))
+         (src-body (edraw-dom-get-by-id src-svg edraw-editor-svg-body-id))
+         (_ (unless src-body
+              (error (edraw-msg "Not SVG for Edraw"))))
+         (_ (when (null (edraw-dom-children src-body))
+              (error (edraw-msg "Empty SVG data"))))
+         (src-defs (edraw-dom-get-by-id src-svg edraw-editor-svg-defs-id))
+         (src-defrefs (edraw-svg-defrefs-from-dom src-defs src-body t)))
+
+    ;; Update marker attributes
+    ;; @todo Remove invalid (unsupported) marker attributes?
+    (edraw-svg-update-marker-properties-in-dom src-body
+                                               (oref editor defrefs)
+                                               src-defrefs)
+
+    ;; Remove IDs that are already in use
+    (let ((dst-body (edraw-svg-body editor)))
+      (edraw-dom-remove-attr src-body 'id) ;; Remove id="edraw-body"
+      (edraw-dom-do src-body
+                    (lambda (node _ancestors)
+                      (when (edraw-dom-element-p node)
+                        (when-let ((id (dom-attr node 'id)))
+                          (when (edraw-dom-get-by-id dst-body id)
+                            (lwarn 'edraw-editor :warning
+                                   (edraw-msg "ID `%s' is already in use, so remove it")
+                                   id)
+                            (edraw-dom-remove-attr node 'id)))))))
+
+    ;; Update parent links
+    (edraw-dom-update-parent-links src-body)
+
+    ;; Add
+    ;; @todo Group? or Flat?
+    (edraw-make-undo-group editor 'import
+      (let* ((group (edraw-create-shape-default ;;@todo Use -without-default?
+                     editor
+                     (edraw-svg-body editor)
+                     'g))
+             (group-element (edraw-element group)))
+        (dolist (child (edraw-dom-children src-body))
+          (edraw-dom-append-child group-element child))
+
+        ;; Update point connections
+        ;; @todo Updating point connections is meaningless because it is canceled when ungrouping.
+        ;;(edraw-restore-point-connections--dom editor group-element)
+
+        ;; Select the group
+        (edraw-select group)
+
+        ;; Translate GROUP to center of the view area
+        (let ((aabb (edraw-shape-aabb group))
+              (vl (edraw-scroll-visible-area-left editor))
+              (vt (edraw-scroll-visible-area-top editor))
+              (vr (edraw-scroll-visible-area-right editor))
+              (vb (edraw-scroll-visible-area-bottom editor)))
+          ;; Use transform property. because:
+          ;; - To avoid losing numerical precision
+          ;; - Text may not be moved (tspan (x=, y=, dx=, dy= attributes) of imported text may not comply with edraw specifications)
+          (if (and (<= vl (edraw-rect-left aabb))
+                   (<= vt (edraw-rect-top aabb))
+                   (<= (edraw-rect-right aabb) vr)
+                   (<= (edraw-rect-bottom aabb) vb))
+              (edraw-set-property group
+                                  'transform
+                                  (edraw-svg-transform-from-matrix (edraw-matrix)))
+            (edraw-transform-prop-multiply
+             group
+             (edraw-matrix-translate-xy
+              (edraw-xy-sub
+               (edraw-xy (* 0.5 (+ vl vr))
+                         (* 0.5 (+ vt vb)))
+               (edraw-rect-center aabb))))))))))
+
+
 ;;;;;; Editor - Document - Menu
 
 (cl-defmethod edraw-menu-document ((editor edraw-editor))
@@ -1769,7 +1862,8 @@ document size or view box."
           ,(edraw-transform-method-menu editor)))
         ((edraw-msg "Clear...") edraw-editor-clear)
         ((edraw-msg "Export to Buffer") edraw-editor-export-to-buffer)
-        ((edraw-msg "Export to File") edraw-editor-export-to-file)))))
+        ((edraw-msg "Export to File...") edraw-editor-export-to-file)
+        ((edraw-msg "Import from File...") edraw-editor-import-from-file)))))
 
 (cl-defmethod edraw-menu-document-quick ((editor edraw-editor))
   `(,(edraw-msg "Document Quick")

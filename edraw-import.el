@@ -32,7 +32,16 @@
   :prefix "edraw-import-"
   :group 'edraw)
 
+;;@todo Unify `edraw-editor-svg-body-id'
+(defconst edraw-import-svg-body-id "edraw-body")
+(defconst edraw-import-svg-imported-definitions-id "edraw-imported-definitions")
+
 ;;;; Common
+
+;;;###autoload
+(defun edraw-convert-file-to-edraw-svg (file)
+  ;; @todo Select importer that matches file extension.
+  (edraw-import-svg-file file t))
 
 ;;;###autoload
 (defun edraw-convert-buffer-to-edraw-svg-xml (buffer output)
@@ -43,14 +52,17 @@
 
   (when (and
          (called-interactively-p 'interactive)
-         (not (y-or-n-p
-               (edraw-msg "If you import diagrams generated with other software into Edraw, they may not be displayed correctly or the editing operation may become unstable. The original information is lost in the converted data. Do you want to convert to a format for Edraw?"))))
+         (not (edraw-import-svg-comfirm)))
     (keyboard-quit))
 
-  (when-let ((svg (edraw-import-from-svg-buffer buffer)))
+  (when-let ((svg (edraw-import-svg-buffer buffer)))
     (with-current-buffer output
       (erase-buffer)
       (edraw-svg-print svg nil nil))))
+
+(defun edraw-import-svg-comfirm ()
+  (y-or-n-p
+   (edraw-msg "If you import diagrams generated with other software into Edraw, they may not be displayed correctly or the editing operation may become unstable. The original information is lost in the converted data. Do you want to convert to a format for Edraw?")))
 
 (defun edraw-import-error (string &rest args)
   (apply #'error string args))
@@ -113,17 +125,30 @@ by the `use' elements are also referenced elsewhere."
 
 (defvar edraw-import-svg-in-defs nil)
 
+(defun edraw-import-svg-file (file interactively)
+  (let ((svg (edraw-svg-read-from-file file nil)))
+    (unless svg
+      (error (edraw-msg "Not SVG data")))
+    (if (edraw-dom-get-by-id svg edraw-import-svg-body-id)
+        ;; SVG for edraw
+        svg
+      ;; Convert
+      (when (and interactively
+                 (not (edraw-import-svg-comfirm)))
+        (keyboard-quit))
+      (edraw-import-svg-dom svg))))
+
 ;;;###autoload
-(defun edraw-import-from-svg-buffer (buffer)
+(defun edraw-import-svg-buffer (buffer)
   (edraw-import-warning-block
-   (edraw-import-from-svg-dom
+   (edraw-import-svg-dom
     (with-temp-buffer
       (insert-buffer-substring-no-properties buffer)
       (edraw-xml-escape-ns-buffer)
       (libxml-parse-xml-region (point-min) (point-max))))))
 
 ;;;###autoload
-(defun edraw-import-from-svg-dom (dom)
+(defun edraw-import-svg-dom (dom)
   (edraw-import-warning-block
    (let* ((svg-comments (edraw-dom-split-top-nodes dom))
           (svg (edraw-import-svg-unescape-ns-element (car svg-comments) nil)))
@@ -131,7 +156,7 @@ by the `use' elements are also referenced elsewhere."
      (unless (eq (edraw-dom-tag svg) 'svg)
        (edraw-import-error (edraw-msg "Not SVG data")))
 
-     (if (edraw-dom-get-by-id svg "edraw-body")
+     (if (edraw-dom-get-by-id svg edraw-import-svg-body-id)
          (progn
            (edraw-import-warn (edraw-msg "Already an SVG for Edraw"))
            dom)
@@ -160,11 +185,11 @@ by the `use' elements are also referenced elsewhere."
             (edraw-import-svg-remove-empty-defs-and-group
              (edraw-import-svg-remove-referenced-from-use-in-defs
               (edraw-dom-element 'g
-                                 :id "edraw-imported-definitions"
+                                 :id edraw-import-svg-imported-definitions-id
                                  :children definitions)
               context)))
           (edraw-dom-element 'g
-                             :id "edraw-body"
+                             :id edraw-import-svg-body-id
                              :children converted)))))))
 
 (defun edraw-import-svg-remove-empty-defs-and-group (dom)
