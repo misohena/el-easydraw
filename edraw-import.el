@@ -126,17 +126,31 @@ by the `use' elements are also referenced elsewhere."
 (defvar edraw-import-svg-in-defs nil)
 
 (defun edraw-import-svg-file (file interactively)
-  (let ((svg (edraw-svg-read-from-file file nil)))
-    (unless svg
-      (error (edraw-msg "Not SVG data")))
-    (if (edraw-dom-get-by-id svg edraw-import-svg-body-id)
-        ;; SVG for edraw
-        svg
-      ;; Convert
-      (when (and interactively
-                 (not (edraw-import-svg-comfirm)))
-        (keyboard-quit))
-      (edraw-import-svg-dom svg))))
+  (or
+   ;; SVG for edraw
+   (let ((svg (edraw-svg-read-from-file file nil)))
+     (unless svg
+       (error (edraw-msg "Not SVG data")))
+     (when (edraw-dom-get-by-id svg edraw-import-svg-body-id)
+       svg))
+   ;; Convert
+   ;; Do not use `edraw-svg-read-from-file' as it cannot handle
+   ;; namespaces correctly.
+   (progn
+     (when (and interactively
+                (not (edraw-import-svg-comfirm)))
+       (keyboard-quit))
+     (edraw-import-svg-dom
+      (with-temp-buffer
+        (insert-file-contents file)
+        (edraw-import-svg-decode-buffer))))))
+
+(defun edraw-import-svg-decode-buffer ()
+  (edraw-xml-escape-ns-buffer)
+  (edraw-import-svg-unescape-ns-element
+   (car (edraw-dom-split-top-nodes (libxml-parse-xml-region
+                                    (point-min) (point-max))))
+   nil))
 
 ;;;###autoload
 (defun edraw-import-svg-buffer (buffer)
@@ -144,14 +158,15 @@ by the `use' elements are also referenced elsewhere."
    (edraw-import-svg-dom
     (with-temp-buffer
       (insert-buffer-substring-no-properties buffer)
-      (edraw-xml-escape-ns-buffer)
-      (libxml-parse-xml-region (point-min) (point-max))))))
+      (edraw-import-svg-decode-buffer)))))
 
-;;;###autoload
 (defun edraw-import-svg-dom (dom)
+  ;; Note: The DOM must be preprocessed using
+  ;; `edraw-xml-escape-ns-buffer' and
+  ;; `edraw-import-svg-unescape-ns-element'.
   (edraw-import-warning-block
    (let* ((svg-comments (edraw-dom-split-top-nodes dom))
-          (svg (edraw-import-svg-unescape-ns-element (car svg-comments) nil)))
+          (svg (car svg-comments)))
 
      (unless (eq (edraw-dom-tag svg) 'svg)
        (edraw-import-error (edraw-msg "Not SVG data")))
