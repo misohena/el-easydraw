@@ -1797,6 +1797,10 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 ;;;; SVG Defs
 
+;; defs(1)<--(0..1)deftbl(1)-->(0..*)defref
+;;                                  (0..1)`-->(1)def-element (e.g.,marker)
+;;                                  (0..*)`-->(0..*)referrer-element (e.g.,path)
+
 
 (defun edraw-svg-defs-as-deftbl (id)
   (edraw-svg-deftbl

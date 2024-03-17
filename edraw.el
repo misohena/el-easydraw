@@ -1231,10 +1231,28 @@ For use with `edraw-editor-with-temp-undo-list',
                                           svg-document-original-width
                                           svg-document-original-height
                                           svg-document-original-viewbox)
-      ;; Remove empty defs
+
       (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
+        ;; Remove unreferenced definition elements
+        ;;
+        ;; Definition elements such as markers are usually deleted
+        ;; automatically. However, if an element with a reference
+        ;; attribute is removed from the DOM tree, the reference
+        ;; information is not removed from deftbl and the definition
+        ;; element may remain. This problem is tolerated for now,
+        ;; considering Undo and temporary removal of elements.
+        ;;
+        ;; `edraw-svg-deftbl-from-dom' includes
+        ;; `edraw-svg-deftbl-remove-unreferenced-definitions', so
+        ;; unreferenced definition elements are removed.
+        (edraw-svg-deftbl-from-dom defs
+                                   (edraw-dom-get-by-id
+                                    doc-svg edraw-editor-svg-body-id))
+
+        ;; Remove empty defs
         (when (null (dom-children defs))
           (edraw-dom-remove-node doc-svg defs)))
+
       ;; Add xmlns
       (dom-set-attribute doc-svg 'xmlns "http://www.w3.org/2000/svg")
       ;; Adjust xmlns:xlink and xlink:href
