@@ -1762,27 +1762,22 @@ or <linearGradient>.
 IDNUM is the identification number of DEF-ELEMENT."
   (list def-element idnum))
 
-(defun edraw-svg-defref-def-element (defref) (car defref))
-(defun edraw-svg-defref-idnum (defref) (cadr defref))
-(defun edraw-svg-defref-referrers (defref) (cddr defref))
-(defun edraw-svg-defref-referrers--head (defref) (cdr defref))
+;; (<def-element> <idnum> . <referrers>)
+(defmacro edraw-svg-defref-def-element (defref) `(car ,defref))
+(defmacro edraw-svg-defref-idnum (defref) `(cadr ,defref))
+(defmacro edraw-svg-defref-referrers (defref) `(cddr ,defref))
 
 (defun edraw-svg-defref-add-referrer (defref referrer-element)
   "Add REFERRER-ELEMENT that references the definition element of DEFREF."
-  (setcdr (edraw-svg-defref-referrers--head defref)
-          (cons referrer-element (edraw-svg-defref-referrers defref))))
+  (push referrer-element (edraw-svg-defref-referrers defref)))
 
 (defun edraw-svg-defref-remove-referrer (defref referrer-element)
   "Remove REFERRER-ELEMENT that references the definition element of DEFREF.
 
 The same ELEMENT may exist multiple times in the list, in which
 case only the first one is removed."
-  (let ((cell (edraw-svg-defref-referrers--head defref)))
-    (while (and (cdr cell)
-                (not (eq (cadr cell) referrer-element)))
-      (setq cell (cdr cell)))
-    (when (cdr cell)
-      (setcdr cell (cddr cell)))))
+  (cl-callf2 cl-delete referrer-element
+             (edraw-svg-defref-referrers defref) :count 1))
 
 (defun edraw-svg-defref-empty-p (defref)
   (null (edraw-svg-defref-referrers defref)))
@@ -1806,20 +1801,26 @@ case only the first one is removed."
 DEFS-ELEMENT is a <defs> element for storing definitions."
   (list defs-element))
 
-(defun edraw-svg-defrefs-defs-element (defrefs) (car defrefs))
-(defun edraw-svg-defrefs-defrefs (defrefs) (cdr defrefs))
+;; (<defs-element> . <defref-list>)
+(defmacro edraw-svg-defrefs-defs-element (defrefs) `(car ,defrefs))
+(defmacro edraw-svg-defrefs-defrefs (defrefs) `(cdr ,defrefs))
 (defun edraw-svg-defrefs-defrefs--head (defrefs) defrefs)
 
 (defun edraw-svg-defrefs-insert-with-unused-idnum (defrefs def-element)
-  (let ((idnum 0)
-        (cell (edraw-svg-defrefs-defrefs--head defrefs)))
-    (while (and (cdr cell)
-                (= idnum (edraw-svg-defref-idnum (cadr cell))))
-      (setq cell (cdr cell))
-      (setq idnum (1+ idnum)))
-    (let ((defref (edraw-svg-defref def-element idnum)))
-      (setcdr cell (cons defref (cdr cell)))
-      defref)))
+  "Insert DEF-ELEMENT into DEFREFS.
+
+Return an `edraw-svg-defref' object assigned an unused ID number.
+
+This function does not check whether DEF-ELEMENT already exists
+in DEFREFS, so check beforehand if you need it."
+  (cl-loop for prev-cell on (edraw-svg-defrefs-defrefs--head defrefs)
+           for idnum from 0
+           when (or (null (cdr prev-cell))
+                    (/= (edraw-svg-defref-idnum (cadr prev-cell)) idnum))
+           ;; Keep ID number order
+           return (let ((defref (edraw-svg-defref def-element idnum)))
+                    (push defref (cdr prev-cell))
+                    defref)))
 
 (defun edraw-svg-defrefs-add-ref (defrefs def-element referrer-element
                                    prop-value)
