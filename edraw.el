@@ -1779,12 +1779,12 @@ document size or view box."
          (src-defs (edraw-dom-get-by-id src-svg edraw-editor-svg-defs-id))
          (src-deftbl (edraw-svg-deftbl-from-dom src-defs src-body)))
 
-    ;; @todo We need a mechanism that allows us to update all references, not just markers.
-    ;; Update marker attributes
+    ;; Update referrer attributes
+    ;; (Transfer the referenced defs from SRC-DEFTBL to deftbl owned by EDITOR)
     ;; @todo Remove invalid (unsupported) marker attributes?
-    (edraw-svg-update-marker-properties-in-dom src-body
-                                               (oref editor deftbl)
-                                               src-deftbl)
+    (edraw-svg-deftbl-update-referrers-in-dom src-body
+                                              (oref editor deftbl)
+                                              src-deftbl)
 
     ;; Remove IDs that are already in use
     (let ((dst-body (edraw-svg-body editor)))

@@ -2015,6 +2015,47 @@ attributes that are not limited to markers.")
   (cl-callf2 cl-delete-if #'edraw-svg-defref-unreferenced-p
              (edraw-svg-deftbl-defrefs deftbl)))
 
+
+(defun edraw-svg-deftbl-update-referrer-property (element prop-name deftbl
+                                                          &optional src-deftbl)
+  "Update reference to definition element in the property PROP-NAME
+of ELEMENT.
+
+Get the value of the property PROP-NAME that can be a reference to a
+definition element (under SRC-DEFTBL) and set it again (under DEFTBL).
+
+If SRC-DEFTBL is specified, the referenced defs element (deftbl)
+can be changed."
+  (when-let ((value (edraw-svg-element-get-property element
+                                                    prop-name
+                                                    (or src-deftbl deftbl))))
+    ;; Remove reference to SRC-DEFTBL
+    (when (and src-deftbl (not (eq src-deftbl deftbl)))
+      (edraw-svg-element-set-property element prop-name nil src-deftbl))
+    ;; Add reference to DEFTBL
+    (edraw-svg-element-set-property element prop-name value deftbl)))
+
+(defun edraw-svg-deftbl-update-referrer-element (element deftbl
+                                                         &optional src-deftbl)
+  "Update the ELEMENT's properties that can be references to the
+defining element.
+
+Properties that can be references to definition elements are
+determined by the `edraw-svg-deftbl-target-attributes' variable.
+
+Apply the function `edraw-svg-deftbl-update-referrer-property' to
+the properties."
+  (dolist (prop-name edraw-svg-deftbl-target-attributes)
+    (edraw-svg-deftbl-update-referrer-property element prop-name
+                                               deftbl src-deftbl)))
+
+(defun edraw-svg-deftbl-update-referrers-in-dom (dom deftbl
+                                                     &optional src-deftbl)
+  (when (edraw-dom-element-p dom)
+    (edraw-svg-deftbl-update-referrer-element dom deftbl src-deftbl)
+    (dolist (child (edraw-dom-children dom))
+      (edraw-svg-deftbl-update-referrers-in-dom child deftbl src-deftbl))))
+
 ;;;; SVG Marker
 
 (defconst edraw-svg-marker-arrow-overhang
@@ -2240,13 +2281,6 @@ PROPS is an alist of properties defined by the MARKER-TYPE."
   (edraw-svg-update-marker-property element 'marker-start deftbl src-deftbl)
   (edraw-svg-update-marker-property element 'marker-mid deftbl src-deftbl)
   (edraw-svg-update-marker-property element 'marker-end deftbl src-deftbl))
-
-(defun edraw-svg-update-marker-properties-in-dom (dom deftbl
-                                                      &optional src-deftbl)
-  (when (edraw-dom-element-p dom)
-    (edraw-svg-update-marker-properties dom deftbl src-deftbl)
-    (dolist (child (edraw-dom-children dom))
-      (edraw-svg-update-marker-properties-in-dom child deftbl src-deftbl))))
 
 
 

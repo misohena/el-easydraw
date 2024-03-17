@@ -32,9 +32,10 @@ defrefsの仕組みは参照先の種類とは独立だけど、参照部分を�
 - [X] edraw-svg-deftbl-from-domのrecursive-pは常にtなので不要。
 - [X] edraw-svg-deftbl-from-domの未参照要素を削除する部分は分離する。
 - [X] 親リンクのせいでedraw-svg-def-element-equal-pが正しく動かなくなっているのを直す。
-- [ ] edraw-svg-update-marker-properties-in-domはマーカーに限定されないより汎用的なものへ置き換える。
+- [X] edraw-svg-update-marker-properties-in-domはマーカーに限定されないより汎用的なものへ置き換える。
   基本的にはプロパティ値として(古いdeftblから)getして(新しいdeftblへ)setしなおせば良い。
   対象とする属性は edraw-svg-deftbl-target-attributes に指定されている属性を使う。これは将来的にマーカー以外も指すようになることが予定されている。
+- [ ] 出力時に使われていない定義要素を削除する。
 
 ** TODO エディタはCtrl+中ボタンを消費すべき
 C-down-mouse-2 がfacemenu-menuに割り当てられているので。
