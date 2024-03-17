@@ -433,6 +433,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "dtr" 'edraw-editor-rotate-all-shapes)
     (define-key km "deb" 'edraw-editor-export-to-buffer)
     (define-key km "def" 'edraw-editor-export-to-file)
+    (define-key km "dif" 'edraw-editor-import-from-file)
     (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
     (define-key km "z" 'edraw-editor-undo)
     (define-key km "Z" 'edraw-editor-redo)
