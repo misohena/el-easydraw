@@ -8,6 +8,11 @@ defrefsは必要なのだろうか。その都度検索するんじゃダメ？ 
 defrefsの仕組みは参照先の種類とは独立だけど、参照部分を一括でアップデートしたいことがある(インポート時)。
 マーカー周辺のコードも関係してくる。マーカーの属性名はmarker-start、mid、endをハードコードしてしまっているがそれで良いのか。
 
+そもそもdefrefsという名前が既に分かりづらい。deftblでどうだろう。定義を引くためのテーブルだと分かる。
+
+- [ ] GVやcl-libを使ってコードを短くする。
+- [X] defrefs→deftbl (ただしdefrefs-defrefsのところはdeftbl-defrefsにする。
+
 ** TODO エディタはCtrl+中ボタンを消費すべき
 C-down-mouse-2 がfacemenu-menuに割り当てられているので。
 スクロールの時によく誤操作してしまう。

@@ -551,7 +551,7 @@ line-prefix and wrap-prefix are used in org-indent.")
    (svg-document-original-height)
    (svg-document-original-viewbox)
    (svg-document-comments :initform nil) ;; (PRE-COMMENTS . POST-COMMENTS)
-   (defrefs)
+   (deftbl)
    (document-writer :initarg :document-writer :initform nil)
    (document-writer-accepts-top-level-comments-p
     :initarg :document-writer-accepts-top-level-comments-p :initform nil)
@@ -1078,7 +1078,7 @@ For use with `edraw-editor-with-temp-undo-list',
                svg-document-original-width
                svg-document-original-height
                svg-document-original-viewbox
-               svg-document-comments defrefs)
+               svg-document-comments deftbl)
       editor
     ;; Strip top-level comments
     (let ((svg-comments (edraw-dom-split-top-nodes svg)))
@@ -1116,13 +1116,13 @@ For use with `edraw-editor-with-temp-undo-list',
 
     ;; #edraw-defs
     (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
-        (setq defrefs (edraw-svg-defrefs-from-dom
+        (setq deftbl (edraw-svg-deftbl-from-dom
                        defs-element
                        (edraw-dom-get-by-id svg edraw-editor-svg-body-id)
                        t))
-      (setq defrefs (edraw-svg-defs-as-defrefs edraw-editor-svg-defs-id))
+      (setq deftbl (edraw-svg-defs-as-deftbl edraw-editor-svg-defs-id))
       (edraw-dom-insert-first svg
-                              (edraw-svg-defrefs-defs-element defrefs)))
+                              (edraw-svg-deftbl-defs-element deftbl)))
 
     ;; #edraw-body
     (edraw-dom-get-or-create svg 'g edraw-editor-svg-body-id)
@@ -1778,13 +1778,13 @@ document size or view box."
          (_ (when (null (edraw-dom-children src-body))
               (error (edraw-msg "Empty SVG data"))))
          (src-defs (edraw-dom-get-by-id src-svg edraw-editor-svg-defs-id))
-         (src-defrefs (edraw-svg-defrefs-from-dom src-defs src-body t)))
+         (src-deftbl (edraw-svg-deftbl-from-dom src-defs src-body t)))
 
     ;; Update marker attributes
     ;; @todo Remove invalid (unsupported) marker attributes?
     (edraw-svg-update-marker-properties-in-dom src-body
-                                               (oref editor defrefs)
-                                               src-defrefs)
+                                               (oref editor deftbl)
+                                               src-deftbl)
 
     ;; Remove IDs that are already in use
     (let ((dst-body (edraw-svg-body editor)))
@@ -5675,13 +5675,13 @@ Only shape types registered in `edraw-shape-types' are valid."
   (when (symbolp shape-type)
     (alist-get :class (alist-get shape-type edraw-shape-types))))
 
-(defun edraw-shape-type-to-element (shape-type props-alist defrefs)
+(defun edraw-shape-type-to-element (shape-type props-alist deftbl)
   "Create a new SVG element of SHAPE-TYPE."
   (let ((create-element
          (alist-get :create-element (alist-get shape-type edraw-shape-types))))
     (unless create-element
       (error "Unsupported shape type %s" shape-type))
-    (funcall create-element shape-type props-alist defrefs)))
+    (funcall create-element shape-type props-alist deftbl)))
 
 (defun edraw-shape-type-from-element (element)
   "Return a symbol that represents the shape type of the SVG ELEMENT."
@@ -5782,7 +5782,7 @@ markers) to the EDITOR."
   ;; when loading an SVG and is easier to maintain consistency.
   (let* ((shape (edraw-shape-from-element
                  (edraw-create-shape-svg-element shape-type props-alist
-                                                 (oref editor defrefs)
+                                                 (oref editor deftbl)
                                                  parent index)
                  editor)))
     (edraw-make-undo-group editor 'shape-create
@@ -5790,13 +5790,13 @@ markers) to the EDITOR."
       (edraw-on-shape-changed shape 'shape-create))
     shape))
 
-(defun edraw-create-shape-svg-element (shape-type props-alist defrefs
+(defun edraw-create-shape-svg-element (shape-type props-alist deftbl
                                                   parent index)
   "Create an SVG element of the shape specified by SHAPE-TYPE."
   ;; First, create an SVG element determined for each SHAPE-TYPE. In
   ;; the future, we may construct more complex elements (for example,
   ;; a g element with several child elements).
-  (let ((element (edraw-shape-type-to-element shape-type props-alist defrefs)))
+  (let ((element (edraw-shape-type-to-element shape-type props-alist deftbl)))
     ;; Then add the element to the PARENT.
     (when parent
       (if index
@@ -5804,7 +5804,7 @@ markers) to the EDITOR."
         (edraw-dom-append-child parent element)))
     element))
 
-(defun edraw-shape--create-element (tag props-alist defrefs)
+(defun edraw-shape--create-element (tag props-alist deftbl)
   "Create an DOM element.
 
 Unlike `dom-node' etc., attributes are set by the
@@ -5814,7 +5814,7 @@ Unlike `dom-node' etc., attributes are set by the
     (dolist (prop props-alist)
       (let ((prop-name (car prop))
             (value (cdr prop)))
-        (edraw-svg-element-set-property element prop-name value defrefs)))
+        (edraw-svg-element-set-property element prop-name value deftbl)))
     element))
 
 ;;;;; Selection Menu
@@ -5969,7 +5969,7 @@ Return nil if undefined.")
              (lambda (prop-info)
                (let* ((prop-name (plist-get prop-info :name))
                       (prop-value (edraw-svg-element-get-property
-                                   element prop-name nil))) ;;defrefs=nil
+                                   element prop-name nil))) ;;deftbl=nil
                  (cons prop-name prop-value)))
              (edraw-svg-element-get-property-info-list element))))
      (when (eq (edraw-shape-type-from-element element) 'g) ;;@todo type check??
@@ -6038,13 +6038,13 @@ Return nil if undefined.")
   (let* ((shape-type (alist-get :type shape-descriptor))
          (props (alist-get :properties shape-descriptor))
          (children-descriptor (alist-get :children shape-descriptor))
-         ;;@todo defrefs??? What happens when use marker attributes?
-         (defrefs (edraw-svg-defrefs (edraw-dom-element 'defs))) ;;Dummy defrefs
+         ;;@todo deftbl??? What happens when use marker attributes?
+         (deftbl (edraw-svg-deftbl (edraw-dom-element 'defs))) ;;Dummy deftbl
          (element
           (edraw-create-shape-svg-element
            shape-type
            props
-           defrefs
+           deftbl
            nil ;;parent
            nil ;;index
            )))
@@ -6388,8 +6388,8 @@ return it."
         (match-string 1 name)
       name)))
 
-(cl-defmethod edraw-get-defrefs ((shape edraw-shape))
-  (oref (oref shape editor) defrefs))
+(cl-defmethod edraw-get-deftbl ((shape edraw-shape))
+  (oref (oref shape editor) deftbl))
 
 (cl-defmethod edraw-get-summary ((shape edraw-shape))
   (edraw-svg-element-summary (edraw-element shape)))
@@ -6410,7 +6410,7 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 
 (cl-defmethod edraw-get-property ((shape edraw-shape) prop-name)
   (edraw-svg-element-get-property (edraw-element shape) prop-name
-                                  (edraw-get-defrefs shape)))
+                                  (edraw-get-deftbl shape)))
 
 (cl-defmethod edraw-get-property-as-length ((shape edraw-shape) prop-name
                                             &optional default-value)
@@ -6427,18 +6427,18 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-set-properties-internal ((shape edraw-shape) prop-list
                                              old-prop-list)
   "Returns t if the property is actually changed."
-  (let ((defrefs (edraw-get-defrefs shape)))
+  (let ((deftbl (edraw-get-deftbl shape)))
     (with-slots (element) shape
       (dolist (prop prop-list)
         (let* ((prop-name (car prop))
                (new-value (cdr prop))
                (old-value (edraw-svg-element-get-property element prop-name
-                                                          defrefs)))
+                                                          deftbl)))
           (unless (equal new-value old-value)
             ;;(message "%s: %s to %s" prop-name old-value new-value)
             (push (cons prop-name old-value) old-prop-list)
             (edraw-svg-element-set-property element prop-name new-value
-                                            defrefs)))))
+                                            deftbl)))))
     (when old-prop-list
       (let ((editor (oref shape editor)))
         (edraw-make-undo-group editor 'shape-properties
@@ -8515,7 +8515,7 @@ possible. Because undoing invalidates all point objects."
               ;;(marker (edraw-get-property shape prop-name))
               (overhang (edraw-svg-marker-overhang (edraw-element shape)
                                                    prop-name
-                                                   (edraw-get-defrefs shape))))
+                                                   (edraw-get-deftbl shape))))
          (when overhang
            (let ((src-stroke (edraw-get-property shape 'stroke))
                  (dst-stroke (edraw-get-property dst-shape 'stroke)))
