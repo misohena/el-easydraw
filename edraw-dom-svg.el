@@ -209,6 +209,60 @@ Since this is a macro, setf can be used."
    (edraw-dom-get-by-id parent id)
    (edraw-dom-element tag :id id :parent parent)))
 
+;;;; DOM Comparison
+
+;; Note: It is inappropriate to use `equal' to compare DOM nodes. In
+;; particular, if there is an internal attribute such as a link to a
+;; parent node, `equal' cannot be used to compare correctly. Also,
+;; even though the contents of the attributes are the same, it is
+;; possible that only the order of the attributes is different.
+
+(defun edraw-dom-equal (node1 node2 &optional
+                              attrs-to-exclude-for-top-nodes
+                              attrs-to-exclude-for-children
+                              without-children)
+  (if (edraw-dom-element-p node1)
+      (if (edraw-dom-element-p node2)
+          ;; Element
+          (and (eq (edraw-dom-tag node1) (edraw-dom-tag node2))
+               (edraw-dom-equal-attributes (edraw-dom-attributes node1)
+                                           (edraw-dom-attributes node2)
+                                           attrs-to-exclude-for-top-nodes)
+               (or without-children
+                   (edraw-dom-equal-children node1 node2
+                                             attrs-to-exclude-for-children)))
+        nil)
+    (if (edraw-dom-element-p node2)
+        nil
+      ;; Text node
+      (equal node1 node2))))
+
+(defun edraw-dom-equal-children (node1 node2 &optional attrs-to-exclude)
+  (when (and (edraw-dom-element-p node1) (edraw-dom-element-p node2))
+    (edraw-dom-equal-node-list (edraw-dom-children node1)
+                               (edraw-dom-children node2)
+                               attrs-to-exclude)))
+
+(defun edraw-dom-equal-node-list (nodes1 nodes2 &optional attrs-to-exclude)
+  (when (= (length nodes1) (length nodes2))
+    (while (and nodes1
+                nodes2
+                (edraw-dom-equal (car nodes1) (car nodes2) attrs-to-exclude))
+      (setq nodes1 (cdr nodes1)
+            nodes2 (cdr nodes2)))
+    (and (null nodes1)
+         (null nodes2))))
+
+(defun edraw-dom-equal-attributes (attrs1 attrs2 &optional attrs-to-exclude)
+  (seq-set-equal-p
+   (seq-remove (lambda (attr) (or (edraw-dom-attr-internal-p (car attr))
+                                  (memq (car attr) attrs-to-exclude)))
+               attrs1)
+   (seq-remove (lambda (attr) (or (edraw-dom-attr-internal-p (car attr))
+                                  (memq (car attr) attrs-to-exclude)))
+               attrs2)
+   #'equal))
+
 ;;;; DOM Parent Tracking
 
 (defun edraw-dom-set-parent-auto (node parent)
@@ -1783,13 +1837,7 @@ case only the first one is removed."
   (null (edraw-svg-defref-referrers defref)))
 
 (defun edraw-svg-def-element-equal-p (a b)
-  ;; equal except id
-  (and
-   (eq (dom-tag a) (dom-tag b))
-   (seq-set-equal-p
-    (seq-remove (lambda (atr) (eq (car atr) 'id)) (dom-attributes a))
-    (seq-remove (lambda (atr) (eq (car atr) 'id)) (dom-attributes b)))
-   (equal (dom-children a) (dom-children b))))
+  (edraw-dom-equal a b '(id) nil nil))
 
 (defun edraw-svg-def-element-url (defref additional-info)
   (format "url(#edraw-def-%s-%s)"
