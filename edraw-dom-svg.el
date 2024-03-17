@@ -1779,7 +1779,7 @@ case only the first one is removed."
   (cl-callf2 cl-delete referrer-element
              (edraw-svg-defref-referrers defref) :count 1))
 
-(defun edraw-svg-defref-empty-p (defref)
+(defun edraw-svg-defref-unreferenced-p (defref)
   (null (edraw-svg-defref-referrers defref)))
 
 (defun edraw-svg-def-element-equal-p (a b)
@@ -1790,6 +1790,29 @@ case only the first one is removed."
     (seq-remove (lambda (atr) (eq (car atr) 'id)) (dom-attributes a))
     (seq-remove (lambda (atr) (eq (car atr) 'id)) (dom-attributes b)))
    (equal (dom-children a) (dom-children b))))
+
+(defun edraw-svg-def-element-url (defref additional-info)
+  (format "url(#edraw-def-%s-%s)"
+          (edraw-svg-defref-idnum defref)
+          additional-info))
+
+(defun edraw-svg-def-element-id (defref additional-info)
+  (format "edraw-def-%s-%s" (edraw-svg-defref-idnum defref) additional-info))
+
+(defun edraw-svg-def-element-id-to-idnum (id-attr)
+  (and (stringp id-attr)
+       (string-match "\\`edraw-def-\\([0-9]+\\)-\\([^)]+\\)\\'" id-attr)
+       (string-to-number (match-string 1 id-attr))))
+
+(defun edraw-svg-def-element-url-to-idnum (url)
+  (and (stringp url)
+       (string-match "\\`url(#edraw-def-\\([0-9]+\\)-\\([^)]+\\))\\'" url)
+       (string-to-number (match-string 1 url))))
+
+(defun edraw-svg-def-element-url-to-additional-info (url)
+  (and (stringp url)
+       (string-match "\\`url(#edraw-def-\\([0-9]+\\)-\\([^)]+\\))\\'" url)
+       (match-string-no-properties 2 url)))
 
 
 ;;;;; Definition and Referrers Table
@@ -1823,35 +1846,45 @@ in DEFTBL, so check beforehand if you need it."
                     defref)))
 
 (defun edraw-svg-deftbl-add-ref (deftbl def-element referrer-element
-                                        prop-value)
-  (if-let ((defref (assoc def-element (edraw-svg-deftbl-defrefs deftbl)
-                          'edraw-svg-def-element-equal-p)))
+                                        additional-info)
+  "Add a reference to the definition element DEF-ELEMENT.
+
+If a definition identical to DEF-ELEMENT already exists in
+DEFTBL, return a reference to it. If not, add DEF-ELEMENT to the
+defs element targeted by DEFTBL and return a reference to it.
+
+DEFTBL records that REFERRER-ELEMENT refers to DEF-ELEMENT.
+
+The string converted from ADDITIONAL-INFO is concatenated to the
+end of the id attribute of DEF-ELEMENT.
+See `edraw-svg-def-element-id' and `edraw-svg-def-element-url'."
+  (if-let ((defref (assoc def-element
+                          (edraw-svg-deftbl-defrefs deftbl)
+                          #'edraw-svg-def-element-equal-p)))
       (progn
         (edraw-svg-defref-add-referrer defref referrer-element)
-        (format "url(#edraw-def-%s-%s)"
-                (edraw-svg-defref-idnum defref)
-                prop-value))
-    (let* ((defref (edraw-svg-deftbl-insert-with-unused-idnum deftbl
-                                                              def-element))
-           (idnum (edraw-svg-defref-idnum defref)))
-      ;; add a new definition element
+        (edraw-svg-def-element-url defref additional-info))
+    (let ((defref (edraw-svg-deftbl-insert-with-unused-idnum deftbl
+                                                             def-element)))
+      ;; Add a new definition element
       (edraw-svg-defref-add-referrer defref referrer-element)
       (edraw-svg-set-attr-string def-element 'id
-                                 (format "edraw-def-%s-%s" idnum prop-value))
+                                 (edraw-svg-def-element-id defref
+                                                           additional-info))
       (edraw-dom-append-child (edraw-svg-deftbl-defs-element deftbl)
                               def-element)
-      (format "url(#edraw-def-%s-%s)" idnum prop-value))))
+      (edraw-svg-def-element-url defref additional-info))))
 
-(defun edraw-svg-deftbl-remove-ref-by-idnum (deftbl idnum element)
+(defun edraw-svg-deftbl-remove-ref-by-idnum (deftbl idnum referrer-element)
   (let ((cell (edraw-svg-deftbl-defrefs--head deftbl)))
     (while (and (cdr cell)
                 (not (= (edraw-svg-defref-idnum (cadr cell)) idnum)))
       (setq cell (cdr cell)))
     (when (cdr cell)
       (let ((defref (cadr cell)))
-        (edraw-svg-defref-remove-referrer defref element)
+        (edraw-svg-defref-remove-referrer defref referrer-element)
         ;; when no referrer
-        (when (edraw-svg-defref-empty-p defref)
+        (when (edraw-svg-defref-unreferenced-p defref)
           ;; remove definition element
           (edraw-dom-remove-node
            (edraw-svg-deftbl-defs-element deftbl)
@@ -1859,43 +1892,39 @@ in DEFTBL, so check beforehand if you need it."
           ;; remove defref pair
           (setcdr cell (cddr cell)))))))
 
-(defun edraw-svg-deftbl-get-by-idnum (deftbl idnum)
+(defun edraw-svg-deftbl-get-defref-by-idnum (deftbl idnum)
   (seq-find (lambda (defref) (= (edraw-svg-defref-idnum defref) idnum))
             (edraw-svg-deftbl-defrefs deftbl)))
 
 (defun edraw-svg-deftbl-add-ref-by-idnum (deftbl idnum referrer-element)
-  (when-let ((defref (edraw-svg-deftbl-get-by-idnum deftbl idnum)))
+  (when-let ((defref (edraw-svg-deftbl-get-defref-by-idnum deftbl idnum)))
     (edraw-svg-defref-add-referrer defref referrer-element)))
 
-(defun edraw-svg-defref-id-attr-to-idnum (id-attr)
-  (and (stringp id-attr)
-       (string-match "\\`edraw-def-\\([0-9]+\\)-\\([^)]+\\)\\'" id-attr)
-       (string-to-number (match-string 1 id-attr))))
-
-(defun edraw-svg-defref-url-to-idnum (url)
-  (and (stringp url)
-       (string-match "\\`url(#edraw-def-\\([0-9]+\\)-\\([^)]+\\))\\'" url)
-       (string-to-number (match-string 1 url))))
-
-(defun edraw-svg-defref-url-to-prop-value (url)
-  (and (stringp url)
-       (string-match "\\`url(#edraw-def-\\([0-9]+\\)-\\([^)]+\\))\\'" url)
-       (match-string-no-properties 2 url)))
-
 (defun edraw-svg-deftbl-remove-ref-by-url (deftbl url element)
-  (when-let ((idnum (edraw-svg-defref-url-to-idnum url)))
+  (when-let ((idnum (edraw-svg-def-element-url-to-idnum url)))
     (edraw-svg-deftbl-remove-ref-by-idnum deftbl idnum element)))
 
 (defun edraw-svg-deftbl-get-defref-by-url (deftbl url)
-  (when-let ((idnum (edraw-svg-defref-url-to-idnum url)))
-    (edraw-svg-deftbl-get-by-idnum deftbl idnum)))
+  (when-let ((idnum (edraw-svg-def-element-url-to-idnum url)))
+    (edraw-svg-deftbl-get-defref-by-idnum deftbl idnum)))
 
-(defun edraw-svg-deftbl-from-dom (defs-node body-node &optional recursive-p)
-  (let ((deftbl (edraw-svg-deftbl defs-node))
+(defun edraw-svg-deftbl-from-dom (defs-element body-node)
+  "Create deftbl from an existing SVG DOM.
+
+DEFS-ELEMENT is a defs element that has elements referenced from
+elements in BODY-NODE. Its child elements should have an id
+attribute as generated by `edraw-svg-def-element-id'.
+
+BODY-NODE is a element that contains graphic elements and
+contains references to the definition elements in DEFS-ELEMENT.
+
+Currently, the only attributes that detect references are those
+specified by the `edraw-svg-deftbl-target-attributes' constant."
+  (let ((deftbl (edraw-svg-deftbl defs-element))
         defref-list)
     ;; Collect definitions
-    (dolist (def (dom-children defs-node))
-      (when-let ((idnum (edraw-svg-defref-id-attr-to-idnum (dom-attr def 'id))))
+    (dolist (def (dom-children defs-element))
+      (when-let ((idnum (edraw-svg-def-element-id-to-idnum (dom-attr def 'id))))
         (push (edraw-svg-defref def idnum) defref-list)))
     ;; Sort and assign
     (setcdr (edraw-svg-deftbl-defrefs--head deftbl)
@@ -1903,32 +1932,40 @@ in DEFTBL, so check beforehand if you need it."
                                 (< (edraw-svg-defref-idnum defref1)
                                    (edraw-svg-defref-idnum defref2)))))
     ;; Collect references
-    (edraw-svg-deftbl-from-dom--collect-references deftbl body-node
-                                                   recursive-p)
+    (edraw-svg-deftbl-from-dom--collect-references deftbl body-node)
     ;; Remove unreferenced definitions
-    (dolist (defref (edraw-svg-deftbl-defrefs deftbl))
-      (when (edraw-svg-defref-empty-p defref)
-        (edraw-dom-remove-node defs-node
-                               (edraw-svg-defref-def-element defref))))
-    (setcdr (edraw-svg-deftbl-defrefs--head deftbl)
-            (seq-remove 'edraw-svg-defref-empty-p
-                        (edraw-svg-deftbl-defrefs deftbl)))
+    (edraw-svg-deftbl-remove-unreferenced-definitions deftbl)
 
     deftbl))
 
-(defun edraw-svg-deftbl-from-dom--collect-references (deftbl
-                                                      body-node
-                                                      recursive-p)
-  (when body-node
-    (dolist (node (dom-children body-node))
-      (when (edraw-dom-element-p node) ;;exclude text nodes
-        (dolist (attr (dom-attributes node))
-          (when (member (car attr) '(marker-start marker-mid marker-end))
-            (when-let ((idnum (edraw-svg-defref-url-to-idnum (cdr attr))))
-              (edraw-svg-deftbl-add-ref-by-idnum deftbl idnum node))))
-        (when recursive-p
-          (edraw-svg-deftbl-from-dom--collect-references deftbl node t))))))
+(defconst edraw-svg-deftbl-target-attributes
+  '(marker-start marker-mid marker-end)
+  "list of attributes that can have references to definitions.
 
+Note: In the future, this value may include a wide variety of
+attributes that are not limited to markers.")
+
+(defun edraw-svg-deftbl-from-dom--collect-references (deftbl dom)
+  (when (edraw-dom-element-p dom) ;;exclude text nodes
+    ;; Collect from attributes
+    (dolist (attr (dom-attributes dom))
+      (when (member (car attr) edraw-svg-deftbl-target-attributes)
+        (when-let ((idnum (edraw-svg-def-element-url-to-idnum (cdr attr))))
+          (edraw-svg-deftbl-add-ref-by-idnum deftbl idnum dom))))
+    ;; Collect from children
+    (dolist (child (dom-children dom))
+      (edraw-svg-deftbl-from-dom--collect-references deftbl child))))
+
+(defun edraw-svg-deftbl-remove-unreferenced-definitions (deftbl)
+  ;; Remove unreferenced DEF-ELEMENTs from DEFS-ELEMENT
+  (let ((defs-element (edraw-svg-deftbl-defs-element deftbl)))
+    (dolist (defref (edraw-svg-deftbl-defrefs deftbl))
+      (when (edraw-svg-defref-unreferenced-p defref)
+        (edraw-dom-remove-node defs-element
+                               (edraw-svg-defref-def-element defref)))))
+  ;; Remove unreferenced DEFREFs from DEFTBL
+  (cl-callf2 cl-delete-if #'edraw-svg-defref-unreferenced-p
+             (edraw-svg-deftbl-defrefs deftbl)))
 
 ;;;; SVG Marker
 
@@ -2057,7 +2094,7 @@ in DEFTBL, so check beforehand if you need it."
                (stringp value)
                (not (string= value "none"))
                (not (string= value "")))
-      (let ((marker-type (edraw-svg-defref-url-to-prop-value value))
+      (let ((marker-type (edraw-svg-def-element-url-to-additional-info value))
             (marker-element
              (edraw-svg-defref-def-element
               (edraw-svg-deftbl-get-defref-by-url deftbl value))))
@@ -2141,7 +2178,7 @@ PROPS is an alist of properties defined by the MARKER-TYPE."
   ;; Return marker descriptor
   (edraw-svg-marker-from-element element prop-name deftbl)
   ;; Return only marker type (old behavior)
-  ;;(edraw-svg-defref-url-to-prop-value (dom-attr element prop-name))
+  ;;(edraw-svg-def-element-url-to-additional-info (dom-attr element prop-name))
   )
 
 (defun edraw-svg-update-marker-property (element prop-name deftbl

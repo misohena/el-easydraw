@@ -1117,9 +1117,8 @@ For use with `edraw-editor-with-temp-undo-list',
     ;; #edraw-defs
     (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
         (setq deftbl (edraw-svg-deftbl-from-dom
-                       defs-element
-                       (edraw-dom-get-by-id svg edraw-editor-svg-body-id)
-                       t))
+                      defs-element
+                      (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
       (setq deftbl (edraw-svg-defs-as-deftbl edraw-editor-svg-defs-id))
       (edraw-dom-insert-first svg
                               (edraw-svg-deftbl-defs-element deftbl)))
@@ -1778,8 +1777,9 @@ document size or view box."
          (_ (when (null (edraw-dom-children src-body))
               (error (edraw-msg "Empty SVG data"))))
          (src-defs (edraw-dom-get-by-id src-svg edraw-editor-svg-defs-id))
-         (src-deftbl (edraw-svg-deftbl-from-dom src-defs src-body t)))
+         (src-deftbl (edraw-svg-deftbl-from-dom src-defs src-body)))
 
+    ;; @todo We need a mechanism that allows us to update all references, not just markers.
     ;; Update marker attributes
     ;; @todo Remove invalid (unsupported) marker attributes?
     (edraw-svg-update-marker-properties-in-dom src-body
