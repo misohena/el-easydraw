@@ -7285,18 +7285,18 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-get-anchor-position ((shape edraw-shape-text))
   (with-slots (element) shape
     (cons
-     (or (edraw-svg-attr-coord element 'x) 0)
-     (or (edraw-svg-attr-coord element 'y) 0))))
+     (or (car (edraw-svg-attr-length-list element 'x)) 0)
+     (or (car (edraw-svg-attr-length-list element 'y)) 0))))
 
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-text) xy)
   "Returns t if the property is actually changed."
-  (when (or (/= (edraw-x xy) (edraw-get-property-as-length shape 'x 0))
-            (/= (edraw-y xy) (edraw-get-property-as-length shape 'y 0)))
-    (edraw-set-properties
-     shape
-     (list
-      (cons 'x (edraw-x xy))
-      (cons 'y (edraw-y xy))))))
+  (with-slots (element) shape
+    (when (edraw-xy-equal-p xy (edraw-get-anchor-position shape))
+      (edraw-set-properties
+       shape
+       (list
+        (cons 'x (edraw-x xy))
+        (cons 'y (edraw-y xy)))))))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-text) matrix)
   (cond
@@ -7313,8 +7313,7 @@ may be replaced by another mechanism."
 
 (cl-defmethod edraw-transform-anchor-points-local ((shape edraw-shape-text) matrix)
   (with-slots (element) shape
-    (let* ((xy (cons (edraw-get-property-as-length shape 'x 0)
-                     (edraw-get-property-as-length shape 'y 0)))
+    (let* ((xy (edraw-get-anchor-position shape))
            (new-xy (edraw-matrix-mul-mat-xy matrix xy)))
 
       (edraw-set-properties

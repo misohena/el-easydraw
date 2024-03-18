@@ -37,7 +37,6 @@ viewBoxのwidthやheightまたはsvg要素のwidth= height=が大きすぎる場
 data-edraw-background-alignみたいな属性が必要になる。
 そこまで必要かは疑問。最悪自分で背景rectを作れば良いんだし。
 
-** TODO インポート/インポートしたテキストが移動できないことがある
 ** TODO インポート/Inkscapeのコネクタに対応する？
 簡易的になら対応できそうな気もする。
 ただ、IDを参照しているので、それをdata-edraw-idへ変換しなければならない。
@@ -49,9 +48,35 @@ data-edraw-background-alignみたいな属性が必要になる。
 基本的にはその方が良い。
 カスタマイズ変数で変換しないようにできてもよい。
 ** TODO インポート/paint値を検証する
+[[https://www.w3.org/TR/SVG2/painting.html#SpecifyingPaint][Painting: Filling, Stroking and Marker Symbols — SVG 2]]
+
+<paint>値に指定出来るのは:
+- none
+- <url> [none | <color>]?
+  - <url>は[[https://www.w3.org/TR/SVG2/pservers.html][paint server]]であり、linearGradient, radialGradient, pattern
+- <color>
+  - rgb
+  - rgba
+  - hsl
+  - hsla
+  - extended color keywords
+  - currentColor (CSS colorプロパティを参照する)
+- context-fill
+- context-stroke
+
+一番問題になるのは<url>だが、今のところ放置していてもそれほど害にはならない？
+
 ** TODO インポート/マーカーを検証する
+要素をそのまま参照するrawタイプのマーカーというのは実装できるだろうか。インポートしたマーカーはrawマーカーとして扱いたい。これはあくまで未対応のマーカーを入れておくための場所で、編集機能は一切提供したくない。マーカーオブジェクトのプロパティにもしたくないが可能だろうか。マーカーを文字列化するときはどうなるだろうか(シェイプピッカーにペーストしたとき？　他には？)。
+
 ** TODO インポート/様々な形式からインポートできるようにする
 インポーターリストがあるべきかもしれない。
+
+** TODO length値の継承処理が正しいのか確認する
+[[elisp-function:edraw-svg-attr-length-or-inherited]]ではdom-attrがnilを返したときに親を見に行くことになっている。空の属性を指定した場合や無効な属性を指定した場合はどうなるのが正しいのだろうか。
+
+- [[https://www.w3.org/TR/SVG2/types.html#syntax][4.2. Attribute syntax - Basic Data Types and Interfaces — SVG 2]]
+- [[https://www.w3.org/TR/SVG2/types.html#SVGObjectInitialization][4.3.6. Reflecting an empty initial value - Basic Data Types and Interfaces — SVG 2]]
 
 ** TODO image要素のwidthやheightが省略されたときの動作を確認する
 widthやheightが指定されていないときは画像の幅や高さになる？
@@ -3953,3 +3978,12 @@ defrefs改めdeftblの目的:
   - 高速に求めるため
   - UndoのためにSVGツリーから外れても定義要素を保持し続けられるようにするため
     (これは弊害ももたらす)
+** DONE テキスト/どの座標指定形式であっても平行移動できるようにする
+CLOSED: [2024-03-18 Mon 20:44]
+textとその下のtsapnを考慮する。
+x= y= dx= dy=それぞれについて、複数指定バージョンも考慮する。
+ただし、手元の環境では座標の複数指定は表示に反映されない(librsvgが未対応？)。
+
+x, y属性の変更は、その下のtspanのx, yも変更するものとする。まぁ、正しいとは限らないんだけどね。
+** DONE インポート/インポートしたテキストが移動できないことがある
+CLOSED: [2024-03-18 Mon 20:44]

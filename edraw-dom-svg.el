@@ -849,6 +849,27 @@ However, SVG2's transform attribute does not allow trailing dots.")
           (_ 0)))
     0))
 
+;;;;; List
+
+(defun edraw-svg-attr-split-list-string (string)
+  "Split STRING with comma-wsp.
+
+Can only be used if there cannot be commas or spaces within the
+parts being split."
+  (when (stringp string)
+    (let ((trimmed (string-trim string edraw-svg-re-wsp)))
+      (unless (string-empty-p trimmed)
+        (split-string trimmed edraw-svg-re-comma-wsp)))))
+;; TEST: (edraw-svg-attr-split-list-string nil) => nil
+;; TEST: (edraw-svg-attr-split-list-string "") => nil
+;; TEST: (edraw-svg-attr-split-list-string "    ") => nil
+;; TEST: (edraw-svg-attr-split-list-string "11") => ("11")
+;; TEST: (edraw-svg-attr-split-list-string "11,22") => ("11" "22")
+;; TEST: (edraw-svg-attr-split-list-string "11 22 33 44 55") => ("11" "22" "33" "44" "55")
+;; TEST: (edraw-svg-attr-split-list-string "  11   22 , 33, 44 ,55  ") => ("11" "22" "33" "44" "55")
+;; TEST: (edraw-svg-attr-split-list-string "  11   22 , 33, 44 ,55  ,  ") => ("11" "22" "33" "44" "55" "")
+;; TEST: (edraw-svg-attr-split-list-string "  ,  ") => ("" "")
+
 ;;;;; Conversion
 
 (defun edraw-svg-attr-length-to-number (value &optional element attr)
@@ -878,6 +899,25 @@ However, SVG2's transform attribute does not allow trailing dots.")
    ;; symbol?
    (t
     value)))
+
+(defun edraw-svg-attr-length-list-to-number-list (value &optional element attr)
+  "Convert length list attribute value to a list of numbers."
+  (cond
+   ((stringp value)
+    (cl-loop for str in (edraw-svg-attr-split-list-string value)
+             for num-unit = (edraw-svg-attr-length-match str)
+             while num-unit
+             collect (edraw-svg-attr-length-match-to-number num-unit element attr)))
+   ((numberp value)
+    (list value))
+   ((null value)
+    nil)
+   ((listp value) ;; Not nil
+    (when (seq-every-p #'numberp value)
+      value))
+   ;; symbol?
+   (t
+    nil)))
 
 (defun edraw-svg-ensure-string-attr (value)
   "Convert attribute value to string."
@@ -909,6 +949,12 @@ However, SVG2's transform attribute does not allow trailing dots.")
         (edraw-svg-attr-length element attr)
       (edraw-svg-attr-length-or-inherited (edraw-dom-get-parent element)
                                           attr))))
+
+(defun edraw-svg-attr-length-list (element attr)
+  (when element
+    (edraw-svg-attr-length-list-to-number-list (dom-attr element attr)
+                                               element
+                                               attr)))
 
 ;;;;; Set Attribute
 
@@ -1717,7 +1763,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
          (negative-dir-p (eq (edraw-svg-text-writing-mode element)
                              'vertical-rl))
          (attr-col (if vertical-p 'y 'x))
-         (col (or (edraw-svg-attr-coord element attr-col) 0))
+         (col (or (car (edraw-svg-attr-length-list element attr-col)) 0))
          (attr-line-delta (if vertical-p 'dx 'dy))
          (leading (edraw-svg-attr-length element 'data-edraw-text-leading))
          (line-delta-unit (if leading "" "em"))
@@ -1776,23 +1822,45 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 (defun edraw-svg-text-get-text (element)
   (edraw-svg-text--element-content-to-string element t))
 
-(defun edraw-svg-text-set-x (element x)
-  (edraw-svg-set-attr-number element 'x x)
-  (unless (edraw-svg-text-vertical-writing-p element)
-    (let ((tspans (dom-by-class element edraw-svg-text--line-class-name-re)))
-      (dolist (tspan tspans)
-        (edraw-svg-set-attr-number tspan 'x x)))))
-
-(defun edraw-svg-text-set-y (element y)
-  (edraw-svg-set-attr-number element 'y y)
-  (when (edraw-svg-text-vertical-writing-p element)
-    (let ((tspans (dom-by-class element edraw-svg-text--line-class-name-re)))
-      (dolist (tspan tspans)
-        (edraw-svg-set-attr-number tspan 'y y)))))
-
 (defun edraw-svg-text-set-xy (element xy)
   (edraw-svg-text-set-x element (car xy))
   (edraw-svg-text-set-y element (cdr xy)))
+
+(defun edraw-svg-text-set-x (element x)
+  (edraw-svg-text-set-coord element 'x x))
+
+(defun edraw-svg-text-set-y (element y)
+  (edraw-svg-text-set-coord element 'y y))
+
+(defun edraw-svg-text-set-coord (element attr new-x)
+  (let* ((old-xs (or (edraw-svg-attr-length-list element attr) (list 0)))
+         (old-x0 (car old-xs))
+         (_ (if (stringp new-x)
+                (edraw-svg-set-attr-string element attr new-x)
+              (edraw-svg-set-attr-number element attr new-x)))
+         (new-xs (or (edraw-svg-attr-length-list element attr) (list 0)))
+         (new-x0 (car new-xs)))
+
+    (dolist (child (edraw-dom-children element))
+      (edraw-svg-text-set-coord--tspan child attr old-x0 new-x0))))
+
+(defun edraw-svg-text-set-coord--tspan (element attr old-x0 new-x0)
+  (when (and (edraw-dom-element-p element)
+             (eq (edraw-dom-tag element) 'tspan))
+    (let* ((old-xs (edraw-svg-attr-length-list element attr))
+           (new-xs (mapcar (lambda (ox) (if (= ox old-x0)
+                                            new-x0
+                                          (+ (- ox old-x0) new-x0)))
+                           old-xs)))
+      (cond
+       ((cdr new-xs)
+        (edraw-svg-set-attr-string element attr
+                                   (mapconcat #'edraw-to-string new-xs " ")))
+       (new-xs
+        (edraw-svg-set-attr-number element attr (car new-xs))))
+
+      (dolist (child (edraw-dom-children element))
+        (edraw-svg-text-set-coord--tspan child attr old-x0 new-x0)))))
 
 
 ;;;; SVG Defs
@@ -2305,24 +2373,8 @@ PROPS is an alist of properties defined by the MARKER-TYPE."
 This function does not consider the effect of the transform attribute."
   ;; https://www.w3.org/TR/SVG11/text.html#TextElement
   ;; @todo support inherit attribute from ancestor
-  (let* ((x (or (dom-attr element 'x) ""))
-         (y (or (dom-attr element 'y) ""))
-         (separator ;;comma-wsp
-          "\\(?:[ \t\n\f\r]+,?[ \t\n\f\r]*\\|,[ \t\n\f\r]*\\)")
-         (xs
-          (if (stringp x)
-              (or (mapcar
-                   (lambda (n) (edraw-svg-attr-length-to-number n element 'x))
-                   (split-string x separator t))
-                  (list 0))
-            (list x)))
-         (ys
-          (if (stringp y)
-              (or (mapcar
-                   (lambda (n) (edraw-svg-attr-length-to-number n element 'y))
-                   (split-string y separator t))
-                  (list 0))
-            (list y)))
+  (let* ((xs (or (edraw-svg-attr-length-list element 'x) (list 0)))
+         (ys (or (edraw-svg-attr-length-list element 'y) (list 0)))
          (anchor-x (car xs))
          (anchor-y (car ys))
          ;;@todo support dx, dy
@@ -2448,12 +2500,12 @@ This function does not consider the effect of the transform attribute."
                                 (cdr xy))))
 
 (defun edraw-svg-text-translate-contents (element xy)
-  ;;@todo support list-of-coordinates
-  (edraw-svg-text-set-x element (+ (or (edraw-svg-attr-coord element 'x) 0)
-                                   (car xy)))
-  (edraw-svg-set-attr-number element 'y
-                             (+ (or (edraw-svg-attr-coord element 'y) 0)
-                                (cdr xy))))
+  (edraw-svg-text-set-x element
+                        (+ (or (car (edraw-svg-attr-length-list element 'x)) 0)
+                           (car xy)))
+  (edraw-svg-text-set-y element
+                        (+ (or (car (edraw-svg-attr-length-list element 'y)) 0)
+                           (cdr xy))))
 
 (defun edraw-svg-image-translate-contents (element xy)
   (edraw-svg-set-attr-number element 'x
