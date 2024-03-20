@@ -407,16 +407,17 @@ The result value might look like this:
                                        ))))
            (recursive (and ref-elem
                            (memq ref-elem
-                                 (plist-get context :use-converting-elements))))
+                                 (plist-get (car context) :use-converting-elements))))
            (converted-ref-elem
             (and supported-tag
                  (not recursive)
                  (edraw-import-svg-convert-element
                   ref-elem
-                  (edraw-plist-put
-                   context :use-converting-elements
-                   (cons ref-elem
-                         (plist-get context :use-converting-elements)))))))
+                  (list
+                   (edraw-plist-put
+                    (car context) :use-converting-elements
+                    (cons ref-elem
+                          (plist-get (car context) :use-converting-elements))))))))
       ;;(message "href=%s ref-id=%s ref=elem=%s supported-tag=%s recursive=%s" href ref-id ref-elem supported-tag recursive)
       (unless converted-ref-elem
         (edraw-import-warn
