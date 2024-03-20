@@ -44,9 +44,10 @@ data-edraw-background-alignみたいな属性が必要になる。
 
 ** TODO インポート/Inkscapeの行の変換でclassが既に使われていたときの問題
 [[elisp-function:edraw-import-svg-convert-attr-inkscape-role]]関数で、tspanのrole="line"のとき、属性をclass="edraw-text-line"へ変換しているが、すでにclassをtspanに設定しているときはどうするか。何か既存のclassを消す仕組みが必要。
-** TODO インポート/style属性を対応するSVG属性へ変換する
-基本的にはその方が良い。
-カスタマイズ変数で変換しないようにできてもよい。
+** TODO インポート/style属性のSVG属性へ変換の細かい部分を直す
+色々問題があるはずだが、全ては分からない。仕様の隅々まで知る必要がある。
+気がついたところはコード中に@todoがある。
+
 ** TODO インポート/paint値を検証する
 [[https://www.w3.org/TR/SVG2/painting.html#SpecifyingPaint][Painting: Filling, Stroking and Marker Symbols — SVG 2]]
 
@@ -3987,3 +3988,90 @@ x= y= dx= dy=それぞれについて、複数指定バージョンも考慮す�
 x, y属性の変更は、その下のtspanのx, yも変更するものとする。まぁ、正しいとは限らないんだけどね。
 ** DONE インポート/インポートしたテキストが移動できないことがある
 CLOSED: [2024-03-18 Mon 20:44]
+** DONE style属性を解析する
+CLOSED: [2024-03-20 Wed 22:30]
+- SVG仕様書
+  - SVG2 [[https://www.w3.org/TR/SVG2/styling.html][Styling — SVG 2]]
+  - SVG1 [[https://www.w3.org/TR/SVG11/styling.html][Styling – SVG 1.1 (Second Edition)]]
+- CSS
+  - [[https://www.w3.org/TR/css-style-attr/][CSS Style Attributes]] (日本語:[[https://triple-underscore.github.io/css-style-attr-ja.html][CSS Style Attributes]])
+    - [[https://www.w3.org/TR/2013/REC-css-style-attr-20131107/#syntax][declaration-list]]
+  - [[https://www.w3.org/TR/2011/REC-CSS2-20110607/][Cascading Style Sheets Level 2 Revision 1 (CSS 2.1) Specification]]
+    - [[https://www.w3.org/TR/CSS21/syndata.html#syntax][4.1 Syntax]]
+    - [[https://www.w3.org/TR/CSS21/grammar.html][Appendix G. Grammar of CSS 2.1]]
+  - [[https://www.w3.org/TR/css-syntax-3/][CSS Syntax Module Level 3]]
+    - [[https://www.w3.org/TR/css-syntax-3/#escaping][2.1. Escaping]]
+    - [[https://www.w3.org/TR/css-syntax-3/#tokenization][4. Tokenization]]
+      - ident
+      - function : ident (
+      - at-keyword : @ ident
+      - hash : # nmchar+
+      - string : "..." or '...'
+      - bad-string
+      - url : url(...)
+      - bad-url
+      - number
+      - percentage : number %
+      - dimension : number ident
+      - whitespace
+      - CDO : <!--
+      - CDC : -->
+      - colon : :
+      - semicolon : ;
+      - comma : ,
+      - [
+      - ]
+      - (
+      - )
+      - {
+      - }
+      - delim
+    - [[https://www.w3.org/TR/css-syntax-3/#token-diagrams][4.1. Token Railroad Diagrams]]
+    - [[https://www.w3.org/TR/css-syntax-3/#tokenizer-algorithms][4.3. Tokenizer Algorithms]]
+    - [[https://www.w3.org/TR/css-syntax-3/#consume-token][4.3.1. Consume a token]]
+    - [[https://www.w3.org/TR/css-syntax-3/#parse-list-of-declarations][5.3.8. Parse a list of declarations]]
+    - [[https://www.w3.org/TR/css-syntax-3/#consume-list-of-declarations][5.4.5. Consume a list of declarations]]
+      - whitespace-token => 何もしない
+      - semicolon-token => 何もしない
+      - EOF-token => 終了
+      - at-keyword-token => よくわからん。必要？
+      - ident-token => ident : component-value* ( ; or EOF )
+    - [[https://www.w3.org/TR/css-syntax-3/#consume-component-value][5.4.7. Consume a component value]]
+      再帰しているので正規表現で書くわけにも行かない。
+      - ( component-value* )
+      - { component-value* }
+      - [ component-value* ]
+      - function-token component-value* )
+      - 任意のトークン
+
+疑問: urlやプロパティはunescapeしなければならないのか？　まぁ、そうだね。
+
+#+begin_src html
+<html><body>
+  <div style="content:url(note/20240101-widget-library/classes-basic.png)"></div>
+  <div style="content:u\72 l(note/20240101-widget-library/classes-basic.png)"></div>
+  <svg width="640" height="480"><rect x="100" y="100" width="440" height="280" style="f\69ll:blue" /></svg>
+</body></html>
+#+end_src
+
+疑問: CDOとCDCはスタイル属性にも必要？　んー、おそらく純粋にエラーになっている気がする。
+
+#+begin_src html
+<html><body>
+  <svg width="640" height="200" stroke="black"><rect x="100" y="10" width="440" height="180" style="f\69ll:cyan; &lt;!-- stroke:red; --&gt; stroke-width:4px;" /></svg>
+  <svg width="640" height="200" stroke="black"><rect x="100" y="10" width="440" height="180" style="f\69ll:cyan; <!-- stroke:red; --> stroke-width:4px;" /></svg>
+  <svg width="640" height="200" stroke="black"><rect x="100" y="10" width="440" height="180" style="f\69ll:cyan; /* stroke:red; */ stroke-width:4px;" /></svg>
+  <svg width="640" height="200" stroke="black"><rect x="100" y="10" width="440" height="180" style="f\69ll:cyan; stroke:red; stroke-width:4px;" /></svg>
+</body></html>
+#+end_src
+
+作った関数:
+- ([[elisp-function:edraw-css-match]] str ppos noerror) :: string-matchの代わり。pposはcarに文字列内のインデックス番号を持つconsセル。
+- ([[elisp-function:edraw-css-token]] str ppos) :: strのpposからトークンを一つ取り出す。結果は(type . (begin . end))
+- ([[elisp-function:edraw-css-token-value]] str token) :: [[elisp-function:edraw-css-token]]の戻り値からトークンの値を取り出す。
+- ([[elisp-function:edraw-css-split-decl-list]] str ppos) :: strからプロパティを切り出す。結果は (ident-token . (vbeg . vend)) のリスト。ident-tokenは(ident . (idbeg . idend))であり、[[elisp-function:edraw-css-token-value]]でプロパティ名を取り出せる。
+- [[elisp-function:edraw-css-split-decl-list-as-strings]] :: (プロパティ名文字列 . プロパティ値文字列)のリストの形で切り出す。
+** DONE インポート/style属性を対応するSVG属性へ変換する
+CLOSED: [2024-03-20 Wed 22:33]
+基本的にはその方が良い。
+カスタマイズ変数で変換しないようにできてもよい。

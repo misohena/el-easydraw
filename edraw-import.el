@@ -123,6 +123,12 @@ by the `use' elements are also referenced elsewhere."
   :group 'edraw-import
   :type 'boolean)
 
+(defcustom edraw-import-svg-style-to-attrs t
+  "Non-nil means converting style attributes into individual
+presentation attributes."
+  :group 'edraw-import
+  :type 'boolean)
+
 (defvar edraw-import-svg-in-defs nil)
 
 (defun edraw-import-svg-file (file interactively)
@@ -553,14 +559,20 @@ The result value might look like this:
 
 (defun edraw-import-svg-convert-element-attributes (elem context &optional
                                                          exclude-attrs)
-  (edraw-import-svg-convert-attributes
-   (if exclude-attrs
-       (cl-loop for kv in (edraw-dom-attributes elem)
-                unless (memq (car kv) exclude-attrs)
-                collect kv)
-     (edraw-dom-attributes elem))
-   elem
-   context))
+  (cl-letf (((plist-get (car context) :override-attrs) nil))
+    (let ((new-attrs
+           (edraw-import-svg-convert-attributes
+            (if exclude-attrs
+                (cl-loop for kv in (edraw-dom-attributes elem)
+                         unless (memq (car kv) exclude-attrs)
+                         collect kv)
+              (edraw-dom-attributes elem))
+            elem
+            context)))
+      ;; Override attributes
+      (cl-loop for (pname . pvalue) in (plist-get (car context) :override-attrs)
+               do (setf (alist-get pname new-attrs) pvalue))
+      new-attrs)))
 
 (defun edraw-import-svg-convert-attributes (attributes elem context)
   (cl-loop for (k . v) in attributes
@@ -654,9 +666,72 @@ The result value might look like this:
 (defun edraw-import-svg-convert-attr-keep (attr-name value _elem _context)
   (cons attr-name value))
 
-(defun edraw-import-svg-convert-attr-style (attr-name value _elem _context)
+(defconst edraw-import-svg-style-props
+  '((opacity (rect circle ellipse path text image g line polyline polygon))
+    (fill (rect circle ellipse path text g line polyline polygon))
+    (fill-opacity (rect circle ellipse path text g line polyline polygon))
+    (stroke (rect circle ellipse path text g line polyline polygon))
+    (stroke-opacity (rect circle ellipse path text g line polyline polygon))
+    (stroke-width (rect circle ellipse path text g line polyline polygon))
+    (stroke-dasharray (rect circle ellipse path text g line polyline polygon))
+    (stroke-dashoffset (rect circle ellipse path text g line polyline polygon))
+    ;;(transform (rect circle ellipse path text image g line polyline polygon))
+    ;; path
+    (fill-rule (path g line polyline polygon))
+    (stroke-linecap (path g line polyline polygon))
+    (stroke-linejoin (path g line polyline polygon))
+    (stroke-miterlimit (path g line polyline polygon))
+    ;; text
+    (font-family (text))
+    (font-size (text))
+    (font-weight (text))
+    (font-style (text))
+    (text-decoration (text))
+    (text-anchor (text))
+    ;;(writing-mode (text))
+    ))
+
+(defun edraw-import-svg-convert-attr-style (attr-name value elem context)
   (edraw-import-warn (edraw-msg "Support for `style' attributes is insufficient and may cause display and operation problems"))
-  (cons attr-name value))
+
+  ;; Convert style attribute to presentation attributes
+  (if edraw-import-svg-style-to-attrs
+      ;; https://www.w3.org/TR/SVG11/styling.html
+      ;; https://www.w3.org/TR/SVG2/styling.html#PresentationAttributes
+      (condition-case err
+          (let ((tag (edraw-dom-tag elem))
+                new-value
+                override-attrs)
+
+            (cl-loop for (pname-token . pvalue-range)
+                     in (edraw-css-split-decl-list value (list 0))
+                     ;; https://www.w3.org/TR/SVG11/styling.html#CaseSensitivity
+                     ;; @todo Convert property name case ( Fill: => fill= )
+                     ;; @todo Convert property value case ( Italic => italic )
+                     for pname = (intern (edraw-css-token-value value pname-token))
+                     for pinfo = (alist-get pname edraw-import-svg-style-props)
+                     if (memq tag (car pinfo)) ;; Use presentation attr
+                     do (push (cons pname
+                                    ;; @todo Check value format
+                                    (substring value
+                                               (car pvalue-range)
+                                               (cdr pvalue-range)))
+                              override-attrs)
+                     else ;; Use style attr
+                     do (setq new-value
+                              (concat new-value (and new-value ";")
+                                      (substring value
+                                                 (cadr pname-token)
+                                                 (cdr pvalue-range)))))
+            (setf (plist-get (car context) :override-attrs)
+                  (append
+                   (plist-get (car context) :override-attrs)
+                   override-attrs))
+            (cons attr-name new-value))
+        (error
+         (edraw-import-warn (edraw-msg "CSS Style parsing error: %s") err)
+         (cons attr-name value)))
+    (cons attr-name value)))
 
 (defun edraw-import-svg-convert-attr-d (attr-name value _elem _context)
   ;; Check multiple subpaths and A command

@@ -540,6 +540,283 @@ comment nodes."
     root-element))
 
 
+;;;; CSS
+
+;;;;; Regexp
+
+;; https://www.w3.org/TR/css-syntax-3/#token-diagrams
+;; https://www.w3.org/TR/CSS21/grammar.html
+(defconst edraw-css-re-comment "\\(?:/\\*.*?\\*/\\)") ;; non-greedy
+(defconst edraw-css-re-newline "\\(?:\r\n\\|[\n\r\f]\\)")
+(defconst edraw-css-re-ws "\\(?:\r\n\\|[\n\r\f \t]\\)")
+(defconst edraw-css-re-ws? (concat edraw-css-re-ws "?"))
+(defconst edraw-css-re-ws* (concat edraw-css-re-ws "*"))
+(defconst edraw-css-re-escape (concat
+                               "\\(?:" "\\\\"
+                               "\\(?:" "[^\n\r\f[:xdigit:]]" "\\|"
+                               "[[:xdigit:]]\\{1,6\\}" edraw-css-re-ws?
+                               "\\)" "\\)"))
+(defconst edraw-css-re-nmstart (concat
+                                "\\(?:[_a-zA-Z]\\|[[:nonascii:]]\\|"
+                                edraw-css-re-escape "\\)"))
+(defconst edraw-css-re-nmchar (concat
+                               "\\(?:[-_a-zA-Z0-9]\\|[[:nonascii:]]\\|"
+                               edraw-css-re-escape "\\)"))
+(defconst edraw-css-re-ident (concat
+                              "\\(?:--\\|-?" edraw-css-re-nmstart "\\)"
+                              edraw-css-re-nmchar "*"))
+(defconst edraw-css-re-function (concat edraw-css-re-ident "("))
+(defconst edraw-css-re-at-keyword (concat "@" edraw-css-re-ident))
+(defconst edraw-css-re-hash (concat "#" edraw-css-re-nmchar "+"))
+(defconst edraw-css-re-string-escape (concat
+                                      "\\(?:"
+                                      edraw-css-re-escape "\\|"
+                                      "\\\\" edraw-css-re-newline
+                                      "\\)"))
+(defconst edraw-css-re-string1 (concat
+                                "\"" "\\(?:[^\n\r\f\"\\\\]\\|"
+                                edraw-css-re-string-escape "\\)*" "\""))
+(defconst edraw-css-re-string2 (concat
+                                "'" "\\(?:[^\n\r\f'\\\\]\\|"
+                                edraw-css-re-string-escape "\\)*" "'"))
+(defconst edraw-css-re-string (concat "\\(?:" edraw-css-re-string1 "\\|"
+                                      edraw-css-re-string2 "\\)"))
+(defconst edraw-css-re-url-arg (concat
+                                "\\(?:"
+                                "[!#$%&*-~]\\|[[:nonascii:]]\\|"
+                                edraw-css-re-escape
+                                "\\)*"))
+(defconst edraw-css-re-url-rest (concat
+                                 edraw-css-re-ws*
+                                 "\\("
+                                 edraw-css-re-url-arg
+                                 "\\)"
+                                 edraw-css-re-ws*
+                                 ")"))
+(defconst edraw-css-re-number ;;edraw-svg-re-number
+  (concat "\\(?:"
+          "[-+]?"
+          ;; Valid: 12  12.34  .34  Invalid: 12.
+          "\\(?:[0-9]+\\(?:\\.[0-9]+\\)?\\|\\.[0-9]+\\)"
+          "\\(?:[eE][-+]?[0-9]+\\)?"
+          "\\)"))
+(defconst edraw-css-re-dimension (concat
+                                  edraw-css-re-number
+                                  edraw-css-re-ident))
+(defconst edraw-css-re-percentage (concat edraw-css-re-number "%"))
+
+;; @todo Support bad-*, unicode-range token
+;; Remaining tokens:
+;; bad-string
+;; bad-url
+;; delim
+;; unicode-range
+;; CDO, CDC
+;; colon
+;; semicolon
+;; comma
+;; [, ]
+;; (, )
+;; {, }
+
+;;;;; Unescape
+
+(defun edraw-css-unescape (string)
+  (replace-regexp-in-string
+   edraw-css-re-string-escape
+   (lambda (text)
+     (let ((ch (aref text 1)))
+       (cond
+        ((or (<= ?0 ch ?9) (<= ?a ch ?f) (<= ?A ch ?F))
+         (let ((cp (string-to-number (substring text 1) 16)))
+           ;;@todo check range
+           (char-to-string cp)))
+        ((memq ch '(?\r ?\n ?\f)) "")
+        (t (substring text 1)))))
+   string t t))
+;; TEST: (edraw-css-unescape "u\\rl(") => "url("
+;; TEST: (edraw-css-unescape "u\\72 l(") => "url("
+;; TEST: (edraw-css-unescape "line1\\\r\nline1\\\nline1") => "line1line1line1"
+;; TEST: (edraw-css-unescape "\\26 B") => "&B"
+;; TEST: (edraw-css-unescape "\\000026B") => "&B"
+
+;;;;; Tokenize
+
+(defconst edraw-css-re-token
+  (concat
+   edraw-css-re-comment "*"
+   "\\(?:\\(" edraw-css-re-ws "\\)"
+   "\\|\\(" edraw-css-re-string "\\)"  ;; " '
+   "\\|\\(" edraw-css-re-hash "\\)"  ;; #
+   "\\|\\(" edraw-css-re-at-keyword "\\)"  ;; @
+   "\\|\\(" edraw-css-re-dimension "\\)"
+   "\\|\\(" edraw-css-re-percentage "\\)"
+   "\\|\\(" edraw-css-re-number "\\)"
+   "\\|\\(" edraw-css-re-function "\\)"
+   "\\|\\(" edraw-css-re-ident "\\)"
+   "\\|\\(" "[]({}),:;[]" "\\)"
+   "\\|\\(" "." "\\)" ;; ( { [ ] } ) , : ; delim
+   "\\|\\(" "\\'" "\\)"
+   "\\)"))
+
+(defun edraw-css-match (regexp str ppos &optional noerror)
+  (let ((pos (car ppos)))
+    (if (equal (string-match regexp str pos) pos)
+        (setcar ppos (match-end 0))
+      (unless noerror
+        (error "CSS Syntax Error: %s `%s'" pos str)))))
+
+(defun edraw-css-token (str ppos)
+  (edraw-css-match edraw-css-re-token str ppos)
+  (let* ((index-range (cl-loop for (beg end) on (cddr (match-data)) by #'cddr
+                               for index from 1
+                               when beg
+                               return (cons index (cons beg end))))
+         (range (cdr index-range)))
+    (pcase (car index-range)
+      (1 (cons 'ws range))
+      (2 (cons 'string range))
+      (3 (cons 'hash range))
+      (4 (cons 'at-keyword range))
+      (5 (cons 'dimension range))
+      (6 (cons 'percentage range))
+      (7 (cons 'number range))
+      (8
+       ;; URL or Function
+       (let ((fname (edraw-css-unescape
+                     (substring str (car range) (1- (cdr range))))))
+         (if (string= (downcase fname) "url")
+             (progn
+               (edraw-css-match edraw-css-re-url-rest str ppos)
+               (let ((url-end (match-end 0)))
+                 (cons 'url (cons (car range) url-end))))
+           (cons 'function range))))
+      (9 (cons 'ident range))
+      (10
+       ;; ( { [ ] } ) , : ;
+       (cons (intern (substring str (car range) (cdr range))) range))
+      (11 (cons 'delim range))
+      (12 (cons 'EOF range)))))
+
+(defun edraw-css-token-value (str token)
+  (let ((type (car token))
+        (beg (cadr token))
+        (end (cddr token)))
+    (pcase type
+      ('ws (substring str beg end))
+      ('string (edraw-css-unescape (substring str (1+ beg) (1- end))))
+      ('hash (edraw-css-unescape (substring str (1+ beg) end)))
+      ('at-keyword (edraw-css-unescape (substring str (1+ beg) end)))
+      ('dimension (substring str beg end)) ;;@todo to number and unit?
+      ('percentage (substring str beg end)) ;;@todo to number and unit?
+      ('number (substring str beg end)) ;;@todo to number?
+      ('url
+       (string-match (concat "(" edraw-css-re-url-rest) str beg)
+       (match-string 1 str))
+      ('function (edraw-css-unescape (substring str beg (1- end))))
+      ('ident (edraw-css-unescape (substring str beg end)))
+      ('delim (aref str beg))
+      ('EOF nil)
+      ;; ( { [ ] } ) , : ;
+      (_ type))))
+
+(defun edraw-css-token-test (str pos)
+  (let* ((ppos (list pos))
+         (result (edraw-css-token str ppos)))
+    (list (car result)
+          (cdr result)
+          (car ppos)
+          (edraw-css-token-value str result))))
+;; TEST: (edraw-css-token-test "  hoge" 0) => (ws (0 . 1) 1 " ")
+;; TEST: (edraw-css-token-test "/* hoge */hoge" 0) => (ident (10 . 14) 14 "hoge")
+;; TEST: (edraw-css-token-test "'hoge\"ho\\ge\"'" 0) => (string (0 . 13) 13 "hoge\"hoge\"")
+;; TEST: (edraw-css-token-test "@hoge" 0) => (at-keyword (0 . 5) 5 "hoge")
+;; TEST: (edraw-css-token-test " #hoge" 1) => (hash (1 . 6) 6 "hoge")
+;; TEST: (edraw-css-token-test " 100px" 1) => (dimension (1 . 6) 6 "100px")
+;; TEST: (edraw-css-token-test " 100%" 1) => (percentage (1 . 5) 5 "100%")
+;; TEST: (edraw-css-token-test " 100 " 1) => (number (1 . 4) 4 "100")
+;; TEST: (edraw-css-token-test " 100. " 1) => (number (1 . 4) 4 "100")
+;; TEST: (edraw-css-token-test " fun(hoge) " 1) => (function (1 . 5) 5 "fun")
+;; TEST: (edraw-css-token-test " u\\rl( https://misohena.jp/?q=hoge ) " 1) => (url (1 . 36) 36 "https://misohena.jp/?q=hoge")
+;; TEST: (edraw-css-token-test " url( https://misohena.jp/" 1) => error
+;; TEST: (edraw-css-token-test "hoge" 0) => (ident (0 . 4) 4 "hoge")
+;; TEST: (edraw-css-token-test "  { " 2) => ({ (2 . 3) 3 {)
+;; TEST: (edraw-css-token-test "  ! " 2) => (delim (2 . 3) 3 33)
+
+
+;;;;; Parse
+
+(defun edraw-css-skip-ws* (str ppos)
+  (edraw-css-match edraw-css-re-ws* str ppos))
+
+(defun edraw-css-expect (str ppos type)
+  (let ((beg (car ppos))
+        (token (edraw-css-token str ppos)))
+    (unless (eq (car token) type)
+      (error "Unexpected token: `%s' %s `%s'" (car token) beg str))
+    (cdr token)))
+
+(defun edraw-css-skip-component-value (str ppos)
+  ;; https://www.w3.org/TR/css-syntax-3/#component-value-diagram
+  ;; https://www.w3.org/TR/css-syntax-3/#parse-component-value
+  ;; https://www.w3.org/TR/css-syntax-3/#consume-a-component-value
+  (edraw-css-skip-ws* str ppos)
+  (let ((token (edraw-css-token str ppos)))
+    (pcase (car token)
+      ((or '\( '\{ '\[ 'function)
+       (let ((ending-token (pcase (car token) ('\[ '\]) ('\{ '\}) (_ '\)))))
+         (while (let ((cvtt (edraw-css-skip-component-value str ppos)))
+                  (when (eq cvtt 'EOF) (error "Unexpected token: `%s'" cvtt))
+                  (not (eq cvtt ending-token))))
+         'simple-block))
+      (type type))))
+
+(defun edraw-css-split-decl-list (str ppos)
+  ;; https://www.w3.org/TR/css-syntax-3/#consume-list-of-declarations
+  (let (decls)
+    (while (progn
+             (edraw-css-skip-ws* str ppos)
+             (let ((token-beg (car ppos))
+                   (token (edraw-css-token str ppos)))
+               (pcase (car token)
+                 ('ws t)
+                 (': t)
+                 ('EOF nil)
+                 ;;@todo at-keyword?
+                 ;;('at-keyword )
+                 ('ident
+                  (edraw-css-skip-ws* str ppos)
+                  (edraw-css-expect str ppos ':)
+                  (edraw-css-skip-ws* str ppos)
+                  (let ((bov (car ppos)) ;;@todo include comments?
+                        eov)
+                    (while (progn
+                             (pcase (edraw-css-skip-component-value str ppos)
+                               ('\; (setq eov (1- (car ppos))) nil)
+                               ('EOF (setq eov (car ppos)) nil)
+                               (_ t))))
+                    (push (cons token (cons bov eov)) decls))
+                  t)
+                 (_ (error "Unexpected token: `%s' %s `%s'" token str token-beg) nil)))))
+    (nreverse decls)))
+;; TEST: (edraw-css-split-decl-list "margin :0 auto  " (list 0)) => (((ident 0 . 6) 8 . 16))
+;; TEST: (edraw-css-split-decl-list "margin" (list 0)) => error
+;; TEST: (edraw-css-split-decl-list "prop1: fun(hoge" (list 0)) => error
+;; TEST: (edraw-css-split-decl-list "123: 456" (list 0)) => error
+
+(defun edraw-css-split-decl-list-as-strings (str ppos)
+  (mapcar (lambda (prop)
+            (cons (edraw-css-token-value str (car prop))
+                  (substring str (cadr prop) (cddr prop))))
+          (edraw-css-split-decl-list str ppos)))
+
+;; TEST: (edraw-css-split-decl-list-as-strings "margin :0 auto  " (list 0)) => (("margin" . "0 auto  "))
+;; TEST: (edraw-css-split-decl-list-as-strings "font-size:14px;fill:red;" (list 0)) => (("font-size" . "14px") ("fill" . "red"))
+;; TEST: (edraw-css-split-decl-list-as-strings "font-size:14px;font-family  :  \"Helvetica Neue\", \"Arial\", sans-serif;" (list 0)) => (("font-size" . "14px") ("font-family" . "\"Helvetica Neue\", \"Arial\", sans-serif"))
+;; TEST: (edraw-css-split-decl-list-as-strings "prop1: func( a b ; c d ); prop2: { aa bb ; cc dd}" (list 0)) => (("prop1" . "func( a b ; c d )") ("prop2" . "{ aa bb ; cc dd}"))
+;; TEST: (edraw-css-split-decl-list-as-strings "str\\oke: u\\72 l(https://misohena.jp/blog/?q=;)" (list 0)) => (("stroke" . "u\\72 l(https://misohena.jp/blog/?q=;)"))
+
+
 ;;;; SVG Print
 
 
