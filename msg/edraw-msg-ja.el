@@ -54,6 +54,7 @@
      "Background Color: " "背景色: "
      "Bring Forward" "手前へ"
      "Bring to Front" "最前面へ"
+     "CSS Style parsing error: %s" "CSSスタイル解析エラー: %s"
      "Cancel Edit" "編集をキャンセル"
      "Change Text: " "テキスト変更: "
      "Child Frame" "子フレーム"
