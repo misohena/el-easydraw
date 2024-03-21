@@ -668,12 +668,12 @@ comment nodes."
 
 (defun edraw-css-token (str ppos)
   (edraw-css-match edraw-css-re-token str ppos)
-  (let* ((index-range (cl-loop for (beg end) on (cddr (match-data)) by #'cddr
-                               for index from 1
-                               when beg
-                               return (cons index (cons beg end))))
-         (range (cdr index-range)))
-    (pcase (car index-range)
+  (let* ((index (cl-loop for index from 1
+                         ;; match-data is 100x slower than match-beginning
+                         when (match-beginning index)
+                         return index))
+         (range (cons (match-beginning index) (match-end index))))
+    (pcase index
       (1 (cons 'ws range))
       (2 (cons 'string range))
       (3 (cons 'hash range))

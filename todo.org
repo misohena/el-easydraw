@@ -1,6 +1,29 @@
 
 
 * Inbox
+** TODO string-matchを使って字句解析・構文解析をしているところを修正する
+- 正規表現を何にでもマッチするようにしておけばマッチ開始位置を調べる必要は無い。文字列の末尾まで探しに行ってしまうことを避けられる。
+- match-dataはmatch-beginningよりも大分遅いのでmatch-dataは避けた方が良い。
+
+つまり、次のコードは:
+
+#+begin_src elisp
+(when (equal (string-match "foobar" pos) pos) ;;foobarを求めて文字列の末尾まで探しに行ってしまう
+  ....)
+#+end_src
+
+次のように置き換えるべき。
+
+#+begin_src elisp
+(string-match "\\(foobar\\)\\|" pos) ;;posの位置で必ずマッチする！
+(when (match-beginning 1)
+  ....)
+#+end_src
+
+[[elisp-function:edraw-css-token]]はこのテクニックを使っている。
+
+[[elisp-library:edraw-dom-svg][edraw-dom-svg.el]]内で[[elisp-function:string-match]]を使っている所は全部調査したい。が、かなり不毛でそれでいて気を使う作業なので難しい。
+
 ** TODO 定義要素が参照元要素が削除されても残ってしまう問題
 [[*pathを消してもマーカー定義が残ってしまう][pathを消してもマーカー定義が残ってしまう]]の続き。
 
