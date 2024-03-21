@@ -48,6 +48,25 @@ data-edraw-background-alignみたいな属性が必要になる。
 色々問題があるはずだが、全ては分からない。仕様の隅々まで知る必要がある。
 気がついたところはコード中に@todoがある。
 
+- [X] [[*CSS/style属性中のat-keywordをスキップする][CSS/style属性中のat-keywordをスキップする]]
+- [ ] [[*インポート/style属性に指定されたプロパティの大文字小文字を変換する][インポート/style属性に指定されたプロパティの大文字小文字を変換する]]
+- [ ] inheritやauto等といった属性には指定出来ないキーワードがあると思う
+- [ ] transformプロパティを変換する
+
+** TODO インポート/style属性に指定されたプロパティの大文字小文字を変換する
+
+[[elisp-function:edraw-import-svg-convert-attr-style]]の@todo部分参照。
+
+[[https://www.w3.org/TR/SVG11/styling.html#CaseSensitivity]]に書かれているとおり、CSSでは基本的に大文字小文字を区別しないのに対し、SVG(XML)では区別する。例えば次のSVGはブラウザでは正しく表示される。(Emacs 29.2 Windows公式ビルド付属のlibrsvgでは正しく表示されない)
+
+#+begin_src html
+<svg width="560" height="420" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect x="10" y="10" width="540" height="400" style="FILL:BLUE; Stroke-Width: 10px; sTroKe:red;" />
+</svg>
+#+end_src
+
+どの文字が大文字でどの文字が小文字なのかを正確に知るには[[https://www.w3.org/TR/SVG11/svgdtd.html][Document Type Definition – SVG 1.1 (Second Edition)]]を始め様々な資料を調べる必要があり難しい。最低限、変換対象になっているプロパティ名と、カラーキーワード、テキストに関するキーワードといった、使われているものくらいは処理したい。
+
 ** TODO インポート/paint値を検証する
 [[https://www.w3.org/TR/SVG2/painting.html#SpecifyingPaint][Painting: Filling, Stroking and Marker Symbols — SVG 2]]
 
@@ -4075,3 +4094,17 @@ CLOSED: [2024-03-20 Wed 22:30]
 CLOSED: [2024-03-20 Wed 22:33]
 基本的にはその方が良い。
 カスタマイズ変数で変換しないようにできてもよい。
+** DONE CSS/style属性中のat-keywordをスキップする
+CLOSED: [2024-03-21 Thu 14:08]
+
+現状では@mediaは効かないようだ。
+
+#+begin_src html
+<svg width="560" height="420" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect x="10" y="10" width="540" height="400" style="fill:blue; @media all { fill:red; } stroke: red; stroke-width: 10px;" />
+</svg>
+#+end_src
+
+[[https://drafts.csswg.org/css-style-attr/#syntax][3. Syntax and Parsing - CSS Style Attributes (Editor's Draft 10 April 2015)]]には「Although the grammar allows it, no at-rule valid in style attributes is define at the moment.」と書かれているので、有効な指定は無いのかもしれない。
+
+しかしその次に「The forward-compatible parsing rules are such that a declaration following an at-rule is not ignored:<span style="@unsupported { splines: reticulating } color: green">」と書かれているので、読み飛ばせるようにはすべき。

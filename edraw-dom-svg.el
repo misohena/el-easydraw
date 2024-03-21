@@ -756,20 +756,50 @@ comment nodes."
       (error "Unexpected token: `%s' %s `%s'" (car token) beg str))
     (cdr token)))
 
-(defun edraw-css-skip-component-value (str ppos)
+(defun edraw-css-skip-simple-block (str ppos start-token)
+  ;; https://www.w3.org/TR/css-syntax-3/#consume-simple-block
+  (let ((ending-token (pcase (car start-token)
+                        ('\[ '\])
+                        ('\{ '\})
+                        ;; '\( or 'function
+                        (_ '\)))))
+    (while (let ((cvtt (edraw-css-skip-component-value str ppos)))
+             (when (eq cvtt 'EOF) (error "Unexpected token: `%s'" cvtt))
+             (not (eq cvtt ending-token))))
+    'simple-block))
+
+(defun edraw-css-skip-component-value (str ppos &optional token)
   ;; https://www.w3.org/TR/css-syntax-3/#component-value-diagram
   ;; https://www.w3.org/TR/css-syntax-3/#parse-component-value
   ;; https://www.w3.org/TR/css-syntax-3/#consume-a-component-value
-  (edraw-css-skip-ws* str ppos)
-  (let ((token (edraw-css-token str ppos)))
+  (let ((token (or token
+                   (progn
+                     (edraw-css-skip-ws* str ppos)
+                     (edraw-css-token str ppos)))))
     (pcase (car token)
       ((or '\( '\{ '\[ 'function)
-       (let ((ending-token (pcase (car token) ('\[ '\]) ('\{ '\}) (_ '\)))))
-         (while (let ((cvtt (edraw-css-skip-component-value str ppos)))
-                  (when (eq cvtt 'EOF) (error "Unexpected token: `%s'" cvtt))
-                  (not (eq cvtt ending-token))))
-         'simple-block))
+       (edraw-css-skip-simple-block str ppos token)
+       ;; Return 'simple-block
+       )
       (type type))))
+
+(defun edraw-css-skip-at-rule (str ppos)
+  ;; https://www.w3.org/TR/css-syntax-3/#consume-at-rule
+  (while (progn
+           (edraw-css-skip-ws* str ppos)
+           (let ((token (edraw-css-token str ppos)))
+             (pcase (car token)
+               ('ws t) ;; This is not used because skip-ws* is called, but just in case
+               ('\; nil)
+               ('EOF
+                (error "Unexpected %s in at-rule `%s'" token str)
+                nil)
+               ('\{
+                (edraw-css-skip-simple-block str ppos token)
+                nil)
+               (_
+                (edraw-css-skip-component-value str ppos token)
+                t))))))
 
 (defun edraw-css-split-decl-list (str ppos)
   ;; https://www.w3.org/TR/css-syntax-3/#consume-list-of-declarations
@@ -779,11 +809,12 @@ comment nodes."
              (let ((token-beg (car ppos))
                    (token (edraw-css-token str ppos)))
                (pcase (car token)
-                 ('ws t)
+                 ('ws t) ;; This is not used because skip-ws* is called, but just in case
                  (': t)
                  ('EOF nil)
-                 ;;@todo at-keyword?
-                 ;;('at-keyword )
+                 ('at-keyword
+                  (edraw-css-skip-at-rule str ppos)
+                  t)
                  ('ident
                   (edraw-css-skip-ws* str ppos)
                   (edraw-css-expect str ppos ':)
@@ -803,6 +834,8 @@ comment nodes."
 ;; TEST: (edraw-css-split-decl-list "margin" (list 0)) => error
 ;; TEST: (edraw-css-split-decl-list "prop1: fun(hoge" (list 0)) => error
 ;; TEST: (edraw-css-split-decl-list "123: 456" (list 0)) => error
+;; TEST: (edraw-css-split-decl-list "@unsupported { splines: reticulating } color: green" (list 0)) => (((ident 39 . 44) 46 . 51))  Example From: https://drafts.csswg.org/css-style-attr/#style-attribute:~:text=%3Cspan-,style%3D%22%40unsupported,-%7B%20splines%3A%20reticulating%20%7D%20color
+;; TEST: (edraw-css-split-decl-list "@unsupported opt1 \"hoge\" 123; color: green" (list 0)) => (((ident 30 . 35) 37 . 42))
 
 (defun edraw-css-split-decl-list-as-strings (str ppos)
   (mapcar (lambda (prop)
