@@ -314,20 +314,15 @@
      "[Ellipse Tool] Drag:Add ellipse, S-Drag:Square" "[楕円ツール] ドラッグ:楕円追加, S-ドラッグ:正方形指定"
      "[Freehand Tool] Drag:Add path" "[手書きツール] ドラッグ:パス追加"
      "[Image Tool] Click:Add image(original size), Drag:Add image(specified size), S-Drag:Square" "[画像ツール] クリック:画像追加(元サイズ), ドラッグ:画像追加(指定サイズ), S-ドラッグ:正方形指定"
-     ;; "[Path Tool] Click:Add anchor, Drag:Add anchor and handle, S-Click:45-degree, C-Click:Glue, C-u Click:Avoid connection" "[パスツール] クリック:アンカー追加, ドラッグ:アンカーとハンドルの追加, S-クリック:45度単位, C-クリック:接着, C-u クリック:接続の回避"
-     "[Path Tool] Click:Add Anchor, Drag:Add Anchor and Handles
+     "[Path Tool] Click:Add Anchor, Drag:Add Anchor and Handles, a:New Path
 (On Endpoint) Click:Continue/Connect, C-u Click:Add Anchor
-(On Point) Click:Select, Drag:Move
+(On Point) Click:Select, Drag:Move / (On Handle) M-Drag:Move
 (On Anchor) M-Click:Make Corner, M-Drag:Recreate Handles
-(On Handle) M-Drag:Move
-(On Another Shape) C-Click:Glue
-S-Click/Drag: 45 degree increments" "[パスツール] クリック:アンカー追加, ドラッグ:アンカーとハンドルの追加
+(On Another Shape) C-Click:Glue / S-Click/drag: Limit to 45 degrees" "[パスツール] クリック:アンカー追加, ドラッグ:アンカーとハンドル追加, a:新パス
 (端点上) クリック:継続・接続, C-u クリック:アンカー追加(接続回避)
-(点上) クリック:選択, ドラッグ:移動
+(点上) クリック:選択, ドラッグ:移動 / (ハンドル点上) M-ドラッグ:移動
 (アンカー点上) M-クリック:角にする, M-ドラッグ:ハンドル再作成
-(ハンドル点上) M-ドラッグ:移動
-(他図形上) C-クリック:接着
-S-クリック・ドラッグ: 45度単位指定"
+(他図形上) C-クリック:接着 / S-クリック・ドラッグ: 45度単位指定"
      "[Rect Tool] Drag:Add rect, S-Drag:Square" "[矩形ツール] ドラッグ:矩形追加, S-ドラッグ:正方形指定"
      "[Select Tool] Click:Select, Drag:Range select or Move, M-Drag:Duplicate and move, S-Click:45-degree, Double Click:Properties" "[選択ツール] クリック:選択, ドラッグ:範囲指定または移動, M-ドラッグ:複製移動, S-クリック:45度単位, ダブルクリック:プロパティエディタ"
      "[Text Tool] Click:Add or Change, C-u Click:Add, C-Click:Glue" "[テキストツール] クリック:テキスト追加・変更, C-u クリック:追加のみ C-クリック:接着"

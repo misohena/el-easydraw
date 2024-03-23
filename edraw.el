@@ -4892,13 +4892,11 @@ position where the EVENT occurred."
   (cl-call-next-method))
 
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool-path))
-  (message (edraw-msg "[Path Tool] Click:Add Anchor, Drag:Add Anchor and Handles
+  (message (edraw-msg "[Path Tool] Click:Add Anchor, Drag:Add Anchor and Handles, a:New Path
 (On Endpoint) Click:Continue/Connect, C-u Click:Add Anchor
-(On Point) Click:Select, Drag:Move
+(On Point) Click:Select, Drag:Move / (On Handle) M-Drag:Move
 (On Anchor) M-Click:Make Corner, M-Drag:Recreate Handles
-(On Handle) M-Drag:Move
-(On Another Shape) C-Click:Glue
-S-Click/Drag: 45 degree increments")))
+(On Another Shape) C-Click:Glue / S-Click/drag: Limit to 45 degrees")))
 
 (cl-defmethod edraw-mouse-down-continue-path ((tool edraw-editor-tool-path)
                                               down-event)

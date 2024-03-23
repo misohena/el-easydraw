@@ -4131,3 +4131,7 @@ CLOSED: [2024-03-21 Thu 14:08]
 [[https://drafts.csswg.org/css-style-attr/#syntax][3. Syntax and Parsing - CSS Style Attributes (Editor's Draft 10 April 2015)]]には「Although the grammar allows it, no at-rule valid in style attributes is define at the moment.」と書かれているので、有効な指定は無いのかもしれない。
 
 しかしその次に「The forward-compatible parsing rules are such that a declaration following an at-rule is not ignored:<span style="@unsupported { splines: reticulating } color: green">」と書かれているので、読み飛ばせるようにはすべき。
+** DONE pathツールのヘルプを短くする
+CLOSED: [2024-03-23 Sat 19:19]
+行数を減らす。
+ついでにaが新規パスであることを明記。
