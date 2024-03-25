@@ -1837,11 +1837,35 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 ;;;; SVG Shape Properties
 
+;; Source:
+;; - attr
+;; - attr-fill-stroke
+;; - attr-marker
+;; - attr-update-text
+;; - inner-text
+
+;; Type:
+;; - <number>
+;;   - number
+;;   - opacity
+;;   - length
+;;   - coordinate
+;; - paint
+;; - string
+;; - (or <choice>...)
+;; - marker
+;; - text
+;; - font-family
+
+;; Flags
+;; - required
+;; - geometry
+
 (defconst edraw-svg-elem-prop-number-types
   '(number opacity length coordinate))
 
 (defconst edraw-svg-element-properties-common
-  ;;name source type flags attrs...
+  ;;Name Source Type Flags
   '((opacity attr opacity nil)
     (fill attr-fill-stroke paint nil)
     (fill-opacity attr opacity nil)
@@ -1852,11 +1876,13 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (stroke-dashoffset attr length nil)
     (style attr string nil)
     (transform attr string (geometry))))
+
 (defconst edraw-svg-element-properties-path-common
   '((fill-rule attr (or "nonzero" "evenodd") nil)
     (stroke-linecap attr (or "butt" "round" "square") nil)
     (stroke-linejoin attr (or "miter" "round" "bevel") nil)
     (stroke-miterlimit attr number nil)))
+
 (defconst edraw-svg-element-properties
   `((rect
      (x attr coordinate (required geometry))
@@ -1878,7 +1904,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      (ry attr length (required geometry))
      ,@edraw-svg-element-properties-common)
     (path
-     (d attr string (required geometry) :internal t)
+     (d attr string (required geometry internal))
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common
      (marker-start attr-marker marker nil)
@@ -1925,11 +1951,11 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (g
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common)))
+
 (defun edraw-svg-elem-prop-name (prop-def) (nth 0 prop-def))
 (defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
 (defun edraw-svg-elem-prop-type (prop-def) (nth 2 prop-def))
 (defun edraw-svg-elem-prop-flags (prop-def) (nth 3 prop-def))
-(defun edraw-svg-elem-prop-attrs (prop-def) (nthcdr 4 prop-def))
 (defun edraw-svg-elem-prop-required (prop-def)
   (when (memq 'required (edraw-svg-elem-prop-flags prop-def)) t))
 
@@ -1944,22 +1970,20 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (cl-loop for prop-def in prop-def-list
              for prop-type = (edraw-svg-elem-prop-type prop-def)
              collect
-             (append
-              (list :name (edraw-svg-elem-prop-name prop-def)
-                    :type prop-type
-                    :required (edraw-svg-elem-prop-required prop-def)
-                    :flags (edraw-svg-elem-prop-flags prop-def)
-                    :to-string #'edraw-svg-ensure-string-attr
-                    :from-string #'identity
-                    :number-p (edraw-svg-elem-prop-number-p prop-def)
-                    :to-number (pcase prop-type
-                                 ('coordinate #'edraw-svg-attr-length-to-number)
-                                 ('length #'edraw-svg-attr-length-to-number)
-                                 ('number #'edraw-svg-attr-number-to-number)
-                                 ('opacity #'edraw-svg-attr-number-to-number)
-                                 (_ nil))
-                    )
-              (edraw-svg-elem-prop-attrs prop-def)))))
+             (list :name (edraw-svg-elem-prop-name prop-def)
+                   :type prop-type
+                   :required (edraw-svg-elem-prop-required prop-def)
+                   :flags (edraw-svg-elem-prop-flags prop-def)
+                   :to-string #'edraw-svg-ensure-string-attr
+                   :from-string #'identity
+                   :number-p (edraw-svg-elem-prop-number-p prop-def)
+                   :to-number (pcase prop-type
+                                ('coordinate #'edraw-svg-attr-length-to-number)
+                                ('length #'edraw-svg-attr-length-to-number)
+                                ('number #'edraw-svg-attr-number-to-number)
+                                ('opacity #'edraw-svg-attr-number-to-number)
+                                (_ nil))
+                   ))))
 ;; EXAMPLE: (edraw-svg-element-get-property-info-list-by-tag 'rect)
 
 (defun edraw-svg-element-can-have-property-p (element prop-name)

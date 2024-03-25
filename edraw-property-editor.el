@@ -636,7 +636,7 @@ editor when the selected shape changes."
                                    prop-info-list))))
          widgets)
     (dolist (prop-info prop-info-list)
-      (unless (plist-get prop-info :internal)
+      (unless (memq 'internal (plist-get prop-info :flags))
         (let* ((indent (- max-name-width
                           (string-width
                            (edraw-property-editor-property-display-name
