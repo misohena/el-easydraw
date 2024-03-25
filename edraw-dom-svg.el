@@ -1842,6 +1842,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 ;; - attr-fill-stroke
 ;; - attr-marker
 ;; - attr-update-text
+;; - attr-data
 ;; - inner-text
 
 ;; Type:
@@ -1865,7 +1866,10 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
   '(number opacity length coordinate))
 
 (defconst edraw-svg-element-properties-common
-  ;;Name Source Type Flags
+  ;; The code below is constructed without using the
+  ;; edraw-svg-elem-prop function to avoid complication.
+  ;; (edraw-svg-elem-prop
+  ;; Name Source Type Flags
   '((opacity attr opacity nil)
     (fill attr-fill-stroke paint nil)
     (fill-opacity attr opacity nil)
@@ -1878,12 +1882,17 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (transform attr string (geometry))))
 
 (defconst edraw-svg-element-properties-path-common
+  ;; (edraw-svg-elem-prop
+  ;; Name Source Type Flags
   '((fill-rule attr (or "nonzero" "evenodd") nil)
     (stroke-linecap attr (or "butt" "round" "square") nil)
     (stroke-linejoin attr (or "miter" "round" "bevel") nil)
     (stroke-miterlimit attr number nil)))
 
 (defconst edraw-svg-element-properties
+  ;; tag
+  ;;   (edraw-svg-elem-prop
+  ;;   Name Source Type Flags
   `((rect
      (x attr coordinate (required geometry))
      (y attr coordinate (required geometry))
@@ -1952,61 +1961,98 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common)))
 
-(defun edraw-svg-elem-prop-name (prop-def) (nth 0 prop-def))
-(defun edraw-svg-elem-prop-source (prop-def) (nth 1 prop-def))
-(defun edraw-svg-elem-prop-type (prop-def) (nth 2 prop-def))
-(defun edraw-svg-elem-prop-flags (prop-def) (nth 3 prop-def))
-(defun edraw-svg-elem-prop-required (prop-def)
-  (when (memq 'required (edraw-svg-elem-prop-flags prop-def)) t))
+(defun edraw-svg-elem-prop (name source type flags)
+  "Create an object that holds property information.
 
-(defun edraw-svg-elem-prop-number-p (prop-def)
-  (memq (edraw-svg-elem-prop-type prop-def) edraw-svg-elem-prop-number-types))
+To access the stored information, use functions with names
+starting with edraw-svg-elem-prop-.
+
+This object is basically used for properties of SVG elements, but
+may also be used for markers (see: `edraw-svg-marker-types') and
+other purposes. So the name may change in the future."
+  (list name source type flags))
+
+(defun edraw-svg-elem-prop-name (prop-info) (nth 0 prop-info))
+(defun edraw-svg-elem-prop-source (prop-info) (nth 1 prop-info))
+(defun edraw-svg-elem-prop-type (prop-info) (nth 2 prop-info))
+(defun edraw-svg-elem-prop-flags (prop-info) (nth 3 prop-info))
+
+(defun edraw-svg-elem-prop-flag-p (prop-info flag)
+  (when (memq flag (edraw-svg-elem-prop-flags prop-info))
+    t))
+
+(defun edraw-svg-elem-prop-internal-p (prop-info)
+  (edraw-svg-elem-prop-flag-p prop-info 'internal))
+
+(defun edraw-svg-elem-prop-required-p (prop-info)
+  (edraw-svg-elem-prop-flag-p prop-info 'required))
+
+(defun edraw-svg-elem-prop-number-p (prop-info)
+  (memq (edraw-svg-elem-prop-type prop-info) edraw-svg-elem-prop-number-types))
+
+(defun edraw-svg-elem-prop-to-string (_prop-info value)
+  (edraw-svg-ensure-string-attr value))
+
+(defun edraw-svg-elem-prop-from-string (_prop-info string)
+  string)
+
+(defun edraw-svg-elem-prop-to-number (prop-info value &optional element attr)
+  (pcase (edraw-svg-elem-prop-type prop-info)
+    ('coordinate (edraw-svg-attr-length-to-number value element attr))
+    ('length (edraw-svg-attr-length-to-number value element attr))
+    ('number (edraw-svg-attr-number-to-number value))
+    ('opacity (edraw-svg-attr-number-to-number value))
+    (_ nil)))
+
+(defun edraw-svg-elem-prop-info-list-find (prop-info-list prop-name)
+  ;; (seq-find
+  ;;  (lambda (prop-info) (eq (edraw-svg-elem-prop-name prop-info) prop-name))
+  ;;  prop-info-list)
+  ;; The following code relies on the first element of prop-info being name:
+  (assq prop-name prop-info-list))
+
+(defun edraw-svg-tag-get-property-info-list (tag)
+  (alist-get tag edraw-svg-element-properties))
+;; EXAMPLE: (edraw-svg-tag-get-property-info-list 'rect)
+;; EXAMPLE: (edraw-svg-tag-get-property-info-list 'image)
 
 (defun edraw-svg-element-get-property-info-list (element)
-  (edraw-svg-element-get-property-info-list-by-tag (dom-tag element)))
+  (edraw-svg-tag-get-property-info-list (dom-tag element)))
 
-(defun edraw-svg-element-get-property-info-list-by-tag (tag)
-  (when-let ((prop-def-list (alist-get tag edraw-svg-element-properties)))
-    (cl-loop for prop-def in prop-def-list
-             for prop-type = (edraw-svg-elem-prop-type prop-def)
-             collect
-             (list :name (edraw-svg-elem-prop-name prop-def)
-                   :type prop-type
-                   :required (edraw-svg-elem-prop-required prop-def)
-                   :flags (edraw-svg-elem-prop-flags prop-def)
-                   :to-string #'edraw-svg-ensure-string-attr
-                   :from-string #'identity
-                   :number-p (edraw-svg-elem-prop-number-p prop-def)
-                   :to-number (pcase prop-type
-                                ('coordinate #'edraw-svg-attr-length-to-number)
-                                ('length #'edraw-svg-attr-length-to-number)
-                                ('number #'edraw-svg-attr-number-to-number)
-                                ('opacity #'edraw-svg-attr-number-to-number)
-                                (_ nil))
-                   ))))
-;; EXAMPLE: (edraw-svg-element-get-property-info-list-by-tag 'rect)
+;; (defun edraw-svg-tag-get-property-info (tag prop-name)
+;;   (edraw-svg-elem-prop-info-list-find
+;;    (edraw-svg-tag-get-property-info-list tag)
+;;    prop-name))
+;; (defun edraw-svg-element-get-property-info (element prop-name)
+;;   (edraw-svg-tag-get-property-info (dom-tag element) prop-name))
+;; (defun edraw-svg-tag-can-have-property-p (tag prop-name)
+;;   (when (edraw-svg-tag-get-property-info tag prop-name)
+;;     t))
+;; (defun edraw-svg-element-can-have-property-p (element prop-name)
+;;   (edraw-svg-tag-can-have-property-p (dom-tag element) prop-name))
 
-(defun edraw-svg-element-can-have-property-p (element prop-name)
-  (edraw-svg-tag-can-have-property-p (dom-tag element) prop-name))
+;; Property Access
 
-(defun edraw-svg-tag-can-have-property-p (tag prop-name)
-  (when-let ((prop-def-list (alist-get tag edraw-svg-element-properties)))
-    (seq-some (lambda (prop-def) (eq (edraw-svg-elem-prop-name prop-def)
-                                     prop-name))
-              prop-def-list)))
-
-(defun edraw-svg-element-get-property (element prop-name deftbl)
-  (when-let ((prop-def-list (alist-get (dom-tag element) edraw-svg-element-properties))
-             (prop-def (assq prop-name prop-def-list)))
-    (let* ((source (edraw-svg-elem-prop-source prop-def))
+(defun edraw-svg-element-get-property (element prop-name deftbl
+                                               &optional prop-info-list)
+  (when-let ((prop-info-list
+              (or prop-info-list
+                  (edraw-svg-element-get-property-info-list element)))
+             (prop-info (edraw-svg-elem-prop-info-list-find prop-info-list
+                                                            prop-name)))
+    (let* ((source (edraw-svg-elem-prop-source prop-info))
            (getter (intern
                     (concat "edraw-svg-element-get-" (symbol-name source)))))
       (funcall getter element prop-name deftbl))))
 
-(defun edraw-svg-element-set-property (element prop-name value deftbl)
-  (when-let ((prop-def-list (alist-get (dom-tag element) edraw-svg-element-properties))
-             (prop-def (assq prop-name prop-def-list)))
-    (let* ((source (edraw-svg-elem-prop-source prop-def))
+(defun edraw-svg-element-set-property (element prop-name value deftbl
+                                               &optional prop-info-list)
+  (when-let ((prop-info-list
+              (or prop-info-list
+                  (edraw-svg-element-get-property-info-list element)))
+             (prop-info (edraw-svg-elem-prop-info-list-find prop-info-list
+                                                            prop-name)))
+    (let* ((source (edraw-svg-elem-prop-source prop-info))
            (setter (intern
                     (concat "edraw-svg-element-set-" (symbol-name source)))))
       (funcall setter element prop-name value deftbl))))
@@ -2067,6 +2113,19 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 (defun edraw-svg-element-set-attr-fill-stroke (element prop-name value deftbl)
   (edraw-svg-element-set-attr element prop-name value deftbl)
   (edraw-svg-update-marker-properties element deftbl))
+
+(defun edraw-svg-element-get-attr-data (element prop-name deftbl)
+  (edraw-svg-element-get-attr
+   element
+   (intern (concat "data-edraw-" (symbol-name prop-name)))
+   deftbl))
+
+(defun edraw-svg-element-set-attr-data (element prop-name value deftbl)
+  (edraw-svg-element-set-attr
+   element
+   (intern (concat "data-edraw-" (symbol-name prop-name)))
+   value
+   deftbl))
 
 
 ;;;; SVG Text Layout
@@ -2542,16 +2601,20 @@ the properties."
      :creator edraw-svg-marker-arrow-create
      :get-props edraw-svg-marker-arrow-props
      :prop-info-list
-     ((:name markerWidth :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name markerHeight :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name refX :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)))
+     ;; (edraw-svg-elem-prop
+     ;; Name Source Type Flags
+     (,(edraw-svg-elem-prop 'markerWidth nil 'number nil)
+      ,(edraw-svg-elem-prop 'markerHeight nil 'number nil)
+      ,(edraw-svg-elem-prop 'refX nil 'number nil)))
     ("circle"
      :creator edraw-svg-marker-circle-create
      :get-props edraw-svg-marker-circle-props
      :prop-info-list
-     ((:name markerWidth :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name markerHeight :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)
-      (:name refX :type number :required nil :flags nil :to-string edraw-svg-ensure-string-attr :from-string identity :number-p t :to-number edraw-svg-attr-number-to-number)))
+     ;; (edraw-svg-elem-prop
+     ;; Name Source Type Flags
+     (,(edraw-svg-elem-prop 'markerWidth nil 'number nil)
+      ,(edraw-svg-elem-prop 'markerHeight nil 'number nil)
+      ,(edraw-svg-elem-prop 'refX nil 'number nil)))
     ;; Ignore "" or "none"
     ))
 

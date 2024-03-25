@@ -3401,9 +3401,9 @@ document size or view box."
   (when-let ((shape-type (edraw-shape-type shape)))
     (dolist (prop-info (edraw-get-property-info-list shape))
       ;; Skip required property
-      (unless (plist-get prop-info :required)
+      (unless (edraw-svg-elem-prop-required-p prop-info)
         ;; Get property value
-        (let* ((prop-name (plist-get prop-info :name))
+        (let* ((prop-name (edraw-svg-elem-prop-name prop-info))
                (value (edraw-get-property shape prop-name)))
           ;; Set property value as default
           (edraw-set-default-shape-property
@@ -3431,7 +3431,7 @@ document size or view box."
                        shape-type)))
      :prop-info-list
      (seq-remove
-      (lambda (prop-info) (plist-get prop-info :required))
+      (lambda (prop-info) (edraw-svg-elem-prop-required-p prop-info))
       (edraw-get-property-info-list shape-class))
      :preset-type 'shape
      :preset-subtype shape-type ;; edraw-shape-type value (g, not group)
@@ -3452,7 +3452,7 @@ document size or view box."
                    (edraw-name tool-class))
      :prop-info-list
      (seq-remove
-      (lambda (prop-info) (plist-get prop-info :required))
+      (lambda (prop-info) (edraw-svg-elem-prop-required-p prop-info))
       (edraw-get-property-info-list shape-class))
      :preset-type 'shape
      :preset-subtype shape-type ;; edraw-shape-type value (g, not group)
@@ -5626,12 +5626,6 @@ position where the EVENT occurred."
 Return nil if no value is specified."
   (not (null (edraw-get-property holder prop-name))))
 
-(cl-defmethod edraw-can-have-property-p ((holder edraw-properties-holder)
-                                         prop-name)
-  (seq-some (lambda (prop-info)
-              (eq (plist-get prop-info :name) prop-name))
-            (edraw-get-property-info-list holder)))
-
 (cl-defmethod edraw-get-transform-method ((holder edraw-properties-holder))
   (when-let ((editor (edraw-get-editor holder)))
     (edraw-get-transform-method editor)))
@@ -5917,7 +5911,7 @@ Return nil if undefined.")
                 ;; Copy all properties
                 (mapcar
                  (lambda (prop-info)
-                   (let* ((prop-name (plist-get prop-info :name))
+                   (let* ((prop-name (edraw-svg-elem-prop-name prop-info))
                           (value (edraw-get-property shape prop-name)))
                      (cons prop-name value)))
                  (edraw-get-property-info-list shape)))))
@@ -5984,7 +5978,7 @@ Return nil if undefined.")
             ;;properties.
             (mapcar
              (lambda (prop-info)
-               (let* ((prop-name (plist-get prop-info :name))
+               (let* ((prop-name (edraw-svg-elem-prop-name prop-info))
                       (prop-value (edraw-svg-element-get-property
                                    element prop-name nil))) ;;deftbl=nil
                  (cons prop-name prop-value)))
@@ -6411,27 +6405,21 @@ return it."
 (cl-defmethod edraw-get-summary ((shape edraw-shape))
   (edraw-svg-element-summary (edraw-element shape)))
 
-(cl-defmethod edraw-can-have-property-p ((shape edraw-shape) prop-name)
-  "Return t if SHAPE can have a property named PROP-NAME.
-
-Return nil if the property named PROP-NAME is not valid for SHAPE."
-  (edraw-svg-element-can-have-property-p (edraw-element shape)
-                                         prop-name))
-
 (cl-defmethod edraw-get-property-info-list ((class (subclass edraw-shape)))
   (when-let ((tag (edraw-shape-svg-tag class)))
-    (edraw-svg-element-get-property-info-list-by-tag tag)))
+    (edraw-svg-tag-get-property-info-list tag)))
 
 (cl-defmethod edraw-get-property-info-list ((shape edraw-shape))
   (edraw-svg-element-get-property-info-list (edraw-element shape)))
 
 (cl-defmethod edraw-get-property ((shape edraw-shape) prop-name)
   (edraw-svg-element-get-property (edraw-element shape) prop-name
-                                  (edraw-get-deftbl shape)))
+                                  (edraw-get-deftbl shape)
+                                  (edraw-get-property-info-list shape)))
 
 (cl-defmethod edraw-get-property-as-length ((shape edraw-shape) prop-name
                                             &optional default-value)
-  ;;@todo Use :to-number of property-info ?
+  ;;@todo Use edraw-svg-elem-prop-to-number with property-info ?
   (or (edraw-svg-attr-length-to-number (edraw-get-property shape prop-name)
                                        (edraw-element shape)
                                        prop-name)
@@ -6444,18 +6432,21 @@ Return nil if the property named PROP-NAME is not valid for SHAPE."
 (cl-defmethod edraw-set-properties-internal ((shape edraw-shape) prop-list
                                              old-prop-list)
   "Returns t if the property is actually changed."
-  (let ((deftbl (edraw-get-deftbl shape)))
+  (let ((deftbl (edraw-get-deftbl shape))
+        (prop-info-list (edraw-get-property-info-list shape)))
     (with-slots (element) shape
       (dolist (prop prop-list)
         (let* ((prop-name (car prop))
                (new-value (cdr prop))
                (old-value (edraw-svg-element-get-property element prop-name
-                                                          deftbl)))
+                                                          deftbl
+                                                          prop-info-list)))
           (unless (equal new-value old-value)
             ;;(message "%s: %s to %s" prop-name old-value new-value)
             (push (cons prop-name old-value) old-prop-list)
             (edraw-svg-element-set-property element prop-name new-value
-                                            deftbl)))))
+                                            deftbl
+                                            prop-info-list)))))
     (when old-prop-list
       (let ((editor (oref shape editor)))
         (edraw-make-undo-group editor 'shape-properties
@@ -10172,10 +10163,10 @@ REF is a point reference in scaling-points."
            ('nil (lambda (_prop-info) t))
            ('all (lambda (_prop-info) t))
            ('not-required (lambda (prop-info)
-                            (not (plist-get prop-info :required))))
+                            (not (edraw-svg-elem-prop-required-p prop-info))))
            ('not-geometry (lambda (prop-info)
-                            (not (memq 'geometry
-                                       (plist-get prop-info :flags)))))
+                            (not (edraw-svg-elem-prop-flag-p prop-info
+                                                             'geometry))))
            (_ pred-for-prop-info))))
     ;; Filter properties
     (let ((prop-info-list (edraw-get-property-info-list holder)))
@@ -10184,8 +10175,9 @@ REF is a point reference in scaling-points."
              (lambda (prop)
                (let* ((prop-name (car prop))
                       (prop-info (seq-find
-                                  (lambda (info)
-                                    (eq (plist-get info :name) prop-name))
+                                  (lambda (prop-info)
+                                    (eq (edraw-svg-elem-prop-name prop-info)
+                                        prop-name))
                                   prop-info-list)))
                  (and
                   ;; Can be set for PROPERTIES-HOLDER.
@@ -10193,7 +10185,7 @@ REF is a point reference in scaling-points."
                   ;; pred
                   (funcall pred-for-prop-info prop-info)
                   ;; Not required property.
-                  ;;(not (plist-get prop-info :required))
+                  ;;(not (edraw-svg-elem-prop-required-p prop-info))
                   )))
              properties)))
     ;; Apply properties

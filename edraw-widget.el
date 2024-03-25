@@ -446,7 +446,7 @@ The following properties have special meanings for this widget:
 ;; (progn
 ;;   (pop-to-buffer (generate-new-buffer "*Widget Example*"))
 ;;   (widget-create (edraw-widget-properties
-;;                   (edraw-svg-element-get-property-info-list-by-tag 'rect)
+;;                   (edraw-svg-tag-get-property-info-list 'rect)
 ;;                   :value '((rx . 10) (ry . 20) (fill . "green"))))
 ;;   (widget-insert "\n\n")
 ;;   (use-local-map widget-keymap)
@@ -463,7 +463,7 @@ The following properties have special meanings for this widget:
    widget
    :args (edraw-widget-properties-args
           (or (when-let ((svg-tag (widget-get widget :svg-tag)))
-                (edraw-svg-element-get-property-info-list-by-tag svg-tag))
+                (edraw-svg-tag-get-property-info-list svg-tag))
               (widget-get widget :prop-info-list)
               (car (widget-get widget :args)))))
   widget)
@@ -480,11 +480,11 @@ The following properties have special meanings for this widget:
                 prop-info-list)))
 
 (defun edraw-widget-properties-prop-field (prop-info)
-  (unless (memq 'required (plist-get prop-info :flags))
-    (let* ((name (plist-get prop-info :name))
+  (unless (edraw-svg-elem-prop-required-p prop-info)
+    (let* ((name (edraw-svg-elem-prop-name prop-info))
            (tag (capitalize (symbol-name name)))
-           (type (plist-get prop-info :type))
-           (number-p (plist-get prop-info :number-p)))
+           (type (edraw-svg-elem-prop-type prop-info))
+           (number-p (edraw-svg-elem-prop-number-p prop-info)))
       (cond
        ;; Number
        (number-p

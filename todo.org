@@ -133,7 +133,7 @@ edraw-get-property-as-length が直接 edraw-svg-attr-length-to-number を呼ん
 ** TODO プロパティエディタで単位を維持したままホイール・ドラッグ操作をしたい
 数値をホイールやドラッグで変更するとき、単位を維持したい。
 
-また、プロパティ情報に :to-number という関数があるが、これは廃止したい。おそらくプロパティエディタのホイール・ドラッグ数値変更でしか使っていない。この関数はem、ex、%といった相対指定を処理できない。
++また、プロパティ情報に :to-number という関数があるが、これは廃止したい。+ また、 edraw-svg-elem-prop-to-number にelementとattrを引き渡していない部分をどうするか。おそらくプロパティエディタのホイール・ドラッグ数値変更でしか使っていない。この関数はem、ex、%といった相対指定を処理できない。
 
 ** TODO widget/チェックリストの操作で表示が乱れることがある？
 edraw-default-shape-properties等のカスタマイズでチェックボックスをON/OFFしたときに関係ない場所が消えることがあるような気がする。例えばrectをOFFにしたらellipseのチェックボックスがrectのチェックボックスと同じ行に来たり。再現の仕方が今ひとつ分からない。
@@ -4135,3 +4135,15 @@ CLOSED: [2024-03-21 Thu 14:08]
 CLOSED: [2024-03-23 Sat 19:19]
 行数を減らす。
 ついでにaが新規パスであることを明記。
+** DONE shapeプロパティまわりを改修する
+CLOSED: [2024-03-25 Mon 16:33]
+現在の仕組みは新しいshapeクラスを作るのに適していない。
+edraw-svg-element-もしくはedraw-svg-elem-は拡張性が乏しく、新しいshapeクラスを作ったときに新しい独自のプロパティ(data-edraw-)を追加しづらい。
+
+- edraw-svg-を整理する
+  - [X] プロパティ情報の:internal tを:flagにまとめる。同時に末尾にplistを付ける形式を廃止する。
+  - [X] edraw-svg-element-get-property-info-list系はプロパティ定義をそのまま返すようにする。利用側はplist-getではなくedraw-svg-elem-prop-系関数を使うようにする。internalやrequired、geometryといったフラグは専用の述語を作成する。to-stringやfrom-stringについても専用の値変換関数(edraw-svg-elem-prop-to-string等)を追加し、それを使うようにする。
+  - [X] (edraw-svg-elem-prop name source type flags) 関数を追加し、それをできるだけ使うようにする。
+  - [X] edraw-svg-element-get-property-info-list-by-tagはedraw-svg-tag-get-property-info-listへ改名する。
+  - [X] edraw-can-have-property-pはdefgenericにする。
+  - [X] edraw-svg-element-get-propertyやedraw-svg-element-set-propertyはオプション引数で任意のprop-info-listを取るようにする。新しいプロパティを追加したい場合は、これを活用する。shapeに対するedraw-get-propertyやedraw-set-properties-internalは必ずedraw-get-property-info-listから取得したリストを引き渡す。

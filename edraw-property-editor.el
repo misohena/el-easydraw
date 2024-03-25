@@ -63,17 +63,25 @@
 
 Return a list of property information.
 
-Information for one property is represented in the form of one plist.")
+Each list element is an `edraw-svg-elem-prop' object.")
 
 (cl-defgeneric edraw-get-property-info (object prop-name)
   "Return information on the property with the name specified by PROP-NAME.
 
-Return property information in the form of a plist.
+Return an `edraw-svg-elem-prop' object that holds property information.
 
 The default implementation calls `edraw-get-property-info-list'
 and searches it for a property named PROP-NAME."
-  (seq-find (lambda (prop-info) (eq (plist-get prop-info :name) prop-name))
-            (edraw-get-property-info-list object)))
+  (edraw-svg-elem-prop-info-list-find
+   (edraw-get-property-info-list object)
+   prop-name))
+
+(cl-defgeneric edraw-can-have-property-p (object prop-name)
+  "Return t if OBJECT can have a property named PROP-NAME.
+
+Return nil if the property named PROP-NAME is not valid for OBJECT."
+  (when (edraw-get-property-info object prop-name)
+    t))
 
 (cl-defgeneric edraw-get-property (object prop-name)
   "Return the value of the property named PROP-NAME of OBJECT.
@@ -107,7 +115,7 @@ For all properties that can be obtained with
 values (PROP-NAME . VALUE) obtained by calling
 `edraw-get-property'."
   (cl-loop for prop-info in (edraw-get-property-info-list object)
-           collect (let ((prop-name (plist-get prop-info :name)))
+           collect (let ((prop-name (edraw-svg-elem-prop-name prop-info)))
                      (cons prop-name
                            (edraw-get-property object prop-name)))))
 
@@ -632,15 +640,15 @@ editor when the selected shape changes."
                                    (lambda (prop-info)
                                      (string-width
                                       (edraw-property-editor-property-display-name
-                                       (plist-get prop-info :name))))
+                                       (edraw-svg-elem-prop-name prop-info))))
                                    prop-info-list))))
          widgets)
     (dolist (prop-info prop-info-list)
-      (unless (memq 'internal (plist-get prop-info :flags))
+      (unless (edraw-svg-elem-prop-internal-p prop-info)
         (let* ((indent (- max-name-width
                           (string-width
                            (edraw-property-editor-property-display-name
-                            (plist-get prop-info :name))))))
+                            (edraw-svg-elem-prop-name prop-info))))))
           (push (edraw-create-prop-widget pedit target prop-info margin-left indent)
                 widgets))))
     ;; Return widgets
@@ -738,9 +746,9 @@ once. widget-value-set updates the same property four times."
 (cl-defmethod edraw-create-prop-widget-updator ((pedit edraw-property-editor)
                                                 target
                                                 prop-info)
-  (let ((prop-name (plist-get prop-info :name)))
+  (let ((prop-name (edraw-svg-elem-prop-name prop-info)))
     (lambda (widget _changed-widget &optional event)
-      ;;(message "on widget changed %s event=%s" (plist-get prop-info :name) event)
+      ;;(message "on widget changed %s event=%s" (edraw-svg-elem-prop-name prop-info) event)
       ;; Called 4 times per widget-value-set call.
       ;; 1. delete chars (event=(before-change BEG END))
       ;; 2. delete chars (event=(after-change BEG END))
@@ -802,10 +810,10 @@ once. widget-value-set updates the same property four times."
                                                         indent
                                                         notify
                                                         pedit)
-  (let* ((prop-name (plist-get prop-info :name))
+  (let* ((prop-name (edraw-svg-elem-prop-name prop-info))
          (prop-value (edraw-get-property target prop-name))
-         (prop-type (plist-get prop-info :type))
-         (prop-number-p (plist-get prop-info :number-p)))
+         (prop-type (edraw-svg-elem-prop-type prop-info))
+         (prop-number-p (edraw-svg-elem-prop-number-p prop-info)))
     (cond
      (prop-number-p
       (edraw-property-editor-create-number-widget
@@ -845,8 +853,8 @@ as a string."
                                                         prop-name prop-value
                                                         prop-info notify)
   (widget-insert (make-string indent ? ))
-  (let* ((prop-required (plist-get prop-info :required))
-         (prop-type (plist-get prop-info :type))
+  (let* ((prop-required (edraw-svg-elem-prop-required-p prop-info))
+         (prop-type (edraw-svg-elem-prop-type prop-info))
          (types (if prop-required
                     (cdr prop-type) ;;skip (or)
                   ;; nullable
@@ -962,7 +970,7 @@ as a string."
    (divisor :initarg :divisor)))
 
 (defun edraw-property-editor-number-field-create (buffer widget prop-info)
-  (let ((prop-type (plist-get prop-info :type)))
+  (let ((prop-type (edraw-svg-elem-prop-type prop-info)))
     (edraw-property-editor-number-field
      :buffer buffer
      :widget widget
@@ -981,11 +989,10 @@ as a string."
 
 (cl-defmethod edraw-get-value ((field edraw-property-editor-number-field))
   (with-slots (widget default-value prop-info) field
-    (let ((w-value (widget-value widget))
-          (to-number (plist-get prop-info :to-number)))
+    (let ((w-value (widget-value widget)))
       (if (and (stringp w-value)
                (not (string-empty-p w-value)))
-          (funcall to-number w-value)
+          (edraw-svg-elem-prop-to-number prop-info w-value) ;;@todo pass element and attr
         default-value))))
 
 (cl-defmethod edraw-set-value ((field edraw-property-editor-number-field) value)
@@ -995,7 +1002,7 @@ as a string."
       (setq value (/ (round (* value divisor)) divisor)))
     (edraw-property-editor-prop-widget-value-set
      widget
-     (funcall (plist-get prop-info :to-string) value))))
+     (edraw-svg-elem-prop-to-string prop-info value))))
 
 (cl-defmethod edraw-increase ((field edraw-property-editor-number-field) delta)
   (edraw-set-value field (+ (edraw-get-value field)
@@ -1302,7 +1309,7 @@ as a string."
 (defun edraw-property-editor-default-marker-items (prop-info options)
   (let* ((marker-types (nconc
                         (mapcar #'car edraw-svg-marker-types)
-                        (unless (plist-get prop-info :required) ;;nullable?
+                        (unless (edraw-svg-elem-prop-required-p prop-info) ;;nullable?
                           (list nil))))
          (items (mapcar
                  (lambda (type)
@@ -1471,7 +1478,7 @@ as a string."
 (cl-defmethod edraw-update-widget-value ((pw edraw-property-editor-prop-widget))
   (with-slots (widget prop-info) pw
     (let* ((old-w-value (widget-value widget))
-           (prop-name (plist-get prop-info :name))
+           (prop-name (edraw-svg-elem-prop-name prop-info))
            (prop-value (edraw-get-property (edraw-get-target pw) prop-name))
            (new-w-value (edraw-property-editor-prop-value-to-widget-value
                          prop-value
@@ -1484,7 +1491,7 @@ as a string."
          widget new-w-value)))))
 
 (defun edraw-property-editor-prop-value-to-widget-value (prop-value prop-info)
-  (pcase (plist-get prop-info :type)
+  (pcase (edraw-svg-elem-prop-type prop-info)
     (`(or . ,_)
      ;; string, text or nil
      prop-value)
@@ -1493,18 +1500,18 @@ as a string."
      prop-value)
     (_
      ;; string only
-     (funcall (plist-get prop-info :to-string) prop-value))))
+     (edraw-svg-elem-prop-to-string prop-info prop-value))))
 
 (defun edraw-property-editor-equal-widget-value (wv1 wv2 prop-info)
   (cond
-   ((plist-get prop-info :number-p)
+   ((edraw-svg-elem-prop-number-p prop-info)
     (or
      (equal wv1 wv2)
-     (let ((to-number (plist-get prop-info :to-number)))
-       ;;@todo empty-string-p (opacity: "" = 1.0)
-       ;;@todo very small difference (100.01 = 100.009999999999)
-       ;; 100.0 = 100 = 100.
-       (= (funcall to-number wv1) (funcall to-number wv2)))))
+     ;;@todo empty-string-p (opacity: "" = 1.0)
+     ;;@todo very small difference (100.01 = 100.009999999999)
+     ;; 100.0 = 100 = 100.
+     (= (edraw-svg-elem-prop-to-number prop-info wv1) ;;@todo pass element and attr
+        (edraw-svg-elem-prop-to-number prop-info wv2)))) ;;@todo pass element and attr
    (t
     (equal wv1 wv2))))
 
@@ -1514,7 +1521,7 @@ as a string."
                                             edraw-property-editor-prop-widget))
   "Returns the current PW value as (property name . property value)."
   (with-slots (widget prop-info) pw
-    (cons (plist-get prop-info :name)
+    (cons (edraw-svg-elem-prop-name prop-info)
           (edraw-property-editor-widget-value-to-prop-value
            (widget-value widget) prop-info))))
 
@@ -1527,19 +1534,19 @@ as a string."
 
 (defun edraw-property-editor-widget-value-to-prop-value (w-value prop-info)
   (cond
-   ((eq (plist-get prop-info :type) 'marker)
+   ((eq (edraw-svg-elem-prop-type prop-info) 'marker)
     w-value)
    ((or (and (stringp w-value) (string-empty-p w-value))
         (null w-value))
     ;; w-value is an empty string or nil
-    ;; (if (not (plist-get prop-info :required))
+    ;; (if (not (edraw-svg-elem-prop-required-p prop-info))
     ;;     nil ;;property is not required and
     ;;   ;;@todo default value???
     ;;   nil)
     nil)
    (t
     ;;@todo error check
-    (funcall (plist-get prop-info :from-string) w-value))))
+    (edraw-svg-elem-prop-from-string prop-info w-value))))
 
 ;;;;; Bottom Buttons
 
@@ -1871,7 +1878,7 @@ menu is pressed."
                                ;;@todo customize condition
                                (lambda (prop-info)
                                  ;; style only
-                                 (not (memq 'geometry (plist-get prop-info :flags)))
+                                 (not (edraw-svg-elem-prop-flag-p prop-info 'geometry))
                                  ))))))))
 
 (defun edraw-property-editor--delete-preset (&rest _ignore)
