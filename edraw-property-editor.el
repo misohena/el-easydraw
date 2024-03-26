@@ -268,6 +268,11 @@ data, the following functions may be available:
 Used by the property editor to determine the type of object."
   nil)
 
+;;;;; Extra UI
+
+(cl-defgeneric edraw-property-editor-actions (_object)
+  nil)
+
 ;;;;; Implementation with alist
 
 (defclass edraw-alist-properties-holder (edraw-properties-holder)
@@ -621,6 +626,10 @@ editor when the selected shape changes."
                                `(space :align-to (- right ,ui-width))))))
       (widget-insert "\n"))
 
+    ;; Actions
+    (when target
+      (edraw-property-editor-insert-action-bar target))
+
     ;; Properties
     (when target
       (setq widgets (edraw-insert-property-widgets pedit target 0)))
@@ -640,6 +649,13 @@ editor when the selected shape changes."
     ;;          (edraw-msg "Apply")
     ;;          (edraw-msg "Close")))
     ))
+
+(defun edraw-property-editor-insert-action-bar (target)
+  (when-let ((widgets (edraw-property-editor-actions target)))
+    (widget-insert "  ")
+    (dolist (widget-args widgets)
+      (apply #'widget-create widget-args))
+    (widget-insert "\n")))
 
 (cl-defmethod edraw-insert-property-widgets ((pedit edraw-property-editor)
                                              target
