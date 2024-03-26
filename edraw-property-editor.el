@@ -353,6 +353,9 @@ Used by the property editor to determine the type of object."
   :tag "Edraw Faces"
   :group 'edraw)
 
+(defconst edraw-property-editor-push-button-prefix " ")
+(defconst edraw-property-editor-push-button-suffix " ")
+
 (defface edraw-widget-button
   '((((type x w32 ns) (class color))
      :box (:line-width 2 :style released-button)
@@ -564,8 +567,8 @@ editor when the selected shape changes."
       (erase-buffer))
     (remove-overlays)
 
-    (setq-local widget-push-button-prefix "")
-    (setq-local widget-push-button-suffix "")
+    (setq-local widget-push-button-prefix edraw-property-editor-push-button-prefix)
+    (setq-local widget-push-button-suffix edraw-property-editor-push-button-suffix)
     (setq-local widget-link-prefix "")
     (setq-local widget-link-suffix "")
     (setq-local widget-button-face 'edraw-widget-button)
@@ -871,6 +874,8 @@ as a string."
           (apply
            #'widget-create
            `(menu-choice
+             :button-prefix widget-push-button-prefix
+             :button-suffix widget-push-button-suffix
              :format ,(format
                        "%s: %%[%s%%] %%v"
                        (edraw-property-editor-property-display-name prop-name)
@@ -1255,6 +1260,8 @@ as a string."
           (apply
            #'widget-create
            `(menu-choice
+             :button-prefix widget-push-button-prefix
+             :button-suffix widget-push-button-suffix
              :format ,(format
                        "%s: %%[%s%%] %%v"
                        (edraw-property-editor-property-display-name prop-name)
