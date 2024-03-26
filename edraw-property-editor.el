@@ -573,41 +573,49 @@ editor when the selected shape changes."
     (setq-local widget-mouse-face 'edraw-widget-button-mouse)
 
     ;; Title
-    (if target
-        (widget-insert (format (edraw-msg "Properties of %s")
-                               (or (edraw-name target) ""))
-                       "\n")
+    (unless target
       (widget-insert (edraw-msg "No target object") "\n\n"))
 
-    ;; Prev / Next
-    (when (edraw-property-editor-target-shape-p target)
-      ;;(widget-insert (make-string 2 ? ))
-      (let* ((shape-index (edraw-property-editor--shape-index))
-             (num-shapes (edraw-property-editor--num-shapes))
-             (num-shapes-digits (if (< num-shapes 10)
-                                    1
-                                  (1+ (floor (log num-shapes 10)))))
-             prev next)
-        (setq prev
-              (widget-create 'push-button
-                             :notify 'edraw-property-editor--prev
-                             :keymap edraw-property-editor-push-button-map
-                             (edraw-msg "Prev")))
-        (when (<= shape-index 0)
-          (widget-apply prev :deactivate))
-        (widget-insert " "
-                       (format (format "%%%dd/%%%dd"
-                                       num-shapes-digits
-                                       num-shapes-digits)
-                               (1+ shape-index) num-shapes)
-                       " ")
-        (setq next
-              (widget-create 'push-button
-                             :notify 'edraw-property-editor--next
-                             :keymap edraw-property-editor-push-button-map
-                             (edraw-msg "Next")))
-        (when (>= shape-index (1- num-shapes))
-          (widget-apply next :deactivate)))
+    (when target
+      (widget-insert (format (edraw-msg "Properties of %s")
+                             (or (edraw-name target) "")))
+
+      ;; Prev / Next
+      (when (edraw-property-editor-target-shape-p target)
+        (widget-insert "  ")
+        (let* ((beg (point))
+               (shape-index (edraw-property-editor--shape-index))
+               (num-shapes (edraw-property-editor--num-shapes))
+               (num-shapes-digits (if (< num-shapes 10)
+                                      1
+                                    (1+ (floor (log num-shapes 10)))))
+               prev next)
+          (setq prev
+                (widget-create 'push-button
+                               :notify 'edraw-property-editor--prev
+                               :keymap edraw-property-editor-push-button-map
+                               (edraw-msg "Prev")))
+          (when (<= shape-index 0)
+            (widget-apply prev :deactivate))
+          (widget-insert " "
+                         (format (format "%%%dd/%%%dd"
+                                         num-shapes-digits
+                                         num-shapes-digits)
+                                 (1+ shape-index) num-shapes)
+                         " ")
+          (setq next
+                (widget-create 'push-button
+                               :notify 'edraw-property-editor--next
+                               :keymap edraw-property-editor-push-button-map
+                               (edraw-msg "Next")))
+          (when (>= shape-index (1- num-shapes))
+            (widget-apply next :deactivate))
+
+          ;; Align to right
+          (let ((ui-width (+ (string-width (buffer-substring beg (point)))
+                             4)))
+            (put-text-property (1- beg) beg 'display
+                               `(space :align-to (- right ,ui-width))))))
       (widget-insert "\n"))
 
     ;; Properties

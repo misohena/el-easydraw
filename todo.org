@@ -4147,3 +4147,6 @@ edraw-svg-element-もしくはedraw-svg-elem-は拡張性が乏しく、新し�
   - [X] edraw-svg-element-get-property-info-list-by-tagはedraw-svg-tag-get-property-info-listへ改名する。
   - [X] edraw-can-have-property-pはdefgenericにする。
   - [X] edraw-svg-element-get-propertyやedraw-svg-element-set-propertyはオプション引数で任意のprop-info-listを取るようにする。新しいプロパティを追加したい場合は、これを活用する。shapeに対するedraw-get-propertyやedraw-set-properties-internalは必ずedraw-get-property-info-listから取得したリストを引き渡す。
+** DONE プロパティエディタで前後ボタンを右寄せにする
+CLOSED: [2024-03-26 Tue 10:57]
+Prev/NextのUIを一番上の行の右側に表示する。
