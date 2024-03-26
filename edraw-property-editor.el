@@ -1232,44 +1232,57 @@ as a string."
       (edraw-undo-all target)
       (edraw-undo-block-end target undo-backup))))
 
-;;;;;; Marker Widget
+;;;;;; Object Widget
 
-(defclass edraw-property-editor-marker-widget
-  (edraw-property-editor-prop-widget)
+(defclass edraw-property-editor-object-widget (edraw-property-editor-prop-widget)
   ((margin-left :initarg :margin-left)
    (choice-widget :initarg :choice-widget)
    (properties-button :initarg :properties-button)
-   (marker-prop-list :initarg :marker-prop-list)
+   (object-prop-list :initarg :object-prop-list)
    (open-p :initform nil)
-   (subprops-marker-type :initform nil)
+   (subprops-object-type :initform nil)
    (subprops-widgets :initform nil)
    (subprops-overlay :initform nil)
    (buffer :initarg :buffer)
-   (pedit :initarg :pedit)))
+   (pedit :initarg :pedit)
+   (fun-object-prop-info-list :initarg :fun-object-prop-info-list)
+   (fun-object-type :initarg :fun-object-type)
+   (fun-object-props-head :initarg :fun-object-props-head)
+   ))
 
-(cl-defmethod edraw-update-widget-value ((marker-widget
-                                          edraw-property-editor-marker-widget))
-  (with-slots (choice-widget) marker-widget
+(cl-defmethod edraw-update-widget-value ((object-widget
+                                          edraw-property-editor-object-widget))
+  (with-slots (choice-widget) object-widget
     (let ((old-value (widget-value choice-widget)))
       (cl-call-next-method)
-      ;; Make sure marker-prop-list points to widget-value.
+      ;; Make sure object-prop-list points to widget-value.
       ;; It is not enough to do it from the choice-widget's
       ;; notify. Because notify is not called when changing between the
       ;; same type using widget-value-set (because no text change event is
       ;; fired).
       (let ((new-value (widget-value choice-widget)))
         (unless (equal new-value old-value)
-          (edraw-update-subprops marker-widget))))))
+          (edraw-update-subprops object-widget))))))
 
-(defun edraw-property-editor-create-marker-widget (margin-left
-                                                   indent
-                                                   target
-                                                   prop-name prop-value
-                                                   prop-info notify
-                                                   pedit)
+(defun edraw-property-editor-create-object-widget
+    (margin-left
+     indent
+     target
+     prop-name prop-value
+     prop-info notify
+     pedit
+     object-types ;; (mapcar #'car edraw-svg-marker-types)
+     fun-object-create ;; edraw-svg-marker
+     fun-object-type ;; edraw-svg-object-type
+     fun-object-p ;; edraw-svg-marker-p
+     fun-object-prop-info-list ;; edraw-svg-marker-prop-info-list
+     fun-object-props-head ;; edraw-svg-object-props-head
+     object-defaults ;;(alist-get 'marker-defaults options)
+     object-name ;; "Marker"
+     )
   (widget-insert (make-string (+ margin-left indent) ? ))
 
-  (let* (marker-widget
+  (let* (object-widget
 
          ;; Type Selector
          (choice-widget
@@ -1284,18 +1297,20 @@ as a string."
                        (edraw-msg "Choose"))
              :value ,(cond
                       ((stringp prop-value)
-                       (if (assoc prop-value edraw-svg-marker-types)
-                           (edraw-svg-marker prop-value nil)
+                       (if (member prop-value object-types)
+                           (funcall fun-object-create prop-value nil)
                          nil));; Unknown Type
-                      ((edraw-svg-marker-p prop-value)
+                      ((funcall fun-object-p prop-value)
                        (edraw-property-editor-prop-value-to-widget-value
                         prop-value prop-info)))
              :notify ,(lambda (widget changed-widget &optional event)
                         ;;(message "on choice-widget changed value=%s event=%s" (widget-value widget) event)
-                        (edraw-on-widget-change marker-widget)
+                        (edraw-on-widget-change object-widget)
                         (funcall notify widget changed-widget event))
-             ,@(edraw-property-editor-default-marker-items
-                prop-info (oref pedit options)))))
+             ,@(edraw-property-editor-default-object-items
+                prop-info
+                object-types fun-object-create fun-object-type fun-object-p
+                object-defaults))))
          ;; Space
          (_ (insert " "))
          ;; Properties Button
@@ -1303,27 +1318,27 @@ as a string."
           (widget-create
            'push-button
            :notify (lambda (&rest _args)
-                     (edraw-on-properties-button marker-widget))
+                     (edraw-on-properties-button object-widget))
            :keymap edraw-property-editor-push-button-map
            "..."))
          ;; Line Break
          (_ (insert "\n"))
 
-         (marker-prop-list (edraw-alist-properties-holder
+         (object-prop-list (edraw-alist-properties-holder
                             :prop-info-list nil
                             :alist-head (cons nil nil)
                             :editor nil
-                            :name "Marker")))
+                            :name object-name)))
 
     (edraw-add-change-hook
-     marker-prop-list
+     object-prop-list
      (lambda (&rest _ignore)
        ;; Update UI
-       ;;(message "on marker propery changed prop-list=%s choice-widget-value=%s" (oref marker-prop-list alist-head) (widget-value choice-widget))
+       ;;(message "on object propery changed prop-list=%s choice-widget-value=%s" (oref object-prop-list alist-head) (widget-value choice-widget))
        (widget-apply choice-widget :notify choice-widget nil)))
 
-    (setq marker-widget
-          (edraw-property-editor-marker-widget
+    (setq object-widget
+          (edraw-property-editor-object-widget
            :target target
            :prop-info prop-info
            :buffer (oref pedit buffer)
@@ -1331,15 +1346,25 @@ as a string."
            :choice-widget choice-widget
            :properties-button properties-button
            :margin-left margin-left
-           :marker-prop-list marker-prop-list
-           :pedit pedit))
-    (edraw-update-subprops marker-widget)
+           :object-prop-list object-prop-list
+           :pedit pedit
+           :fun-object-prop-info-list fun-object-prop-info-list
+           :fun-object-type fun-object-type
+           :fun-object-props-head fun-object-props-head))
+    (edraw-update-subprops object-widget)
 
-    marker-widget))
+    object-widget))
 
-(defun edraw-property-editor-default-marker-items (prop-info options)
-  (let* ((marker-types (nconc
-                        (mapcar #'car edraw-svg-marker-types)
+(defun edraw-property-editor-default-object-items
+    (prop-info
+     object-types ;; (mapcar #'car edraw-svg-marker-types)
+     fun-object-create ;; edraw-svg-marker
+     fun-object-type ;; edraw-svg-object-type
+     fun-object-p ;; edraw-svg-marker-p
+     object-defaults ;;(alist-get 'marker-defaults options)
+     )
+  (let* ((object-types (append
+                        object-types
                         (unless (edraw-svg-elem-prop-required-p prop-info) ;;nullable?
                           (list nil))))
          (items (mapcar
@@ -1354,68 +1379,68 @@ as a string."
                       'item
                       :tag type
                       :format "%t"
-                      :value (edraw-svg-marker
-                              type
-                              (alist-get
-                               type
-                               (alist-get 'marker-defaults options)
-                               nil nil #'equal))
+                      :value (funcall fun-object-create
+                                      type
+                                      (alist-get type object-defaults
+                                                 nil nil #'equal))
                       :match (lambda (_widget value)
                                (or
-                                (and (edraw-svg-marker-p value)
-                                     (equal (edraw-svg-marker-type value) type))
+                                (and (funcall fun-object-p value)
+                                     (equal (funcall fun-object-type value) type))
                                 (and (stringp value)
                                      (string= value type))))))))
-                 marker-types)))
+                 object-types)))
     items))
 
-(cl-defmethod edraw-on-widget-change ((marker-widget
-                                       edraw-property-editor-marker-widget))
-  (edraw-update-subprops marker-widget))
+(cl-defmethod edraw-on-widget-change ((object-widget
+                                       edraw-property-editor-object-widget))
+  (edraw-update-subprops object-widget))
 
-(cl-defmethod edraw-on-properties-button ((marker-widget
-                                           edraw-property-editor-marker-widget))
+(cl-defmethod edraw-on-properties-button ((object-widget
+                                           edraw-property-editor-object-widget))
   ;; Toggle
-  (oset marker-widget open-p (not (oref marker-widget open-p)))
+  (oset object-widget open-p (not (oref object-widget open-p)))
   ;; Update subprops
-  (edraw-update-subprops marker-widget))
+  (edraw-update-subprops object-widget))
 
 (cl-defmethod edraw-update-properties-button
-  ((marker-widget edraw-property-editor-marker-widget))
-  (widget-apply (oref marker-widget properties-button)
-                (if (edraw-svg-marker-prop-info-list
-                     (edraw-svg-marker-type
-                      (widget-value (oref marker-widget choice-widget))))
+  ((object-widget edraw-property-editor-object-widget))
+  (widget-apply (oref object-widget properties-button)
+                (if (funcall
+                     (oref object-widget fun-object-prop-info-list)
+                     (funcall
+                      (oref object-widget fun-object-type)
+                      (widget-value (oref object-widget choice-widget))))
                     :activate
                   :deactivate)))
 
-(cl-defmethod edraw-update-subprops ((marker-widget
-                                      edraw-property-editor-marker-widget))
+(cl-defmethod edraw-update-subprops ((object-widget
+                                      edraw-property-editor-object-widget))
   ;;(message "edraw-update-subprops")
-  (edraw-update-marker-prop-list marker-widget)
-  (edraw-update-properties-button marker-widget)
-  (with-slots (choice-widget subprops-marker-type open-p subprops-widgets) marker-widget
+  (edraw-update-object-prop-list object-widget)
+  (edraw-update-properties-button object-widget)
+  (with-slots (choice-widget subprops-object-type open-p subprops-widgets) object-widget
     (if (not open-p)
         ;; Closed
         (progn
-          (edraw-remove-subprops marker-widget)
-          (setq subprops-marker-type nil))
+          (edraw-remove-subprops object-widget)
+          (setq subprops-object-type nil))
       ;; Open
-      (let* ((new-marker-value (widget-value choice-widget))
-             (new-marker-type (edraw-svg-marker-type new-marker-value)))
-        (if (equal new-marker-type subprops-marker-type)
+      (let* ((new-object-value (widget-value choice-widget))
+             (new-object-type (funcall (oref object-widget fun-object-type) new-object-value)))
+        (if (equal new-object-type subprops-object-type)
             ;; Same type
             (dolist (pw subprops-widgets)
               (edraw-update-widget-value pw))
           ;; Different type
-          (edraw-remove-subprops marker-widget)
-          (edraw-insert-subprops marker-widget)
-          (setq subprops-marker-type new-marker-type)
+          (edraw-remove-subprops object-widget)
+          (edraw-insert-subprops object-widget)
+          (setq subprops-object-type new-object-type)
           )))))
 
-(cl-defmethod edraw-remove-subprops ((marker-widget
-                                      edraw-property-editor-marker-widget))
-  (with-slots (subprops-widgets subprops-overlay) marker-widget
+(cl-defmethod edraw-remove-subprops ((object-widget
+                                      edraw-property-editor-object-widget))
+  (with-slots (subprops-widgets subprops-overlay) object-widget
     ;; Delete widgets
     (when subprops-widgets
       (dolist (pw subprops-widgets)
@@ -1432,30 +1457,30 @@ as a string."
           (delete-overlay subprops-overlay)))
       (setq subprops-overlay nil))))
 
-(cl-defmethod edraw-update-marker-prop-list
-  ((marker-widget edraw-property-editor-marker-widget))
-  (with-slots (marker-prop-list choice-widget) marker-widget
-    (let ((marker-value (widget-value choice-widget)))
+(cl-defmethod edraw-update-object-prop-list ((object-widget
+                                              edraw-property-editor-object-widget))
+  (with-slots (object-prop-list choice-widget) object-widget
+    (let ((object-value (widget-value choice-widget)))
       (edraw-set-alist-head
-       marker-prop-list
-       (if marker-value
-           (edraw-svg-marker-props-head marker-value)
+       object-prop-list
+       (if object-value
+           (funcall (oref object-widget fun-object-props-head) object-value)
          (cons nil nil)))
       (edraw-set-prop-info-list
-       marker-prop-list
-       (if marker-value
-           (edraw-svg-marker-prop-info-list
-            (edraw-svg-marker-type marker-value))
+       object-prop-list
+       (if object-value
+           (funcall (oref object-widget fun-object-prop-info-list)
+                    (funcall (oref object-widget fun-object-type) object-value))
          nil)))))
 
-(cl-defmethod edraw-insert-subprops ((marker-widget
-                                      edraw-property-editor-marker-widget))
+(cl-defmethod edraw-insert-subprops ((object-widget
+                                      edraw-property-editor-object-widget))
   (with-slots (buffer
-               choice-widget marker-type marker-prop-list
+               choice-widget object-type object-prop-list
                margin-left
                subprops-widgets subprops-overlay
                pedit)
-      marker-widget
+      object-widget
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (save-excursion
@@ -1464,7 +1489,7 @@ as a string."
           (let* ((beg (point))
                  (widgets (prog1
                               (edraw-insert-property-widgets
-                               pedit marker-prop-list (+ margin-left 12))
+                               pedit object-prop-list (+ margin-left 12))
                             (widget-setup)))
                  (end (point))
                  (ov (let ((ov (make-overlay beg end nil t nil)))
@@ -1473,6 +1498,30 @@ as a string."
             (setq subprops-widgets widgets
                   subprops-overlay ov)))))))
 
+
+;;;;;; Marker Widget
+
+(defun edraw-property-editor-create-marker-widget (margin-left
+                                                   indent
+                                                   target
+                                                   prop-name prop-value
+                                                   prop-info notify
+                                                   pedit)
+  (edraw-property-editor-create-object-widget
+   margin-left
+   indent
+   target
+   prop-name prop-value
+   prop-info notify
+   pedit
+   (mapcar #'car edraw-svg-marker-types)
+   #'edraw-svg-marker
+   #'edraw-svg-marker-type
+   #'edraw-svg-marker-p
+   #'edraw-svg-marker-prop-info-list
+   #'edraw-svg-marker-props-head
+   (alist-get 'marker-defaults (oref pedit options))
+   "Marker"))
 
 
 ;;;;;; Increase/Decrease Value By Wheel

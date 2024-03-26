@@ -4156,3 +4156,12 @@ CLOSED: [2024-03-26 Tue 11:39]
 ** DONE プロパティエディタにメソッド呼び出しボタンバーを追加する
 CLOSED: [2024-03-26 Tue 11:42]
 edraw-shape-generatorに「再生成」ボタンが欲しいから。
+** DONE プロパティエディタのmarker-widgetをもう少し一般化してobject-widgetにする
+CLOSED: [2024-03-26 Tue 14:36]
+- edraw-property-editor-marker-widget => edraw-property-editor-object-widget
+- edraw-property-editor-create-marker-widget => edraw-property-editor-create-object-widget
+- 次の部分を可変にする
+  - edraw-svg-marker-* に依存している部分
+ - デフォルトプロパティ (alist-get 'marker-defaults options)
+  - オブジェクト名"Marker"
+- marker-widgetはedraw-property-editor-create-marker-widget関数で作る
