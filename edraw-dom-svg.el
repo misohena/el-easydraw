@@ -948,12 +948,14 @@ comment nodes."
 
 (defun edraw-svg-escape-chars (str)
   (replace-regexp-in-string
-   "\\([\"&<]\\)"
+   "\\([\"&<\r\n]\\)"
    (lambda (str)
      (pcase (elt str 0)
        (?\" "&quot;")
        (?& "&amp;")
-       (?< "&lt;")))
+       (?< "&lt;")
+       (?\n "&#10;")
+       (?\r "&#13;")))
    str
    t t))
 
