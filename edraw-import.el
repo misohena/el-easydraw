@@ -70,13 +70,23 @@
 (defvar edraw-import-warning-messages nil)
 (defvar edraw-import-warning-count 0)
 (defvar edraw-import-warning-blocks 0)
+(defvar edraw-import-warning-buffer nil)
+(defvar edraw-import-warning-suppress-types nil)
 
-(defun edraw-import-warn (string &rest args)
-  (let ((msg (apply #'format string args)))
-    (cl-incf edraw-import-warning-count)
-    (unless (member msg edraw-import-warning-messages)
-      (push msg edraw-import-warning-messages)
-      (apply #'lwarn 'edraw-import :warning string args))))
+(defun edraw-import-display-warning (message &rest args)
+  (display-warning 'edraw-import
+                   (apply #'format-message message args)
+                   :warning
+                   edraw-import-warning-buffer))
+
+(defun edraw-import-warn (type string &rest args)
+  (unless (memq type edraw-import-warning-suppress-types)
+    (let ((msg (apply #'format string args)))
+      (cl-incf edraw-import-warning-count)
+      (unless (member msg edraw-import-warning-messages)
+        (push msg edraw-import-warning-messages)
+        (apply #'edraw-import-display-warning
+               string args)))))
 
 (defmacro edraw-import-warning-block (&rest body)
   `(progn
@@ -88,9 +98,9 @@
            ,@body)
        (when (= edraw-import-warning-blocks 0)
          (when (> edraw-import-warning-count 0)
-           (lwarn 'edraw-import :warning
-                  (edraw-msg "edraw-import: %s warnings raised")
-                  edraw-import-warning-count))
+           (edraw-import-display-warning
+            (edraw-msg "edraw-import: %s warnings raised")
+            edraw-import-warning-count))
          (setq edraw-import-warning-count 0
                edraw-import-warning-messages nil)))))
 
@@ -179,7 +189,7 @@ presentation attributes."
 
      (if (edraw-dom-get-by-id svg edraw-import-svg-body-id)
          (progn
-           (edraw-import-warn (edraw-msg "Already an SVG for Edraw"))
+           (edraw-import-warn 'noconv (edraw-msg "Already an SVG for Edraw"))
            dom)
 
        ;; `edraw-svg-attr-length' requires ability to get parent from
@@ -294,14 +304,16 @@ The result value might look like this:
         ('nil (cond
                ;; No xmlns declaration for default. SVG?
                ((null ns-prefix)
-                (edraw-import-warn "No xmlns declaration for default")
+                (edraw-import-warn 'no-xmlns-default
+                                   "No xmlns declaration for default")
                 name)
                ;; For eample, xml:space, xml:lang
                ((equal ns-prefix "xml")
                 (intern (format "%s:%s" ns-prefix name)))
                ;; No xmlns declaration for NS-PREFIX
                (t
-                (edraw-import-warn "No xmlns declaration for `%s'" ns-prefix)
+                (edraw-import-warn 'no-xmlns
+                                   "No xmlns declaration for `%s'" ns-prefix)
                 (intern (format "<unknown>:%s(%s)" name ns-prefix)))))
         ("http://www.w3.org/2000/svg"
          name)
@@ -368,9 +380,11 @@ The result value might look like this:
                    (not (edraw-import-svg-unknown-ns-name-p tag)))
               (eq edraw-import-svg-level 'loose))
           (progn
-            (edraw-import-warn (edraw-msg "Keep unsupported element: %s") tag)
+            (edraw-import-warn 'keep-unsupported-element
+                               (edraw-msg "Keep unsupported element: %s") tag)
             (edraw-import-svg-convert-unsupported-element elem context))
-        (edraw-import-warn (edraw-msg "Discard unsupported element: %s") tag)
+        (edraw-import-warn 'discard-unsupported-element
+                           (edraw-msg "Discard unsupported element: %s") tag)
         nil))))
 
 (defun edraw-import-svg-convert-comment (_elem _context)
@@ -386,7 +400,8 @@ The result value might look like this:
   ;; https://www.w3.org/TR/SVG11/struct.html#UseElement
   (if (not edraw-import-svg-expand-use-element)
       (progn
-        (edraw-import-warn (edraw-msg "Discard unsupported element: %s")
+        (edraw-import-warn 'discard-unsupported-element
+                           (edraw-msg "Discard unsupported element: %s")
                            (edraw-dom-tag elem))
         nil)
     (let* ((href (or (dom-attr elem 'xlink:href)
@@ -427,6 +442,7 @@ The result value might look like this:
       ;;(message "href=%s ref-id=%s ref=elem=%s supported-tag=%s recursive=%s" href ref-id ref-elem supported-tag recursive)
       (unless converted-ref-elem
         (edraw-import-warn
+         'discard-unsupported-element ;;@todo unsupported-element-format?
          (edraw-msg "Discard `use' element with unsupported format")))
 
       (when converted-ref-elem
@@ -523,11 +539,13 @@ The result value might look like this:
          (points (edraw-svg-parse-points (or points-attr ""))))
     (cond
      ((null points-attr)
-      (edraw-import-warn (edraw-msg "No `points' attribute: %s")
+      (edraw-import-warn 'no-points-attr
+                         (edraw-msg "No `points' attribute: %s")
                          (edraw-dom-tag elem))
       nil)
      ((null points)
-      (edraw-import-warn (edraw-msg "Empty `points' attribute: %s")
+      (edraw-import-warn 'no-points-attr ;; empty-points-attr?
+                         (edraw-msg "Empty `points' attribute: %s")
                          (edraw-dom-tag elem))
       nil)
      (t
@@ -656,10 +674,12 @@ The result value might look like this:
                    (not (edraw-import-svg-unknown-ns-name-p attr-name)))
               (eq edraw-import-svg-level 'loose))
           (progn
-            (edraw-import-warn (edraw-msg "Keep unsupported attribute: %s")
+            (edraw-import-warn 'keep-unsupported-attribute
+                               (edraw-msg "Keep unsupported attribute: %s")
                                attr-name)
             (cons attr-name value))
-        (edraw-import-warn (edraw-msg "Discard unsupported attribute: %s")
+        (edraw-import-warn 'discard-unsupported-attribute
+                           (edraw-msg "Discard unsupported attribute: %s")
                            attr-name)
         nil)))))
 
@@ -692,7 +712,8 @@ The result value might look like this:
     ))
 
 (defun edraw-import-svg-convert-attr-style (attr-name value elem context)
-  (edraw-import-warn (edraw-msg "Support for `style' attributes is insufficient and may cause display and operation problems"))
+  (edraw-import-warn 'poorly-supported-attribute
+                     (edraw-msg "Support for `style' attributes is insufficient and may cause display and operation problems"))
 
   ;; Convert style attribute to presentation attributes
   (if edraw-import-svg-style-to-attrs
@@ -729,7 +750,8 @@ The result value might look like this:
                    override-attrs))
             (cons attr-name new-value))
         (error
-         (edraw-import-warn (edraw-msg "CSS Style parsing error: %s") err)
+         (edraw-import-warn 'css-error
+                            (edraw-msg "CSS Style parsing error: %s") err)
          (cons attr-name value)))
     (cons attr-name value)))
 
@@ -738,13 +760,14 @@ The result value might look like this:
   (let ((cmds (condition-case err
                   (edraw-path-d-parse value)
                 (error
-                 (edraw-import-warn (edraw-msg "Parsing error: %s") err)
+                 (edraw-import-warn 'path-syntax
+                                    (edraw-msg "Parsing error: %s") err)
                  (setq value nil) ;;Discard
                  nil))))
     ;; Check empty path data
     (unless cmds
       (setq value nil cmds nil) ;;Discard
-      (edraw-import-warn (edraw-msg "Empty path data")))
+      (edraw-import-warn 'path-empty (edraw-msg "Empty path data")))
 
     ;; Check unsupported path command
     ;;@todo Call `edraw-path-cmdlist-from-d'?
@@ -757,12 +780,14 @@ The result value might look like this:
       ;; error will occur during editing, so discard it.
       (unless (eq edraw-import-svg-level 'loose)
         (setq value nil cmds nil)) ;;Discard
-      (edraw-import-warn (edraw-msg "Unsupported path command: `%s'") (car c)))
+      (edraw-import-warn 'path-unsupported-command
+                         (edraw-msg "Unsupported path command: `%s'") (car c)))
 
     ;; Check not start with M
     (when (and cmds (not (memq (caar cmds) '(M m))))
       (setq value nil cmds nil) ;;Discard
-      (edraw-import-warn (edraw-msg "Path data does not start with M")))
+      (edraw-import-warn 'path-not-start-m
+                         (edraw-msg "Path data does not start with M")))
 
     ;; Check multiple subpaths (multiple M or command after Z)
     (when (and cmds (cl-loop for rest on (cdr cmds)
@@ -771,7 +796,9 @@ The result value might look like this:
                                       (and (memq (car cmd) '(Z z))
                                            (cdr rest)))
                              return t))
-      (edraw-import-warn (edraw-msg "Multiple subpaths are not supported and may cause display and operation problems"))))
+      (edraw-import-warn
+       'path-multiple-subpaths
+       (edraw-msg "Multiple subpaths are not supported and may cause display and operation problems"))))
 
   (when value
     (cons attr-name value)))
@@ -782,7 +809,8 @@ The result value might look like this:
            (string= value "line"))
       (cons 'class "edraw-text-line") ;;@todo If elem already has a class?
     ;; Otherwise discard
-    (edraw-import-warn (edraw-msg "Discard unsupported attribute: %s")
+    (edraw-import-warn 'discard-unsupported-attribute
+                       (edraw-msg "Discard unsupported attribute: %s")
                        attr-name)
     nil))
 
