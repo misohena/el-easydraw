@@ -114,25 +114,37 @@ from the `edraw-package-default-document-properties' variable."
   :group 'edraw-editor
   :type 'boolean)
 
+(defconst edraw-package-default-stroke "#101010"
+  "Default line color.
 
+Basically, it is applied to stroke attributes of elements,
+but it is applied to fill attributes of line-shaped elements
+such as text elements and character-shaped paths.")
+
+(defconst edraw-package-default-fill "#f8f8f8"
+  "Default fill color.
+
+This color is used to fill enclosed shapes such as
+rectangles. The color must be such that text or lines of the
+`edraw-package-default-stroke' color can be placed above it.")
 
 (defconst edraw-package-default-shape-properties
-  '((rect
-     (fill . "#f8f8f8")
-     (stroke . "#101010")
+  `((rect
+     (fill . ,edraw-package-default-fill)
+     (stroke . ,edraw-package-default-stroke)
      (stroke-width . 2))
     (ellipse
-     (fill . "#f8f8f8")
-     (stroke . "#101010")
+     (fill . ,edraw-package-default-fill)
+     (stroke . ,edraw-package-default-stroke)
      (stroke-width . 2))
     (path
      (fill . "none")
-     (stroke . "#101010")
+     (stroke . ,edraw-package-default-stroke)
      (stroke-width . 2)
      ;;(marker-end . "arrow")
      )
     (text
-     (fill . "#101010")
+     (fill . ,edraw-package-default-stroke) ;; Not edraw-package-default-fill
      (font-size . 16)
      (font-family . "sans-serif")
      (text-anchor . "middle"))
@@ -198,7 +210,7 @@ If initial defaults are saved as presets, they will take precedence."
     dsprops))
 
 (defconst edraw-package-default-shape-properties-for-each-tool
-  '(;; (<tool-class-symbol> . shape-type-default | <properties-alist>)
+  `(;; (<tool-class-symbol> . shape-type-default | <properties-alist>)
     (edraw-editor-tool-rect . shape-type-default)
     (edraw-editor-tool-ellipse . shape-type-default)
     (edraw-editor-tool-path . shape-type-default)
@@ -208,7 +220,9 @@ If initial defaults are saved as presets, they will take precedence."
     ;;(edraw-editor-tool-freehand . ((stroke . "#222") (stroke-width . 1) (fill . "none")))
     (edraw-editor-tool-text . shape-type-default)
     (edraw-editor-tool-image . shape-type-default)
-    (edraw-editor-tool-custom-shape . ((fill . "#f8f8f8") (stroke . "#101010") (stroke-width . 2))))
+    (edraw-editor-tool-custom-shape . ((fill . ,edraw-package-default-fill)
+                                       (stroke . ,edraw-package-default-stroke)
+                                       (stroke-width . 2))))
   "Default shape properties for each tool provided by the package.
 
 More tools may be added to this list in the future.")
