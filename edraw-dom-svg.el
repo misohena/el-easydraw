@@ -1963,7 +1963,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common)))
 
-(defun edraw-svg-elem-prop (name source type flags)
+(defun edraw-svg-elem-prop (name source type flags &rest plist)
   "Create an object that holds property information.
 
 To access the stored information, use functions with names
@@ -1972,12 +1972,14 @@ starting with edraw-svg-elem-prop-.
 This object is basically used for properties of SVG elements, but
 may also be used for markers (see: `edraw-svg-marker-types') and
 other purposes. So the name may change in the future."
-  (list name source type flags))
+  (nconc (list name source type flags) plist))
 
 (defun edraw-svg-elem-prop-name (prop-info) (nth 0 prop-info))
 (defun edraw-svg-elem-prop-source (prop-info) (nth 1 prop-info))
 (defun edraw-svg-elem-prop-type (prop-info) (nth 2 prop-info))
 (defun edraw-svg-elem-prop-flags (prop-info) (nth 3 prop-info))
+(defun edraw-svg-elem-prop-get (prop-info prop)
+  (plist-get (nthcdr 4 prop-info) prop))
 
 (defun edraw-svg-elem-prop-flag-p (prop-info flag)
   (when (memq flag (edraw-svg-elem-prop-flags prop-info))
