@@ -5757,12 +5757,6 @@ Only shape types registered in `edraw-shape-types' are valid."
 ;;
 ;;
 
-(defun edraw-merge-properties (props-default props-alist)
-  (append
-   (seq-difference props-default props-alist
-                   (lambda (a b) (eq (car a) (car b))))
-   props-alist))
-
 (defun edraw-create-shape-default (editor parent shape-type &rest props)
   "Create a new shape.
 
@@ -5779,14 +5773,12 @@ markers) to the EDITOR."
    editor parent nil
    shape-type
    ;; Complete property values with default values
-   (edraw-merge-properties
+   (edraw-alist-append
+    (edraw-plist-to-alist props)
     ;; NOTE: Default properties depend on the selected tool.
     ;; Therefore, edraw-create-shape-default should not be used outside of
     ;; editor tools.
-    (edraw-get-default-shape-properties editor shape-type)
-    ;; Convert plist to alist
-    (cl-loop for (prop-name value) on props by #'cddr
-             collect (cons prop-name value)))))
+    (edraw-get-default-shape-properties editor shape-type))))
 
 (defun edraw-create-shape-without-default (editor
                                            parent index shape-type props-alist)

@@ -504,6 +504,61 @@ This is a non-destructive version of `plist-put'."
     value
     (edraw-plist-remove plist prop predicate))))
 
+(defun edraw-plist-append (&rest plists)
+  "Return a new plist by concatenating PLISTS and removing duplicates.
+
+For duplicate properties, the first occurrence takes precedence.
+Therefore, the following evaluation results will be the same:
+
+- (plist-get (edraw-plist-append PLIST1 PLIST2) PROP)
+- (plist-get (append PLIST1 PLIST2) PROP)"
+  (let* ((head (cons nil nil))
+         (last head))
+    (cl-loop for plist in plists
+             do (cl-loop for (key value) on plist by #'cddr
+                         unless (plist-member (cdr head) key)
+                         do (progn
+                              (setcdr last (cons key (cons value nil)))
+                              (setq last (cddr last)))))
+    (cdr head)))
+;; TEST: (edraw-plist-append) => nil
+;; TEST: (edraw-plist-append  '(:a 1 :b 2 :a 3)) => (:a 1 :b 2)
+;; TEST: (edraw-plist-append '(:a 1 :b 2) '(:c 3 :d 4)) => (:a 1 :b 2 :c 3 :d 4)
+;; TEST: (edraw-plist-append '(:a 1 :b 2) '(:a 3 :d 4)) => (:a 1 :b 2 :d 4)
+;; TEST: (edraw-plist-append nil '(:a 11 :b 22 :c 33 :d 44)) => (:a 11 :b 22 :c 33 :d 44)
+
+(defun edraw-plist-to-alist (plist)
+  (cl-loop for (prop value) on plist by #'cddr
+           collect (cons prop value)))
+;; TEST: (edraw-plist-to-alist nil) => nil
+;; TEST: (edraw-plist-to-alist '(a 1 b 2)) => ((a . 1) (b . 2))
+
+;;;; Association List
+
+(defun edraw-alist-append (&rest alists)
+  "Return a new alist by concatenating ALISTS and removing duplicates.
+
+For duplicate keys, the first occurrence takes precedence.
+Therefore, the following evaluation results will be the same:
+
+- (alist-get (edraw-alist-append ALIST1 ALIST2) KEY)
+- (alist-get (append ALIST1 ALIST2) PROP)"
+  (let (result)
+    (cl-loop for alist in alists
+             do (cl-loop for cell in alist
+                         unless (assq (car cell) result)
+                         do (push cell result)))
+    (nreverse result)))
+;; TEST: (edraw-alist-append) => nil
+;; TEST: (edraw-alist-append '((a . 1) (b . 2))) => ((a . 1) (b . 2))
+;; TEST: (edraw-alist-append '((a . 1) (b . 2) (c . 3)) '((a . 11) (b . 22) (d . 44))) => ((a . 1) (b . 2) (c . 3) (d . 44))
+
+(defun edraw-alist-to-plist (alist)
+  (cl-loop for (key . value) in alist
+           collect key collect value))
+;; TEST (edraw-alist-to-plist nil) => nil
+;; TEST (edraw-alist-to-plist '((a . 1) (b . 2))) => (a 1 b 2)
+
 
 ;;;; Max Image Size
 
