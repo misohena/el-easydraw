@@ -632,7 +632,7 @@ editor when the selected shape changes."
 
     ;; Properties
     (when target
-      (setq widgets (edraw-insert-property-widgets pedit target 0)))
+      (setq widgets (edraw-insert-property-widgets pedit target 0 0)))
 
     ;; Bottom
     (edraw-property-editor--update-buffer--button-line target)
@@ -659,7 +659,8 @@ editor when the selected shape changes."
 
 (cl-defmethod edraw-insert-property-widgets ((pedit edraw-property-editor)
                                              target
-                                             margin-left)
+                                             margin-left
+                                             min-name-width)
   (let* ((prop-info-list (edraw-get-property-info-list target))
          (max-name-width (when prop-info-list
                            (apply #'max
@@ -672,12 +673,10 @@ editor when the selected shape changes."
          widgets)
     (dolist (prop-info prop-info-list)
       (unless (edraw-svg-elem-prop-internal-p prop-info)
-        (let* ((indent (- max-name-width
-                          (string-width
-                           (edraw-property-editor-property-display-name
-                            (edraw-svg-elem-prop-name prop-info))))))
-          (push (edraw-create-prop-widget pedit target prop-info margin-left indent)
-                widgets))))
+        (push (edraw-create-prop-widget pedit target prop-info
+                                        margin-left
+                                        (max min-name-width max-name-width))
+              widgets)))
     ;; Return widgets
     (nreverse widgets)))
 
@@ -721,11 +720,13 @@ editor when the selected shape changes."
 ;;;;; Prop Widget
 
 (cl-defmethod edraw-create-prop-widget ((pedit edraw-property-editor)
-                                        target prop-info margin-left indent)
+                                        target prop-info
+                                        margin-left
+                                        name-column-width)
   (let* ((notify (edraw-create-prop-widget-updator
                   pedit target prop-info)))
     (edraw-property-editor-prop-widget-create-widget
-     target prop-info margin-left indent notify pedit)))
+     target prop-info margin-left name-column-width notify pedit)))
 
 
 (defclass edraw-property-editor-prop-widget ()
@@ -834,35 +835,46 @@ once. widget-value-set updates the same property four times."
 (defun edraw-property-editor-prop-widget-create-widget (target
                                                         prop-info
                                                         margin-left
-                                                        indent
+                                                        name-column-width
                                                         notify
                                                         pedit)
   (let* ((prop-name (edraw-svg-elem-prop-name prop-info))
          (prop-value (edraw-get-property target prop-name))
          (prop-type (edraw-svg-elem-prop-type prop-info))
-         (prop-number-p (edraw-svg-elem-prop-number-p prop-info)))
+         (prop-number-p (edraw-svg-elem-prop-number-p prop-info))
+         (indent (+ (if (bolp) margin-left 1)
+                    (- name-column-width
+                       (string-width
+                        (edraw-property-editor-property-display-name
+                         prop-name))))))
     (cond
      (prop-number-p
       (edraw-property-editor-create-number-widget
-       (+ margin-left indent) target prop-name prop-value prop-info notify))
+       indent target prop-name prop-value prop-info notify))
      ((eq (car-safe prop-type) 'or)
       (edraw-property-editor-create-menu-choice-widget
-       (+ margin-left indent) target prop-name prop-value prop-info notify))
+       indent target prop-name prop-value prop-info notify))
      ((eq prop-type 'paint)
       (edraw-property-editor-create-paint-widget
-       (+ margin-left indent) target prop-name prop-value prop-info notify
+       indent target prop-name prop-value prop-info notify
        (oref pedit options)))
      ((eq prop-type 'marker)
       (edraw-property-editor-create-marker-widget
-       margin-left indent target prop-name prop-value prop-info notify
+       (+ margin-left name-column-width)
+       indent target prop-name prop-value prop-info notify
+       pedit))
+     ((eq (car-safe prop-type) 'cssdecls)
+      (edraw-property-editor-create-cssdecls-widget
+       (+ margin-left name-column-width)
+       indent target prop-name prop-value prop-info notify
        pedit))
      ((eq prop-type 'text)
       (edraw-property-editor-create-text-field-widget
-       (+ margin-left indent) target prop-name prop-value prop-info notify
+       indent target prop-name prop-value prop-info notify
        t))
      (t
       (edraw-property-editor-create-text-field-widget
-       (+ margin-left indent) target prop-name prop-value prop-info notify)))))
+       indent target prop-name prop-value prop-info notify)))))
 
 (defun edraw-property-editor-property-display-name (prop-name)
   "Return display name of the property PROP-NAME on property editor
@@ -1235,11 +1247,11 @@ as a string."
 ;;;;;; Object Widget
 
 (defclass edraw-property-editor-object-widget (edraw-property-editor-prop-widget)
-  ((margin-left :initarg :margin-left)
+  ((name-column-width :initarg :name-column-width)
    (choice-widget :initarg :choice-widget)
    (properties-button :initarg :properties-button)
    (object-prop-list :initarg :object-prop-list)
-   (open-p :initform nil)
+   (open-p :initform nil :initarg :open-p)
    (subprops-object-type :initform nil)
    (subprops-widgets :initform nil)
    (subprops-overlay :initform nil)
@@ -1265,7 +1277,7 @@ as a string."
           (edraw-update-subprops object-widget))))))
 
 (defun edraw-property-editor-create-object-widget
-    (margin-left
+    (name-column-width
      indent
      target
      prop-name prop-value
@@ -1279,62 +1291,70 @@ as a string."
      fun-object-props-head ;; edraw-svg-object-props-head
      object-defaults ;;(alist-get 'marker-defaults options)
      object-name ;; "Marker"
-     )
-  (widget-insert (make-string (+ margin-left indent) ? ))
+     object-type-selectable
+     open-p)
+  (widget-insert (make-string indent ? ))
 
   (let* (object-widget
-
-         ;; Type Selector
-         (choice-widget
+         choice-widget
+         properties-button
+         (object-prop-list (edraw-alist-properties-holder
+                            :prop-info-list nil
+                            :alist-head (cons nil nil)
+                            :editor nil
+                            :name object-name)))
+    ;; Type Selector
+    (setq choice-widget
           (apply
            #'widget-create
            `(menu-choice
              :button-prefix widget-push-button-prefix
              :button-suffix widget-push-button-suffix
              :format ,(format
-                       "%s: %%[%s%%] %%v"
+                       "%s:%s"
                        (edraw-property-editor-property-display-name prop-name)
-                       (edraw-msg "Choose"))
-             :value ,(cond
-                      ((stringp prop-value)
-                       (if (member prop-value object-types)
-                           (funcall fun-object-create prop-value nil)
-                         nil));; Unknown Type
-                      ((funcall fun-object-p prop-value)
-                       (edraw-property-editor-prop-value-to-widget-value
-                        prop-value prop-info)))
+                       (if object-type-selectable
+                           (format " %%[%s%%] %%v" (edraw-msg "Choose"))
+                         "%v" ))
+             :value ,(or
+                      (let ((converted-value
+                             (edraw-property-editor-prop-value-to-widget-value
+                              prop-value prop-info)))
+                        (cond
+                         ((stringp converted-value)
+                          (if (member converted-value object-types)
+                              (funcall fun-object-create converted-value nil)
+                            nil));; Unknown Type
+                         ((funcall fun-object-p converted-value)
+                          converted-value)))
+                      (when (not (memq nil object-types))
+                        ;; Not nullable!
+                        (funcall fun-object-create (car object-types) nil)))
              :notify ,(lambda (widget changed-widget &optional event)
                         ;;(message "on choice-widget changed value=%s event=%s" (widget-value widget) event)
                         (edraw-on-widget-change object-widget)
                         (funcall notify widget changed-widget event))
              ,@(edraw-property-editor-default-object-items
-                prop-info
                 object-types fun-object-create fun-object-type fun-object-p
                 object-defaults))))
-         ;; Space
-         (_ (insert " "))
-         ;; Properties Button
-         (properties-button
+    ;; Space
+    (insert " ")
+    ;; Properties Button
+    (setq properties-button
           (widget-create
            'push-button
            :notify (lambda (&rest _args)
                      (edraw-on-properties-button object-widget))
            :keymap edraw-property-editor-push-button-map
-           "..."))
-         ;; Line Break
-         (_ (insert "\n"))
-
-         (object-prop-list (edraw-alist-properties-holder
-                            :prop-info-list nil
-                            :alist-head (cons nil nil)
-                            :editor nil
-                            :name object-name)))
+           "+"))
+    ;; Line Break
+    (insert "\n")
 
     (edraw-add-change-hook
      object-prop-list
      (lambda (&rest _ignore)
        ;; Update UI
-       ;;(message "on object propery changed prop-list=%s choice-widget-value=%s" (oref object-prop-list alist-head) (widget-value choice-widget))
+       ;;(message "on object propery changed prop-list=%s choice-widget-value=%s" (prin1-to-string (oref object-prop-list alist-head)) (prin1-to-string (widget-value choice-widget)))
        (widget-apply choice-widget :notify choice-widget nil)))
 
     (setq object-widget
@@ -1345,52 +1365,50 @@ as a string."
            :widget choice-widget
            :choice-widget choice-widget
            :properties-button properties-button
-           :margin-left margin-left
+           :name-column-width name-column-width
            :object-prop-list object-prop-list
            :pedit pedit
            :fun-object-prop-info-list fun-object-prop-info-list
            :fun-object-type fun-object-type
-           :fun-object-props-head fun-object-props-head))
-    (edraw-update-subprops object-widget)
+           :fun-object-props-head fun-object-props-head
+           :open-p open-p))
+    (edraw-update-subprops object-widget 'before-setup)
+    ;; When open-p is non-nil, move to the end of the text inserted by
+    ;; `edraw-insert-subprops'.
+    (goto-char (point-max))
 
     object-widget))
 
 (defun edraw-property-editor-default-object-items
-    (prop-info
-     object-types ;; (mapcar #'car edraw-svg-marker-types)
+    (object-types ;; (mapcar #'car edraw-svg-marker-types)
      fun-object-create ;; edraw-svg-marker
      fun-object-type ;; edraw-svg-object-type
      fun-object-p ;; edraw-svg-marker-p
      object-defaults ;;(alist-get 'marker-defaults options)
      )
-  (let* ((object-types (append
-                        object-types
-                        (unless (edraw-svg-elem-prop-required-p prop-info) ;;nullable?
-                          (list nil))))
-         (items (mapcar
-                 (lambda (type)
-                   (cond
-                    ((null type)
-                     (list 'item
-                           ;;If :tag="", show separator
-                           :tag "     " :value nil :format "%t"))
-                    ((stringp type)
-                     (list
-                      'item
-                      :tag type
-                      :format "%t"
-                      :value (funcall fun-object-create
-                                      type
-                                      (alist-get type object-defaults
-                                                 nil nil #'equal))
-                      :match (lambda (_widget value)
-                               (or
-                                (and (funcall fun-object-p value)
-                                     (equal (funcall fun-object-type value) type))
-                                (and (stringp value)
-                                     (string= value type))))))))
-                 object-types)))
-    items))
+  (mapcar
+   (lambda (type)
+     (cond
+      ((null type)
+       (list 'item
+             ;;If :tag="", show separator
+             :tag "     " :value nil :format "%t"))
+      ((stringp type)
+       (list
+        'item
+        :tag type
+        :format "%t"
+        :value (funcall fun-object-create
+                        type
+                        (alist-get type object-defaults nil nil #'equal))
+        :match (lambda (_widget value)
+                 (or
+                  (and (funcall fun-object-p value)
+                       (equal (funcall fun-object-type value) type))
+                  ;; Accept type name (marker type)
+                  (and (stringp value)
+                       (string= value type))))))))
+   object-types))
 
 (cl-defmethod edraw-on-widget-change ((object-widget
                                        edraw-property-editor-object-widget))
@@ -1399,23 +1417,29 @@ as a string."
 (cl-defmethod edraw-on-properties-button ((object-widget
                                            edraw-property-editor-object-widget))
   ;; Toggle
-  (oset object-widget open-p (not (oref object-widget open-p)))
+  (with-slots (open-p) object-widget
+    (setq open-p (not open-p)))
   ;; Update subprops
   (edraw-update-subprops object-widget))
 
 (cl-defmethod edraw-update-properties-button
   ((object-widget edraw-property-editor-object-widget))
-  (widget-apply (oref object-widget properties-button)
-                (if (funcall
-                     (oref object-widget fun-object-prop-info-list)
-                     (funcall
-                      (oref object-widget fun-object-type)
-                      (widget-value (oref object-widget choice-widget))))
-                    :activate
-                  :deactivate)))
+  (with-slots (open-p properties-button choice-widget) object-widget
+    (when properties-button
+      (widget-value-set properties-button
+                        (if open-p "-" "+"))
+      (widget-apply properties-button
+                    (if (funcall
+                         (oref object-widget fun-object-prop-info-list)
+                         (funcall
+                          (oref object-widget fun-object-type)
+                          (widget-value choice-widget)))
+                        :activate
+                      :deactivate)))))
 
 (cl-defmethod edraw-update-subprops ((object-widget
-                                      edraw-property-editor-object-widget))
+                                      edraw-property-editor-object-widget)
+                                     &optional before-setup)
   ;;(message "edraw-update-subprops")
   (edraw-update-object-prop-list object-widget)
   (edraw-update-properties-button object-widget)
@@ -1434,7 +1458,7 @@ as a string."
               (edraw-update-widget-value pw))
           ;; Different type
           (edraw-remove-subprops object-widget)
-          (edraw-insert-subprops object-widget)
+          (edraw-insert-subprops object-widget before-setup)
           (setq subprops-object-type new-object-type)
           )))))
 
@@ -1474,10 +1498,11 @@ as a string."
          nil)))))
 
 (cl-defmethod edraw-insert-subprops ((object-widget
-                                      edraw-property-editor-object-widget))
+                                      edraw-property-editor-object-widget)
+                                     &optional before-setup)
   (with-slots (buffer
                choice-widget object-type object-prop-list
-               margin-left
+               name-column-width
                subprops-widgets subprops-overlay
                pedit)
       object-widget
@@ -1489,8 +1514,12 @@ as a string."
           (let* ((beg (point))
                  (widgets (prog1
                               (edraw-insert-property-widgets
-                               pedit object-prop-list (+ margin-left 12))
-                            (widget-setup)))
+                               pedit object-prop-list
+                               0;;(+ name-column-width 2)
+                               (+ name-column-width 2) ;;0
+                               )
+                            (unless before-setup
+                              (widget-setup))))
                  (end (point))
                  (ov (let ((ov (make-overlay beg end nil t nil)))
                        (overlay-put ov 'evaporate t)
@@ -1501,27 +1530,112 @@ as a string."
 
 ;;;;;; Marker Widget
 
-(defun edraw-property-editor-create-marker-widget (margin-left
+(defun edraw-property-editor-create-marker-widget (name-column-width
                                                    indent
                                                    target
                                                    prop-name prop-value
                                                    prop-info notify
                                                    pedit)
   (edraw-property-editor-create-object-widget
-   margin-left
+   name-column-width
    indent
    target
-   prop-name prop-value
+   prop-name
+   prop-value
    prop-info notify
    pedit
-   (mapcar #'car edraw-svg-marker-types)
+   (nconc
+    (mapcar #'car edraw-svg-marker-types)
+    (unless (edraw-svg-elem-prop-required-p prop-info) ;;nullable?
+      (list nil)))
    #'edraw-svg-marker
    #'edraw-svg-marker-type
    #'edraw-svg-marker-p
    #'edraw-svg-marker-prop-info-list
    #'edraw-svg-marker-props-head
    (alist-get 'marker-defaults (oref pedit options))
-   "Marker"))
+   "Marker"
+   t
+   nil))
+
+;;;;;; CSS Declaration List Widget
+
+(defun edraw-property-editor-cssdecls-from-alist (alist)
+  (mapconcat (lambda (cell)
+               (format "%s:%s"
+                       (car cell)
+                       (let ((value (cdr cell)))
+                         (cond
+                          ((numberp value)
+                           value)
+                          ;; @todo color hash, function, ident
+                          ((stringp value)
+                           (concat "\"" (edraw-css-escape value) "\""))))))
+             alist
+             ";"))
+
+(defconst edraw-property-editor-cssdecls-dummy-type "")
+
+(defun edraw-property-editor-create-cssdecls-widget (name-column-width
+                                                     indent
+                                                     target
+                                                     prop-name prop-value
+                                                     prop-info notify
+                                                     pedit)
+  (let ((prop-info-list
+         (plist-get (cdr (edraw-svg-elem-prop-type prop-info)) :prop-info-list)))
+    (edraw-property-editor-create-object-widget
+     name-column-width
+     indent
+     target
+     prop-name prop-value
+     prop-info notify
+     pedit
+     (list edraw-property-editor-cssdecls-dummy-type)
+     #'edraw-property-editor-cssdecls-object-create
+     #'edraw-property-editor-cssdecls-object-type
+     #'edraw-property-editor-cssdecls-object-p
+     (lambda (_type) prop-info-list) ;;#'edraw-property-editor-cssdecls-object-prop-info-list
+     #'edraw-property-editor-cssdecls-object-props-head
+     nil ;;(alist-get 'marker-defaults (oref pedit options))
+     "CSSDecls"
+     nil
+     t)))
+
+(defun edraw-property-editor-cssdecls-object-create (type props)
+  ;;(message "On cssdecls-object-create type=%s props=%s" (prin1-to-string type) (prin1-to-string props))
+  (nconc (list 'cssdecls type) props))
+
+(defun edraw-property-editor-cssdecls-object-p (object)
+  (eq (car-safe object) 'cssdecls))
+
+(defun edraw-property-editor-cssdecls-object-type (object)
+  (when (edraw-property-editor-cssdecls-object-p object)
+    (cadr object)))
+
+(defun edraw-property-editor-cssdecls-object-props-head (object)
+  (when (edraw-property-editor-cssdecls-object-p object)
+    (cdr object)))
+
+;; (defun edraw-property-editor-cssdecls-object-prop-info-list (_type)
+;;   (list
+;;    (edraw-svg-elem-prop 'test1 nil 'number nil)
+;;    (edraw-svg-elem-prop 'test2 nil 'number nil)
+;;    (edraw-svg-elem-prop 'test3 nil 'number nil)))
+
+(defun edraw-property-editor-cssdecls-object-to-prop-value (object)
+  ;;(message "On cssdecls-object-to-prop-value object=%s" (prin1-to-string object))
+  (edraw-property-editor-cssdecls-from-alist
+   (cdr (edraw-property-editor-cssdecls-object-props-head object))))
+;; TEST: (edraw-property-editor-cssdecls-object-to-prop-value (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ")) => "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\""
+
+(defun edraw-property-editor-cssdecls-object-from-prop-value (prop-value)
+  ;;(message "On cssdecls-object-from-prop-value prop-value=%s" (prin1-to-string prop-value))
+  (edraw-property-editor-cssdecls-object-create
+   edraw-property-editor-cssdecls-dummy-type
+   (edraw-svg-elem-prop-cssdecls-to-lisp-value prop-value nil)))
+;; TEST: (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") => (cssdecls "" (a . 111) (b . "hello,backslash:\\,doublequote:\",dayo!"))
+;; TEST: (edraw-property-editor-cssdecls-object-from-prop-value "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\"") => (cssdecls "" (a . 111) (b . "hello,backslash:\\,doublequote:\",dayo!"))
 
 
 ;;;;;; Increase/Decrease Value By Wheel
@@ -1578,6 +1692,9 @@ as a string."
     ('marker
      ;; marker descriptor
      prop-value)
+    (`(cssdecls . ,_)
+     ;; CSS Declaration List
+     (edraw-property-editor-cssdecls-object-from-prop-value prop-value))
     (_
      ;; string only
      (edraw-svg-elem-prop-to-string prop-info prop-value))))
@@ -1613,20 +1730,23 @@ as a string."
      (mapcar #'edraw-get-as-property-value widgets))))
 
 (defun edraw-property-editor-widget-value-to-prop-value (w-value prop-info)
-  (cond
-   ((eq (edraw-svg-elem-prop-type prop-info) 'marker)
-    w-value)
-   ((or (and (stringp w-value) (string-empty-p w-value))
-        (null w-value))
-    ;; w-value is an empty string or nil
-    ;; (if (not (edraw-svg-elem-prop-required-p prop-info))
-    ;;     nil ;;property is not required and
-    ;;   ;;@todo default value???
-    ;;   nil)
-    nil)
-   (t
-    ;;@todo error check
-    (edraw-svg-elem-prop-from-string prop-info w-value))))
+  (let ((type (edraw-svg-elem-prop-type prop-info)))
+    (cond
+     ((eq type 'marker)
+      w-value)
+     ((eq (car-safe type) 'cssdecls)
+      (edraw-property-editor-cssdecls-object-to-prop-value w-value))
+     ((or (and (stringp w-value) (string-empty-p w-value))
+          (null w-value))
+      ;; w-value is an empty string or nil
+      ;; (if (not (edraw-svg-elem-prop-required-p prop-info))
+      ;;     nil ;;property is not required and
+      ;;   ;;@todo default value???
+      ;;   nil)
+      nil)
+     (t
+      ;;@todo error check
+      (edraw-svg-elem-prop-from-string prop-info w-value)))))
 
 ;;;;; Bottom Buttons
 

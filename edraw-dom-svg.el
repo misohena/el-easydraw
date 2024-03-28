@@ -640,6 +640,14 @@ comment nodes."
 ;; TEST: (edraw-css-unescape "\\26 B") => "&B"
 ;; TEST: (edraw-css-unescape "\\000026B") => "&B"
 
+;;;;; Escape
+
+(defun edraw-css-escape (string)
+  (replace-regexp-in-string "[\\\\\n\r\f\"]"
+                            (lambda (str) (format "\\%X " (aref str 0)))
+                            string t t))
+;; TEST: (edraw-css-escape "backslash:\\ doublequote:\" CR:\r") => "backslash:\\5C  doublequote:\\22  CR:\\D "
+
 ;;;;; Tokenize
 
 (defconst edraw-css-re-token
@@ -697,6 +705,11 @@ comment nodes."
        (cons (intern (substring str (car range) (cdr range))) range))
       (11 (cons 'delim range))
       (12 (cons 'EOF range)))))
+
+(defun edraw-css-token-string (str token)
+  (let ((beg (cadr token))
+        (end (cddr token)))
+    (substring str beg end)))
 
 (defun edraw-css-token-value (str token)
   (let ((type (car token))
@@ -848,6 +861,34 @@ comment nodes."
 ;; TEST: (edraw-css-split-decl-list-as-strings "font-size:14px;font-family  :  \"Helvetica Neue\", \"Arial\", sans-serif;" (list 0)) => (("font-size" . "14px") ("font-family" . "\"Helvetica Neue\", \"Arial\", sans-serif"))
 ;; TEST: (edraw-css-split-decl-list-as-strings "prop1: func( a b ; c d ); prop2: { aa bb ; cc dd}" (list 0)) => (("prop1" . "func( a b ; c d )") ("prop2" . "{ aa bb ; cc dd}"))
 ;; TEST: (edraw-css-split-decl-list-as-strings "str\\oke: u\\72 l(https://misohena.jp/blog/?q=;)" (list 0)) => (("stroke" . "u\\72 l(https://misohena.jp/blog/?q=;)"))
+
+;;;;; Convert Value
+
+(defun edraw-css-value-to-lisp-value (css-value &optional element attr)
+  (let ((ppos (list 0))
+        token)
+    ;; Get the first non-whitespace token
+    (while (eq (car (setq token (edraw-css-token css-value ppos))) 'ws))
+
+    (pcase (car token)
+      ((or 'number 'dimension 'percentage)
+       (edraw-svg-attr-length-to-number
+        (edraw-css-token-value css-value token) element attr))
+      ('string
+       (edraw-css-token-value css-value token))
+      ((or 'hash 'ident)
+       ;; color?
+       ;; hash => #ff00ff
+       ;; ident => black
+       (edraw-css-token-value css-value token))
+      ((or 'hash 'function 'ident)
+       ;; color?
+       ;; function => rgb(255,255,255)
+       ;; Return css-value as is
+       ;; @todo unescape all tokens
+       css-value)
+      (_ ;;(or 'at-keyword 'url 'delim '\( '\{ '\[ '\] '\} '\) '\, '\: '\;)
+       nil))))
 
 
 ;;;; SVG Print
@@ -1853,12 +1894,14 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 ;;   - opacity
 ;;   - length
 ;;   - coordinate
-;; - paint
-;; - string
-;; - (or <choice>...)
+;; - <string>
+;;   - paint
+;;   - string
+;;   - text
+;;   - font-family
 ;; - marker
-;; - text
-;; - font-family
+;; - (or <choice>...)
+;; - (cssdecls :prop-info-list <prop-info-list>)
 
 ;; Flags
 ;; - required
@@ -1866,6 +1909,9 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 (defconst edraw-svg-elem-prop-number-types
   '(number opacity length coordinate))
+
+(defconst edraw-svg-elem-prop-string-types
+  '(string text font-family paint)) ;;paint?
 
 (defconst edraw-svg-element-properties-common
   ;; The code below is constructed without using the
@@ -1994,6 +2040,9 @@ other purposes. So the name may change in the future."
 (defun edraw-svg-elem-prop-number-p (prop-info)
   (memq (edraw-svg-elem-prop-type prop-info) edraw-svg-elem-prop-number-types))
 
+(defun edraw-svg-elem-prop-string-p (prop-info)
+  (memq (edraw-svg-elem-prop-type prop-info) edraw-svg-elem-prop-string-types))
+
 (defun edraw-svg-elem-prop-to-string (_prop-info value)
   (edraw-svg-ensure-string-attr value))
 
@@ -2007,6 +2056,86 @@ other purposes. So the name may change in the future."
     ('number (edraw-svg-attr-number-to-number value))
     ('opacity (edraw-svg-attr-number-to-number value))
     (_ nil)))
+
+(defun edraw-svg-elem-prop-to-lisp-value (prop-info value
+                                                    &optional element attr)
+  "Convert the property value to a value that can be handled naturally by Lisp."
+  (cond
+   ;; Unknown property
+   ((null prop-info)
+    value)
+   ;; Null value
+   ((null value)
+    value)
+   ;; Number (number, opacity, length, coordinate)
+   ((edraw-svg-elem-prop-number-p prop-info)
+    (cond
+     ((stringp value)
+      (edraw-svg-elem-prop-to-number prop-info value element attr))
+     ((numberp value)
+      value)
+     (t ;; Invalid value
+      nil)))
+   ;; String (string, text, font-family, paint?)
+   ((edraw-svg-elem-prop-string-p prop-info)
+    (edraw-svg-ensure-string-attr value))
+
+   ;; CSS Declaration List
+   ((eq (car-safe (edraw-svg-elem-prop-type prop-info)) 'cssdecls)
+    (edraw-svg-elem-prop-cssdecls-to-lisp-value
+     value
+     (plist-get (cdr (edraw-svg-elem-prop-type prop-info)) :prop-info-list)
+     element attr))
+
+   ;; (or <choice>...) ;; @todo check subtype?
+   ;; marker @todo string to marker object?
+   (t
+    value)))
+
+(defun edraw-svg-elem-prop-css-value-to-lisp-value (prop-info
+                                                    css-value
+                                                    &optional element attr)
+  "Convert the property value to a value that can be handled naturally by Lisp."
+  (let ((value (edraw-css-value-to-lisp-value css-value element attr)))
+    (cond
+     ;; Unknown property
+     ((null prop-info)
+      value)
+     ;; Null value
+     ((null value)
+      value)
+     ;; Number (number, opacity, length, coordinate)
+     ((edraw-svg-elem-prop-number-p prop-info)
+      (when (numberp value)
+        value))
+     ;; String (string, text, font-family, paint?)
+     ((edraw-svg-elem-prop-string-p prop-info)
+      (when (stringp value)
+        value))
+     ;; CSS Declaration List
+     ((eq (car-safe (edraw-svg-elem-prop-type prop-info)) 'cssdecls)
+      nil)
+     ;; (or <choice>...) ;; @todo check subtype?
+     ((eq (car-safe (edraw-svg-elem-prop-type prop-info)) 'or)
+      value)
+     ;; marker @todo string to marker object?
+     (t
+      nil))))
+
+(defun edraw-svg-elem-prop-cssdecls-to-lisp-value (cssdecls-value
+                                                   prop-info-list
+                                                   &optional element attr)
+  (when (stringp cssdecls-value)
+    (cl-loop for (key-str . value-str)
+             in (edraw-css-split-decl-list-as-strings cssdecls-value (list 0))
+             for key = (intern key-str)
+             for prop-info = (edraw-svg-elem-prop-info-list-find
+                              prop-info-list key)
+             collect (cons key
+                           (edraw-svg-elem-prop-css-value-to-lisp-value
+                            prop-info value-str element attr)))))
+;; TEST: (edraw-svg-elem-prop-cssdecls-to-lisp-value "name:\"Taro\"; age: 16; height:1in" (list (edraw-svg-elem-prop 'name nil 'string nil) (edraw-svg-elem-prop 'age nil 'number nil) (edraw-svg-elem-prop 'height nil 'length nil) )) => ((name . "Taro") (age . 16) (height . 96))
+
 
 (defun edraw-svg-elem-prop-info-list-find (prop-info-list prop-name)
   ;; (seq-find
