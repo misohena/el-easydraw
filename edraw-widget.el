@@ -480,11 +480,11 @@ The following properties have special meanings for this widget:
                 prop-info-list)))
 
 (defun edraw-widget-properties-prop-field (prop-info)
-  (unless (edraw-svg-elem-prop-required-p prop-info)
-    (let* ((name (edraw-svg-elem-prop-name prop-info))
+  (unless (edraw-svg-prop-info-required-p prop-info)
+    (let* ((name (edraw-svg-prop-info-name prop-info))
            (tag (capitalize (symbol-name name)))
-           (type (edraw-svg-elem-prop-type prop-info))
-           (number-p (edraw-svg-elem-prop-number-p prop-info)))
+           (type (edraw-svg-prop-info-type prop-info))
+           (number-p (edraw-svg-prop-info-number-p prop-info)))
       (cond
        ;; Number
        (number-p

@@ -226,7 +226,7 @@
 
 (defun edraw-gen-latex-options-info ()
   (list
-   (edraw-svg-elem-prop 'scale nil 'number nil)))
+   (edraw-svg-prop-info 'scale nil 'number nil)))
 
 (defun edraw-gen-latex-defaults ()
   `((fill . ,edraw-package-default-stroke)
@@ -278,12 +278,12 @@
 
 (defun edraw-gen-grid-options-info ()
   (list
-   (edraw-svg-elem-prop 'x-interval nil 'number nil)
-   (edraw-svg-elem-prop 'x-min nil 'number nil)
-   (edraw-svg-elem-prop 'x-max nil 'number nil)
-   (edraw-svg-elem-prop 'y-interval nil 'number nil)
-   (edraw-svg-elem-prop 'y-min nil 'number nil)
-   (edraw-svg-elem-prop 'y-max nil 'number nil)))
+   (edraw-svg-prop-info 'x-interval nil 'number nil)
+   (edraw-svg-prop-info 'x-min nil 'number nil)
+   (edraw-svg-prop-info 'x-max nil 'number nil)
+   (edraw-svg-prop-info 'y-interval nil 'number nil)
+   (edraw-svg-prop-info 'y-min nil 'number nil)
+   (edraw-svg-prop-info 'y-max nil 'number nil)))
 
 (defun edraw-gen-grid-defaults ()
   `((stroke . "#808080")

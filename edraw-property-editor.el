@@ -63,16 +63,16 @@
 
 Return a list of property information.
 
-Each list element is an `edraw-svg-elem-prop' object.")
+Each list element is an `edraw-svg-prop-info' object.")
 
 (cl-defgeneric edraw-get-property-info (object prop-name)
   "Return information on the property with the name specified by PROP-NAME.
 
-Return an `edraw-svg-elem-prop' object that holds property information.
+Return an `edraw-svg-prop-info' object that holds property information.
 
 The default implementation calls `edraw-get-property-info-list'
 and searches it for a property named PROP-NAME."
-  (edraw-svg-elem-prop-info-list-find
+  (edraw-svg-prop-info-info-list-find
    (edraw-get-property-info-list object)
    prop-name))
 
@@ -115,7 +115,7 @@ For all properties that can be obtained with
 values (PROP-NAME . VALUE) obtained by calling
 `edraw-get-property'."
   (cl-loop for prop-info in (edraw-get-property-info-list object)
-           collect (let ((prop-name (edraw-svg-elem-prop-name prop-info)))
+           collect (let ((prop-name (edraw-svg-prop-info-name prop-info)))
                      (cons prop-name
                            (edraw-get-property object prop-name)))))
 
@@ -668,11 +668,11 @@ editor when the selected shape changes."
                                    (lambda (prop-info)
                                      (string-width
                                       (edraw-property-editor-property-display-name
-                                       (edraw-svg-elem-prop-name prop-info))))
+                                       (edraw-svg-prop-info-name prop-info))))
                                    prop-info-list))))
          widgets)
     (dolist (prop-info prop-info-list)
-      (unless (edraw-svg-elem-prop-internal-p prop-info)
+      (unless (edraw-svg-prop-info-internal-p prop-info)
         (push (edraw-create-prop-widget pedit target prop-info
                                         margin-left
                                         (max min-name-width max-name-width))
@@ -774,9 +774,9 @@ once. widget-value-set updates the same property four times."
 (cl-defmethod edraw-create-prop-widget-updator ((pedit edraw-property-editor)
                                                 target
                                                 prop-info)
-  (let ((prop-name (edraw-svg-elem-prop-name prop-info)))
+  (let ((prop-name (edraw-svg-prop-info-name prop-info)))
     (lambda (widget _changed-widget &optional event)
-      ;;(message "on widget changed %s event=%s" (edraw-svg-elem-prop-name prop-info) event)
+      ;;(message "on widget changed %s event=%s" (edraw-svg-prop-info-name prop-info) event)
       ;; Called 4 times per widget-value-set call.
       ;; 1. delete chars (event=(before-change BEG END))
       ;; 2. delete chars (event=(after-change BEG END))
@@ -838,10 +838,10 @@ once. widget-value-set updates the same property four times."
                                                         name-column-width
                                                         notify
                                                         pedit)
-  (let* ((prop-name (edraw-svg-elem-prop-name prop-info))
+  (let* ((prop-name (edraw-svg-prop-info-name prop-info))
          (prop-value (edraw-get-property target prop-name))
-         (prop-type (edraw-svg-elem-prop-type prop-info))
-         (prop-number-p (edraw-svg-elem-prop-number-p prop-info))
+         (prop-type (edraw-svg-prop-info-type prop-info))
+         (prop-number-p (edraw-svg-prop-info-number-p prop-info))
          (indent (+ (if (bolp) margin-left 1)
                     (- name-column-width
                        (string-width
@@ -892,8 +892,8 @@ as a string."
                                                         prop-name prop-value
                                                         prop-info notify)
   (widget-insert (make-string indent ? ))
-  (let* ((prop-required (edraw-svg-elem-prop-required-p prop-info))
-         (prop-type (edraw-svg-elem-prop-type prop-info))
+  (let* ((prop-required (edraw-svg-prop-info-required-p prop-info))
+         (prop-type (edraw-svg-prop-info-type prop-info))
          (types (if prop-required
                     (cdr prop-type) ;;skip (or)
                   ;; nullable
@@ -1011,7 +1011,7 @@ as a string."
    (divisor :initarg :divisor)))
 
 (defun edraw-property-editor-number-field-create (buffer widget prop-info)
-  (let ((prop-type (edraw-svg-elem-prop-type prop-info)))
+  (let ((prop-type (edraw-svg-prop-info-type prop-info)))
     (edraw-property-editor-number-field
      :buffer buffer
      :widget widget
@@ -1033,7 +1033,7 @@ as a string."
     (let ((w-value (widget-value widget)))
       (if (and (stringp w-value)
                (not (string-empty-p w-value)))
-          (edraw-svg-elem-prop-to-number prop-info w-value) ;;@todo pass element and attr
+          (edraw-svg-prop-info-to-number prop-info w-value) ;;@todo pass element and attr
         default-value))))
 
 (cl-defmethod edraw-set-value ((field edraw-property-editor-number-field) value)
@@ -1043,7 +1043,7 @@ as a string."
       (setq value (/ (round (* value divisor)) divisor)))
     (edraw-property-editor-prop-widget-value-set
      widget
-     (edraw-svg-elem-prop-to-string prop-info value))))
+     (edraw-svg-prop-info-to-string prop-info value))))
 
 (cl-defmethod edraw-increase ((field edraw-property-editor-number-field) delta)
   (edraw-set-value field (+ (edraw-get-value field)
@@ -1546,7 +1546,7 @@ as a string."
    pedit
    (nconc
     (mapcar #'car edraw-svg-marker-types)
-    (unless (edraw-svg-elem-prop-required-p prop-info) ;;nullable?
+    (unless (edraw-svg-prop-info-required-p prop-info) ;;nullable?
       (list nil)))
    #'edraw-svg-marker
    #'edraw-svg-marker-type
@@ -1569,7 +1569,7 @@ as a string."
                                                      prop-info notify
                                                      pedit)
   (let ((prop-info-list
-         (plist-get (cdr (edraw-svg-elem-prop-type prop-info)) :prop-info-list)))
+         (plist-get (cdr (edraw-svg-prop-info-type prop-info)) :prop-info-list)))
     (edraw-property-editor-create-object-widget
      name-column-width
      indent
@@ -1605,23 +1605,23 @@ as a string."
 
 ;; (defun edraw-property-editor-cssdecls-object-prop-info-list (_type)
 ;;   (list
-;;    (edraw-svg-elem-prop 'test1 nil 'number nil)
-;;    (edraw-svg-elem-prop 'test2 nil 'number nil)
-;;    (edraw-svg-elem-prop 'test3 nil 'number nil)))
+;;    (edraw-svg-prop-info 'test1 nil 'number nil)
+;;    (edraw-svg-prop-info 'test2 nil 'number nil)
+;;    (edraw-svg-prop-info 'test3 nil 'number nil)))
 
 (defun edraw-property-editor-cssdecls-object-to-prop-value (object
                                                             prop-info-list)
   ;;(message "On cssdecls-object-to-prop-value object=%s" (prin1-to-string object))
-  (edraw-svg-elem-prop-alist-to-cssdecls
+  (edraw-svg-prop-info-alist-to-cssdecls
    (cdr (edraw-property-editor-cssdecls-object-props-head object))
    prop-info-list))
-;; TEST: (edraw-property-editor-cssdecls-object-to-prop-value (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") (list (edraw-svg-elem-prop 'a nil 'number nil) (edraw-svg-elem-prop 'b nil 'string nil))) => "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\""
+;; TEST: (edraw-property-editor-cssdecls-object-to-prop-value (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") (list (edraw-svg-prop-info 'a nil 'number nil) (edraw-svg-prop-info 'b nil 'string nil))) => "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\""
 
 (defun edraw-property-editor-cssdecls-object-from-prop-value (prop-value)
   ;;(message "On cssdecls-object-from-prop-value prop-value=%s" (prin1-to-string prop-value))
   (edraw-property-editor-cssdecls-object-create
    edraw-property-editor-cssdecls-dummy-type
-   (edraw-svg-elem-prop-cssdecls-to-lisp-value prop-value nil)))
+   (edraw-svg-prop-info-cssdecls-to-lisp-value prop-value nil)))
 ;; TEST: (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") => (cssdecls "" (a . 111) (b . "hello,backslash:\\,doublequote:\",dayo!"))
 ;; TEST: (edraw-property-editor-cssdecls-object-from-prop-value "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\"") => (cssdecls "" (a . 111) (b . "hello,backslash:\\,doublequote:\",dayo!"))
 
@@ -1660,7 +1660,7 @@ as a string."
 (cl-defmethod edraw-update-widget-value ((pw edraw-property-editor-prop-widget))
   (with-slots (widget prop-info) pw
     (let* ((old-w-value (widget-value widget))
-           (prop-name (edraw-svg-elem-prop-name prop-info))
+           (prop-name (edraw-svg-prop-info-name prop-info))
            (prop-value (edraw-get-property (edraw-get-target pw) prop-name))
            (new-w-value (edraw-property-editor-prop-value-to-widget-value
                          prop-value
@@ -1673,7 +1673,7 @@ as a string."
          widget new-w-value)))))
 
 (defun edraw-property-editor-prop-value-to-widget-value (prop-value prop-info)
-  (pcase (edraw-svg-elem-prop-type prop-info)
+  (pcase (edraw-svg-prop-info-type prop-info)
     (`(or . ,_)
      ;; string, text or nil
      prop-value)
@@ -1685,18 +1685,18 @@ as a string."
      (edraw-property-editor-cssdecls-object-from-prop-value prop-value))
     (_
      ;; string only
-     (edraw-svg-elem-prop-to-string prop-info prop-value))))
+     (edraw-svg-prop-info-to-string prop-info prop-value))))
 
 (defun edraw-property-editor-equal-widget-value (wv1 wv2 prop-info)
   (cond
-   ((edraw-svg-elem-prop-number-p prop-info)
+   ((edraw-svg-prop-info-number-p prop-info)
     (or
      (equal wv1 wv2)
      ;;@todo empty-string-p (opacity: "" = 1.0)
      ;;@todo very small difference (100.01 = 100.009999999999)
      ;; 100.0 = 100 = 100.
-     (= (edraw-svg-elem-prop-to-number prop-info wv1) ;;@todo pass element and attr
-        (edraw-svg-elem-prop-to-number prop-info wv2)))) ;;@todo pass element and attr
+     (= (edraw-svg-prop-info-to-number prop-info wv1) ;;@todo pass element and attr
+        (edraw-svg-prop-info-to-number prop-info wv2)))) ;;@todo pass element and attr
    (t
     (equal wv1 wv2))))
 
@@ -1706,7 +1706,7 @@ as a string."
                                             edraw-property-editor-prop-widget))
   "Returns the current PW value as (property name . property value)."
   (with-slots (widget prop-info) pw
-    (cons (edraw-svg-elem-prop-name prop-info)
+    (cons (edraw-svg-prop-info-name prop-info)
           (edraw-property-editor-widget-value-to-prop-value
            (widget-value widget) prop-info))))
 
@@ -1718,7 +1718,7 @@ as a string."
      (mapcar #'edraw-get-as-property-value widgets))))
 
 (defun edraw-property-editor-widget-value-to-prop-value (w-value prop-info)
-  (let ((type (edraw-svg-elem-prop-type prop-info)))
+  (let ((type (edraw-svg-prop-info-type prop-info)))
     (cond
      ((eq type 'marker)
       w-value)
@@ -1729,14 +1729,14 @@ as a string."
      ((or (and (stringp w-value) (string-empty-p w-value))
           (null w-value))
       ;; w-value is an empty string or nil
-      ;; (if (not (edraw-svg-elem-prop-required-p prop-info))
+      ;; (if (not (edraw-svg-prop-info-required-p prop-info))
       ;;     nil ;;property is not required and
       ;;   ;;@todo default value???
       ;;   nil)
       nil)
      (t
       ;;@todo error check
-      (edraw-svg-elem-prop-from-string prop-info w-value)))))
+      (edraw-svg-prop-info-from-string prop-info w-value)))))
 
 ;;;;; Bottom Buttons
 
@@ -2068,7 +2068,7 @@ menu is pressed."
                                ;;@todo customize condition
                                (lambda (prop-info)
                                  ;; style only
-                                 (not (edraw-svg-elem-prop-flag-p prop-info 'geometry))
+                                 (not (edraw-svg-prop-info-flag-p prop-info 'geometry))
                                  ))))))))
 
 (defun edraw-property-editor--delete-preset (&rest _ignore)

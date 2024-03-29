@@ -1915,16 +1915,16 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 ;; - required
 ;; - geometry
 
-(defconst edraw-svg-elem-prop-number-types
+(defconst edraw-svg-prop-info-number-types
   '(number opacity length coordinate))
 
-(defconst edraw-svg-elem-prop-string-types
+(defconst edraw-svg-prop-info-string-types
   '(string text font-family paint)) ;;paint?
 
 (defconst edraw-svg-element-properties-common
   ;; The code below is constructed without using the
-  ;; edraw-svg-elem-prop function to avoid complication.
-  ;; (edraw-svg-elem-prop
+  ;; edraw-svg-prop-info function to avoid complication.
+  ;; (edraw-svg-prop-info
   ;; Name Source Type Flags
   '((opacity attr opacity nil)
     (fill attr-fill-stroke paint nil)
@@ -1938,7 +1938,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
     (transform attr string (geometry))))
 
 (defconst edraw-svg-element-properties-path-common
-  ;; (edraw-svg-elem-prop
+  ;; (edraw-svg-prop-info
   ;; Name Source Type Flags
   '((fill-rule attr (or "nonzero" "evenodd") nil)
     (stroke-linecap attr (or "butt" "round" "square") nil)
@@ -1947,7 +1947,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 (defconst edraw-svg-element-properties
   ;; tag
-  ;;   (edraw-svg-elem-prop
+  ;;   (edraw-svg-prop-info
   ;;   Name Source Type Flags
   `((rect
      (x attr coordinate (required geometry))
@@ -2017,66 +2017,66 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
      ,@edraw-svg-element-properties-common
      ,@edraw-svg-element-properties-path-common)))
 
-(defun edraw-svg-elem-prop (name source type flags &rest plist)
+(defun edraw-svg-prop-info (name source type flags &rest plist)
   "Create an object that holds property information.
 
 To access the stored information, use functions with names
-starting with edraw-svg-elem-prop-.
+starting with edraw-svg-prop-info-.
 
 This object is basically used for properties of SVG elements, but
 may also be used for markers (see: `edraw-svg-marker-types') and
-other purposes. So the name may change in the future."
+other purposes."
   (nconc (list name source type flags) plist))
 
-(defun edraw-svg-elem-prop-name (prop-info) (nth 0 prop-info))
-(defun edraw-svg-elem-prop-source (prop-info) (nth 1 prop-info))
-(defun edraw-svg-elem-prop-type (prop-info) (nth 2 prop-info))
-(defun edraw-svg-elem-prop-flags (prop-info) (nth 3 prop-info))
-(defun edraw-svg-elem-prop-get (prop-info prop)
+(defun edraw-svg-prop-info-name (prop-info) (nth 0 prop-info))
+(defun edraw-svg-prop-info-source (prop-info) (nth 1 prop-info))
+(defun edraw-svg-prop-info-type (prop-info) (nth 2 prop-info))
+(defun edraw-svg-prop-info-flags (prop-info) (nth 3 prop-info))
+(defun edraw-svg-prop-info-get (prop-info prop)
   (plist-get (nthcdr 4 prop-info) prop))
 
-(defun edraw-svg-elem-prop-flag-p (prop-info flag)
-  (when (memq flag (edraw-svg-elem-prop-flags prop-info))
+(defun edraw-svg-prop-info-flag-p (prop-info flag)
+  (when (memq flag (edraw-svg-prop-info-flags prop-info))
     t))
 
-(defun edraw-svg-elem-prop-internal-p (prop-info)
-  (edraw-svg-elem-prop-flag-p prop-info 'internal))
+(defun edraw-svg-prop-info-internal-p (prop-info)
+  (edraw-svg-prop-info-flag-p prop-info 'internal))
 
-(defun edraw-svg-elem-prop-required-p (prop-info)
-  (edraw-svg-elem-prop-flag-p prop-info 'required))
+(defun edraw-svg-prop-info-required-p (prop-info)
+  (edraw-svg-prop-info-flag-p prop-info 'required))
 
-(defun edraw-svg-elem-prop-number-p (prop-info)
-  (memq (edraw-svg-elem-prop-type prop-info) edraw-svg-elem-prop-number-types))
+(defun edraw-svg-prop-info-number-p (prop-info)
+  (memq (edraw-svg-prop-info-type prop-info) edraw-svg-prop-info-number-types))
 
-(defun edraw-svg-elem-prop-string-p (prop-info)
-  (memq (edraw-svg-elem-prop-type prop-info) edraw-svg-elem-prop-string-types))
+(defun edraw-svg-prop-info-string-p (prop-info)
+  (memq (edraw-svg-prop-info-type prop-info) edraw-svg-prop-info-string-types))
 
-(defun edraw-svg-elem-prop-to-string (_prop-info value)
+(defun edraw-svg-prop-info-to-string (_prop-info value)
   (edraw-svg-ensure-string-attr value))
 
-(defun edraw-svg-elem-prop-from-string (_prop-info string)
+(defun edraw-svg-prop-info-from-string (_prop-info string)
   string)
 
-(defun edraw-svg-elem-prop-to-number (prop-info value &optional element attr)
-  (pcase (edraw-svg-elem-prop-type prop-info)
+(defun edraw-svg-prop-info-to-number (prop-info value &optional element attr)
+  (pcase (edraw-svg-prop-info-type prop-info)
     ('coordinate (edraw-svg-attr-length-to-number value element attr))
     ('length (edraw-svg-attr-length-to-number value element attr))
     ('number (edraw-svg-attr-number-to-number value))
     ('opacity (edraw-svg-attr-number-to-number value))
     (_ nil)))
 
-(defun edraw-svg-elem-prop-to-css-value (prop-info value)
+(defun edraw-svg-prop-info-to-css-value (prop-info value)
   (cond
    ;; Number
-   ((edraw-svg-elem-prop-number-p prop-info)
-    (edraw-svg-elem-prop-to-string prop-info value))
+   ((edraw-svg-prop-info-number-p prop-info)
+    (edraw-svg-prop-info-to-string prop-info value))
    ;; Paint
-   ((eq (edraw-svg-elem-prop-type prop-info) 'paint)
+   ((eq (edraw-svg-prop-info-type prop-info) 'paint)
     ;; Do not quote hash(#1188ff), function(rgb(...)), or ident(black)
     ;;@todo css-escape?
-    (edraw-svg-elem-prop-to-string prop-info value))
+    (edraw-svg-prop-info-to-string prop-info value))
    ;; Double quoted string
-   ((or (edraw-svg-elem-prop-string-p prop-info)
+   ((or (edraw-svg-prop-info-string-p prop-info)
         (eq (car-safe prop-info) 'or)) ;;@todo check subtype
     (concat "\"" (edraw-css-escape value) "\""))
    ;; Not supported
@@ -2084,7 +2084,7 @@ other purposes. So the name may change in the future."
    (t
     nil)))
 
-(defun edraw-svg-elem-prop-alist-to-cssdecls (alist
+(defun edraw-svg-prop-info-alist-to-cssdecls (alist
                                               prop-info-list)
   (mapconcat
    #'identity
@@ -2092,19 +2092,19 @@ other purposes. So the name may change in the future."
          (mapcar (lambda (cell)
                    (let* ((key (car cell))
                           (value (cdr cell))
-                          (prop-info (edraw-svg-elem-prop-info-list-find
+                          (prop-info (edraw-svg-prop-info-info-list-find
                                       prop-info-list key))
-                          (css-value (edraw-svg-elem-prop-to-css-value
+                          (css-value (edraw-svg-prop-info-to-css-value
                                       prop-info value)))
                      (when (and css-value (not (string-empty-p css-value)))
                        (format "%s:%s" key css-value))))
                  alist))
    ";"))
-;; TEST: (edraw-svg-elem-prop-alist-to-cssdecls '((name . "Taro") (age . 16) (height . "1in")) (list (edraw-svg-elem-prop 'name nil 'string nil) (edraw-svg-elem-prop 'age nil 'number nil) (edraw-svg-elem-prop 'height nil 'length nil) )) => "name:\"Taro\";age:16;height:1in"
-;; TEST: (edraw-svg-elem-prop-alist-to-cssdecls '((name . "Taro") (age . nil) (height . "1in")) (list (edraw-svg-elem-prop 'name nil 'string nil) (edraw-svg-elem-prop 'age nil 'number nil))) => "name:\"Taro\""
+;; TEST: (edraw-svg-prop-info-alist-to-cssdecls '((name . "Taro") (age . 16) (height . "1in")) (list (edraw-svg-prop-info 'name nil 'string nil) (edraw-svg-prop-info 'age nil 'number nil) (edraw-svg-prop-info 'height nil 'length nil) )) => "name:\"Taro\";age:16;height:1in"
+;; TEST: (edraw-svg-prop-info-alist-to-cssdecls '((name . "Taro") (age . nil) (height . "1in")) (list (edraw-svg-prop-info 'name nil 'string nil) (edraw-svg-prop-info 'age nil 'number nil))) => "name:\"Taro\""
 
 
-(defun edraw-svg-elem-prop-to-lisp-value (prop-info value
+(defun edraw-svg-prop-info-to-lisp-value (prop-info value
                                                     &optional element attr)
   "Convert the property value to a value that can be handled naturally by Lisp."
   (cond
@@ -2115,23 +2115,23 @@ other purposes. So the name may change in the future."
    ((null value)
     value)
    ;; Number (number, opacity, length, coordinate)
-   ((edraw-svg-elem-prop-number-p prop-info)
+   ((edraw-svg-prop-info-number-p prop-info)
     (cond
      ((stringp value)
-      (edraw-svg-elem-prop-to-number prop-info value element attr))
+      (edraw-svg-prop-info-to-number prop-info value element attr))
      ((numberp value)
       value)
      (t ;; Invalid value
       nil)))
    ;; String (string, text, font-family, paint?)
-   ((edraw-svg-elem-prop-string-p prop-info)
+   ((edraw-svg-prop-info-string-p prop-info)
     (edraw-svg-ensure-string-attr value))
 
    ;; CSS Declaration List
-   ((eq (car-safe (edraw-svg-elem-prop-type prop-info)) 'cssdecls)
-    (edraw-svg-elem-prop-cssdecls-to-lisp-value
+   ((eq (car-safe (edraw-svg-prop-info-type prop-info)) 'cssdecls)
+    (edraw-svg-prop-info-cssdecls-to-lisp-value
      value
-     (plist-get (cdr (edraw-svg-elem-prop-type prop-info)) :prop-info-list)
+     (plist-get (cdr (edraw-svg-prop-info-type prop-info)) :prop-info-list)
      element attr))
 
    ;; (or <choice>...) ;; @todo check subtype?
@@ -2139,7 +2139,7 @@ other purposes. So the name may change in the future."
    (t
     value)))
 
-(defun edraw-svg-elem-prop-css-value-to-lisp-value (prop-info
+(defun edraw-svg-prop-info-css-value-to-lisp-value (prop-info
                                                     css-value
                                                     &optional element attr)
   "Convert the property value to a value that can be handled naturally by Lisp."
@@ -2152,24 +2152,24 @@ other purposes. So the name may change in the future."
      ((null value)
       value)
      ;; Number (number, opacity, length, coordinate)
-     ((edraw-svg-elem-prop-number-p prop-info)
+     ((edraw-svg-prop-info-number-p prop-info)
       (when (numberp value)
         value))
      ;; String (string, text, font-family, paint?)
-     ((edraw-svg-elem-prop-string-p prop-info)
+     ((edraw-svg-prop-info-string-p prop-info)
       (when (stringp value)
         value))
      ;; CSS Declaration List
-     ((eq (car-safe (edraw-svg-elem-prop-type prop-info)) 'cssdecls)
+     ((eq (car-safe (edraw-svg-prop-info-type prop-info)) 'cssdecls)
       nil)
      ;; (or <choice>...) ;; @todo check subtype?
-     ((eq (car-safe (edraw-svg-elem-prop-type prop-info)) 'or)
+     ((eq (car-safe (edraw-svg-prop-info-type prop-info)) 'or)
       value)
      ;; marker @todo string to marker object?
      (t
       nil))))
 
-(defun edraw-svg-elem-prop-cssdecls-to-lisp-value (cssdecls-value
+(defun edraw-svg-prop-info-cssdecls-to-lisp-value (cssdecls-value
                                                    prop-info-list
                                                    &optional element attr)
   (when (stringp cssdecls-value)
@@ -2178,17 +2178,17 @@ other purposes. So the name may change in the future."
                   (edraw-css-split-decl-list-as-strings cssdecls-value
                                                         (list 0)))
              for key = (intern key-str)
-             for prop-info = (edraw-svg-elem-prop-info-list-find
+             for prop-info = (edraw-svg-prop-info-info-list-find
                               prop-info-list key)
              collect (cons key
-                           (edraw-svg-elem-prop-css-value-to-lisp-value
+                           (edraw-svg-prop-info-css-value-to-lisp-value
                             prop-info value-str element attr)))))
-;; TEST: (edraw-svg-elem-prop-cssdecls-to-lisp-value "name:\"Taro\"; age: 16; height:1in" (list (edraw-svg-elem-prop 'name nil 'string nil) (edraw-svg-elem-prop 'age nil 'number nil) (edraw-svg-elem-prop 'height nil 'length nil) )) => ((name . "Taro") (age . 16) (height . 96))
+;; TEST: (edraw-svg-prop-info-cssdecls-to-lisp-value "name:\"Taro\"; age: 16; height:1in" (list (edraw-svg-prop-info 'name nil 'string nil) (edraw-svg-prop-info 'age nil 'number nil) (edraw-svg-prop-info 'height nil 'length nil) )) => ((name . "Taro") (age . 16) (height . 96))
 
 
-(defun edraw-svg-elem-prop-info-list-find (prop-info-list prop-name)
+(defun edraw-svg-prop-info-info-list-find (prop-info-list prop-name)
   ;; (seq-find
-  ;;  (lambda (prop-info) (eq (edraw-svg-elem-prop-name prop-info) prop-name))
+  ;;  (lambda (prop-info) (eq (edraw-svg-prop-info-name prop-info) prop-name))
   ;;  prop-info-list)
   ;; The following code relies on the first element of prop-info being name:
   (assq prop-name prop-info-list))
@@ -2202,7 +2202,7 @@ other purposes. So the name may change in the future."
   (edraw-svg-tag-get-property-info-list (dom-tag element)))
 
 ;; (defun edraw-svg-tag-get-property-info (tag prop-name)
-;;   (edraw-svg-elem-prop-info-list-find
+;;   (edraw-svg-prop-info-info-list-find
 ;;    (edraw-svg-tag-get-property-info-list tag)
 ;;    prop-name))
 ;; (defun edraw-svg-element-get-property-info (element prop-name)
@@ -2220,9 +2220,9 @@ other purposes. So the name may change in the future."
   (when-let ((prop-info-list
               (or prop-info-list
                   (edraw-svg-element-get-property-info-list element)))
-             (prop-info (edraw-svg-elem-prop-info-list-find prop-info-list
+             (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
                                                             prop-name)))
-    (let* ((source (edraw-svg-elem-prop-source prop-info))
+    (let* ((source (edraw-svg-prop-info-source prop-info))
            (getter (intern
                     (concat "edraw-svg-element-get-" (symbol-name source)))))
       (funcall getter element prop-name deftbl))))
@@ -2232,9 +2232,9 @@ other purposes. So the name may change in the future."
   (when-let ((prop-info-list
               (or prop-info-list
                   (edraw-svg-element-get-property-info-list element)))
-             (prop-info (edraw-svg-elem-prop-info-list-find prop-info-list
+             (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
                                                             prop-name)))
-    (let* ((source (edraw-svg-elem-prop-source prop-info))
+    (let* ((source (edraw-svg-prop-info-source prop-info))
            (setter (intern
                     (concat "edraw-svg-element-set-" (symbol-name source)))))
       (funcall setter element prop-name value deftbl))))
@@ -2783,20 +2783,20 @@ the properties."
      :creator edraw-svg-marker-arrow-create
      :get-props edraw-svg-marker-arrow-props
      :prop-info-list
-     ;; (edraw-svg-elem-prop
+     ;; (edraw-svg-prop-info
      ;; Name Source Type Flags
-     (,(edraw-svg-elem-prop 'markerWidth nil 'number nil)
-      ,(edraw-svg-elem-prop 'markerHeight nil 'number nil)
-      ,(edraw-svg-elem-prop 'refX nil 'number nil)))
+     (,(edraw-svg-prop-info 'markerWidth nil 'number nil)
+      ,(edraw-svg-prop-info 'markerHeight nil 'number nil)
+      ,(edraw-svg-prop-info 'refX nil 'number nil)))
     ("circle"
      :creator edraw-svg-marker-circle-create
      :get-props edraw-svg-marker-circle-props
      :prop-info-list
-     ;; (edraw-svg-elem-prop
+     ;; (edraw-svg-prop-info
      ;; Name Source Type Flags
-     (,(edraw-svg-elem-prop 'markerWidth nil 'number nil)
-      ,(edraw-svg-elem-prop 'markerHeight nil 'number nil)
-      ,(edraw-svg-elem-prop 'refX nil 'number nil)))
+     (,(edraw-svg-prop-info 'markerWidth nil 'number nil)
+      ,(edraw-svg-prop-info 'markerHeight nil 'number nil)
+      ,(edraw-svg-prop-info 'refX nil 'number nil)))
     ;; Ignore "" or "none"
     ))
 
