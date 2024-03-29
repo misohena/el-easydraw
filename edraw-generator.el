@@ -139,6 +139,8 @@
   :type '(choice (string)
                  (repeat (string))))
 
+(defvar edraw-gen-latex-tex-preamble-options nil)
+
 (defcustom edraw-gen-latex-tex-preamble-last nil
   "The end of the preamble part of the TeX source."
   :group 'edraw-gen-latex
@@ -165,6 +167,7 @@
   '(edraw-gen-latex-tex-preamble-first
     edraw-gen-latex-tex-packages
     edraw-gen-latex-tex-style
+    edraw-gen-latex-tex-preamble-options
     edraw-gen-latex-tex-preamble-last
     edraw-gen-latex-tex-document-first
     edraw-gen-latex-tex-document-body
@@ -183,10 +186,19 @@
     (when (boundp fmt)
       (edraw-gen-latex-format (symbol-value fmt))))))
 
-(defun edraw-gen-latex-assemble (src-code)
+(defun edraw-gen-latex-assemble (src-code options)
   (unless src-code
     (error "No latex src-code"))
-  (let ((edraw-gen-latex-tex-document-body src-code))
+  (let* (;; Indentation
+         (parindent (alist-get 'parindent options))
+         (edraw-gen-latex-tex-preamble-options
+          (when (numberp parindent)
+            (concat "\\setlength{\\parindent}{"
+                    (edraw-to-string parindent)
+                    ;;@todo pt?
+                    "pt}")))
+         ;; Document body
+         (edraw-gen-latex-tex-document-body src-code))
     (edraw-gen-latex-format edraw-gen-latex-tex-format)))
 
 ;; EXAMPLE: (edraw-gen-latex-assemble "$x=\\sqrt{2}$")
@@ -204,7 +216,7 @@
                   (edraw-import-svg-string
                    (edraw-gen-latex-compile
                     (edraw-gen-latex-assemble
-                     src)))
+                     src options)))
                   "edraw-body"))
            ;; Discard unnecessary group element.
            (result-element (if (cdr (edraw-dom-children body))
@@ -226,13 +238,17 @@
 
 (defun edraw-gen-latex-options-info ()
   (list
-   (edraw-svg-prop-info 'scale nil 'number nil)))
+   (edraw-svg-prop-info 'scale nil 'number nil)
+   (edraw-svg-prop-info 'parindent nil 'number nil)))
 
 (defun edraw-gen-latex-defaults ()
   `((fill . ,edraw-package-default-stroke)
-    ;; The coordinate system output by latex and dvisvgm is in pt units.
-    ;; The default font size is 10pt. Multiply this by 1.6 to 16px.
-    (gen-options . "scale:1.6")))
+    (gen-options
+     . ,(concat
+         ;; The coordinate system output by latex and dvisvgm is in pt units.
+         ;; The default font size is 10pt. Multiply this by 1.6 to 16px.
+         "scale:1.6"
+         ";parindent:0"))))
 
 
 ;;;; Grid
