@@ -1033,7 +1033,7 @@ as a string."
     (let ((w-value (widget-value widget)))
       (if (and (stringp w-value)
                (not (string-empty-p w-value)))
-          (edraw-svg-prop-info-to-number prop-info w-value) ;;@todo pass element and attr
+          (edraw-svg-prop-to-number prop-info w-value) ;;@todo pass element and attr
         default-value))))
 
 (cl-defmethod edraw-set-value ((field edraw-property-editor-number-field) value)
@@ -1043,7 +1043,7 @@ as a string."
       (setq value (/ (round (* value divisor)) divisor)))
     (edraw-property-editor-prop-widget-value-set
      widget
-     (edraw-svg-prop-info-to-string prop-info value))))
+     (edraw-svg-prop-to-string prop-info value))))
 
 (cl-defmethod edraw-increase ((field edraw-property-editor-number-field) delta)
   (edraw-set-value field (+ (edraw-get-value field)
@@ -1612,7 +1612,7 @@ as a string."
 (defun edraw-property-editor-cssdecls-object-to-prop-value (object
                                                             prop-info-list)
   ;;(message "On cssdecls-object-to-prop-value object=%s" (prin1-to-string object))
-  (edraw-svg-prop-info-alist-to-cssdecls
+  (edraw-svg-prop-alist-to-cssdecls
    (cdr (edraw-property-editor-cssdecls-object-props-head object))
    prop-info-list))
 ;; TEST: (edraw-property-editor-cssdecls-object-to-prop-value (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") (list (edraw-svg-prop-info 'a nil 'number nil) (edraw-svg-prop-info 'b nil 'string nil))) => "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\""
@@ -1621,7 +1621,7 @@ as a string."
   ;;(message "On cssdecls-object-from-prop-value prop-value=%s" (prin1-to-string prop-value))
   (edraw-property-editor-cssdecls-object-create
    edraw-property-editor-cssdecls-dummy-type
-   (edraw-svg-prop-info-cssdecls-to-lisp-value prop-value nil)))
+   (edraw-svg-prop-cssdecls-to-lisp-value-alist prop-value nil)))
 ;; TEST: (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") => (cssdecls "" (a . 111) (b . "hello,backslash:\\,doublequote:\",dayo!"))
 ;; TEST: (edraw-property-editor-cssdecls-object-from-prop-value "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\"") => (cssdecls "" (a . 111) (b . "hello,backslash:\\,doublequote:\",dayo!"))
 
@@ -1685,7 +1685,7 @@ as a string."
      (edraw-property-editor-cssdecls-object-from-prop-value prop-value))
     (_
      ;; string only
-     (edraw-svg-prop-info-to-string prop-info prop-value))))
+     (edraw-svg-prop-to-string prop-info prop-value))))
 
 (defun edraw-property-editor-equal-widget-value (wv1 wv2 prop-info)
   (cond
@@ -1695,8 +1695,8 @@ as a string."
      ;;@todo empty-string-p (opacity: "" = 1.0)
      ;;@todo very small difference (100.01 = 100.009999999999)
      ;; 100.0 = 100 = 100.
-     (= (edraw-svg-prop-info-to-number prop-info wv1) ;;@todo pass element and attr
-        (edraw-svg-prop-info-to-number prop-info wv2)))) ;;@todo pass element and attr
+     (= (edraw-svg-prop-to-number prop-info wv1) ;;@todo pass element and attr
+        (edraw-svg-prop-to-number prop-info wv2)))) ;;@todo pass element and attr
    (t
     (equal wv1 wv2))))
 
@@ -1736,7 +1736,7 @@ as a string."
       nil)
      (t
       ;;@todo error check
-      (edraw-svg-prop-info-from-string prop-info w-value)))))
+      (edraw-svg-prop-from-string prop-info w-value)))))
 
 ;;;;; Bottom Buttons
 

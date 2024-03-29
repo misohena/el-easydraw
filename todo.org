@@ -1,30 +1,6 @@
 
 
 * Inbox
-** TODO edraw-svg-elem-propをedraw-svg-prop-infoへ改名する
-もはや要素だけのプロパティじゃ無いし。
-edraw-svg-propにしたいところだけど、プロパティでは無くプロパティ情報なので。
-edraw-svg-prop-info-to-stringはちょっと変だけど。そのあたりはedraw-svg-prop-value-to-stringでもいいかも。
-edraw-svg-propで始まる文字列はプロジェクト内に存在しない。
-
-- [X] edraw-svg-elem-propをedraw-svg-prop-infoへ改名する。
-- [ ] edraw-svg-prop-info-to-string等を改名する。prop-to-にするかprop-value-to-にする。
-  - edraw-svg-prop-info.*-to-
-    - edraw-svg-prop-info-to-string
-    - edraw-svg-prop-info-to-number
-    - edraw-svg-prop-info-to-css-value
-    - edraw-svg-prop-info-to-lisp-value
-    - edraw-svg-prop-info-alist-to-cssdecls
-    - edraw-svg-prop-info-css-value-to-lisp-value
-    - edraw-svg-prop-info-cssdecls-to-lisp-value
-  - edraw-svg-prop-info-from-で始まるもの
-    - edraw-svg-prop-info-from-string
-
-** TODO booleanタイプを追加する
-表現としてはtrueやfalseが良さそう。1か0を許容しても良いし、tかnilを許容しても良い。yesかnoは？
-CSSではどうする？
-いや、そこはorを使うべきなのかも。CSSにはbooleanなプロパティって無いしね。必ず何かのキーワードを使っている。
-
 ** TODO ツールバーに表示するツールを減らせるようにする
 その代わりメインメニューにツール選択メニューを追加する？
 ** TODO edraw-read-rectangleはクリックかどうかを判定すべき
@@ -4272,3 +4248,29 @@ CLOSED: [2024-03-29 Fri 11:48]
 - 生成ツールはクリックだけで無く矩形も受け付ける(画像ツールと同じように)
 - コマンドのinteractive指定に相当する仕組みがあると良い。
 - <prefix>-interactive関数？
+** DONE edraw-svg-elem-propをedraw-svg-prop-infoへ改名する
+CLOSED: [2024-03-29 Fri 16:38]
+もはや要素だけのプロパティじゃ無いし。
+edraw-svg-propにしたいところだけど、プロパティでは無くプロパティ情報なので。
+edraw-svg-prop-info-to-stringはちょっと変だけど。そのあたりはedraw-svg-prop-value-to-stringでもいいかも。
+edraw-svg-propで始まる文字列はプロジェクト内に存在しない。
+
+- [X] edraw-svg-elem-propをedraw-svg-prop-infoへ改名する。
+- [X] edraw-svg-prop-info-to-string等を改名する。prop-to-にするかprop-value-to-にする。
+  - [X] edraw-svg-prop-info.*-to-
+    - [X] edraw-svg-prop-info-to-string
+    - [X] edraw-svg-prop-info-to-number
+    - [X] edraw-svg-prop-info-to-css-value
+    - [X] edraw-svg-prop-info-to-lisp-value
+    - [X] edraw-svg-prop-info-alist-to-cssdecls
+    - [X] edraw-svg-prop-info-css-value-to-lisp-value
+    - [X] edraw-svg-prop-info-cssdecls-to-lisp-value => edraw-svg-prop-cssdecls-to-lisp-value-alist (-alistを付ける)
+  - [X] edraw-svg-prop-info-from-で始まるもの
+    - [X] edraw-svg-prop-info-from-string
+- [X] edraw-dom-svg.el内での定義位置も微妙に変更する。SVG図形要素プロパティの定義より前にプロパティ情報関連のものをまとめる。
+** CANCELLED booleanタイプを追加する
+CLOSED: [2024-03-29 Fri 16:39]
+表現としてはtrueやfalseが良さそう。1か0を許容しても良いし、tかnilを許容しても良い。yesかnoは？
+CSSではどうする？
+いや、そこはorを使うべきなのかも。CSSにはbooleanなプロパティって無いしね。必ず何かのキーワードを使っている。
+

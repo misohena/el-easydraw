@@ -6537,7 +6537,7 @@ return it."
 
 (cl-defmethod edraw-get-property-as-length ((shape edraw-shape) prop-name
                                             &optional default-value)
-  ;;@todo Use edraw-svg-prop-info-to-number with property-info ?
+  ;;@todo Use edraw-svg-prop-to-number with property-info ?
   (or (edraw-svg-attr-length-to-number (edraw-get-property shape prop-name)
                                        (edraw-element shape)
                                        prop-name)
@@ -8077,10 +8077,10 @@ The settings are recorded in the variable `edraw-shape-generator-alist'."
   "Get generation option alist from the shape generator ELEMENT."
   (let ((gen-options-attr (dom-attr element 'data-edraw-gen-options))
         (prop-info-list (edraw-shape-generator-options-info element)))
-    (edraw-svg-prop-info-cssdecls-to-lisp-value gen-options-attr
-                                                prop-info-list
-                                                element
-                                                'data-edraw-gen-options)))
+    (edraw-svg-prop-cssdecls-to-lisp-value-alist gen-options-attr
+                                                 prop-info-list
+                                                 element
+                                                 'data-edraw-gen-options)))
 
 (defun edraw-shape-generator-options-info (element)
   "Return generation option information list for the shape generator ELEMENT.
