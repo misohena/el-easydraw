@@ -222,7 +222,8 @@ If initial defaults are saved as presets, they will take precedence."
     (edraw-editor-tool-image . shape-type-default)
     (edraw-editor-tool-custom-shape . ((fill . ,edraw-package-default-fill)
                                        (stroke . ,edraw-package-default-stroke)
-                                       (stroke-width . 2))))
+                                       (stroke-width . 2)))
+    (edraw-editor-tool-generator . shape-type-default))
   "Default shape properties for each tool provided by the package.
 
 More tools may be added to this list in the future.")
@@ -432,6 +433,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "t" 'edraw-editor-select-tool-text)
     (define-key km "i" 'edraw-editor-select-tool-image)
     (define-key km "u" 'edraw-editor-select-tool-custom-shape)
+    (define-key km "x" 'edraw-editor-select-tool-generator)
     (define-key km "F" 'edraw-editor-edit-tool-default-fill)
     (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
     (define-key km "?" 'edraw-editor-show-help-for-selected-tool)
@@ -1402,33 +1404,39 @@ For use with `edraw-editor-with-temp-undo-list',
 
 ;;;;;; Editor - Document - Crop
 
+(defun edraw-editor-read-rectangle-interactively (prompt &optional editor)
+  (let ((editor (or editor (edraw-current-editor)))
+        rect)
+    (while (null rect)
+      (let ((event (read-event prompt)))
+        (cond
+         ((eq (car-safe event) 'down-mouse-1)
+          (setq rect (edraw-read-rectangle editor event t))) ;;snap
+         ((or (eq (car-safe event) 'mouse-3)
+              (eq event ?q)
+              (eq event ? ))
+          (signal 'quit nil))
+         ;; Scroll and Zoom
+         ((eq (car-safe event) 'down-mouse-2)
+          (edraw-editor-scroll-by-dragging event))
+         ((eq (car-safe event) mouse-wheel-down-event)
+          (edraw-zoom-in editor))
+         ((eq (car-safe event) mouse-wheel-up-event)
+          (edraw-zoom-out editor))
+         ((eq event ?0)
+          (edraw-reset-scroll-and-zoom editor))
+         ((memq (event-basic-type event) '(left up right down))
+          (edraw-editor-scroll-by-arrow-key editor)
+          ))))
+    rect))
+
 (edraw-editor-defcmd edraw-crop ((editor edraw-editor) rect)
   (interactive
-   (let* ((editor (edraw-current-editor))
-          rect)
-     (while (null rect)
-       (let ((event (read-event
-                     (edraw-msg "Drag the cropping range."))))
-         (cond
-          ((eq (car-safe event) 'down-mouse-1)
-           (setq rect (edraw-read-rectangle editor event t))) ;;snap
-          ((or (eq (car-safe event) 'mouse-3)
-               (eq event ?q)
-               (eq event ? ))
-           (signal 'quit nil))
-          ;; Scroll and Zoom
-          ((eq (car-safe event) 'down-mouse-2)
-           (edraw-editor-scroll-by-dragging event))
-          ((eq (car-safe event) mouse-wheel-down-event)
-           (edraw-zoom-in editor))
-          ((eq (car-safe event) mouse-wheel-up-event)
-           (edraw-zoom-out editor))
-          ((eq event ?0)
-           (edraw-reset-scroll-and-zoom editor))
-          ((memq (event-basic-type event) '(left up right down))
-           (edraw-editor-scroll-by-arrow-key editor)
-           ))))
-     (list editor rect)))
+   (let ((editor (edraw-current-editor)))
+     (list editor
+           (edraw-editor-read-rectangle-interactively
+            (edraw-msg "Drag the cropping range.")
+            editor))))
 
   (when (edraw-rect-empty-p rect)
     (error (edraw-msg "The crop range is empty.")))
@@ -3769,7 +3777,8 @@ position where the EVENT occurred."
     edraw-editor-tool-freehand
     edraw-editor-tool-text
     edraw-editor-tool-image
-    edraw-editor-tool-custom-shape))
+    edraw-editor-tool-custom-shape
+    edraw-editor-tool-generator))
 
 (defconst edraw-editor-toolbar-button-w 30)
 (defconst edraw-editor-toolbar-button-h 24)
@@ -5565,6 +5574,90 @@ position where the EVENT occurred."
        (edraw-shape-aabb shapes)))))
 
 
+;;;;; Tool - Generator Tool
+
+(defclass edraw-editor-tool-generator (edraw-editor-tool)
+  ()
+  )
+
+(cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-generator)))
+  (edraw-msg "Generator Tool"))
+
+(cl-defmethod edraw-icon ((_class (subclass edraw-editor-tool-generator)))
+  (edraw-svg-group
+   (edraw-svg-path
+    "M9,8.5C9.5,7.5 11,6 11.5,6C12,6 12.5,7 13,9L13.875,12.5C13.875,12.5 10.5,17.5 10,17.5C9.5,17.5 9.5,16.5 8.5,16.5C7.5,16.5 7,17.5 7,18.25C7,19.25 7.5,20 8.5,20C9.5,20 9.75,19.75 11,18C13.5,14.5 14.125,13.5 14.125,13.5L15,17C15.25,18 16,20 17,20C19,20 20.5,18 21.5,16.5C21.5,16.5 21,16 21,16C21,16 19,19 18,19C17,19 16.75,17 16.5,16C16.25,15 15.5,12 15.5,12C15.5,12 19.5,6.5 20,6.5C20.5,6.5 20.5,7.5 21.5,7.5C22.5,7.5 23,6.75 23,5.75C23,5 22.75,4 21.5,4C21,4 20.75,4.25 20,5C19,6 15.25,11 15.25,11C15.25,11 15,10 14.5,8C14,6 13,4 12,4C11,4 9,6.5 8,8C8,8 9,8.5 9,8.5Z" :stroke-width 1 :stroke "#ccc" :fill "url(#icon-fg-gradient)")))
+
+(cl-defmethod edraw-shape-type-to-create ((_class (subclass edraw-editor-tool-generator)))
+  'edraw-generator)
+
+(cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool-generator))
+  'edraw-generator)
+
+(cl-defmethod edraw-print-help ((_tool edraw-editor-tool-generator))
+  (message (edraw-msg "[Generator Tool] Click:Add generator shape")))
+
+(cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-generator)
+                                     down-event)
+  (with-slots (editor) tool
+    (edraw-put-generator-shape tool
+                               (edraw-read-rectangle editor down-event t))))
+
+(cl-defmethod edraw-put-generator-shape ((tool edraw-editor-tool-generator)
+                                         rect)
+  (with-slots (editor) tool
+    (let* ((gen-type
+            (x-popup-menu
+             t
+             (list
+              (edraw-msg "Select generator type")
+              (cons ""
+                    (cl-loop for type in (edraw-shape-generator-types)
+                             collect (cons type type))))))
+           (generator-input-props
+            (edraw-shape-generator-interactive gen-type editor rect 'no-func))
+           (no-interactive-func-p (eq generator-input-props 'no-func))
+           (generator-default-props
+            (edraw-shape-generator-package-defaults gen-type)))
+
+      ;; Default interactive input
+      (when no-interactive-func-p
+        (setq generator-input-props
+              `((gen-source . ,(read-string
+                                (format (edraw-msg "%s Source Code: ")
+                                        (capitalize gen-type))))
+                (transform . ,(edraw-svg-transform-from-matrix
+                               (edraw-matrix-translate-xy
+                                (edraw-rect-lt rect)))))))
+
+      (when gen-type
+        (edraw-deselect-all-shapes editor)
+        (edraw-make-undo-group editor 'generator-tool-create
+          (let ((shape (edraw-create-shape-without-default ;;notify modification
+                        editor
+                        (edraw-svg-body editor)
+                        nil
+                        'edraw-generator
+                        (edraw-alist-append
+                         `((gen-type . ,gen-type))
+                         generator-input-props
+                         (edraw-get-default-shape-properties editor
+                                                             'edraw-generator)
+                         generator-default-props))))
+            ;; Update
+            (edraw-regenerate shape)
+
+            ;; Fit to RECT
+            (when (and no-interactive-func-p
+                       (not (edraw-rect-empty-p rect)))
+              (let ((aabb (edraw-shape-aabb shape)))
+                (edraw-transform-prop-multiply
+                 shape
+                 (edraw-matrix-fit-rect-to-rect aabb rect))))
+
+            (edraw-select-shape editor shape)))))))
+
+
 ;;;;; Tool - After Class Definition
 
 (defcustom edraw-editor-default-tool 'edraw-editor-tool-select
@@ -5678,6 +5771,10 @@ Return nil if no value is specified."
     (g
      (:class . edraw-shape-group)
      (:from-element . edraw-shape-group-create)
+     (:create-element . edraw-shape--create-element))
+    (edraw-generator
+     (:class . edraw-shape-generator)
+     (:from-element . edraw-shape-generator-create)
      (:create-element . edraw-shape--create-element)))
   "Alist of shape object types.")
 
@@ -5713,7 +5810,10 @@ Only shape types registered in `edraw-shape-types' are valid."
   (let ((shape-type
          (or
           ;;<?? data-edraw-type="type" ...>
-          (dom-attr element 'data-edraw-type)
+          (when-let ((value (dom-attr element 'data-edraw-type)))
+            (cond
+             ((symbolp value) value)
+             ((stringp value) (intern value))))
           ;;<type ...>
           (dom-tag element))))
     (when (edraw-shape-type-valid-p shape-type)
@@ -5751,7 +5851,8 @@ Only shape types registered in `edraw-shape-types' are valid."
      ;; Error
      (if noerror-node-type
          nil
-       (error "Unsupported SVG element %s" (prin1-to-string element))))))
+       (error "Unsupported SVG element %s"
+              (edraw-svg-to-string element nil nil))))))
 
 
 ;;
@@ -5797,11 +5898,14 @@ markers) to the EDITOR."
   ;; When creating a new shape object, first create a DOM element, then
   ;; create a shape object for that element. This is the same behavior
   ;; when loading an SVG and is easier to maintain consistency.
-  (let* ((shape (edraw-shape-from-element
-                 (edraw-create-shape-svg-element shape-type props-alist
-                                                 (oref editor deftbl)
-                                                 parent index)
-                 editor)))
+  (edraw-create-shape-from-inserted-new-element
+   editor
+   (edraw-create-shape-svg-element shape-type props-alist
+                                   (oref editor deftbl)
+                                   parent index)))
+
+(defun edraw-create-shape-from-inserted-new-element (editor element)
+  (let ((shape (edraw-shape-from-element element editor)))
     (edraw-make-undo-group editor 'shape-create
       (edraw-push-undo editor 'shape-create (list 'edraw-remove shape))
       (edraw-on-shape-changed shape 'shape-create))
@@ -5821,18 +5925,26 @@ markers) to the EDITOR."
         (edraw-dom-append-child parent element)))
     element))
 
-(defun edraw-shape--create-element (tag props-alist deftbl)
+(defun edraw-shape--create-element (shape-type props-alist deftbl)
   "Create an DOM element.
 
 Unlike `dom-node' etc., attributes are set by the
 `edraw-svg-element-set-property' function."
-  (let ((element (edraw-dom-element tag)))
-    ;; Initialize attributes in the manner of the edraw-dom-svg.el library.
-    (dolist (prop props-alist)
-      (let ((prop-name (car prop))
-            (value (cdr prop)))
-        (edraw-svg-element-set-property element prop-name value deftbl)))
-    element))
+
+  (let* ((shape-class (edraw-shape-type-to-class shape-type))
+         (tag (edraw-shape-svg-tag shape-class))
+         (prop-info-list (edraw-get-property-info-list shape-class)))
+    (let ((element (edraw-dom-element tag)))
+      ;; Initialize attributes in the manner of the edraw-dom-svg.el library.
+      (dolist (prop props-alist)
+        (let ((prop-name (car prop))
+              (value (cdr prop)))
+          (edraw-svg-element-set-property element prop-name value deftbl
+                                          prop-info-list)))
+      (unless (eq tag shape-type)
+        (dom-set-attribute element 'data-edraw-type (format "%s" shape-type)))
+
+      element)))
 
 ;;;;; Selection Menu
 
@@ -7886,6 +7998,241 @@ may be replaced by another mechanism."
      `(((edraw-msg "Ungroup") edraw-ungroup-interactive
         ,@(edraw-get-actions--keys
            shape 'edraw-editor-ungroup-selected-shapes))))))
+
+;;;;; Shape - Generator
+
+;;;;;; Generator Functions
+
+(defvar edraw-shape-generator-alist
+  '(("latex" :prefix edraw-gen-latex :feature edraw-generator)
+    ("grid" :prefix edraw-gen-grid :feature edraw-generator))
+  "An association list whose keys are generator type strings and
+values are property lists.
+
+- :feature
+  Library that should be loaded before calling the generator function.
+
+- :prefix
+  A symbol that prefixes the functions to be called.
+
+  - (<prefix> <src> <keyword-argument>...)
+    Generate a new element and return it.
+    <keyword-argument> :
+    - :options <alist>
+
+  - (<prefix>-options-info)
+    Return a list containing the names and types of options that
+    can be set in the gen-options property.
+
+  - (<prefix>-defaults)
+    Return the default property values for the generator shape as an alist.
+
+  - (<prefix>-interactive <editor>)
+    Read the properties of the shape that will be created from the user.")
+
+(defun edraw-shape-generator-type-set (type &rest plist)
+  "Set generator type properties.
+
+TYPE represents the type of generator. Specify the properties of
+that type in the remaining argument PLIST.
+
+The settings are recorded in the variable `edraw-shape-generator-alist'."
+  (if-let ((cell (assoc type edraw-shape-generator-alist)))
+      (setcdr cell (edraw-plist-append plist (cdr cell)))
+    (push (cons type plist) edraw-shape-generator-alist))
+  (edraw-shape-generator-prop-info-list--clear-cache))
+
+(defun edraw-shape-generator-types ()
+  (mapcar #'car edraw-shape-generator-alist))
+
+(defun edraw-shape-generator-alist ()
+  edraw-shape-generator-alist)
+
+(defun edraw-shape-generator-prefix (type &optional noerror)
+  (let* ((gen-info (alist-get type edraw-shape-generator-alist nil nil #'equal))
+         (feature (plist-get gen-info :feature))
+         (prefix (plist-get gen-info :prefix)))
+    (unless noerror
+      (unless type
+        (error "Generator type not specified"))
+      (unless gen-info
+        (error "Generator type `%s' is not defined" type))
+      (unless prefix
+        (error "Generator type `%s' has no prefix specified" type)))
+    (when feature
+      (require feature nil noerror))
+    prefix))
+
+(defun edraw-shape-generator-execute (element)
+  "Generate a shape by the shape generator ELEMENT."
+  (let* ((prefix (edraw-shape-generator-prefix
+                  (dom-attr element 'data-edraw-gen-type)))
+         (gen-source (dom-attr element 'data-edraw-gen-source)))
+    ;; The validity of gen-source is checked on the generator side. It might
+    ;; be possible to generate something even if it is empty.
+    (funcall prefix gen-source
+             :options (edraw-shape-generator-options-get element))))
+
+(defun edraw-shape-generator-options-get (element)
+  "Get generation option alist from the shape generator ELEMENT."
+  (let ((gen-options-attr (dom-attr element 'data-edraw-gen-options))
+        (prop-info-list (edraw-shape-generator-options-info element)))
+    (edraw-svg-elem-prop-cssdecls-to-lisp-value gen-options-attr
+                                                prop-info-list
+                                                element
+                                                'data-edraw-gen-options)))
+
+(defun edraw-shape-generator-options-info (element)
+  "Return generation option information list for the shape generator ELEMENT.
+
+The format of the returned information is the same as `get-property-info-list',
+which is a list of `edraw-svg-elem-prop' objects."
+  (edraw-shape-generator-call (dom-attr element 'data-edraw-gen-type)
+                               nil
+                               "-options-info"))
+
+(defun edraw-shape-generator-package-defaults (type)
+  (edraw-shape-generator-call type nil "-defaults"))
+
+(defun edraw-shape-generator-interactive (type editor rect default)
+  (edraw-shape-generator-call type default "-interactive" editor rect))
+
+(defun edraw-shape-generator-call (type default function-name &rest args)
+  (let ((prefix (edraw-shape-generator-prefix type t)))
+    (if prefix
+        (let ((fun (intern (format "%s%s" prefix function-name))))
+          (if (fboundp fun)
+              (apply fun args)
+            default))
+      default)))
+
+;;;;;; Generator Shape
+
+(defconst edraw-shape-generator-shape-type 'edraw-generator)
+
+(defun edraw-shape-generator-create (element editor)
+  (let ((shape (edraw-shape-generator)))
+    (oset shape element element)
+    (oset shape editor editor)
+    shape))
+
+(defclass edraw-shape-generator (edraw-shape-group)
+  ((prop-info-list-cache :initform nil)))
+
+(cl-defmethod edraw-shape-type ((_shape edraw-shape-generator))
+  edraw-shape-generator-shape-type)
+
+(cl-defmethod edraw-get-summary ((shape edraw-shape-generator))
+  (format "generator (%s,%s)"
+          (or (edraw-get-property shape 'gen-type) "")
+          (truncate-string-to-width
+           (replace-regexp-in-string
+            "[\r\n\t\f]"
+            " "
+            (or (edraw-get-property shape 'gen-source) "")
+            t t)
+           20 nil nil "...")))
+
+(defconst edraw-shape-generator-prop-info-list--cache nil)
+
+(defun edraw-shape-generator-prop-info-list ()
+  (or edraw-shape-generator-prop-info-list--cache
+      (setq edraw-shape-generator-prop-info-list--cache
+            (edraw-shape-generator-prop-info-list--make))))
+
+(defun edraw-shape-generator-prop-info-list--clear-cache ()
+  (setq edraw-shape-generator-prop-info-list--cache nil))
+
+(defun edraw-shape-generator-prop-info-list--make ()
+  (append
+   (list
+    ;; Add attributes:
+    ;; - data-edraw-gen-type
+    ;; - data-edraw-gen-source
+    ;; - data-edraw-gen-options
+    (edraw-svg-elem-prop 'gen-type 'attr-data
+                         (cons 'or (edraw-shape-generator-types)) nil)
+    (edraw-svg-elem-prop 'gen-source 'attr-data 'text nil)
+    ;; Generally string, but for individual objects use
+    ;; (cssdecls :prop-info-list ...)
+    (edraw-svg-elem-prop 'gen-options 'attr-data 'string nil))
+   (edraw-svg-tag-get-property-info-list 'g)))
+
+(cl-defmethod edraw-get-property-info-list ((_class
+                                             (subclass edraw-shape-generator)))
+  (edraw-shape-generator-prop-info-list))
+
+(cl-defmethod edraw-get-property-info-list ((shape edraw-shape-generator))
+  (with-slots (prop-info-list-cache) shape
+    ;; Create prop-info-list-cache
+    (unless prop-info-list-cache
+      (setq prop-info-list-cache
+            (cl-loop for prop-info in (edraw-shape-generator-prop-info-list)
+                     ;; Replace type of `gen-options' property.
+                     if (eq (edraw-svg-elem-prop-name prop-info) 'gen-options)
+                     collect (edraw-svg-elem-prop
+                              'gen-options
+                              'attr-data
+                              `(cssdecls
+                                :prop-info-list
+                                ;; Determine type of gen-options
+                                ;; according to current gen-type.
+                                ,(edraw-shape-generator-options-info
+                                  (edraw-element shape)))
+                              nil)
+                     else
+                     collect prop-info)))
+    ;; Return prop-info-list-cache
+    prop-info-list-cache))
+
+(cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-generator)
+                                                 old-prop-list)
+  ;; Clear prop-info-list-cache if gen-type is changed
+  (when (assq 'gen-type old-prop-list)
+    (with-slots (prop-info-list-cache) shape
+      (setq prop-info-list-cache nil)))
+  (cl-call-next-method))
+
+(cl-defmethod edraw-property-editor-actions ((shape edraw-shape-generator))
+  `((push-button :notify ,(lambda (&rest _) (edraw-regenerate shape))
+                 ,(edraw-msg "Regenerate"))))
+
+(cl-defmethod edraw-get-actions ((_shape edraw-shape-generator))
+  (let* ((items (copy-tree (cl-call-next-method))))
+    (append
+     items
+     `(((edraw-msg "Regenerate") edraw-regenerate
+        ;; @todo Add key binding?
+        ;; ,@(edraw-get-actions--keys
+        ;;    shape 'edraw-editor-update-selected-shapes)
+        )))))
+
+(cl-defmethod edraw-regenerate ((shape edraw-shape-generator))
+  (let ((new-element
+         (condition-case err
+             (edraw-shape-generator-execute (edraw-element shape))
+           (error
+            (message (edraw-msg "Generation error: %s") err)
+            nil))))
+    (unless new-element
+      (setq new-element
+            ;; Dummy
+            (edraw-svg-rect 0 0 40 40 :stroke "red" :fill "#eee")))
+
+    (with-slots (editor) shape
+      (edraw-make-undo-group editor 'update-generator-shape
+        ;; @todo I don't want to use edraw-shape objects for content
+
+        ;; Remove old content
+        ;;(edraw-dom-remove-all-children (edraw-element shape))
+        (dolist (child (edraw-children shape))
+          (edraw-remove child))
+
+        ;; Add new content
+        (edraw-dom-append-child (edraw-element shape) new-element)
+        (edraw-create-shape-from-inserted-new-element editor new-element) ;; Notify
+        ))))
+
 
 ;;;; Shape Point
 

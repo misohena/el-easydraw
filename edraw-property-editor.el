@@ -1560,20 +1560,6 @@ as a string."
 
 ;;;;;; CSS Declaration List Widget
 
-(defun edraw-property-editor-cssdecls-from-alist (alist)
-  (mapconcat (lambda (cell)
-               (format "%s:%s"
-                       (car cell)
-                       (let ((value (cdr cell)))
-                         (cond
-                          ((numberp value)
-                           value)
-                          ;; @todo color hash, function, ident
-                          ((stringp value)
-                           (concat "\"" (edraw-css-escape value) "\""))))))
-             alist
-             ";"))
-
 (defconst edraw-property-editor-cssdecls-dummy-type "")
 
 (defun edraw-property-editor-create-cssdecls-widget (name-column-width
@@ -1623,11 +1609,13 @@ as a string."
 ;;    (edraw-svg-elem-prop 'test2 nil 'number nil)
 ;;    (edraw-svg-elem-prop 'test3 nil 'number nil)))
 
-(defun edraw-property-editor-cssdecls-object-to-prop-value (object)
+(defun edraw-property-editor-cssdecls-object-to-prop-value (object
+                                                            prop-info-list)
   ;;(message "On cssdecls-object-to-prop-value object=%s" (prin1-to-string object))
-  (edraw-property-editor-cssdecls-from-alist
-   (cdr (edraw-property-editor-cssdecls-object-props-head object))))
-;; TEST: (edraw-property-editor-cssdecls-object-to-prop-value (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ")) => "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\""
+  (edraw-svg-elem-prop-alist-to-cssdecls
+   (cdr (edraw-property-editor-cssdecls-object-props-head object))
+   prop-info-list))
+;; TEST: (edraw-property-editor-cssdecls-object-to-prop-value (edraw-property-editor-cssdecls-object-from-prop-value "a:111; b:\"hello,backslash:\\\\,doublequote:\\22 ,dayo!\"; ") (list (edraw-svg-elem-prop 'a nil 'number nil) (edraw-svg-elem-prop 'b nil 'string nil))) => "a:111;b:\"hello,backslash:\\5C ,doublequote:\\22 ,dayo!\""
 
 (defun edraw-property-editor-cssdecls-object-from-prop-value (prop-value)
   ;;(message "On cssdecls-object-from-prop-value prop-value=%s" (prin1-to-string prop-value))
@@ -1735,7 +1723,9 @@ as a string."
      ((eq type 'marker)
       w-value)
      ((eq (car-safe type) 'cssdecls)
-      (edraw-property-editor-cssdecls-object-to-prop-value w-value))
+      (edraw-property-editor-cssdecls-object-to-prop-value
+       w-value
+       (plist-get (cdr type) :prop-info-list)))
      ((or (and (stringp w-value) (string-empty-p w-value))
           (null w-value))
       ;; w-value is an empty string or nil

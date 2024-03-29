@@ -176,6 +176,14 @@ presentation attributes."
       (insert-buffer-substring-no-properties buffer)
       (edraw-import-svg-decode-buffer)))))
 
+;;;###autoload
+(defun edraw-import-svg-string (string)
+  (edraw-import-warning-block
+   (edraw-import-svg-dom
+    (with-temp-buffer
+      (insert string)
+      (edraw-import-svg-decode-buffer)))))
+
 (defun edraw-import-svg-dom (dom)
   ;; Note: The DOM must be preprocessed using
   ;; `edraw-xml-escape-ns-buffer' and

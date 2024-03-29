@@ -1,6 +1,54 @@
 
 
 * Inbox
+** TODO ツールバーに表示するツールを減らせるようにする
+その代わりメインメニューにツール選択メニューを追加する？
+** TODO edraw-read-rectangleはクリックかどうかを判定すべき
+閾値以上の動きが無かった場合はクリックと判定し、必ず空の矩形を返す。
+一定量以上動いてから小さな矩形を作ることはできるものとする。
+クリックイベントを待つことが可能か、それとも自分で移動量を検出するか。
+
+** TODO 図形生成/変形を何で行うかを変更できるようにしたい
+latexの場合はtransformで十分だが、グリッドの場合はtransformでやると線が太くなってしまうのでポイントの移動でやりたい。いや、再生成時に動いてしまうな。
+
+** TODO 図形生成/プロパティエディタで「-」ボタンが消えることがある
+** TODO 図形生成/デフォルトプロパティをどうするか
+マーカーのデフォルトプロパティに似た仕組みを作る？
+いや、図形全体のデフォルトプロパティを、タイプ毎に持たせたい。
+
+** TODO 図形生成/プロパティエディタでgen-typeを変更したら全体を更新する
+- optionsの初期化が変わる
+- デフォルトのプロパティであれば、内容をそっくり変える必要がある
+
+** TODO 図形生成/プロパティエディタで何かキー入力で生成したい
+C-c C-cで更新できると良いのだけど。
+** TODO 図形生成/使用できない生成器を無効化する
+無効化できなくても、latexやdvisvgmが入っていない場合は、その旨をユーザーに伝える必要がある。
+
+** TODO グループを境界矩形内のどこでもマウス入力できるようにしたい
+細い線が主体の図形の場合選択や移動が大変やりづらい。
+編集中の設定で変えられると良い。
+もしくは細い線をクリックしやすくするか。
+
+** TODO 任意の要素を一時的に非表示にしたい
+** TODO 任意の要素をマウス入力禁止にしたい
+編集中に一時的にマウス入力を透過するようにしたい。
+もちろんリセットできる。
+** TODO 拡大したときに、ストロークの当たり判定が甘い
+fillはかなり正確だが、それに比べてstrokeはかなり外れたところでもクリックできてしまう。
+アイコンを書くときに困った。
+** TODO 矢印キーで1ピクセル未満の移動が出来るようにしたい
+設定で矢印キーの移動量を一時的に変更したい
+アイコンを書くときに困った。
+
+** TODO キー操作でポイントを平行移動したい
+Tが選択shapeのインタラクティブ変形になってしまったので、キー操作でポイントを変形できなくなってしまった。
+インタラクティブ変形はC-tなので、Tt Ts Trを復活させる。
+アイコンを書くときに困った。
+** TODO ポイントの絶対位置移動にキーを割り当てたい
+mとか？　空いてる？
+アイコンを書くときに困った。
+
 ** TODO string-matchを使って字句解析・構文解析をしているところを修正する
 - 正規表現を何にでもマッチするようにしておけばマッチ開始位置を調べる必要は無い。文字列の末尾まで探しに行ってしまうことを避けられる。
 - match-dataはmatch-beginningよりも大分遅いのでmatch-dataは避けた方が良い。
@@ -4165,3 +4213,38 @@ CLOSED: [2024-03-26 Tue 14:36]
  - デフォルトプロパティ (alist-get 'marker-defaults options)
   - オブジェクト名"Marker"
 - marker-widgetはedraw-property-editor-create-marker-widget関数で作る
+** DONE 図形生成/edraw-shape-generator(生成図形)機構を追加する
+CLOSED: [2024-03-28 Thu 22:52]
+- 全く新しいshape-typeを追加する仕組みを整える
+- edraw-shape-generator
+  - data-edraw-gen-type属性とdata-edraw-gen-src属性を定義する
+  - generator-typeを管理する仕組みを作る
+  - edraw-regenerateで再生成する
+  - プロパティエディタに「再生成」ボタンを表示する
+  - アイコンを作る
+  - オプション指定機構を作る
+    - data-edraw-gen-options属性
+    - (cssdecls :prop-info-list <edraw-svg-elem-prop-list>) 型を追加
+- edraw-editor-tool-generator
+  - クリックしたらedraw-shape-generatorを作る
+- edraw-gen-latex
+  - latexソースをsvgへ変換する仕組みを作る
+- デフォルトプロパティをどうするか
+- 何かもう一つ生成するものがあると良いんだけど
+  - グラフ
+  - 座標軸・グリッド
+  - UMLクラス
+
+アイコン(30x24):
+[[edraw:data=H4sIAN0lAmYAA3VTTXOjMAz9Kx736hrLYLA7IRdfu39gb9nAApMUOoQt6b9fSXw0ndk9ID0/S+/JjnO4fTTi/nbtb6Vsp+n9JUnmedZzqoexSawxJsEKuZS83K9df/lXIYQQEt6VYu6qqS1laqRo665pp1LaTIqPerx1Q19K0CCPh7E+T/8rvZcSmU+Ov7vrtZRP3nspbtM4XOpS9kNfS9FVpayr8TQ//zqdL804/OkrKZLjoXncGqrPzW2RWprRItOOTTivk1j4mgTcl+MTno+1309Tu7LPa4+hfjT8EZTXLgbtVKGdAFA5BlzlESxhSzsCUhVeIdW+cIqo+IAFoJgCbjecWY4JBjkCv4JYbEyxVGDy2iKvIGAWtG8N11vDQrgKmrwo0oTgyR6JjCwzDRZx+h2/Ak0QwWkivICcdKAgUQiELU/thYVttB0hh3mJccHYA0GAxxihYJzzUAUBaouYyQvHcETYLcd9TadheaPYz+zr9fp5ArpAazcmVeRD2WGOlAXuonW2lGc0YUYaxNEVoryjQ+ZiPT7sID4wCgzdmFN4nRkVpyiDP3oWgQQDj+ZxFz/Bz2SJP+W3R7m/tvP5zK8tafDD/9/xL9I49sGnAwAA]]
+
+関係ないけど、アイコンを書くときはグリッド間隔を0.25等にすると良い。
+** DONE 図形生成/グリッドタイプを追加する
+CLOSED: [2024-03-29 Fri 11:48]
+** DONE 図形生成/タイプによってgeneratorツールの入力を変える
+CLOSED: [2024-03-29 Fri 11:48]
+- 必ずsourceが必要とは限らない。
+- タイプによってはグラフィカルな入力(範囲選択)が欲しい。
+- 生成ツールはクリックだけで無く矩形も受け付ける(画像ツールと同じように)
+- コマンドのinteractive指定に相当する仕組みがあると良い。
+- <prefix>-interactive関数？

@@ -347,6 +347,13 @@ the DOM and quickly identify the parent."
 (defun edraw-dom-remove-attr-if (node pred)
   (dom-set-attributes node (cl-delete-if pred (dom-attributes node))))
 
+(defun edraw-dom-remove-attr-from-tree (tree attr)
+  (edraw-dom-do tree
+                (lambda (node _ancestors)
+                  (when (edraw-dom-element-p node)
+                    (edraw-dom-remove-attr node attr))))
+  tree)
+
 ;;;; DOM Insertion
 
 (defun edraw-dom-add-child-before (node child &optional before)
@@ -861,6 +868,7 @@ comment nodes."
 ;; TEST: (edraw-css-split-decl-list-as-strings "font-size:14px;font-family  :  \"Helvetica Neue\", \"Arial\", sans-serif;" (list 0)) => (("font-size" . "14px") ("font-family" . "\"Helvetica Neue\", \"Arial\", sans-serif"))
 ;; TEST: (edraw-css-split-decl-list-as-strings "prop1: func( a b ; c d ); prop2: { aa bb ; cc dd}" (list 0)) => (("prop1" . "func( a b ; c d )") ("prop2" . "{ aa bb ; cc dd}"))
 ;; TEST: (edraw-css-split-decl-list-as-strings "str\\oke: u\\72 l(https://misohena.jp/blog/?q=;)" (list 0)) => (("stroke" . "u\\72 l(https://misohena.jp/blog/?q=;)"))
+;; TEST: (edraw-css-split-decl-list-as-strings "a:1;b:2;c3;c4" (list 0)) => error
 
 ;;;;; Convert Value
 
@@ -2057,6 +2065,45 @@ other purposes. So the name may change in the future."
     ('opacity (edraw-svg-attr-number-to-number value))
     (_ nil)))
 
+(defun edraw-svg-elem-prop-to-css-value (prop-info value)
+  (cond
+   ;; Number
+   ((edraw-svg-elem-prop-number-p prop-info)
+    (edraw-svg-elem-prop-to-string prop-info value))
+   ;; Paint
+   ((eq (edraw-svg-elem-prop-type prop-info) 'paint)
+    ;; Do not quote hash(#1188ff), function(rgb(...)), or ident(black)
+    ;;@todo css-escape?
+    (edraw-svg-elem-prop-to-string prop-info value))
+   ;; Double quoted string
+   ((or (edraw-svg-elem-prop-string-p prop-info)
+        (eq (car-safe prop-info) 'or)) ;;@todo check subtype
+    (concat "\"" (edraw-css-escape value) "\""))
+   ;; Not supported
+   ;; marker, cssdecls
+   (t
+    nil)))
+
+(defun edraw-svg-elem-prop-alist-to-cssdecls (alist
+                                              prop-info-list)
+  (mapconcat
+   #'identity
+   (delq nil
+         (mapcar (lambda (cell)
+                   (let* ((key (car cell))
+                          (value (cdr cell))
+                          (prop-info (edraw-svg-elem-prop-info-list-find
+                                      prop-info-list key))
+                          (css-value (edraw-svg-elem-prop-to-css-value
+                                      prop-info value)))
+                     (when (and css-value (not (string-empty-p css-value)))
+                       (format "%s:%s" key css-value))))
+                 alist))
+   ";"))
+;; TEST: (edraw-svg-elem-prop-alist-to-cssdecls '((name . "Taro") (age . 16) (height . "1in")) (list (edraw-svg-elem-prop 'name nil 'string nil) (edraw-svg-elem-prop 'age nil 'number nil) (edraw-svg-elem-prop 'height nil 'length nil) )) => "name:\"Taro\";age:16;height:1in"
+;; TEST: (edraw-svg-elem-prop-alist-to-cssdecls '((name . "Taro") (age . nil) (height . "1in")) (list (edraw-svg-elem-prop 'name nil 'string nil) (edraw-svg-elem-prop 'age nil 'number nil))) => "name:\"Taro\""
+
+
 (defun edraw-svg-elem-prop-to-lisp-value (prop-info value
                                                     &optional element attr)
   "Convert the property value to a value that can be handled naturally by Lisp."
@@ -2127,7 +2174,9 @@ other purposes. So the name may change in the future."
                                                    &optional element attr)
   (when (stringp cssdecls-value)
     (cl-loop for (key-str . value-str)
-             in (edraw-css-split-decl-list-as-strings cssdecls-value (list 0))
+             in (ignore-errors ;;@todo Recover error (Skip to next `;')
+                  (edraw-css-split-decl-list-as-strings cssdecls-value
+                                                        (list 0)))
              for key = (intern key-str)
              for prop-info = (edraw-svg-elem-prop-info-list-find
                               prop-info-list key)
