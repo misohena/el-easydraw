@@ -493,6 +493,17 @@ Attribute value is preserved."
     (when old-cell
       (setcar old-cell new-name))))
 
+;;;; DOM Attribute Inheritance
+
+(defun edraw-dom-attr-with-inherit (element attr)
+  (let (value)
+    (while (and element
+                (null (setq value (dom-attr element attr))))
+      (setq element (edraw-dom-get-parent element)))
+    value))
+;; TEST: (let ((group (edraw-svg-group :stroke "black" (edraw-svg-path "M0 0 100 100")))) (edraw-dom-attr-with-inherit (car (edraw-dom-children group)) 'stroke)) => "black"
+;; TEST: (let ((group (edraw-svg-group (edraw-svg-path "M0 0 100 100")))) (edraw-dom-attr-with-inherit (car (edraw-dom-children group)) 'stroke)) => nil
+
 ;;;; DOM Mapping
 
 (defun edraw-dom-do (node function &optional ancestors)
@@ -3152,7 +3163,7 @@ This function does not consider the effect of the transform attribute."
       ('image (edraw-svg-image-contents-to-path-cmdlist element)))))
 
 (defun edraw-svg-path-contents-to-path-cmdlist (element)
-  (let ((fill (dom-attr element 'fill))
+  (let ((fill (edraw-dom-attr-with-inherit element 'fill))
         (d (dom-attr element 'd)))
     (when d
       (let ((cmdlist (edraw-path-cmdlist-from-d d))
@@ -3396,7 +3407,7 @@ This function does not consider the effect of the transform attribute."
       ('image (edraw-svg-image-contents-to-seglist element)))))
 
 (defun edraw-svg-path-contents-to-seglist (element)
-  (let ((fill (dom-attr element 'fill))
+  (let ((fill (edraw-dom-attr-with-inherit element 'fill))
         (d (dom-attr element 'd)))
     (when d
       (edraw-path-cmdlist-to-seglist
@@ -3562,10 +3573,10 @@ This function does not consider the effect of the transform attribute."
        (edraw-svg-group-contains-point-p element xy)))))
 
 (defun edraw-svg-shape-contains-point-p (element xy)
-  (let* ((fill (dom-attr element 'fill))
+  (let* ((fill (edraw-dom-attr-with-inherit element 'fill))
          (fill-p (not (equal fill "none"))) ;;default black
-         (fill-rule (dom-attr element 'fill-rule))
-         (stroke (dom-attr element 'stroke))
+         (fill-rule (edraw-dom-attr-with-inherit element 'fill-rule))
+         (stroke (edraw-dom-attr-with-inherit element 'stroke))
          (stroke-p (and stroke ;;default none
                         (not (equal stroke ""))
                         (not (equal stroke "none"))))
@@ -3613,10 +3624,10 @@ This function does not consider the effect of the transform attribute."
   (when (and element
              rect
              (not (edraw-rect-empty-p rect)))
-    (let* ((fill (dom-attr element 'fill))
+    (let* ((fill (edraw-dom-attr-with-inherit element 'fill))
            (fill-p (not (equal fill "none"))) ;;default black
-           (fill-rule (dom-attr element 'fill-rule))
-           (stroke (dom-attr element 'stroke))
+           (fill-rule (edraw-dom-attr-with-inherit element 'fill-rule))
+           (stroke (edraw-dom-attr-with-inherit element 'stroke))
            (stroke-width (if (and stroke
                                   (not (equal stroke ""))
                                   (not (equal stroke "none")))

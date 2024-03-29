@@ -1,6 +1,31 @@
 
 
 * Inbox
+** TODO 細い線のマウス当たり判定を改善する
+
+選択ツールでクリック時の処理の流れ:
+1. [[elisp-function:edraw-on-down-mouse-1;method-args=(nil edraw-editor-tool-select t)]]
+2. [[elisp-function:edraw-mouse-down-shape;method-args=(nil edraw-editor t)]]
+3. [[elisp-function:edraw-find-shapes-by-xy;method-args=(nil edraw-editor t)]]
+4. [[elisp-function:edraw-svg-element-contains-point-p]]
+5. [[elisp-function:edraw-svg-shape-contains-point-p]]または[[elisp-function:edraw-svg-group-contains-point-p]]
+
+問題は [[elisp-function:edraw-svg-shape-contains-point-p]] の中にある。
+
+ストロークとの当たり判定は、線と正方形の当たり判定によって実現されている。
+
+その正方形のサイズは線の太さとピックアップ用半径から決められているが、そこに拡大率が入り込む余地がない。
+
+それどころか、対象のstrokeが未指定の場合はストロークとの当たり判定自体が発生しないようになっている。latexやgridで生成された図形の場合は、ルートのグループにstrokeが指定されているが、その子孫のpath自体には指定されていない。これでは当たるわけがない。
+
+- [X] とりあえず dom-attr を edraw-dom-attr-with-inherit に置き換える。
+  - edraw-svg-shape-intersects-rect-p
+  - edraw-svg-shape-contains-point-p
+  - edraw-svg-path-contents-to-seglist
+  - edraw-svg-path-contents-to-path-cmdlist
+- [ ] 修正した関数を使用する部分の動作をテストする。
+- [ ] ピックアップサイズを調整する。
+
 ** TODO ORG/容量の大きいデータリンクが正しくインライン表示されないことがある
 edraw-org-link-image-modeでインライン画像表示しているときの話。
 LaTeXで数式を沢山入れると簡単に数万文字程度になってしまうが、そうすると編集直後やファイルを開いた直後などに文字列のままになってしまうことがある。リンクのfont-lockが中途半端な状態になっていることもある。
