@@ -73,6 +73,11 @@
 (defvar edraw-import-warning-buffer nil)
 (defvar edraw-import-warning-suppress-types nil)
 
+(defun edraw-import-warning-suppress-types (&rest types)
+  (nconc
+   types
+   edraw-import-warning-suppress-types))
+
 (defun edraw-import-display-warning (message &rest args)
   (display-warning 'edraw-import
                    (apply #'format-message message args)

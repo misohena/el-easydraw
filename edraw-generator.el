@@ -36,7 +36,10 @@
 
 (require 'edraw)
 (require 'edraw-dom-svg)
-(require 'edraw-import)
+
+(defvar edraw-import-warning-suppress-types)
+(autoload 'edraw-import-warning-suppress-types "edraw-import")
+(autoload 'edraw-import-svg-string "edraw-import")
 
 ;;;; LaTeX
 
@@ -196,8 +199,7 @@
            ;; Suppress warnings
            ;; @todo Problems can occur when ungrouped
            (edraw-import-warning-suppress-types
-            (cons 'path-multiple-subpaths
-                  edraw-import-warning-suppress-types))
+            (edraw-import-warning-suppress-types 'path-multiple-subpaths))
            (body (edraw-dom-get-by-id
                   (edraw-import-svg-string
                    (edraw-gen-latex-compile
