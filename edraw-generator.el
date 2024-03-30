@@ -253,6 +253,11 @@
 
 ;;;; Grid
 
+(defconst edraw-gen-grid-max-lines 1000)
+
+(defun edraw-gen-grid-safety ()
+  'immediately-applicable)
+
 (defun edraw-gen-grid (_src &rest plist)
   (let* ((options (plist-get plist :options))
          (x-interval (alist-get 'x-interval options))
@@ -273,8 +278,6 @@
                                          x-min x-max t))))
         (when children
           (edraw-svg-group :children children))))))
-
-(defconst edraw-gen-grid-max-lines 1000)
 
 (defun edraw-gen-grid-make-lines (x-min x-max x-interval y-min y-max transpose)
   (when (and (numberp x-interval)

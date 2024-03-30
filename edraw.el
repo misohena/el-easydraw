@@ -8059,6 +8059,9 @@ The settings are recorded in the variable `edraw-shape-generator-alist'."
 (defun edraw-shape-generator-alist ()
   edraw-shape-generator-alist)
 
+(defun edraw-shape-generator-type-from-element (element)
+  (dom-attr element 'data-edraw-gen-type))
+
 (defun edraw-shape-generator-prefix (type &optional noerror)
   (let* ((gen-info (alist-get type edraw-shape-generator-alist nil nil #'equal))
          (feature (plist-get gen-info :feature))
@@ -8077,7 +8080,7 @@ The settings are recorded in the variable `edraw-shape-generator-alist'."
 (defun edraw-shape-generator-execute (element)
   "Generate a shape by the shape generator ELEMENT."
   (let* ((prefix (edraw-shape-generator-prefix
-                  (dom-attr element 'data-edraw-gen-type)))
+                  (edraw-shape-generator-type-from-element element)))
          (gen-source (dom-attr element 'data-edraw-gen-source)))
     ;; The validity of gen-source is checked on the generator side. It might
     ;; be possible to generate something even if it is empty.
@@ -8098,15 +8101,18 @@ The settings are recorded in the variable `edraw-shape-generator-alist'."
 
 The format of the returned information is the same as `get-property-info-list',
 which is a list of `edraw-svg-prop-info' objects."
-  (edraw-shape-generator-call (dom-attr element 'data-edraw-gen-type)
-                               nil
-                               "-options-info"))
+  (edraw-shape-generator-call (edraw-shape-generator-type-from-element element)
+                              nil
+                              "-options-info"))
 
 (defun edraw-shape-generator-package-defaults (type)
   (edraw-shape-generator-call type nil "-defaults"))
 
 (defun edraw-shape-generator-interactive (type editor rect default)
   (edraw-shape-generator-call type default "-interactive" editor rect))
+
+(defun edraw-shape-generator-safety (type)
+  (edraw-shape-generator-call type nil "-safety"))
 
 (defun edraw-shape-generator-call (type default function-name &rest args)
   (let ((prefix (edraw-shape-generator-prefix type t)))
@@ -8205,14 +8211,15 @@ which is a list of `edraw-svg-prop-info' objects."
   (cl-call-next-method))
 
 (cl-defmethod edraw-property-editor-actions ((shape edraw-shape-generator))
-  `((push-button :notify ,(lambda (&rest _) (edraw-regenerate shape))
+  `((push-button :notify ,(lambda (&rest _)
+                            (edraw-regenerate-interactively shape))
                  ,(edraw-msg "Regenerate"))))
 
 (cl-defmethod edraw-get-actions ((_shape edraw-shape-generator))
   (let* ((items (copy-tree (cl-call-next-method))))
     (append
      items
-     `(((edraw-msg "Regenerate") edraw-regenerate
+     `(((edraw-msg "Regenerate") edraw-regenerate-interactively
         ;; @todo Add key binding?
         ;; ,@(edraw-get-actions--keys
         ;;    shape 'edraw-editor-update-selected-shapes)
@@ -8243,6 +8250,21 @@ which is a list of `edraw-svg-prop-info' objects."
         (edraw-dom-append-child (edraw-element shape) new-element)
         (edraw-create-shape-from-inserted-new-element editor new-element) ;; Notify
         ))))
+
+(cl-defmethod edraw-regenerate-safely-p ((shape edraw-shape-generator))
+  ;;@todo Skip confirmation for shapes that have been approved once (be careful of undo) or shapes created with the current editor.
+  (memq (edraw-shape-generator-safety
+         (edraw-shape-generator-type-from-element (edraw-element shape)))
+        '(safe immediately-applicable)))
+
+(cl-defmethod edraw-regenerate-interactively ((shape edraw-shape-generator))
+  (when (or (edraw-regenerate-safely-p shape)
+            (yes-or-no-p
+             (edraw-msg "Evaluate this generator's code on your system?")))
+    (edraw-regenerate shape)))
+
+(cl-defmethod edraw-update-from-property-editor ((shape edraw-shape-generator))
+  (edraw-regenerate-interactively shape))
 
 
 ;;;; Shape Point

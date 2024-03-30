@@ -273,6 +273,9 @@ Used by the property editor to determine the type of object."
 (cl-defgeneric edraw-property-editor-actions (_object)
   nil)
 
+(cl-defgeneric edraw-update-from-property-editor (_object)
+  nil)
+
 ;;;;; Implementation with alist
 
 (defclass edraw-alist-properties-holder (edraw-properties-holder)
@@ -1715,7 +1718,9 @@ as a string."
   (with-slots (widgets target) pedit
     (edraw-set-properties
      target
-     (mapcar #'edraw-get-as-property-value widgets))))
+     (mapcar #'edraw-get-as-property-value widgets))
+    ;; Update target
+    (edraw-update-from-property-editor target)))
 
 (defun edraw-property-editor-widget-value-to-prop-value (w-value prop-info)
   (let ((type (edraw-svg-prop-info-type prop-info)))

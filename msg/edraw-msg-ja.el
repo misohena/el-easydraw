@@ -114,6 +114,7 @@
      "Empty path data" "空のパスデータ"
      "Empty shapes cannot be registered" "空の図形は登録できません"
      "End Marker" "終点マーカー"
+     "Evaluate this generator's code on your system?" "あなたのシステムでこのジェネレータのコードを評価しますか?"
      "Export SVG" "SVGをエクスポート"
      "Export Section" "セクションをエクスポート"
      "Export to Buffer" "バッファへ書き出し"
