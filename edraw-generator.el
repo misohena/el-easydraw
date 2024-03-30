@@ -105,7 +105,7 @@
 ;;;;; LaTeX Assembling TeX Source
 
 (defcustom edraw-gen-latex-tex-preamble-first
-  '("\\documentclass{article}")
+  '("\\documentclass[fleqn]{article}")
   "The beginning of the TeX source."
   :group 'edraw-gen-latex
   :type '(choice (string)
@@ -126,14 +126,15 @@
   ;; \\setlength{\\footheight}{0cm}
   '("\\pagestyle{empty}
 \\setlength{\\textwidth}{\\paperwidth}
-\\setlength{\\oddsidemargin}{0cm}
-\\setlength{\\evensidemargin}{0cm}
+\\setlength{\\oddsidemargin}{0pt}
+\\setlength{\\evensidemargin}{0pt}
 \\setlength{\\textheight}{\\paperheight}
-\\setlength{\\topmargin}{0cm}
-\\setlength{\\headheight}{0cm}
-\\setlength{\\headsep}{0cm}
-\\setlength{\\topskip}{0cm}
-\\setlength{\\footskip}{0cm}")
+\\setlength{\\topmargin}{0pt}
+\\setlength{\\headheight}{0pt}
+\\setlength{\\headsep}{0pt}
+\\setlength{\\topskip}{0pt}
+\\setlength{\\footskip}{0pt}
+\\setlength{\\mathindent}{0pt}")
   "Style declaration part of TeX source."
   :group 'edraw-gen-latex
   :type '(choice (string)
