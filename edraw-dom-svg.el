@@ -3557,22 +3557,35 @@ This function does not consider the effect of the transform attribute."
 
 ;; (Depends on edraw-path.el)
 
-(defconst edraw-pick-point-radius 2)
+(defun edraw-svg-element-contains-point--pick-radius-scale (pick-radius mat-inv)
+  (* pick-radius
+     (/ (+
+         (edraw-xy-length
+          (edraw-xy (edraw-matrix-at mat-inv 0)
+                    (edraw-matrix-at mat-inv 4)))
+         (edraw-xy-length
+          (edraw-xy (edraw-matrix-at mat-inv 1)
+                    (edraw-matrix-at mat-inv 5))))
+        2)))
 
-(defun edraw-svg-element-contains-point-p (element xy)
+(defun edraw-svg-element-contains-point-p (element xy pick-radius stroke-forced)
   (let ((transform (edraw-svg-element-transform-get element)))
     (unless (edraw-matrix-identity-p transform)
       (when-let ((inv (edraw-matrix-inverse transform)))
-        (setq xy (edraw-matrix-mul-mat-xy inv xy)))))
+        (setq xy (edraw-matrix-mul-mat-xy inv xy))
+        (setq pick-radius (edraw-svg-element-contains-point--pick-radius-scale
+                           pick-radius inv)))))
 
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text 'image)
-       (edraw-svg-shape-contains-point-p element xy))
+       (edraw-svg-shape-contains-point-p element xy
+                                         pick-radius stroke-forced))
       ('g
-       (edraw-svg-group-contains-point-p element xy)))))
+       (edraw-svg-group-contains-point-p element xy pick-radius
+                                         stroke-forced)))))
 
-(defun edraw-svg-shape-contains-point-p (element xy)
+(defun edraw-svg-shape-contains-point-p (element xy pick-radius stroke-forced)
   (let* ((fill (edraw-dom-attr-with-inherit element 'fill))
          (fill-p (not (equal fill "none"))) ;;default black
          (fill-rule (edraw-dom-attr-with-inherit element 'fill-rule))
@@ -3581,8 +3594,12 @@ This function does not consider the effect of the transform attribute."
                         (not (equal stroke ""))
                         (not (equal stroke "none"))))
          (stroke-width (if stroke-p
-                           (or (edraw-svg-attr-length element 'stroke-width) 1)
-                         0))
+                           (or (edraw-svg-attr-length-or-inherited
+                                element 'stroke-width)
+                               1)
+                         (if stroke-forced
+                             1e-6
+                           0)))
          (stroke-square-r (/ stroke-width (* 2 (sqrt 2))))
          (segments (edraw-svg-shape-contents-to-seglist element)
                    ;;or (edraw-svg-element-contents-to-seglist element)
@@ -3590,11 +3607,11 @@ This function does not consider the effect of the transform attribute."
          (text-bb-p (eq (dom-tag element) 'text)))
 
     (when segments
-      (or (and stroke-p
+      (or (and (or stroke-p stroke-forced)
                (not text-bb-p)
                (edraw-path-seglist-intersects-rect-p
                 segments
-                (edraw-square xy (+ edraw-pick-point-radius stroke-square-r))))
+                (edraw-square xy (+ pick-radius stroke-square-r))))
           (and (or fill-p
                    text-bb-p)
                (edraw-path-seglist-contains-point-p
@@ -3602,11 +3619,12 @@ This function does not consider the effect of the transform attribute."
                 xy
                 (equal fill-rule "evenodd")))))))
 
-(defun edraw-svg-group-contains-point-p (element xy)
+(defun edraw-svg-group-contains-point-p (element xy pick-radius stroke-forced)
   (seq-some
    (lambda (child)
      (and (edraw-dom-element-p child)
-          (edraw-svg-element-contains-point-p child xy)))
+          (edraw-svg-element-contains-point-p child xy
+                                              pick-radius stroke-forced)))
    (dom-children element)))
 
 
@@ -3631,7 +3649,9 @@ This function does not consider the effect of the transform attribute."
            (stroke-width (if (and stroke
                                   (not (equal stroke ""))
                                   (not (equal stroke "none")))
-                             (or (edraw-svg-attr-length element 'stroke-width) 1)
+                             (or (edraw-svg-attr-length-or-inherited
+                                  element 'stroke-width)
+                                 1)
                            0))
            (stroke-r (/ stroke-width (* 2 (sqrt 2))))
            (enlarged-rect (edraw-rect

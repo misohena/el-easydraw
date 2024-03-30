@@ -1763,17 +1763,28 @@ document size or view box."
     (edraw-shape-from-element element editor t)))
 
 (cl-defmethod edraw-find-shapes-by-xy ((shapes list) xy)
-  (seq-filter
-   (lambda (shape)
-     (edraw-svg-element-contains-point-p (edraw-element shape) xy))
-   shapes))
+  (when shapes
+    (let* ((editor (edraw-get-editor (car shapes)))
+           (pick-radius (edraw-find-shapes-by-xy--pick-radius editor)))
+      (seq-filter
+       (lambda (shape)
+         (edraw-svg-element-contains-point-p (edraw-element shape) xy
+                                             pick-radius t))
+       shapes))))
 
 (cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
-  (nreverse ;;front to back
-   (delq nil
-         (cl-loop for node in (dom-children (edraw-svg-body editor))
-                  when (edraw-svg-element-contains-point-p node xy)
-                  collect (edraw-shape-from-element node editor 'noerror)))))
+  (let ((pick-radius (edraw-find-shapes-by-xy--pick-radius editor)))
+    (nreverse ;;front to back
+     (delq nil
+           (cl-loop for node in (dom-children (edraw-svg-body editor))
+                    when (edraw-svg-element-contains-point-p node xy
+                                                             pick-radius t)
+                    collect (edraw-shape-from-element node editor 'noerror))))))
+
+(defconst edraw-find-shapes-by-xy--pick-radius 2)
+
+(cl-defmethod edraw-find-shapes-by-xy--pick-radius ((editor edraw-editor))
+  (/ edraw-find-shapes-by-xy--pick-radius (edraw-scroll-scale editor)))
 
 (cl-defmethod edraw-find-shape-by-xy-and-menu ((editor edraw-editor)
                                                       xy)
