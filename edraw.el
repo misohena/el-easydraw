@@ -463,6 +463,9 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     ;; Selected Object
     (define-key km "A" 'edraw-editor-toggle-selection-all)
     (define-key km "D" 'edraw-editor-duplicate-selected-shapes)
+    (define-key km "!v" 'edraw-editor-toggle-visibility-selected)
+    (define-key km "!p" 'edraw-editor-toggle-pickability-selected)
+    (define-key km "!!" 'edraw-editor-clear-temporary-states-selected)
     (define-key km [remap yank] 'edraw-editor-paste-and-select)
     (define-key km [remap kill-region] 'edraw-editor-cut-selected-shapes)
     (define-key km [remap kill-ring-save] 'edraw-editor-copy-selected-shapes)
@@ -1762,32 +1765,38 @@ document size or view box."
                             (concat "\\`" id "\\'")))))
     (edraw-shape-from-element element editor t)))
 
-(cl-defmethod edraw-find-shapes-by-xy ((shapes list) xy)
+(cl-defmethod edraw-find-shapes-by-xy ((shapes list) xy
+                                       &optional pick-forced)
   (when shapes
     (let* ((editor (edraw-get-editor (car shapes)))
            (pick-radius (edraw-find-shapes-by-xy--pick-radius editor)))
       (seq-filter
        (lambda (shape)
-         (edraw-svg-element-contains-point-p (edraw-element shape) xy
-                                             pick-radius t))
+         (when (or pick-forced (edraw-visible-and-pickable-p shape))
+           (edraw-svg-element-contains-point-p (edraw-element shape) xy
+                                               pick-radius t)))
        shapes))))
 
-(cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy)
-  (let ((pick-radius (edraw-find-shapes-by-xy--pick-radius editor)))
-    (nreverse ;;front to back
-     (delq nil
-           (cl-loop for node in (dom-children (edraw-svg-body editor))
-                    when (edraw-svg-element-contains-point-p node xy
-                                                             pick-radius t)
-                    collect (edraw-shape-from-element node editor 'noerror))))))
+(cl-defmethod edraw-find-shapes-by-xy ((editor edraw-editor) xy
+                                       &optional pick-forced)
+  (let ((pick-radius (edraw-find-shapes-by-xy--pick-radius editor))
+        result);;front to back
+    (dolist (node (dom-children (edraw-svg-body editor)))
+      (when (and (edraw-dom-element-p node)
+                 (or pick-forced
+                     (let ((shape (edraw-shape-from-element-no-create node)))
+                       (or (null shape)
+                           (edraw-visible-and-pickable-p shape))))
+                 (edraw-svg-element-contains-point-p node xy pick-radius t))
+        (push (edraw-shape-from-element node editor 'noerror) result)))
+    result))
 
 (defconst edraw-find-shapes-by-xy--pick-radius 2)
 
 (cl-defmethod edraw-find-shapes-by-xy--pick-radius ((editor edraw-editor))
   (/ edraw-find-shapes-by-xy--pick-radius (edraw-scroll-scale editor)))
 
-(cl-defmethod edraw-find-shape-by-xy-and-menu ((editor edraw-editor)
-                                                      xy)
+(cl-defmethod edraw-find-shape-by-xy-and-menu ((editor edraw-editor) xy)
   (let ((shapes (edraw-find-shapes-by-xy editor xy)))
     (if (cdr shapes)
         (edraw-popup-shape-selection-menu shapes)
@@ -1796,15 +1805,20 @@ document size or view box."
 (cl-defmethod edraw-find-shapes-by-rect ((shapes list) rect)
   (seq-filter
    (lambda (shape)
-     (edraw-svg-element-intersects-rect-p (edraw-element shape) rect))
+     (when (edraw-visible-and-pickable-p shape)
+       (edraw-svg-element-intersects-rect-p (edraw-element shape) rect)))
    shapes))
 
 (cl-defmethod edraw-find-shapes-by-rect ((editor edraw-editor) rect)
-  (nreverse ;;front to back
-   (delq nil
-         (cl-loop for node in (dom-children (edraw-svg-body editor))
-                  when (edraw-svg-element-intersects-rect-p node rect)
-                  collect (edraw-shape-from-element node editor 'noerror)))))
+  (let (result);;front to back
+    (dolist (node (dom-children (edraw-svg-body editor)))
+      (when (and (edraw-dom-element-p node)
+                 (let ((shape (edraw-shape-from-element-no-create node)))
+                   (or (null shape)
+                       (edraw-visible-and-pickable-p shape)))
+                 (edraw-svg-element-intersects-rect-p node rect))
+        (push (edraw-shape-from-element node editor 'noerror) result)))
+    result))
 
 
 ;;;;;; Editor - Document - Import
@@ -1980,14 +1994,22 @@ document size or view box."
     (edraw-call-hook editor 'before-image-update)
 
     (setq image
-          (apply #'edraw-svg-to-image
-                 svg
+          (apply #'create-image
+                 (edraw-svg-to-string svg
+                                      #'edraw-editor-svg-node-filter
+                                      nil)
+                 'svg t
                  `(;; Set Base URI (Default value is `buffer-file-name')
                    ,@(when image-base-uri
                        (list :base-uri image-base-uri))
                    ;; Cancel image-scale effect
                    :scale 1.0)))
     (overlay-put overlay 'display image)))
+
+(defun edraw-editor-svg-node-filter (dom)
+  (if-let ((shape (edraw-shape-from-element-no-create dom)))
+      (edraw-visible-p shape)
+    t))
 
 ;;;;;; Editor - View - SVG Structure
 
@@ -3287,6 +3309,21 @@ document size or view box."
 (edraw-editor-defcmd edraw-set-marker-end-next-selected ((editor edraw-editor))
   (edraw-set-marker-next-selected editor 'marker-end))
 
+;; Temporary State
+
+(edraw-editor-defcmd edraw-toggle-visibility-selected ((editor edraw-editor))
+  (edraw-toggle-visibility
+   (edraw-selected-multiple-shapes-or-shape editor)))
+
+(edraw-editor-defcmd edraw-toggle-pickability-selected ((editor edraw-editor))
+  (edraw-toggle-pickability
+   (edraw-selected-multiple-shapes-or-shape editor)))
+
+(edraw-editor-defcmd edraw-clear-temporary-states-selected ((editor
+                                                             edraw-editor))
+  (edraw-clear-temporary-states
+   (edraw-selected-multiple-shapes-or-shape editor)))
+
 
 ;;;;; Editor - Copy & Paste
 
@@ -3748,7 +3785,12 @@ position where the EVENT occurred."
         (when (fboundp method-name)
           (funcall method-name tool event))))))
 
+(cl-defmethod edraw-update-tool-last-prefix-arg ((editor edraw-editor))
+  (when-let ((tool (oref editor tool)))
+    (edraw-set-prefix-arg-last-down-mouse tool)))
+
 (cl-defmethod edraw-on-down-mouse-1 ((editor edraw-editor) down-event)
+  (edraw-update-tool-last-prefix-arg editor)
   (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((editor edraw-editor) down-event)
@@ -3773,6 +3815,10 @@ position where the EVENT occurred."
   (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-C-mouse-1 ((editor edraw-editor) down-event)
+  (edraw-call-tool-event-handler editor down-event))
+
+(cl-defmethod edraw-on-down-mouse-3 ((editor edraw-editor) down-event)
+  (edraw-update-tool-last-prefix-arg editor)
   (edraw-call-tool-event-handler editor down-event))
 
 (cl-defmethod edraw-on-mouse-3 ((editor edraw-editor) down-event)
@@ -4307,8 +4353,9 @@ position where the EVENT occurred."
       ;; Handled
       t)))
 
-(cl-defmethod edraw-context-menu-at-point ((editor edraw-editor) xy)
-  (if-let ((shapes (edraw-find-shapes-by-xy editor xy)))
+(cl-defmethod edraw-context-menu-at-point ((editor edraw-editor) xy
+                                           &optional pick-forced)
+  (if-let ((shapes (edraw-find-shapes-by-xy editor xy pick-forced)))
       (let ((selected-shapes (edraw-selected-shapes editor)))
         (if (and (cdr selected-shapes)
                  (edraw-selected-p (car shapes)))
@@ -4426,8 +4473,8 @@ position where the EVENT occurred."
        (child-of-class-p class 'edraw-editor-tool)))
 
 (defclass edraw-editor-tool ()
-  ((editor
-    :type (or null edraw-editor)))
+  ((editor :type (or null edraw-editor))
+   (prefix-arg-last-down-mouse :initform nil))
   :abstract t)
 
 (cl-defmethod edraw-tool-class ((tool edraw-editor-tool))
@@ -4438,6 +4485,9 @@ position where the EVENT occurred."
   (let ((name (symbol-name (eieio-object-class-name tool))))
     (when (string-match "\\`edraw-editor-tool-\\(.*\\)\\'" name)
       (intern (match-string 1 name)))))
+
+(cl-defmethod edraw-set-prefix-arg-last-down-mouse ((tool edraw-editor-tool))
+  (oset tool prefix-arg-last-down-mouse current-prefix-arg))
 
 (cl-defmethod edraw-shape-type-to-create ((_tool edraw-editor-tool))
   nil)
@@ -4455,26 +4505,30 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-S-mouse-1 ((_tool edraw-editor-tool) _click-event))
 (cl-defmethod edraw-on-double-mouse-1 ((_tool edraw-editor-tool) _click-event))
 
+(cl-defmethod edraw-on-down-mouse-3 ((_tool edraw-editor-tool) _down-event))
 (cl-defmethod edraw-on-mouse-3 ((tool edraw-editor-tool) click-event)
   (with-slots (editor) tool
-    (let ((click-xy (edraw-mouse-event-to-xy-raw editor click-event))) ;;Do not any rounding coordinates
+    (let ((pick-forced (oref tool prefix-arg-last-down-mouse)) ;; C-u => ignore temporary state
+          (click-xy (edraw-mouse-event-to-xy-raw editor click-event))) ;;Do not any rounding coordinates
 
       (cond
        ;; Handle
        ((when-let ((target-spoint (and (edraw-selected-anchor editor)
                                        (edraw-shape-point-find
                                         (edraw-selectable-handles editor)
-                                        click-xy))))
+                                        click-xy
+                                        pick-forced))))
           (edraw-popup-context-menu target-spoint))) ;; Return t if popuped
        ;; Anchor
        ((when-let ((target-spoint (seq-some
                                    (lambda (shp)
-                                     (edraw-pick-anchor-point shp click-xy))
+                                     (edraw-pick-anchor-point shp click-xy
+                                                              pick-forced))
                                    (edraw-selected-shapes editor))))
           (edraw-popup-context-menu target-spoint))) ;; Return t if popuped
        ;; Shape
        (t
-        (edraw-context-menu-at-point editor click-xy))))))
+        (edraw-context-menu-at-point editor click-xy pick-forced))))))
 
 (cl-defgeneric edraw-on-selected (target selector)
   "Called when TARGET is selected by SELECTOR.")
@@ -4721,8 +4775,7 @@ position where the EVENT occurred."
 ;;;;; Tool - Text Tool
 
 (defclass edraw-editor-tool-text (edraw-editor-tool)
-  ((prefix-arg-last-down-mouse :initform nil))
-  )
+  ())
 
 (cl-defmethod edraw-name ((_class (subclass edraw-editor-tool-text)))
   (edraw-msg "Text Tool"))
@@ -4747,9 +4800,6 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool-text))
   (message (edraw-msg "[Text Tool] Click:Add or Change, C-u Click:Add, C-Click:Glue")))
-
-(cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-text) _click-event)
-  (oset tool prefix-arg-last-down-mouse current-prefix-arg))
 
 (cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (or (and (not (oref tool prefix-arg-last-down-mouse))
@@ -5984,7 +6034,8 @@ Unlike `dom-node' etc., attributes are set by the
    (change-hook :initform (edraw-hook-make))
    (removed-p :initform nil)
    (point-connections :initform nil)
-   (point-connection-referrers :initform nil))
+   (point-connection-referrers :initform nil)
+   (temporary-state-alist :initform nil))
   :abstract t)
 
 (defun edraw-shape-derived-p (obj)
@@ -6462,10 +6513,12 @@ If you want to transform the anchor point coordinates, use
 
 ;;;;;; Search
 
-(cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy)
+(cl-defmethod edraw-pick-anchor-point ((shape edraw-shape) xy
+                                       &optional pick-forced)
   (edraw-shape-point-find
    (edraw-get-anchor-points shape)
-   xy))
+   xy
+   pick-forced))
 
 (cl-defmethod edraw-owned-shape-point-p ((shape edraw-shape) spt)
   (seq-some (lambda (anchor)
@@ -6610,6 +6663,60 @@ return it."
    (oref shape editor)
    shape))
 
+;;;;;; Temporary State
+
+(defconst edraw-shape-temporary-state-default-alist
+  '((visible . t)
+    (pickable . t)))
+
+(cl-defmethod edraw-clear-temporary-states ((shape edraw-shape))
+  (oset shape temporary-state-alist nil)
+  (edraw-invalidate-image (edraw-get-editor shape)))
+
+(cl-defmethod edraw-has-temporary-states-p ((shape edraw-shape))
+  ;; Find a property not equal to default value
+  (seq-some (lambda (state)
+              (let* ((state-name (car state))
+                     (value (cdr state))
+                     (default (alist-get
+                               state-name
+                               edraw-shape-temporary-state-default-alist)))
+                (not (equal value default))))
+            (oref shape temporary-state-alist)))
+
+(cl-defmethod edraw-get-temporary-state ((shape edraw-shape) state-name)
+  (cdr (or (assq state-name (oref shape temporary-state-alist))
+           (assq state-name edraw-shape-temporary-state-default-alist))))
+
+(cl-defmethod edraw-set-temporary-state ((shape edraw-shape)
+                                         state-name value)
+  (when (and state-name (symbolp state-name))
+    (setf (alist-get state-name (oref shape temporary-state-alist))
+          value)
+    (edraw-invalidate-image (edraw-get-editor shape))))
+
+(cl-defmethod edraw-visible-and-pickable-p ((shape edraw-shape))
+  (and (edraw-visible-p shape)
+       (edraw-pickable-p shape)))
+
+(cl-defmethod edraw-visible-p ((shape edraw-shape))
+  (edraw-get-temporary-state shape 'visible))
+
+(cl-defmethod edraw-pickable-p ((shape edraw-shape))
+  (edraw-get-temporary-state shape 'pickable))
+
+(cl-defmethod edraw-set-visible ((shape edraw-shape) value)
+  (edraw-set-temporary-state shape 'visible value))
+
+(cl-defmethod edraw-set-pickable ((shape edraw-shape) value)
+  (edraw-set-temporary-state shape 'pickable value))
+
+(cl-defmethod edraw-toggle-visibility ((shape edraw-shape))
+  (edraw-set-visible shape (not (edraw-pickable-p shape))))
+
+(cl-defmethod edraw-toggle-pickability ((shape edraw-shape))
+  (edraw-set-pickable shape (not (edraw-pickable-p shape))))
+
 ;;;;;; Interactive Command
 
 (cl-defmethod edraw-select ((shape edraw-shape))
@@ -6753,6 +6860,16 @@ match all selected shapes in the editor."
       :visible ,(if (edraw-shape-derived-p shape)
                     (edraw-selected-p shape)
                   (edraw-multiple-shapes-p shape)))
+     ((edraw-msg "Temporary State")
+      (((edraw-msg "Invisible") edraw-toggle-visibility
+        :cmd-for-selected edraw-editor-toggle-visibility-selected
+        :button (:toggle . ,(not (edraw-visible-p shape))))
+       ((edraw-msg "Pointer Input Disabled") edraw-toggle-pickability
+        :cmd-for-selected edraw-editor-toggle-pickability-selected
+        :button (:toggle . ,(not (edraw-pickable-p shape))))
+       ((edraw-msg "Clear All States") edraw-clear-temporary-states
+        :cmd-for-selected edraw-editor-clear-temporary-states-selected
+        :enable ,(edraw-has-temporary-states-p shape))))
      ((edraw-msg "Properties...") edraw-edit-properties
       :cmd-for-selected edraw-editor-edit-properties-of-selected-shapes)
      ((edraw-msg "Set")
@@ -8278,8 +8395,8 @@ which is a list of `edraw-svg-prop-info' objects."
 
 ;;;;; Shape Point - Point Set
 
-(defun edraw-shape-point-find (point-list xy)
-  (seq-find (lambda (spt) (edraw-hit-input-p spt xy))
+(defun edraw-shape-point-find (point-list xy &optional pick-forced)
+  (seq-find (lambda (spt) (edraw-hit-input-p spt xy pick-forced))
             point-list))
 
 ;;;;; Shape Point - Base Class
@@ -8352,20 +8469,26 @@ Adding two vectors to SPT leads to the opposite point."
 (cl-defmethod edraw-handle-p ((spt edraw-shape-point))
   (eq (edraw-get-point-type spt) 'handle))
 
-(cl-defmethod edraw-hit-input-p ((spt edraw-shape-point) xy)
+(cl-defmethod edraw-hit-input-p ((spt edraw-shape-point) xy
+                                 &optional pick-forced)
   "Returns non-nil, if the point SPT hits the pointer input(e.g. click) point XY."
+  (let* ((shape (edraw-parent-shape spt))
+         (editor (and shape (oref shape editor))))
+    (when (or pick-forced
+              (null shape)
+              (edraw-visible-and-pickable-p shape))
+      (let ((scale (if editor
+                       (float (edraw-scroll-scale editor))
+                     1.0))) ;;@todo Should I add the argument SCALE?
 
-  (let ((scale (if-let* ((shape (edraw-parent-shape spt))
-                         (editor (oref shape editor)))
-                   (float (edraw-scroll-scale editor))
-                 1.0))) ;;@todo Should I add the argument SCALE?
-
-    (pcase (edraw-get-point-type spt)
-      ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy-transformed spt) xy) ;;square
-                   (/ edraw-anchor-point-input-radius scale)))
-      ('handle (<= (edraw-xy-distance-squared (edraw-get-xy-transformed spt) xy) ;;circle
-                   (let ((r (/ edraw-handle-point-input-radius scale)))
-                     (* r r)))))))
+        (pcase (edraw-get-point-type spt)
+          ('anchor (<= (edraw-xy-distance-l-inf (edraw-get-xy-transformed spt)
+                                                xy) ;;square
+                       (/ edraw-anchor-point-input-radius scale)))
+          ('handle (<= (edraw-xy-distance-squared (edraw-get-xy-transformed spt)
+                                                  xy) ;;circle
+                       (let ((r (/ edraw-handle-point-input-radius scale)))
+                         (* r r)))))))))
 
 (cl-defmethod edraw-get-xy-transformed ((spt edraw-shape-point))
   (when-let ((shape (edraw-parent-shape spt)))
@@ -9498,6 +9621,31 @@ possible. Because undoing invalidates all point objects."
 
 ;;(cl-defmethod edraw-property-editor-shape-p (_obj) nil)
 ;;(cl-defmethod edraw-set-all-properties-as-default ((obj edraw-multiple-shapes)))
+
+;;;;; Multiple Shapes - Temporary State
+
+(cl-defmethod edraw-clear-temporary-states ((obj edraw-multiple-shapes))
+  (dolist (shape (oref obj shapes))
+    (edraw-clear-temporary-states shape)))
+
+(cl-defmethod edraw-has-temporary-states-p ((obj edraw-multiple-shapes))
+  (seq-some #'edraw-has-temporary-states-p (oref obj shapes)))
+
+(cl-defmethod edraw-visible-p ((obj edraw-multiple-shapes))
+  (seq-some #'edraw-visible-p (oref obj shapes)))
+
+(cl-defmethod edraw-pickable-p ((obj edraw-multiple-shapes))
+  (seq-some #'edraw-pickable-p (oref obj shapes)))
+
+(cl-defmethod edraw-toggle-visibility ((obj edraw-multiple-shapes))
+  (let ((new-value (not (edraw-visible-p obj))))
+    (dolist (shape (oref obj shapes))
+      (edraw-set-visible shape new-value))))
+
+(cl-defmethod edraw-toggle-pickability ((obj edraw-multiple-shapes))
+  (let ((new-value (not (edraw-pickable-p obj))))
+    (dolist (shape (oref obj shapes))
+      (edraw-set-pickable shape new-value))))
 
 ;;;;; Multiple Shapes - AABB
 

@@ -153,17 +153,18 @@ Most of the key bindings are displayed in menus and help echoes.
 
 The key bindings that are not displayed are as follows.
 
-| left, up, right, down                                                          | Move selected objects (S-<dir>:10px, C-u <dir>:Numerical input)                   |
-| M-left, M-up, M-right, M-down                                                  | Duplicate selected objects and move (M-S-<dir>:10px, C-u M-<dir>:Numerical input)  |
-| Right-click on shapes, anchor points, background, shape picker, or edraw links | Show context menu                                                                 |
-| (Select Tool) C-down-mouse-1                                                   | Add/Remove clicked shape to selection list                                        |
-| (Select Tool) M-drag-mouse-1                                                   | Duplicate dragged shape                                                           |
-| (Path Tool) C-u down-mouse-1                                                   | Ignore existing points (Avoid connecting or moving existing points)               |
-| S-drag-mouse-1                                                                 | 45 degree unit movement or square specification                                   |
-| Middle-drag                                                                    | Scroll                                                                            |
-| C-wheel-up, C-wheel-down                                                       | Zoom                                                                              |
-| (In Property Editor) Middle-click                                              | Close window                                                                      |
-| (In Shape Picker) Middle-click                                                 | Close window                                                                      |
+| left, up, right, down                                                      | Move selected objects (S-<dir>:10px, C-u <dir>:Numerical input)                   |
+| M-left, M-up, M-right, M-down                                              | Duplicate selected objects and move (M-S-<dir>:10px, C-u M-<dir>:Numerical input) |
+| mouse-3 on shapes, anchor points, background, shape picker, or edraw links | Show context menu                                                                 |
+| C-u mouse-3                                                                | Show context menu (Ignore invisible/unpickable states)                            |
+| (Select Tool) C-down-mouse-1                                               | Add/Remove clicked shape to selection list                                        |
+| (Select Tool) M-drag-mouse-1                                               | Duplicate dragged shape                                                           |
+| (Path Tool) C-u down-mouse-1                                               | Ignore existing points (Avoid connecting or moving existing points)               |
+| S-drag-mouse-1                                                             | 45 degree unit movement or square specification                                   |
+| Middle-drag                                                                | Scroll                                                                            |
+| C-wheel-up, C-wheel-down                                                   | Zoom                                                                              |
+| (In Property Editor) Middle-click                                          | Close window                                                                      |
+| (In Shape Picker) Middle-click                                             | Close window                                                                      |
 
 * Emacs Lisp
 

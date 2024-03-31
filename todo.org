@@ -1,6 +1,23 @@
 
 
 * Inbox
+** TODO 全一時状態をクリアするコマンドを追加する？
+A!!(全選択→選択全一時状態をクリア)で可能だけど、メインメニューやドキュメントメニューからたどれた方が良い？
+d!vやd!pを追加するかは迷うけど、d!!だけは欲しいかもしれない。
+ドキュメントメニュー([[elisp-function:edraw-menu-document]])に入れるかドキュメントクイックメニュー([[elisp-function:edraw-menu-document-quick]])に入れるかは迷う。
+
+** TODO プロパティエディタにコンテキストメニューを表示するボタンを追加する
+表示中の対象に対するアクションを実行できるようにする
+
+** TODO コンテキストメニューを整備する
+m、<apps>、<menu>、S-<f10>で現在選択中のものに対するコンテキストメニューを出す。
+(mは現在はメインメニューのみ)
+
+tmm-promptを使うか迷う。
+[[https://misohena.jp/blog/2024-02-17-open-context-menu-by-key-on-emacs.html][Emacsのコンテキストメニューをキーから開く | Misohena Blog]]
+
+とりあえずマウスとの組み合わせで使うことが多いので普通のメニューを表示させたい。オプションでtmm-promptにできても良いけど。
+
 ** TODO ORG/容量の大きいデータリンクが正しくインライン表示されないことがある
 edraw-org-link-image-modeでインライン画像表示しているときの話。
 LaTeXで数式を沢山入れると簡単に数万文字程度になってしまうが、そうすると編集直後やファイルを開いた直後などに文字列のままになってしまうことがある。リンクのfont-lockが中途半端な状態になっていることもある。
@@ -38,10 +55,6 @@ latexの場合はtransformで十分だが、グリッドの場合はtransformで
 ** TODO 図形生成/使用できない生成器を無効化する
 無効化できなくても、latexやdvisvgmが入っていない場合は、その旨をユーザーに伝える必要がある。
 
-** TODO 任意の要素を一時的に非表示にしたい
-** TODO 任意の要素をマウス入力禁止にしたい
-編集中に一時的にマウス入力を透過するようにしたい。
-もちろんリセットできる。
 ** TODO 矢印キーで1ピクセル未満の移動が出来るようにしたい
 設定で矢印キーの移動量を一時的に変更したい
 アイコンを書くときに困った。
@@ -4346,3 +4359,74 @@ CLOSED: [2024-03-30 Sat 13:47]
 C-c C-cで更新できると良いのだけど。
 [[elisp-function:edraw-apply-properties;method-args=(nil edraw-property-editor)]]から[[elisp-function:edraw-update-from-property-editor]]を呼び出すようにしてみた。
 セキュリティの問題があるので、(他も含めて)yes/no確認を出すようにした。
+** DONE 任意の要素を一時的に非表示にしたり、マウス入力禁止にしたい
+CLOSED: [2024-03-31 Sun 12:06]
+編集中に指定したshapeを非表示にしたりマウス入力を透過するようにしたい。
+もちろんリセットできる。
+
+- 情報はeditorかshapeかどちらが持つべきか。
+  - ★shapeに一時プロパティ(属性)を持たせる？
+  - editorにweak参照なhashでも持たせる？
+  基本的にはeditorとshapeとの間の関連だと思われるが、shapeに持たせるのが自然だと思う。後述のedraw-svg-printからどのように参照するかが気になったが、解決方法はある。
+- 「マウス入力不反応」は英語でどう書くべきか。
+  - visibility visible invisible hidden shown
+  - pointability pointable いや、指すこと自体は出来るんだよ(反応しないけど)
+  - selectable いや、選択は出来るんだよ(キー入力で)
+  - pointer-selectable
+  - pickable
+  - pickability ([[https://docs.unity.cn/ja/2022.2/Manual/ScenePicking.html][Pick and select GameObjects - Unity マニュアル]])
+  実はかなり昔から悩んでいる頭の痛い問題。
+  意味合い的にはpickabilityがいちばんしっくりくる。edraw内部でもマウスが指しているオブジェクトを特定する操作に対してpickという単語を使っている。
+- 一時的な非表示はどうやって実現するべきか。
+  - opacity、styleなどの一時的な書き替え
+  - 一時的にツリーから取り外す(絶対やりたくない)
+  - スタイルシートを使う
+    属性レクター
+    - data-edraw-temporary-invisible
+    - data-edraw-id
+  - ★edraw-svg-print時に出力しない
+    (良さそうな方法だが、edraw-svg-printは要素からどうやって出力可否を判定するか。属性、専用のテーブル、それとも要素からshapeを取得？)
+- 状態は保存されるべきか。
+  さしあたっては不要。
+  将来的に次のような恒久的なプロパティを作るべきか？
+  - 可視状態 (要素を残したまま不可視にしたいなら属性やスタイルで指定すべき。編集中のみロードした直後から必ず非表示にしたいようなことがあるだろうか。まぁ、あり得なくは無いけど)
+  - ポインター操作可能状態 (ロードした直後から操作できない状態であってほしいことがあるだろうか。まあ、相当するのはpointer-eventsではあるけど、それとは別にあっても良い)
+- 右クリックも不可にする？
+  とりあえずはマウス入力は全て不可にする。将来的にはpickabilityに何か違う値を入れるかも？
+  いや、C-u 右クリックで強制的にピックアップ出来るようにする。
+
+#+CAPTION: こんな感じで色々重なったものを編集できるようにしたい
+[[edraw:data=H4sIAB+6CGYAA51U23KjMAz9FY/7moIvYEwn5IXn/sC+0XCdsJABWujfr2RBk/QybXcYOOhi6ciyvB9fKrb8bbsx4fU0nR98f55nb9ZeP1S+EkL44MHJ5WFpm+70maOM49h3Vs7mJp/qhAdCcFYXTVVPCVcGhJdiGJu+S7j0JD/sh+I4sSXhYHl13y8XNnnCi3zI5vun7Hiqhv65yzkbp6E/FQnv+q7grGzaNuF3ZVly5h/21fWiPn/d8m1uFp9LjDsp8NkU9ysVdUVEXRhqQ5xRtRBAyqJtm/NYbCmyPNdl9JMUA4SKwTAshEeQpcYfDC4p+jmbagYlPQZiZ0UK31B6kQwjZaNQhdpKJpXYBcKBESmCBUk4sGIHfykBg9UyIBtgKs0qgxla7iIApobE4A3AETODnV3Aij/b9lMrvqlYytuCZEDcEKMPNVlXE+THmhTVpIk3U4YooRocnZfjb0nv6gKSMrhC8Uu66patoj1KlQk9G0bWBDoyysQiBArvVUwRE2IMjLRa5XXHNTEjvaCKsBDrysVV6OTa4XyhWbgUI6y90tQd5+tkREUh1P/V+u4g/3xW8CDr9SDrrw6yG8P+nB2bCcfeC95mFzZC4PjeDvbNTXB9RdClQRcIxPUreOGuOvwDDQdtFNMEAAA=]]
+
+edraw-shapeに追加すべき状態:
+- 一時状態 (temporary-state-alist, +editing-properties?+)
+  - 可視状態 visible : nil | t
+  - ポインター操作可能状態 pickable: nil | t
+- メソッド:
+  - (edraw-clear-temporary-states shape | multiple-shapes)
+  - (edraw-has-temporary-states-p shape | multiple-shapes)
+  - (edraw-get-temporary-state shape prop-name)
+  - (edraw-set-temporary-state shape prop-name)
+  - (edraw-set-visible shape)
+  - (edraw-set-pickable shape)
+  - (edraw-visible-and-pickable-p shape)
+  - (edraw-visible-p shape | multiple-shapes)
+  - (edraw-pickable-p shape | multiple-shapes)
+  - (edraw-toggle-visibility shape | multiple-shapes)
+  - (edraw-toggle-pickability shape | multiple-shapes)
+- メニューに「一時状態」→「非表示」「ポインター入力無効」のチェック項目を追加する。Unpickableは日本語にしづらい。普通に翻訳すると選択不可になる。
+
+editorの修正点:
+- マウスイベントから形状・点を探す部分は全て形状のedraw-visible-and-pickable-pを確認し、nilならスルーする。
+  - (edraw-find-shapes-by-xy shapes xy)
+  - (edraw-find-shapes-by-xy editor xy)
+  - (edraw-find-shapes-by-rect shapes rect)
+  - (edraw-find-shapes-by-rect editor rect)
+  - (edraw-hit-input-p spt xy)
+- edraw-update-imageで要素フィルターを指定する。そのフィルターは、elementから内部属性を通じて内部属性であるedraw-shape-from-element-no-createを使ってshapeオブジェクトを取得し、visibilityを確認し、非表示なら要素の出力を抑止する。
+- 選択図形に対する「一時的に非表示」「一時的にマウス入力不可」操作を追加する。メニューにはチェック項目を追加し、toggleするコマンドを追加し、キーを割り当てる。全選択時は一つでも非表示・入力不可があればチェックし、toggleで解除する。
+- 「図形の一時的な状態を全てクリア」を追加しても良い。
+- メソッド:
+  - edraw[-editor]-toggle-visibility-selected
+  - edraw[-editor]-toggle-pickability-selected
+  - edraw[-editor]-clear-temporary-states-selected
