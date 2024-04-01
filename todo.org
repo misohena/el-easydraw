@@ -1,11 +1,6 @@
 
 
 * Inbox
-** TODO 全一時状態をクリアするコマンドを追加する？
-A!!(全選択→選択全一時状態をクリア)で可能だけど、メインメニューやドキュメントメニューからたどれた方が良い？
-d!vやd!pを追加するかは迷うけど、d!!だけは欲しいかもしれない。
-ドキュメントメニュー([[elisp-function:edraw-menu-document]])に入れるかドキュメントクイックメニュー([[elisp-function:edraw-menu-document-quick]])に入れるかは迷う。
-
 ** TODO プロパティエディタにコンテキストメニューを表示するボタンを追加する
 表示中の対象に対するアクションを実行できるようにする
 
@@ -4430,3 +4425,10 @@ editorの修正点:
   - edraw[-editor]-toggle-visibility-selected
   - edraw[-editor]-toggle-pickability-selected
   - edraw[-editor]-clear-temporary-states-selected
+** DONE 全一時状態をクリアするコマンドを追加する
+CLOSED: [2024-04-01 Mon 11:17]
+A!!(全選択→選択全一時状態をクリア)で可能だけど、メインメニューやドキュメントメニューからたどれた方が良い？
+d!vやd!pを追加するかは迷うけど、d!!だけは欲しいかもしれない。
+ドキュメントメニュー([[elisp-function:edraw-menu-document]])に入れるかドキュメントクイックメニュー([[elisp-function:edraw-menu-document-quick]])に入れるかは迷う。
+
+document-quickに"Clear Temporary States"を追加した。キーはd!!

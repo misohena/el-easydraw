@@ -62,6 +62,7 @@
      "Choose" "選択"
      "Circle" "円"
      "Clear All States" "全状態をクリア"
+     "Clear Temporary States" "一時状態をクリア"
      "Clear..." "クリア..."
      "Close Path" "パスを閉じる"
      "Close" "閉じる"

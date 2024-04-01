@@ -451,6 +451,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "def" 'edraw-editor-export-to-file)
     (define-key km "dif" 'edraw-editor-import-from-file)
     (define-key km "ded" 'edraw-editor-export-debug-svg-to-buffer)
+    (define-key km "d!!" 'edraw-editor-clear-temporary-states-all-shapes)
     (define-key km "z" 'edraw-editor-undo)
     (define-key km "Z" 'edraw-editor-redo)
     (define-key km "+" 'edraw-editor-zoom-in)
@@ -1942,6 +1943,8 @@ document size or view box."
         ((edraw-msg "Deselect All") edraw-editor-toggle-selection-all
          :visible ,(not (null (edraw-selected-shapes editor)))
          :enable ,(not (null (edraw-selected-shapes editor))))
+        ((edraw-msg "Clear Temporary States")
+         edraw-editor-clear-temporary-states-all-shapes)
         ((edraw-msg "Undo") edraw-editor-undo
          :enable ,(not (edraw-empty-undo-p editor)))
         ((edraw-msg "Redo") edraw-editor-redo
@@ -3323,6 +3326,11 @@ document size or view box."
                                                              edraw-editor))
   (edraw-clear-temporary-states
    (edraw-selected-multiple-shapes-or-shape editor)))
+
+(edraw-editor-defcmd edraw-clear-temporary-states-all-shapes ((editor
+                                                               edraw-editor))
+  (dolist (shape (edraw-all-shapes editor))
+    (edraw-clear-temporary-states shape)))
 
 
 ;;;;; Editor - Copy & Paste
