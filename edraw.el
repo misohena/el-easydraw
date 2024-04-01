@@ -470,13 +470,17 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km [remap yank] 'edraw-editor-paste-and-select)
     (define-key km [remap kill-region] 'edraw-editor-cut-selected-shapes)
     (define-key km [remap kill-ring-save] 'edraw-editor-copy-selected-shapes)
+    ;; It's too complicated to remember, so use C-y, C-w, M-w
     ;; (define-key km (kbd "C-c C-x C-y") 'edraw-editor-paste-and-select)
     ;; (define-key km (kbd "C-c C-x C-w") 'edraw-editor-cut-selected-shapes)
     ;; (define-key km (kbd "C-c C-x M-w") 'edraw-editor-copy-selected-shapes)
-    ;; (define-key km "Tt" 'edraw-editor-translate-selected)
-    ;; (define-key km "Ts" 'edraw-editor-scale-selected)
-    ;; (define-key km "Tr" 'edraw-editor-rotate-selected)
-    (define-key km "T" 'edraw-editor-transform-selected-interactive)
+    (define-key km "Tt" 'edraw-editor-translate-selected)
+    (define-key km "Ts" 'edraw-editor-scale-selected)
+    (define-key km "Tr" 'edraw-editor-rotate-selected)
+    (define-key km "Ti" 'edraw-editor-transform-selected-interactive)
+    ;; -transform-selected-interactive cannot move only the selected point.
+    ;; Tt, Ts, Tr can only move a selected anchor/handle point.
+    ;; (define-key km "T" 'edraw-editor-transform-selected-interactive)
     (define-key km (kbd "C-t") 'edraw-editor-transform-selected-interactive)
     (define-key km "g" 'edraw-editor-group-selected-shapes)
     (define-key km "G" 'edraw-editor-ungroup-selected-shapes)
