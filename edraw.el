@@ -5817,8 +5817,35 @@ position where the EVENT occurred."
 (cl-defmethod edraw-edit-stroke ((holder edraw-properties-holder))
   (edraw-edit-property-paint holder 'stroke))
 
+(cl-defmethod edraw-set-marker-start-none ((holder edraw-properties-holder))
+  (edraw-set-marker holder 'marker-start nil))
+(cl-defmethod edraw-set-marker-start-arrow ((holder edraw-properties-holder))
+  (edraw-set-marker holder 'marker-start "arrow"))
+(cl-defmethod edraw-set-marker-start-circle ((holder edraw-properties-holder))
+  (edraw-set-marker holder 'marker-start "circle"))
+(cl-defmethod edraw-set-marker-end-none ((holder edraw-properties-holder))
+  (edraw-set-marker holder 'marker-end nil))
+(cl-defmethod edraw-set-marker-end-arrow ((holder edraw-properties-holder))
+  (edraw-set-marker holder 'marker-end "arrow"))
+(cl-defmethod edraw-set-marker-end-circle ((holder edraw-properties-holder))
+  (edraw-set-marker holder 'marker-end "circle"))
+(cl-defmethod edraw-set-marker ((holder edraw-properties-holder) prop-name marker-type)
+  (edraw-set-property
+   holder prop-name
+   (edraw-get-default-marker-properties (edraw-get-editor holder) marker-type)))
+
+(cl-defmethod edraw-set-marker-next ((holder edraw-properties-holder) prop-name)
+  (edraw-set-property holder prop-name
+                      (edraw-svg-marker-type-next
+                       (edraw-svg-marker-type
+                        (edraw-get-property holder prop-name)))))
+(cl-defmethod edraw-set-marker-start-next ((holder edraw-properties-holder))
+  (edraw-set-marker-next holder 'marker-start))
+(cl-defmethod edraw-set-marker-end-next ((holder edraw-properties-holder))
+  (edraw-set-marker-next holder 'marker-end))
+
 (cl-defmethod edraw-has-property-p ((holder edraw-properties-holder) prop-name)
-  "Return t if SHAPE holds the value of the property named PROP-NAME.
+  "Return t if HOLDER holds the value of the property named PROP-NAME.
 
 Return nil if no value is specified."
   (not (null (edraw-get-property holder prop-name))))
@@ -6774,7 +6801,7 @@ return it."
   (when-let ((sibling (edraw-previous-sibling shape)))
     (edraw-select sibling)))
 
-(cl-defmethod edraw-only-one-selected-p ((shape edraw-shape))
+(cl-defmethod edraw-matches-selected-p ((shape edraw-shape))
   "If SHAPE is selected and no other shapes are selected, return t."
   (with-slots (editor) shape
     (let ((selected-shapes (edraw-selected-shapes editor)))
@@ -6830,8 +6857,9 @@ return it."
   (when-let ((editor (edraw-get-editor shape)))
     (edraw-filter-menu-items editor (list menu-type :target shape) items)))
 
-(cl-defmethod edraw-get-actions--keys ((shape edraw-shape) command)
-  (when (edraw-only-one-selected-p shape)
+(cl-defmethod edraw-get-actions--keys (obj command)
+  (when (or (null obj)
+            (edraw-matches-selected-p obj))
     (when-let ((binding (edraw-where-is-string command nil t)))
       (list :keys binding))))
 
@@ -6843,34 +6871,44 @@ Alternative to `ignore'."
 (defun edraw-menu-items-shape-common--convert (menu-items shape)
   "Convert the menu item list used in `edraw-menu-items-shape-common' to
  that used in `edraw-popup-menu'."
-  (cl-loop for item in menu-items
-           for name = (car item)
-           for binding = (or (cadr item) 'edraw-menu-items-shape-common--dummy)
-           for props = (cddr item)
-           for cmd-for-selected = (or (plist-get props :cmd-for-selected)
-                                      'edraw-menu-items-shape-common--dummy)
-           ;; Convert submenu recursively
-           if (consp binding)
-           collect (nconc (list name (edraw-menu-items-shape-common--convert
-                                      binding shape))
-                          props)
-           else if (edraw-multiple-shapes-p shape)
-           ;; For selected shapes
-           collect (nconc
-                    ;; Use command for selected shapes
-                    (list name cmd-for-selected)
-                    props)
-           ;; For a single specified shape
-           else if (and
-                    ;; Remove invalid function
-                    binding
-                    (not (eq binding
-                             'edraw-menu-items-shape-common--dummy)))
-           collect (nconc
-                    (list name binding)
-                    ;; Show key binding if SHAPE is the only selected shape.
-                    (edraw-get-actions--keys shape cmd-for-selected)
-                    props)))
+  (let ((multiple-p (edraw-multiple-shapes-p shape))
+        (selected-p (edraw-matches-selected-p shape)) ;;exactly match
+        result)
+    (dolist (item menu-items)
+      (let* ((name (car item))
+             (binding (or (cadr item) 'edraw-menu-items-shape-common--dummy))
+             (props (cddr item))
+             (cmd-for-selected (or (plist-get props :cmd-for-selected)
+                                   'edraw-menu-items-shape-common--dummy)))
+        (cond
+         ;; Convert submenu recursively
+         ((consp binding)
+          (push (nconc (list name (edraw-menu-items-shape-common--convert
+                                   binding shape))
+                       props)
+                result))
+         ;; For selected multiple shapes
+         ((and multiple-p selected-p)
+          (push (nconc
+                 ;; Use command for selected shapes
+                 (list name cmd-for-selected)
+                 props)
+                result))
+         ;; For multiple shapes including unselected
+         ;; For a single specified shape
+         ((and
+           ;; Remove invalid function
+           binding
+           (not (eq binding
+                    'edraw-menu-items-shape-common--dummy)))
+          (push (nconc
+                 (list name binding)
+                 ;; Show key binding if SHAPE is the only selected shape.
+                 (when selected-p
+                   (edraw-get-actions--keys nil cmd-for-selected))
+                 props)
+                result)))))
+    (nreverse result)))
 
 (cl-defmethod edraw-menu-items-shape-common ((shape edraw-properties-holder))
   "Return a list of common menu items for `edraw-shape' or
@@ -7002,9 +7040,9 @@ match all selected shapes in the editor."
       :cmd-for-selected edraw-editor-copy-selected-shapes)
      ((edraw-msg "Cut") edraw-cut
       :cmd-for-selected edraw-editor-cut-selected-shapes)
-     ((edraw-msg "Group") nil
+     ((edraw-msg "Group") edraw-group
       :cmd-for-selected edraw-editor-group-selected-shapes)
-     ((edraw-msg "Ungroup") nil
+     ((edraw-msg "Ungroup") edraw-ungroup
       :cmd-for-selected edraw-editor-ungroup-selected-shapes
       :enable ,(and (edraw-multiple-shapes-p shape)
                     (edraw-group-p shape)))
@@ -7726,32 +7764,6 @@ may be replaced by another mechanism."
        ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
        ((edraw-msg "Make Smooth") edraw-make-smooth)))))
 
-(cl-defmethod edraw-set-marker-start-none ((shape edraw-shape-path))
-  (edraw-set-marker shape 'marker-start nil))
-(cl-defmethod edraw-set-marker-start-arrow ((shape edraw-shape-path))
-  (edraw-set-marker shape 'marker-start "arrow"))
-(cl-defmethod edraw-set-marker-start-circle ((shape edraw-shape-path))
-  (edraw-set-marker shape 'marker-start "circle"))
-(cl-defmethod edraw-set-marker-end-none ((shape edraw-shape-path))
-  (edraw-set-marker shape 'marker-end nil))
-(cl-defmethod edraw-set-marker-end-arrow ((shape edraw-shape-path))
-  (edraw-set-marker shape 'marker-end "arrow"))
-(cl-defmethod edraw-set-marker-end-circle ((shape edraw-shape-path))
-  (edraw-set-marker shape 'marker-end "circle"))
-(cl-defmethod edraw-set-marker ((shape edraw-shape-path) prop-name marker-type)
-  (edraw-set-property
-   shape prop-name
-   (edraw-get-default-marker-properties (edraw-get-editor shape) marker-type)))
-
-(cl-defmethod edraw-set-marker-next ((shape edraw-shape-path) prop-name)
-  (edraw-set-property shape prop-name
-                      (edraw-svg-marker-type-next
-                       (edraw-svg-marker-type
-                        (edraw-get-property shape prop-name)))))
-(cl-defmethod edraw-set-marker-start-next ((shape edraw-shape-path))
-  (edraw-set-marker-next shape 'marker-start))
-(cl-defmethod edraw-set-marker-end-next ((shape edraw-shape-path))
-  (edraw-set-marker-next shape 'marker-end))
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
   (cond
@@ -9658,6 +9670,36 @@ possible. Because undoing invalidates all point objects."
 ;;(cl-defmethod edraw-property-editor-shape-p (_obj) nil)
 ;;(cl-defmethod edraw-set-all-properties-as-default ((obj edraw-multiple-shapes)))
 
+;;;;; Multiple Shapes - Selection
+
+(cl-defmethod edraw-selected-all-p ((obj edraw-multiple-shapes))
+  "Return non-nil if all the shapes contained in OBJ are selected."
+  (seq-every-p #'edraw-selected-p (oref obj shapes)))
+
+(cl-defmethod edraw-contains-selected-p ((obj edraw-multiple-shapes))
+  "Return non-nil if OBJ contains one or more selected entities."
+  (seq-some #'edraw-selected-p (oref obj shapes)))
+
+(cl-defmethod edraw-matches-selected-p ((obj edraw-multiple-shapes))
+  "Return non-nil if the shapes contained in OBJ exactly match
+ the set of shapes currently selected by the editor."
+  (seq-set-equal-p
+   (oref obj shapes)
+   (edraw-selected-shapes (oref obj editor))
+   #'eq))
+
+(cl-defmethod edraw-select ((obj edraw-multiple-shapes))
+  "Select only the shapes contained in OBJ.
+
+Deselect all shapes, then select the shapes contained in OBJ."
+  (edraw-select-shapes (oref obj editor) (oref obj shapes)))
+
+(cl-defmethod edraw-deselect ((obj edraw-multiple-shapes))
+  "Remove shapes contained in OBJ from the selected shapes."
+  (let ((editor (oref obj editor)))
+    (dolist (shape (oref obj shapes))
+      (edraw-remove-shape-selection editor shape))))
+
 ;;;;; Multiple Shapes - Temporary State
 
 (cl-defmethod edraw-clear-temporary-states ((obj edraw-multiple-shapes))
@@ -9688,12 +9730,52 @@ possible. Because undoing invalidates all point objects."
 (cl-defmethod edraw-shape-aabb ((obj edraw-multiple-shapes))
   (edraw-shape-aabb (oref obj shapes)))
 
+;;;;; Multiple Shapes - Menu
+
+(cl-defmethod edraw-popup-context-menu ((obj edraw-multiple-shapes))
+  (let ((edraw-current-editor (oref obj editor)))
+    (edraw-popup-menu nil (edraw-menu-shape obj) obj)))
+
+(cl-defmethod edraw-menu-shape ((obj edraw-multiple-shapes))
+  `(,(edraw-name obj) ;;(edraw-get-summary obj)
+    ,(edraw-filter-menu-items
+      obj 'multiple-shapes
+      (edraw-get-actions obj))))
+
+(cl-defmethod edraw-get-actions ((obj edraw-multiple-shapes))
+  (edraw-menu-items-shape-common obj))
+
+(cl-defmethod edraw-filter-menu-items ((obj edraw-multiple-shapes) menu-type items)
+  (when-let ((editor (edraw-get-editor obj)))
+    (edraw-filter-menu-items editor (list menu-type :target obj) items)))
+
+(cl-defmethod edraw-property-editor-actions ((obj edraw-multiple-shapes))
+  `((push-button :notify ,(lambda (&rest _)
+                            (edraw-popup-context-menu obj))
+                 ,(edraw-msg "Actions"))))
+
+
 ;;;;; Multiple Shapes - Transform
 
-(cl-defmethod edraw-translate ((obj edraw-multiple-shapes) xy)
+(cl-defmethod edraw-translate ((obj edraw-multiple-shapes) &optional xy)
+  (edraw-set-translate-params)
   (edraw-make-undo-group (oref obj editor) 'shapes-translate
     (dolist (shape (oref obj shapes))
       (edraw-translate shape xy))))
+
+(cl-defmethod edraw-scale ((obj edraw-multiple-shapes) &optional origin-xy sx sy)
+  (edraw-set-scale-params (edraw-shape-aabb obj))
+
+  (edraw-transform
+   obj
+   (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
+
+(cl-defmethod edraw-rotate ((obj edraw-multiple-shapes) &optional origin-xy angle)
+  (edraw-set-rotate-params (edraw-shape-aabb obj))
+
+  (edraw-transform
+   obj
+   (edraw-matrix-move-origin-xy (edraw-matrix-rotate angle) origin-xy)))
 
 (cl-defmethod edraw-transform ((obj edraw-multiple-shapes) matrix)
   (edraw-make-undo-group (oref obj editor) 'shapes-transform
@@ -9784,6 +9866,106 @@ possible. Because undoing invalidates all point objects."
                          #'eq))))
                parent-members-alist))))
 
+(cl-defmethod edraw-shapes-back-to-front ((obj edraw-multiple-shapes))
+  ;;@todo Is it okay to assume that all shapes have the same parent?
+  ;; Or is it okay to use different parents to change the Z order?
+  (mapcar #'cdr
+          (sort
+           (mapcar (lambda (shape)
+                     (cons (edraw-node-position shape)
+                           shape))
+                   (oref obj shapes))
+           (lambda (a b) (< (car a) (car b))))))
+
+(cl-defmethod edraw-shapes-front-to-back ((obj edraw-multiple-shapes))
+  (nreverse (edraw-shapes-back-to-front obj)))
+
+(cl-defmethod edraw-bring-to-front ((obj edraw-multiple-shapes))
+  (edraw-make-undo-group (oref obj editor) 'shapes-bring-to-front
+    (dolist (shape (edraw-shapes-back-to-front obj))
+      (edraw-bring-to-front shape))))
+
+(cl-defmethod edraw-bring-forward ((obj edraw-multiple-shapes))
+  (edraw-make-undo-group (oref obj editor) 'shapes-bring-forward
+    (let ((shape-list (edraw-shapes-front-to-back obj)))
+      (dolist (shape shape-list)
+        (when-let ((next (edraw-next-sibling shape)))
+          (unless (memq next shape-list) ;; No overtaking
+            (edraw-bring-forward shape)))))))
+
+(cl-defmethod edraw-send-backward ((obj edraw-multiple-shapes))
+  (edraw-make-undo-group (oref obj editor) 'shapes-send-backward
+    (let ((shape-list (edraw-shapes-back-to-front obj)))
+      (dolist (shape shape-list)
+        (when-let ((prev (edraw-previous-sibling shape)))
+          (unless (memq prev shape-list) ;; No overtaking
+            (edraw-send-backward shape)))))))
+
+(cl-defmethod edraw-send-to-back ((obj edraw-multiple-shapes))
+  (edraw-make-undo-group (oref obj editor) 'shapes-send-to-back
+    (dolist (shape (edraw-shapes-front-to-back obj))
+      (edraw-send-to-back shape))))
+
+(cl-defmethod edraw-back-shape ((obj edraw-multiple-shapes))
+  (when-let ((shapes (oref obj shapes)))
+    (let* ((back-most-shape (car shapes))
+           (back-most-index (edraw-node-position back-most-shape)))
+      (dolist (shape (cdr shapes))
+        (let ((index (edraw-node-position shape)))
+          (when (< index back-most-index)
+            (setq back-most-shape shape
+                  back-most-index index))))
+      back-most-shape)))
+
+(cl-defmethod edraw-front-shape ((obj edraw-multiple-shapes))
+  (when-let ((shapes (oref obj shapes)))
+    (let* ((front-most-shape (car shapes))
+           (front-most-index (edraw-node-position front-most-shape)))
+      (dolist (shape (cdr shapes))
+        (let ((index (edraw-node-position shape)))
+          (when (> index front-most-index)
+            (setq front-most-shape shape
+                  front-most-index index))))
+      front-most-shape)))
+
+(cl-defmethod edraw-select-next-shape ((obj edraw-multiple-shapes))
+  (when-let* ((front-most-shape (edraw-front-shape obj))
+              (sibling (edraw-next-sibling front-most-shape)))
+    (edraw-select sibling)))
+
+(cl-defmethod edraw-select-previous-shape ((obj edraw-multiple-shapes))
+  (when-let* ((back-most-shape (edraw-back-shape obj))
+              (sibling (edraw-previous-sibling back-most-shape)))
+    (edraw-select sibling)))
+
+;;;;; Multiple Shapes - Other Editing Commands
+
+(cl-defmethod edraw-remove ((obj edraw-multiple-shapes))
+  (edraw-make-undo-group (oref obj editor) 'shapes-remove
+    (dolist (shape (oref obj shapes))
+      (edraw-remove shape))))
+
+(cl-defmethod edraw-delete-with-confirm ((obj edraw-multiple-shapes))
+  (when (edraw-y-or-n-p (format "%s %s?"
+                                (edraw-msg "Delete")
+                                (edraw-name obj)))
+    (edraw-remove obj)))
+
+(cl-defmethod edraw-duplicate-and-select ((obj edraw-multiple-shapes))
+  (edraw-select-shapes (oref obj editor)
+                       (edraw-duplicate-shapes (oref obj shapes))))
+
+(cl-defmethod edraw-copy ((obj edraw-multiple-shapes))
+  (when-let ((shapes (edraw-shapes-back-to-front obj)))
+    (edraw-clipboard-set
+     'shape-descriptor-list
+     (mapcar #'edraw-shape-descriptor shapes))))
+
+(cl-defmethod edraw-cut ((obj edraw-multiple-shapes))
+  (when (oref obj shapes)
+    (edraw-copy obj)
+    (edraw-deselect obj)
+    (edraw-remove obj)))
 
 
 ;;;; Interactive Transform
