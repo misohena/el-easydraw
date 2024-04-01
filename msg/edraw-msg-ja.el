@@ -43,6 +43,7 @@
      "(Initial %s Shape Default)" "(編集開始時の%s図形のデフォルト)"
      "(Initial %s Tool Default)" "(編集開始時の%sツールのデフォルト)"
      "<no name>" "<無名>"
+     "Actions" "操作"
      "Already an SVG for Edraw" "既にedraw用のSVGです"
      "Anchor Points" "アンカーポイント"
      "Anchor" "アンカー"

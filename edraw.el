@@ -7016,6 +7016,12 @@ match all selected shapes in the editor."
       :enable ,(not (edraw-back-p shape))))
    shape))
 
+(cl-defmethod edraw-property-editor-actions ((shape edraw-shape))
+  `((push-button :notify ,(lambda (&rest _)
+                            (edraw-popup-context-menu shape))
+                 ,(edraw-msg "Actions"))))
+
+
 ;;;;;; Boundary
 
 (cl-defgeneric edraw-shape-aabb (object)
@@ -8357,7 +8363,8 @@ which is a list of `edraw-svg-prop-info' objects."
   (cl-call-next-method))
 
 (cl-defmethod edraw-property-editor-actions ((shape edraw-shape-generator))
-  `((push-button :notify ,(lambda (&rest _)
+  `(,@(cl-call-next-method)
+    (push-button :notify ,(lambda (&rest _)
                             (edraw-regenerate-interactively shape))
                  ,(edraw-msg "Regenerate"))))
 

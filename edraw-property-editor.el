@@ -655,8 +655,9 @@ editor when the selected shape changes."
 
 (defun edraw-property-editor-insert-action-bar (target)
   (when-let ((widgets (edraw-property-editor-actions target)))
-    (widget-insert "  ")
+    (widget-insert " ")
     (dolist (widget-args widgets)
+      (widget-insert " ")
       (apply #'widget-create widget-args))
     (widget-insert "\n")))
 
