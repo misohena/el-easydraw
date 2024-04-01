@@ -6741,7 +6741,7 @@ return it."
   (edraw-set-temporary-state shape 'pickable value))
 
 (cl-defmethod edraw-toggle-visibility ((shape edraw-shape))
-  (edraw-set-visible shape (not (edraw-pickable-p shape))))
+  (edraw-set-visible shape (not (edraw-visible-p shape))))
 
 (cl-defmethod edraw-toggle-pickability ((shape edraw-shape))
   (edraw-set-pickable shape (not (edraw-pickable-p shape))))
