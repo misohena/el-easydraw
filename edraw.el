@@ -3008,6 +3008,18 @@ document size or view box."
 
 ;;;;; Editor - Manipulate Selected Shapes
 
+(cl-defmethod edraw-selected-multiple-shapes ((editor edraw-editor))
+  (if-let ((selected-shapes (oref editor selected-shapes)))
+      (edraw-multiple-shapes :shapes selected-shapes :editor editor)
+    (error (edraw-msg "No shape selected"))))
+
+(cl-defmethod edraw-selected-multiple-shapes-or-shape ((editor edraw-editor))
+  (if-let ((selected-shapes (oref editor selected-shapes)))
+      (if (cdr selected-shapes)
+          (edraw-multiple-shapes :shapes selected-shapes :editor editor)
+        (car selected-shapes))
+    (error (edraw-msg "No shape selected"))))
+
 (cl-defmethod edraw-menu-items-selected-shapes ((editor edraw-editor))
   (when-let* ((selected-shapes (edraw-selected-shapes editor))
               (shapes (edraw-multiple-shapes
@@ -3190,77 +3202,39 @@ document size or view box."
      (selected-anchor
       (edraw-delete-point selected-anchor))
      (selected-shapes
-      (edraw-make-undo-group editor 'selected-shapes-delete
-        (dolist (shape selected-shapes)
-          (edraw-remove shape)))))))
+      (edraw-remove (edraw-selected-multiple-shapes-or-shape editor))))))
 
 (edraw-editor-defcmd edraw-bring-selected-to-front ((editor edraw-editor))
-  (when (edraw-selected-shapes editor) ;;@todo error?
-    (edraw-make-undo-group editor 'selected-shapes-bring-to-front
-      (dolist (shape (edraw-selected-shapes-back-to-front editor))
-        (edraw-bring-to-front shape)))))
+  (edraw-bring-to-front (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-bring-selected-forward ((editor edraw-editor))
-  (when (edraw-selected-shapes editor) ;;@todo error?
-    (edraw-make-undo-group editor 'selected-shapes-bring-forward
-      (dolist (shape (edraw-selected-shapes-front-to-back editor))
-        (when-let ((next (edraw-next-sibling shape)))
-          (unless (edraw-selected-p next) ;; No overtaking
-            (edraw-bring-forward shape)))))))
+  (edraw-bring-forward (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-send-selected-backward ((editor edraw-editor))
-  (when (edraw-selected-shapes editor) ;;@todo error?
-    (edraw-make-undo-group editor 'selected-shapes-send-backward
-      (dolist (shape (edraw-selected-shapes-back-to-front editor))
-        (when-let ((prev (edraw-previous-sibling shape)))
-          (unless (edraw-selected-p prev) ;; No overtaking
-            (edraw-send-backward shape)))))))
+  (edraw-send-backward (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-send-selected-to-back ((editor edraw-editor))
-  (when (edraw-selected-shapes editor) ;;@todo error?
-    (edraw-make-undo-group editor 'selected-shapes-send-to-back
-      (dolist (shape (edraw-selected-shapes-front-to-back editor))
-        (edraw-send-to-back shape)))))
+  (edraw-send-to-back (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-select-next-shape ((editor edraw-editor))
   (if (edraw-selected-shapes editor)
-      (when-let ((front (car (edraw-selected-shapes-front-to-back editor)))
-                 (next (edraw-next-sibling front)))
-        (edraw-select-shape editor next))
+      (edraw-select-next-shape (edraw-selected-multiple-shapes-or-shape editor))
     (when-let ((back (edraw-back-shape editor)))
       (edraw-select-shape editor back))))
 
 (edraw-editor-defcmd edraw-select-previous-shape ((editor edraw-editor))
   (if (edraw-selected-shapes editor)
-      (when-let ((back (car (edraw-selected-shapes-back-to-front editor)))
-                 (prev (edraw-previous-sibling back)))
-        (edraw-select-shape editor prev))
+      (edraw-select-previous-shape (edraw-selected-multiple-shapes-or-shape editor))
     (when-let ((front (edraw-front-shape editor)))
       (edraw-select-shape editor front))))
 
 (edraw-editor-defcmd edraw-group-selected-shapes ((editor edraw-editor))
-  (with-slots (selected-shapes) editor
-    (when (null selected-shapes)
-      (error (edraw-msg "No shape selected")))
-    (edraw-group (edraw-selected-multiple-shapes editor))))
+  (edraw-group (edraw-selected-multiple-shapes editor)))
 
 (edraw-editor-defcmd edraw-ungroup-selected-shapes ((editor edraw-editor))
-  (with-slots (selected-shapes) editor
-    (when (null selected-shapes)
-      (error (edraw-msg "No shape selected")))
-    (edraw-ungroup-interactive (edraw-selected-multiple-shapes editor))))
+  (edraw-ungroup-interactive (edraw-selected-multiple-shapes editor)))
 
-(cl-defmethod edraw-selected-multiple-shapes ((editor edraw-editor))
-  (if-let ((selected-shapes (oref editor selected-shapes)))
-      (edraw-multiple-shapes :shapes selected-shapes :editor editor)
-    (error (edraw-msg "No shape selected"))))
 
-(cl-defmethod edraw-selected-multiple-shapes-or-shape ((editor edraw-editor))
-  (if-let ((selected-shapes (oref editor selected-shapes)))
-      (if (cdr selected-shapes)
-          (edraw-multiple-shapes :shapes selected-shapes :editor editor)
-        (car selected-shapes))
-    (error (edraw-msg "No shape selected"))))
 
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
   (edraw-editor-open-property-editor
@@ -3279,46 +3253,37 @@ document size or view box."
 (edraw-editor-defcmd edraw-edit-font-size-selected ((editor edraw-editor))
   (edraw-edit-font-size (edraw-selected-multiple-shapes editor)))
 
-(cl-defmethod edraw-set-property-selected ((editor edraw-editor)
-                                           prop-name value)
-  (edraw-set-property (edraw-selected-multiple-shapes editor) prop-name value))
+(edraw-editor-defcmd edraw-set-marker-start-none-selected ((editor
+                                                            edraw-editor))
+  (edraw-set-marker-start-none (edraw-selected-multiple-shapes editor)))
 
-(cl-defmethod edraw-set-marker-selected ((editor edraw-editor)
-                                         prop-name marker-type)
-  (edraw-set-property-selected
-   editor prop-name
-   (edraw-get-default-marker-properties editor marker-type)))
+(edraw-editor-defcmd edraw-set-marker-start-arrow-selected ((editor
+                                                             edraw-editor))
+  (edraw-set-marker-start-arrow (edraw-selected-multiple-shapes editor)))
 
-(edraw-editor-defcmd edraw-set-marker-start-none-selected ((editor edraw-editor))
-  (edraw-set-property-selected editor 'marker-start nil))
+(edraw-editor-defcmd edraw-set-marker-start-circle-selected ((editor
+                                                              edraw-editor))
+  (edraw-set-marker-start-circle (edraw-selected-multiple-shapes editor)))
 
-(edraw-editor-defcmd edraw-set-marker-start-arrow-selected ((editor edraw-editor))
-  (edraw-set-marker-selected editor 'marker-start "arrow"))
+(edraw-editor-defcmd edraw-set-marker-end-none-selected ((editor
+                                                          edraw-editor))
+  (edraw-set-marker-end-none (edraw-selected-multiple-shapes editor)))
 
-(edraw-editor-defcmd edraw-set-marker-start-circle-selected ((editor edraw-editor))
-  (edraw-set-marker-selected editor 'marker-start "circle"))
+(edraw-editor-defcmd edraw-set-marker-end-arrow-selected ((editor
+                                                           edraw-editor))
+  (edraw-set-marker-end-arrow (edraw-selected-multiple-shapes editor)))
 
-(edraw-editor-defcmd edraw-set-marker-end-none-selected ((editor edraw-editor))
-  (edraw-set-property-selected editor 'marker-end nil))
+(edraw-editor-defcmd edraw-set-marker-end-circle-selected ((editor
+                                                            edraw-editor))
+  (edraw-set-marker-end-circle (edraw-selected-multiple-shapes editor)))
 
-(edraw-editor-defcmd edraw-set-marker-end-arrow-selected ((editor edraw-editor))
-  (edraw-set-marker-selected editor 'marker-end "arrow"))
+(edraw-editor-defcmd edraw-set-marker-start-next-selected ((editor
+                                                            edraw-editor))
+  (edraw-set-marker-start-next (edraw-selected-multiple-shapes editor)))
 
-(edraw-editor-defcmd edraw-set-marker-end-circle-selected ((editor edraw-editor))
-  (edraw-set-marker-selected editor 'marker-end "circle"))
-
-(cl-defmethod edraw-set-marker-next-selected ((editor edraw-editor) prop-name)
-  (let* ((shape (edraw-selected-multiple-shapes-or-shape editor))
-         (current-prop-value (edraw-get-property shape prop-name))
-         (current-marker-type (edraw-svg-marker-type current-prop-value))
-         (next-marker-type (edraw-svg-marker-type-next current-marker-type)))
-    (edraw-set-marker-selected editor prop-name next-marker-type)))
-
-(edraw-editor-defcmd edraw-set-marker-start-next-selected ((editor edraw-editor))
-  (edraw-set-marker-next-selected editor 'marker-start))
-
-(edraw-editor-defcmd edraw-set-marker-end-next-selected ((editor edraw-editor))
-  (edraw-set-marker-next-selected editor 'marker-end))
+(edraw-editor-defcmd edraw-set-marker-end-next-selected ((editor
+                                                          edraw-editor))
+  (edraw-set-marker-end-next (edraw-selected-multiple-shapes editor)))
 
 ;; Temporary State
 
@@ -3362,27 +3327,13 @@ document size or view box."
     shapes))
 
 (edraw-editor-defcmd edraw-copy-selected-shapes ((editor edraw-editor))
-  (when-let ((selected-shapes (edraw-selected-shapes-back-to-front editor)))
-    (edraw-clipboard-set
-     'shape-descriptor-list
-     (mapcar #'edraw-shape-descriptor selected-shapes))))
+  (edraw-copy (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-cut-selected-shapes ((editor edraw-editor))
-  (when-let ((selected-shapes (copy-sequence (edraw-selected-shapes editor))))
-    ;; Copy
-    (edraw-clipboard-set
-     'shape-descriptor-list
-     (mapcar #'edraw-shape-descriptor selected-shapes))
-    ;; Deselect
-    (edraw-deselect-all-shapes editor)
-    ;; Remove
-    (edraw-make-undo-group editor 'cut
-      (dolist (shape selected-shapes)
-        (edraw-remove shape)))))
+  (edraw-cut (edraw-selected-multiple-shapes-or-shape editor)))
 
 (edraw-editor-defcmd edraw-duplicate-selected-shapes ((editor edraw-editor))
-  (edraw-select-shapes editor
-                       (edraw-duplicate-shapes (edraw-selected-shapes editor))))
+  (edraw-duplicate-and-select (edraw-selected-multiple-shapes-or-shape editor)))
 
 ;;;;; Editor - Default Shape Properties
 
