@@ -6881,6 +6881,11 @@ Alternative to `ignore'."
              (cmd-for-selected (or (plist-get props :cmd-for-selected)
                                    'edraw-menu-items-shape-common--dummy)))
         (cond
+         ;; Separator
+         ((and (stringp name)
+               (string-prefix-p "--" name)
+               (null (cadr item)))
+          (push item result))
          ;; Convert submenu recursively
          ((consp binding)
           (push (nconc (list name (edraw-menu-items-shape-common--convert

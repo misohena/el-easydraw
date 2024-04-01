@@ -185,6 +185,12 @@
                    t)
             do
             (cond
+             ;; ("--<???>" nil . <properties>) => Separator
+             ((and (stringp item-name)
+                   (string-prefix-p "--" item-name)
+                   (null binding))
+              (push (nconc (list key 'menu-item item-name binding) props)
+                    result))
              ;; (<item-name> nil . <properties>) => Ignore
              ((null binding) )
              ;; (<item-name> <function> . <properties>)
