@@ -424,7 +424,11 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km (vector (intern (format "C-%s" mouse-wheel-up-event))) 'edraw-editor-zoom-out-by-mouse)
     (define-key km (vector (intern (format "C-%s" mouse-wheel-down-event))) 'edraw-editor-zoom-in-by-mouse)
     (define-key km " " 'edraw-editor-interactive-scroll-and-zoom)
-    (define-key km "m" 'edraw-editor-main-menu)
+    ;;(define-key km "m" 'edraw-editor-main-menu)
+    (define-key km "m" 'edraw-editor-popup-context-menu)
+    (define-key km (kbd "<apps>") 'edraw-editor-popup-context-menu)
+    (define-key km (kbd "<menu>") 'edraw-editor-popup-context-menu)
+    (define-key km (kbd "S-<f10>") 'edraw-editor-popup-context-menu)
     (define-key km "s" 'edraw-editor-select-tool-select)
     (define-key km "r" 'edraw-editor-select-tool-rect)
     (define-key km "e" 'edraw-editor-select-tool-ellipse)
@@ -3718,6 +3722,19 @@ document size or view box."
     (if menu-filter
         (funcall menu-filter menu-type items)
       items)))
+
+;;;;; Editor - Context Menu
+
+(edraw-editor-defcmd edraw-popup-context-menu ((editor edraw-editor))
+  "Show context menu of EDITOR."
+  (if-let ((selected-shapes (edraw-selected-shapes editor)))
+      (if (cdr selected-shapes)
+          ;; Multiple selected shapes
+          (edraw-popup-context-menu-for-selected-shapes editor)
+        ;; Single selected shape
+        (edraw-popup-context-menu (car selected-shapes)))
+    ;; No selected shape
+    (edraw-main-menu editor)))
 
 ;;;;; Editor - Mouse Coordinates
 
