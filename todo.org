@@ -4491,3 +4491,8 @@ CLOSED: [2024-04-01 Mon 20:41]
 ** DONE 複数選択図形のカットはおそらく間違っている
 CLOSED: [2024-04-01 Mon 21:58]
 edraw-copy-selected-shapesはedraw-selected-shapes-back-to-frontを使っているのにedraw-cut-selected-shapesは ~(copy-sequence (edraw-selected-shapes~ を使っている。おそらく順番が不定になると思う。もしくはcopyの方が不必要なことをしているか。
+** DONE Version 1.2.0
+CLOSED: [2024-05-19 Sun 15:32]
+- edraw.elのPackage-Versionを1.2.0にしてコミットする。
+- タグを打つ。 git tag -a v1.2.0 -m "Version 1.2.0"
+- edraw.elのPackage-Versionを1.2.1にしてコミットする。
