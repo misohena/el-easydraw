@@ -326,6 +326,39 @@ uses the value of `image-scaling-factor' variable."
   :group 'edraw-editor
   :type 'boolean)
 
+(defcustom edraw-editor-move-distance-by-arrow-key
+  '((nil . 1)
+    ((shift) . 10)
+    ((control) . grid)
+    ((control shift) . 0.125))
+  "Amount of object movement using arrow keys.
+
+Specify with an alist whose key is the modifier key list and the
+amount of movement is the value.
+
+If the symbol `grid' is specified as the value, the grid interval
+setting will be used.
+
+Used by the edraw-editor-move-selected-by-arrow-key command."
+  :group 'edraw-editor
+  :type '(list :tag "Modifiers-Distance" :extra-offset 2
+               (cons :format "No modifiers:\n    %v"
+                     (const :format "" nil)
+                     (choice (number :tag "Pixels")
+                             (const :tag "Grid Intervals" grid)))
+               (cons  :format "Shift:\n    %v"
+                      (const :format "" (shift))
+                      (choice (number :tag "Pixels")
+                              (const :tag "Grid Intervals" grid)))
+               (cons  :format "Control:\n    %v"
+                      (const :format "" (control))
+                      (choice (number :tag "Pixels")
+                              (const :tag "Grid Intervals" grid)))
+               (cons :format "Control+Shift:\n    %v"
+                     (const :format "" (control shift))
+                     (choice (number :tag "Pixels")
+                             (const :tag "Grid Intervals" grid)))))
+
 (defcustom edraw-editor-default-transparent-bg-visible t
   "non-nil means the transparent background is colored by default."
   :group 'edraw-editor
@@ -3065,6 +3098,17 @@ document size or view box."
   (let ((edraw-current-editor editor))
     (edraw-popup-menu nil (edraw-menu-selected-shapes-context editor) editor)))
 
+(defun edraw-editor-move-distance-by-arrow-key (editor mods)
+  (pcase (alist-get
+          (seq-difference mods '(meta click double triple drag down)
+                          'eq)
+          edraw-editor-move-distance-by-arrow-key
+          1
+          nil #'seq-set-equal-p)
+    ((and (pred numberp) n) n)
+    ('grid (edraw-get-setting editor 'grid-interval))
+    (_ 1)))
+
 (defvar edraw-editor-move-selected-by-arrow-key--last-op nil)
 (defvar edraw-editor-move-selected-by-arrow-key--delta nil)
 (defvar edraw-editor-move-selected-by-arrow-key--last-undo-pushed-p nil)
@@ -3075,16 +3119,10 @@ document size or view box."
     (unless editor (setq editor (edraw-editor-at-input event)))
     (when editor
       (let* ((mods (event-modifiers event))
-             (shift (memq 'shift mods))
-             (control (memq 'control mods))
              (d (* (if (consp n)
                        (read-number (edraw-msg "Moving Distance: ") 20)
                      (prefix-numeric-value n))
-                   (cond
-                    ((and shift control) 1) ;;@todo customize?
-                    (shift 10) ;;@todo customize?
-                    (control (edraw-get-setting editor 'grid-interval))
-                    (t 1))))
+                   (edraw-editor-move-distance-by-arrow-key editor mods)))
              (v (pcase (event-basic-type event)
                   ('left (edraw-xy (- d) 0))
                   ('right (edraw-xy d 0))
