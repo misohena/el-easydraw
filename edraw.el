@@ -329,7 +329,7 @@ uses the value of `image-scaling-factor' variable."
 (defcustom edraw-editor-move-distance-by-arrow-key
   '((nil . 1)
     ((shift) . 10)
-    ((control) . grid)
+    ((control) . snap)
     ((control shift) . 0.125))
   "Amount of object movement using arrow keys.
 
@@ -339,25 +339,32 @@ amount of movement is the value.
 If the symbol `grid' is specified as the value, the grid interval
 setting will be used.
 
+If the symbol `snap' is specified as the value, move to next grid
+line.
+
 Used by the edraw-editor-move-selected-by-arrow-key command."
   :group 'edraw-editor
   :type '(list :tag "Modifiers-Distance" :extra-offset 2
                (cons :format "No modifiers:\n    %v"
                      (const :format "" nil)
                      (choice (number :tag "Pixels")
-                             (const :tag "Grid Intervals" grid)))
+                             (const :tag "Grid Intervals" grid)
+                             (const :tag "Next Grid Line" snap)))
                (cons  :format "Shift:\n    %v"
                       (const :format "" (shift))
                       (choice (number :tag "Pixels")
-                              (const :tag "Grid Intervals" grid)))
+                              (const :tag "Grid Intervals" grid)
+                              (const :tag "Next Grid Line" snap)))
                (cons  :format "Control:\n    %v"
                       (const :format "" (control))
                       (choice (number :tag "Pixels")
-                              (const :tag "Grid Intervals" grid)))
+                              (const :tag "Grid Intervals" grid)
+                              (const :tag "Next Grid Line" snap)))
                (cons :format "Control+Shift:\n    %v"
                      (const :format "" (control shift))
                      (choice (number :tag "Pixels")
-                             (const :tag "Grid Intervals" grid)))))
+                             (const :tag "Grid Intervals" grid)
+                             (const :tag "Next Grid Line" snap)))))
 
 (defcustom edraw-editor-default-transparent-bg-visible t
   "non-nil means the transparent background is colored by default."
@@ -2915,6 +2922,11 @@ document size or view box."
 (cl-defmethod edraw-selected-handle ((editor edraw-editor))
   (oref editor selected-handle))
 
+(cl-defmethod edraw-selecting-point-p ((editor edraw-editor))
+  (when (or (oref editor selected-anchor)
+            (oref editor selected-handle))
+    t))
+
 (cl-defmethod edraw-add-shape-selection ((editor edraw-editor) shape)
   (with-slots (selected-shapes selected-anchor selected-handle) editor
     (when (and shape
@@ -3105,8 +3117,14 @@ document size or view box."
           edraw-editor-move-distance-by-arrow-key
           1
           nil #'seq-set-equal-p)
-    ((and (pred numberp) n) n)
-    ('grid (edraw-get-setting editor 'grid-interval))
+    ((and (pred numberp) n)
+     n)
+    ('grid
+     (edraw-get-setting editor 'grid-interval))
+    ('snap
+     (if (edraw-selecting-point-p editor) ;;@todo if multiple points are selected, do not snap
+         'snap
+       (edraw-get-setting editor 'grid-interval)))
     (_ 1)))
 
 (defvar edraw-editor-move-selected-by-arrow-key--last-op nil)
@@ -3119,22 +3137,31 @@ document size or view box."
     (unless editor (setq editor (edraw-editor-at-input event)))
     (when editor
       (let* ((mods (event-modifiers event))
-             (d (* (if (consp n)
-                       (read-number (edraw-msg "Moving Distance: ") 20)
-                     (prefix-numeric-value n))
-                   (edraw-editor-move-distance-by-arrow-key editor mods)))
+             (times (if (consp n)
+                        (read-number (edraw-msg "Moving Distance: ")
+                                     (edraw-get-setting editor 'grid-interval))
+                      (prefix-numeric-value n)))
+             (d-spec (edraw-editor-move-distance-by-arrow-key editor mods))
+             (d (* times (if (eq d-spec 'snap) 1 d-spec)))
              (v (pcase (event-basic-type event)
                   ('left (edraw-xy (- d) 0))
                   ('right (edraw-xy d 0))
                   ('up (edraw-xy 0 (- d)))
                   ('down (edraw-xy 0 d))
                   (_ (edraw-xy 0 0))))
-             (op (if (and (memq 'meta mods)
-                          ;; Do not duplicate anchor or handle
-                          (null (edraw-selected-anchor editor))
-                          (null (edraw-selected-handle editor)))
-                     'duplicate
-                   'translate)))
+             (op (cond
+                  ((and (memq 'meta mods)
+                        ;; Do not duplicate anchor or handle
+                         ;;@todo if multiple points are selected?
+                        (not (edraw-selecting-point-p editor)))
+                   'duplicate)
+                  ((and (eq d-spec 'snap)
+                        ;; Do not snap shape
+                        ;;@todo if multiple points are selected?
+                        (edraw-selecting-point-p editor))
+                   'snap)
+                  (t
+                   'translate))))
         (pcase op
           ('duplicate
            (edraw-make-undo-group editor
@@ -3166,7 +3193,50 @@ document size or view box."
              ;; Is UNDO data pushed?
              (setq edraw-editor-move-selected-by-arrow-key--last-undo-pushed-p
                    (not (edraw-empty-undo-p editor))))
-           (edraw-display-selected-object-coordinates editor)))
+           (edraw-display-selected-object-coordinates editor))
+
+          ('snap
+           (when-let ((spt (or (edraw-selected-handle editor)
+                               (edraw-selected-anchor editor))))
+             (let* ((xy (edraw-get-xy spt))
+                    (x (edraw-x xy))
+                    (y (edraw-y xy))
+                    (vx (edraw-x v))
+                    (vy (edraw-y v))
+                    (grid-interval (edraw-get-setting editor 'grid-interval))
+                    (new-x (if (= vx 0)
+                               x
+                             (edraw-grid-round
+                              (cond
+                               ((= x (edraw-grid-round x grid-interval))
+                                (+ x (* vx grid-interval)))
+                               ((< vx 0)
+                                (- (edraw-grid-floor x grid-interval)
+                                   (* (1- times) grid-interval)))
+                               ((> vx 0)
+                                (+ (edraw-grid-ceil x grid-interval)
+                                   (* (1- times) grid-interval)))
+                               (t x))
+                              grid-interval)))
+                    (new-y (if (= vy 0)
+                               y
+                             (edraw-grid-round
+                              (cond
+                               ((= y (edraw-grid-round y grid-interval))
+                                (+ y (* vy grid-interval)))
+                               ((< vy 0)
+                                (- (edraw-grid-floor y grid-interval)
+                                   (* (1- times) grid-interval)))
+                               ((> vy 0)
+                                (+ (edraw-grid-ceil y grid-interval)
+                                   (* (1- times) grid-interval)))
+                               (t y))
+                              grid-interval))))
+               ;; @todo Combine consecutive translations into a single operation
+               (edraw-make-undo-group editor
+                   'selected-shapes-snap-move-by-arrow-key
+                 (edraw-move spt (edraw-xy new-x new-y)))
+               (edraw-display-selected-object-coordinates editor)))))
         ;; Record last operation type
         (setq edraw-editor-move-selected-by-arrow-key--last-op op)))))
 
