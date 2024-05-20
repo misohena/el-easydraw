@@ -432,8 +432,12 @@ x-popup-menuか番号入力させる。
 ** TODO プリセット/サブタイプをnilにして保存できるようにする?
 ** TODO プリセット/プリセットリストをファイルへ保存できるようにする
 ** TODO プリセット/プリセットリストをファイルから(追加)読み込めるようにする
-** TODO 変形/インタラクティブ変形時にsを押したときyのデフォルトがxにならない
-ドキュメントの変形ではxを入れたらyのデフォルトはxになるのに。
+** TODO 変形/GUI変形でsを押したときsyのデフォルトがsxにならない
+ドキュメントの変形ではsxを入れたらsyのデフォルトはsxになるのに。
+↑いや、sは現在の拡大率を変更する操作なので、sxもsyも現在の値がデフォルトになっている。最初はどちらも1.0なので、デフォルトはsxもsyも1.0になる。Sは現在の拡大率に対するさらなる拡大率なのでちゃんとsxに入れた値がsyのデフォルトになる。
+不用意にsyのデフォルトをsxにするとsyを無変更に出来なくなる。
+何とかするなら、最初のスケーリングの時だけsxをsyに反映させるとか？
+
 ** TODO 変形/GUI変形時に代替マウスポインターが消えることがある
 Corfuによるinvisibleな子フレームがあると、その上では正しい座標が来なくなる。
 ~(make-frame-invisible frame t)~ しただけでは完全には消えていないらしい。
@@ -441,6 +445,10 @@ Corfuによるinvisibleな子フレームがあると、その上では正しい
 
 frame上の座標から無理矢理変換してくれば対応できないことも無いかもしれないが難しい。
 edraw-color-picker-insert-color等の子フレームは(-1000,-1000)へ飛ばすことで回避した。
+
+** TODO 変形/GUI変形内でUNDOできるようにする
+確定する前の調整段階で一つ前の設定に戻りたい場合が良くある。
+間違えるたびにGUI変形を中断して最初からやり直さなければならない。
 
 ** TODO 変形/ローカル座標系変形機能を追加する
 図形のtransformプロパティ適用前の座標系で、平行移動、伸縮、回転できるようにする。
@@ -4521,3 +4529,9 @@ snapが指定された場合、図形の場合はgridと同じ。点の場合は
 CLOSED: [2024-05-20 Mon 11:04]
 [[elisp-function:edraw-read-number-with-unit]]を追加し、それを使うようにした。
 頑張ってプレビューも表示するようにした。
+** DONE 変形/スケーリング時に拡大率を%やピクセル数で指定出来るようにしたい
+CLOSED: [2024-05-20 Mon 16:55]
+[[elisp-function:edraw-read-number-with-unit]]を使うようにした。
+- edraw-read-scale-params => edraw-scale-all-shapes, edraw-scale-selected, edraw-scale edraw-shape, edraw-scale edraw-multiple-shapesに影響。
+- edraw-scale-interactive edraw-shape-transformer
+- edraw-set-scale-interactive edraw-shape-transformer

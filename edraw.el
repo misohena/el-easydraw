@@ -1754,8 +1754,24 @@ document size or view box."
      (read-number (edraw-msg "Origin Y: ") 0))))
 
 (defun edraw-read-scale-params (aabb &optional origin-xy sx sy)
-  (let* ((sx (or sx (read-number (edraw-msg "Scale X: ") 1.0)))
-         (sy (or sy (read-number (edraw-msg "Scale Y: ") sx)))
+  (let* ((sx (or sx (edraw-read-number-with-unit
+                     (edraw-msg "Scale X [px|%]: ") 1.0
+                     `(("%" . ,(lambda (n _def)
+                                 (/ n 100.0)))
+                       ("px" . ,(lambda (n _def)
+                                  (let ((w (edraw-rect-width aabb)))
+                                    (if (zerop w)
+                                        1.0
+                                      (/ n (float w))))))))))
+         (sy (or sy (edraw-read-number-with-unit
+                     (edraw-msg "Scale Y [px|%]: ") sx
+                     `(("%" . ,(lambda (n _def)
+                                 (/ n 100.0)))
+                       ("px" . ,(lambda (n _def)
+                                  (let ((h (edraw-rect-height aabb)))
+                                    (if (zerop h)
+                                        1.0
+                                      (/ n (float h))))))))))
          (_ (when (and (= sx 1) (= sy 1))
               (error (edraw-msg "No need to scale"))))
          (origin-xy (or origin-xy (edraw-read-origin-xy aabb))))
@@ -10410,8 +10426,22 @@ REF is a point reference in scaling-points."
                    (edraw-get-transform-matrix transformer)))
 
 (cl-defmethod edraw-scale-interactive ((transformer edraw-shape-transformer))
-  (let* ((sx (read-number (edraw-msg "Scale X: ") 1.0))
-         (sy (read-number (edraw-msg "Scale Y: ") sx)))
+  (let* ((scaled-w (edraw-rect-width (oref transformer scaled-aabb)))
+         (scaled-h (edraw-rect-height (oref transformer scaled-aabb)))
+         (sx (edraw-read-number-with-unit
+              (edraw-msg "Scale X [px|%]: ") 1.0
+              `(("%" . ,(lambda (n _def) (/ n 100.0)))
+                ("px" . ,(lambda (n _def)
+                           (if (zerop scaled-w)
+                               1.0
+                             (/ n (float scaled-w))))))))
+         (sy (edraw-read-number-with-unit
+              (edraw-msg "Scale Y [px|%]: ") sx
+              `(("%" . ,(lambda (n _def) (/ n 100.0)))
+                ("px" . ,(lambda (n _def)
+                           (if (zerop scaled-h)
+                               1.0
+                             (/ n (float scaled-h)))))))))
     (edraw-scale transformer nil sx sy)))
 
 (cl-defmethod edraw-scale ((transformer edraw-shape-transformer)
@@ -10426,8 +10456,22 @@ REF is a point reference in scaling-points."
     (edraw-on-transform-change transformer)))
 
 (cl-defmethod edraw-set-scale-interactive ((transformer edraw-shape-transformer))
-  (let* ((sx (read-number (edraw-msg "Scale X: ") (edraw-scale-x transformer)))
-         (sy (read-number (edraw-msg "Scale Y: ") (edraw-scale-y transformer))))
+  (let* ((original-w (edraw-rect-width (oref transformer original-aabb)))
+         (original-h (edraw-rect-height (oref transformer original-aabb)))
+         (sx (edraw-read-number-with-unit
+              (edraw-msg "Scale X [px|%]: ") (edraw-scale-x transformer)
+              `(("%" . ,(lambda (n _def) (/ n 100.0)))
+                ("px" . ,(lambda (n _def)
+                           (if (zerop original-w)
+                               1.0
+                             (/ n (float original-w))))))))
+         (sy (edraw-read-number-with-unit
+              (edraw-msg "Scale Y [px|%]: ") (edraw-scale-y transformer)
+              `(("%" . ,(lambda (n _def) (/ n 100.0)))
+                ("px" . ,(lambda (n _def)
+                           (if (zerop original-h)
+                               1.0
+                             (/ n (float original-h)))))))))
     (edraw-set-scale transformer nil sx sy)))
 
 (cl-defmethod edraw-set-scale ((transformer edraw-shape-transformer)
