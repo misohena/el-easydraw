@@ -641,6 +641,110 @@ Therefore, the following evaluation results will be the same:
       (sit-for 1))
     result))
 
+(defvar edraw-minibuffer-default-prompt-format
+  (if (boundp 'minibuffer-default-prompt-format)
+      minibuffer-default-prompt-format ;; Emacs 28.1~
+    " (default %s)"))
+
+(defconst edraw-minibuffer-number-regexp
+  (concat "\\(?:"
+          "[-+]?"
+          ;; Valid: 12  12.34  .34  12.
+          "\\(?:[0-9]+\\(?:\\.[0-9]*\\)?\\|\\.[0-9]+\\)"
+          "\\(?:[eE][-+]?[0-9]+\\)?"
+          "\\)"))
+
+(defun edraw-read-number-with-unit--convert (input-string default units pred
+                                                          regexp)
+  (cond
+   ((and default (string-empty-p input-string))
+    default)
+   ((string-match regexp input-string)
+    (let ((num (string-to-number (match-string 1 input-string)))
+          (unit (match-string 2 input-string)))
+      ;; Unit conversion
+      (when unit
+        (let ((conv (alist-get unit units nil nil #'equal)))
+          (cond
+           ((numberp conv)
+            (setq num (* conv num)))
+           ((functionp conv)
+            (setq num (funcall conv num default)))
+           (t
+            (error (edraw-msg "Unsupported unit"))))))
+      ;; Validation
+      (when (and num pred (not (funcall pred num)))
+        (error (edraw-msg "Invalid number")))
+      num))
+   (t
+    (error (edraw-msg "Not a number")))))
+
+(defun edraw-read-number-with-unit--read (prompt default units pred regexp)
+  "Almost the same as read-string, but with a preview of the result."
+  (let* (overlay
+         (on-post-command
+          (lambda ()
+            (let* ((curr-input
+                    (minibuffer-contents-no-properties))
+                   (curr-result
+                    (format
+                     "%s"
+                     (condition-case err
+                         (edraw-read-number-with-unit--convert
+                          curr-input default units pred regexp)
+                       (error (error-message-string err))))))
+              (overlay-put
+               overlay 'before-string
+               (if (or (equal curr-input curr-result)
+                       (string-empty-p curr-input))
+                   nil
+                 (propertize
+                  (concat curr-result " <= ")
+                  'face 'font-lock-comment-face))))))
+         (on-minibuffer-setup
+          (lambda ()
+            (setq overlay (make-overlay (minibuffer-prompt-end)
+                                        (point-max)
+                                        nil nil t))
+            (add-hook 'post-command-hook on-post-command nil t)))
+         (minibuffer-setup-hook (cons on-minibuffer-setup
+                                      minibuffer-setup-hook)))
+    (unwind-protect
+        (read-from-minibuffer prompt nil nil nil nil
+                              (when default (number-to-string default)))
+      (when overlay
+        (delete-overlay overlay)))))
+
+(defun edraw-read-number-with-unit (prompt &optional default units pred)
+  (let ((result nil)
+        (regexp (concat "\\`\\(" edraw-minibuffer-number-regexp "\\)"
+                        (when units
+                          (concat
+                           "\\(" (mapconcat #'car units "\\|") "\\)?\\'")))))
+
+    (when default
+      (string-match "\\(?:\\(\\):\\)?\\([ \t]*\\)\\'" prompt)
+      (setq prompt
+            (replace-match
+             (format edraw-minibuffer-default-prompt-format default) t t prompt
+             (if (match-string 1) 1 0))))
+
+    (while
+        (null
+         (setq result
+               (let ((str (edraw-read-number-with-unit--read
+                           prompt default units pred regexp)))
+                 (condition-case err
+                     (edraw-read-number-with-unit--convert str default units
+                                                           pred regexp)
+                   (error
+                    (message "%s" (error-message-string err))
+                    (sit-for 1)
+                    nil))))))
+    result))
+;; Example: (edraw-read-number-with-unit "Length (px, %): " 640 '(("%" . (lambda (n def) (round (/ (* n def) 100.0)))) ("px" . (lambda (n _) n))) (lambda (n) (or (integerp n) (error "Not a integer"))))
+
+
 (defun edraw-where-is-string (definition &optional keymap firstonly)
   (when-let ((keys (where-is-internal definition keymap firstonly)))
     (if (listp keys)

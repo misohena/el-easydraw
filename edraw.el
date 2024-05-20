@@ -1443,10 +1443,17 @@ For use with `edraw-editor-with-temp-undo-list',
 (edraw-editor-defcmd edraw-set-size ((editor edraw-editor) width height)
   (interactive
    (let* ((editor (edraw-current-editor))
-          (width (read-number
-                  (edraw-msg "Document Width: ") (edraw-width editor)))
-          (height (read-number
-                   (edraw-msg "Document Height: ") (edraw-height editor))))
+          (default-w (edraw-width editor))
+          (default-h (edraw-height editor))
+          (units
+           `(("%" . ,(lambda (n def) (round (/ (* n def) 100.0))))
+             ("px" . 1)))
+          (width (edraw-read-number-with-unit
+                  (edraw-msg "Document Width [px|%]: ") default-w
+                  units #'integerp))
+          (height (edraw-read-number-with-unit
+                   (edraw-msg "Document Height [px|%]: ") default-h
+                   units #'integerp)))
      (list editor width height)))
   (with-slots (svg-document-size
                svg-document-original-width

@@ -4517,3 +4517,7 @@ CLOSED: [2024-05-19 Sun 19:42]
 図形の移動はスナップしなくて良い。あくまで点(アンカーやハンドル)の話。
 edraw-editor-move-distance-by-arrow-key変数の移動量値としてgridの代わりとなるsnapを追加する。
 snapが指定された場合、図形の場合はgridと同じ。点の場合は次のグリッド線上に移動する。
+** DONE ドキュメントのサイズ変更時に幅と高さを%で指定出来るようにしたい
+CLOSED: [2024-05-20 Mon 11:04]
+[[elisp-function:edraw-read-number-with-unit]]を追加し、それを使うようにした。
+頑張ってプレビューも表示するようにした。
