@@ -209,6 +209,16 @@
 (defun edraw-xy-atan (xy)
   (atan (cdr xy) (car xy)))
 
+(defun edraw-xy-angle (a b)
+  "Return the angle between the two vectors A and B.
+
+Let A and B both be vectors from the origin, and return the angle
+from A to B. If the rotation direction from A to B matches the
+rotation direction from the positive X-axis direction to the
+positive Y-axis direction, a positive angle is returned. The
+angle is returned between -pi and pi."
+  (atan (edraw-xy-perpdot a b) (edraw-xy-dot a b)))
+
 (defun edraw-xy-rot90 (xy)
   (cons (- (cdr xy)) (car xy)))
 

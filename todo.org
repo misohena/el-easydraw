@@ -4535,3 +4535,32 @@ CLOSED: [2024-05-20 Mon 16:55]
 - edraw-read-scale-params => edraw-scale-all-shapes, edraw-scale-selected, edraw-scale edraw-shape, edraw-scale edraw-multiple-shapesに影響。
 - edraw-scale-interactive edraw-shape-transformer
 - edraw-set-scale-interactive edraw-shape-transformer
+** DONE edraw-editor-tool-freehand-bezier-fitting-toleranceを追加する。
+CLOSED: [2024-05-24 Fri 13:06]
+ベジェフィッティングの時の許容量は現在2.0決め打ちになっているので、これをカスタマイズできるようにする。デフォルトは1.0にしてみる。
+
+** DONE edraw-editor-tool-freehand-smoothing-methodに関数を指定可能にする。
+CLOSED: [2024-05-24 Fri 13:06]
+不要だが、ついでに。
+
+** DONE 手書きツールのヘジェフィッティング前にコーナー(カド)を除外する
+CLOSED: [2024-05-24 Fri 13:17]
+Bezier fitting(edraw-editor-tool-freehand-smoothing-methodが'bezier-fitting)は鋭いカド(角)がなまってしまうという欠点がある。例えば次のパスを右クリックして「滑らかにする」を選ぶと、右上の角が大幅に丸くなってしまう。
+
+[[edraw:data=H4sIAHsTUGYAA3VQUW7DIAy9CnJ/02DaKkqqkBNkh8gKAZQUKsJKevt5qSLtYxOyrWe/52fRLk/D1vvsFwk2pceV85xzmc9liIafEJETA96U6zo7P/1FFE3T8G0KLDuVrATSArPaGZskiJrAU8fFBU+oFNC1Ud8SWyXQ5LXlf4VOSdAqDvn4OdwmE8OXV8CWFMOkJfjgNbDRzbOEwziOwHjXmt+ioF7k9xiSZdT8OGFxwb6m3PSiqopz3YsLFgKRINUK93Xv1bvRQeDP2xvH/d7NkBsK+qruG3sOq7FSAQAA]]
+
+ただし、これが問題になるのは点の飛びが大きい場合に限られる。基本的にフィッティング後のベジェ曲線は全ての入力点の近くを通過するので、入力点が細かければそうそう大きく外れることはない。外れるように見えるのは、入力点が少なく、その少ない点を通過するベジエ曲線を生成するから。実際のところ、入力点が少ない場合、何が正解なのかは完全には分からない。実際に丸い曲線を描いた(しかしその途中の点を取りこぼした)のかもしれないし、鋭角を描いたのかもしれない。ただ、入力点の間隔が空いているところは、基本的に素早く動かした可能性が高いので、あまり大きく曲線にしない方が良さそうではある。その辺りをうまく調整したい。
+
+新しいスムージング方式を作成しても良いが、とりあえず先に既存のbezier-fittingを改善する。
+
+カドがなまるのを防止するために、カドと認識される場所であらかじめ線を分割しておき、それぞれに対してベジェフィッティングを行うようにする。
+
+カドかどうかの認識は、前後の点との距離や角度で判定する。
+
+次の二つのカスタマイズ変数を追加:
+- [[elisp-variable:edraw-editor-tool-freehand--bezier-fitting-corner-angle-min]]
+- [[elisp-variable:edraw-editor-tool-freehand--bezier-fitting-corner-distance-min]]
+
+次の関数を追加:
+- [[elisp-function:edraw-editor-tool-freehand--smooth-bezier-fitting]]
+- [[elisp-function:edraw-xy-points-to-curves]]

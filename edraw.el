@@ -5504,13 +5504,22 @@ position where the EVENT occurred."
   :type '(choice
           (const :tag "Do not smooth" nil)
           (const :tag "Smooth each point individually" each-point)
-          (const :tag "Approximate the whole with as few Bezier curves as possible" bezier-fitting)))
+          (const :tag "Approximate the whole with as few Bezier curves as possible" bezier-fitting)
+          (function :tag "A function that creates path data")))
 
 (defun edraw-editor-tool-freehand--make-smooth (points)
+  "Create path data from the list of POINTS.
+
+POINTS is a list of coordinates (edraw-xy).
+
+Returns the command string that can be specified in the d
+attribute of the path element as a string."
   (pcase edraw-editor-tool-freehand-smoothing-method
     ('nil (edraw-editor-tool-freehand--make-poly-line points))
     ('each-point (edraw-editor-tool-freehand--smooth-each-point points))
-    (_ (edraw-xy-points-to-smooth-path-data points))))
+    ('bezier-fitting (edraw-editor-tool-freehand--smooth-bezier-fitting points))
+    ((and (pred functionp) fun) (funcall fun points))
+    (_ (edraw-editor-tool-freehand--smooth-bezier-fitting points))))
 
 (defun edraw-editor-tool-freehand--make-poly-line (points)
   (concat
@@ -5550,6 +5559,118 @@ position where the EVENT occurred."
         (setq prev-xy curr-xy)
         (setq points (cdr points))))
     result))
+
+(defcustom edraw-editor-tool-freehand-bezier-fitting-tolerance 1.0
+  "The tolerance for how far the input point can deviate from the
+Bezier curve when performing Bezier fitting.
+
+Valid only when `edraw-editor-tool-freehand-smoothing-method' is
+\\='bezier-fitting."
+  :group 'edraw-editor
+  :type 'number)
+
+(defcustom edraw-editor-tool-freehand--bezier-fitting-corner-angle-min 45
+  "The minimum angle at which an input point will be recognized as
+a corner when the freehand tool performs Bezier fitting. The unit
+is degrees.
+
+Each point entered with a pointer device is considered a corner
+if the angle between the vector from the previous point and the
+vector to the next point is greater than or equal to this value.
+
+At the same time, the distance to the previous and next points is
+also taken into account, and the threshold can be set with
+`edraw-editor-tool-freehand--bezier-fitting-corner-distance-min'.
+
+This variable only makes sense when
+`edraw-editor-tool-freehand-smoothing-method' is \\='bezier-fitting."
+  :group 'edraw-editor
+  :type 'number)
+
+(defcustom edraw-editor-tool-freehand--bezier-fitting-corner-distance-min 5
+  "The minimum distance at which an input point will be recognized
+as a corner when the freehand tool performs Bezier fitting.
+
+Each point entered with a pointer device is considered a corner
+if the distance from the previous and next points is greater
+than or equal to this value.
+
+At the same time, the setting value of
+`edraw-editor-tool-freehand--bezier-fitting-corner-distance-min' is
+also taken into account.
+
+This variable only makes sense when
+`edraw-editor-tool-freehand-smoothing-method' is \\='bezier-fitting."
+  :group 'edraw-editor
+  :type 'number)
+
+(defun edraw-editor-tool-freehand--smooth-bezier-fitting (points)
+  (when-let ((curves
+              ;; Split POINTS at corners
+              (edraw-xy-points-to-curves
+               (edraw-xy-remove-consecutive-same-points points)
+               edraw-editor-tool-freehand--bezier-fitting-corner-angle-min
+               edraw-editor-tool-freehand--bezier-fitting-corner-distance-min)))
+    ;; Create Bezier curves and concat them
+    (mapconcat (lambda (curve)
+                 (edraw-xy-points-to-smooth-path-data
+                  curve
+                  edraw-editor-tool-freehand-bezier-fitting-tolerance
+                  (not (eq curve (car curves)))))
+               curves
+               "")))
+
+(defun edraw-xy-points-to-curves (points min-angle min-distance)
+  "Group the list of POINTS by curve. In other words, split at the corners.
+
+Returns a list of lists of points.
+
+Divide a polyline consisting of POINTS at parts that can be
+recognized as \"corners\".
+
+MIN-ANGLE and MIN-DISTANCE are used to determine \"corner\".
+
+A point is recognized as a corner if it is more than MIN-DISTANCE
+away from the points before and after it, and the angle between
+the two straight lines formed between the points before and after
+it is more than MIN-ANGLE. ."
+  (when points
+    (let ((min-angle-rad (degrees-to-radians min-angle))
+          (min-distance-sq (* min-distance min-distance))
+          curves
+          curr-curve)
+      ;; First point
+      (push (car points) curr-curve)
+      (setq points (cdr points))
+
+      ;; Middle points
+      (while (cdr points)
+        (let* ((p0 (car curr-curve)) ;; Previous
+               (p1 (car points)) ;; Current
+               (p2 (cadr points)) ;; Next
+               (v01 (edraw-xy-sub p1 p0))
+               (v12 (edraw-xy-sub p2 p1)))
+          (when (and
+                 (>= (edraw-xy-length-squared v01) min-distance-sq)
+                 (>= (edraw-xy-length-squared v12) min-distance-sq)
+                 (>= (abs (edraw-xy-angle v01 v12)) min-angle-rad))
+            (push (car points) curr-curve)
+            (push (nreverse curr-curve) curves)
+            (setq curr-curve nil))
+          (push (car points) curr-curve)
+          (setq points (cdr points))))
+
+      ;; Last point
+      (when points
+        (push (car points) curr-curve))
+      (push (nreverse curr-curve) curves)
+      (nreverse curves))))
+;; TEST: (edraw-xy-points-to-curves nil 45 5) => nil
+;; TEST: (edraw-xy-points-to-curves '((10 . 20)) 45 5) => (((10 . 20)))
+;; TEST: (edraw-xy-points-to-curves '((10 . 20) (100 . 30)) 45 5) => (((10 . 20) (100 . 30)))
+;; TEST: (edraw-xy-points-to-curves '((10 . 20) (100 . 30) (200 . 40)) 45 5) => (((10 . 20) (100 . 30) (200 . 40)))
+;; TEST: (edraw-xy-points-to-curves '((10 . 20) (100 . 30) (100 . 100)) 45 5) => (((10 . 20) (100 . 30)) ((100 . 30) (100 . 100)))
+
 
 ;;;;; Tool - Custom Shape Tool
 
@@ -8048,20 +8169,24 @@ may be replaced by another mechanism."
            (edraw-remove src-shape)
            t))))))
 
-(defun edraw-xy-points-to-smooth-path-data (xy-points)
+(defun edraw-xy-points-to-smooth-path-data (xy-points
+                                            &optional
+                                            bezier-fitting-tolerance
+                                            suppress-first-move-command)
   (let* ((points
           (edraw-xy-remove-consecutive-same-points xy-points))
          (points-vector (apply #'vector points))
          (size (length points-vector)))
     (when (>= size 2)
       (let* ((bezier-segments
-              (edraw-fit-bezier-curve points-vector))
+              (edraw-fit-bezier-curve points-vector bezier-fitting-tolerance))
              (d
               (concat
-               (format
-                "M%s %s"
-                (edraw-to-string (edraw-x (aref (car bezier-segments) 0)))
-                (edraw-to-string (edraw-y (aref (car bezier-segments) 0))))
+               (unless suppress-first-move-command
+                 (format
+                  "M%s %s"
+                  (edraw-to-string (edraw-x (aref (car bezier-segments) 0)))
+                  (edraw-to-string (edraw-y (aref (car bezier-segments) 0)))))
                (mapconcat
                 (lambda (segment)
                   (format "C%s %s %s %s %s %s"
