@@ -342,7 +342,7 @@ setting will be used.
 If the symbol `snap' is specified as the value, move to next grid
 line.
 
-Used by the edraw-editor-move-selected-by-arrow-key command."
+Used by the `edraw-editor-move-selected-by-arrow-key' command."
   :group 'edraw-editor
   :type '(list :tag "Modifiers-Distance" :extra-offset 2
                (cons :format "No modifiers:\n    %v"
@@ -365,6 +365,39 @@ Used by the edraw-editor-move-selected-by-arrow-key command."
                      (choice (number :tag "Pixels")
                              (const :tag "Grid Intervals" grid)
                              (const :tag "Next Grid Line" snap)))))
+
+(defcustom edraw-editor-scroll-distance-by-arrow-key
+  '((nil . 50)
+    ((shift) . 100)
+    ((control) . 200)
+    ((control shift) . 400))
+  "Amount of scrolling using arrow keys.
+
+Specify with an alist whose key is the modifier key list and the
+amount of scrolling is the value.
+
+If the symbol `grid' is specified as the value, the grid interval
+setting will be used.
+
+Used by the `edraw-editor-scroll-by-arrow-key' command."
+  :group 'edraw-editor
+  :type '(list :tag "Modifiers-Distance" :extra-offset 2
+               (cons :format "No modifiers:\n    %v"
+                     (const :format "" nil)
+                     (choice (number :tag "Pixels")
+                             (const :tag "Grid Intervals" grid)))
+               (cons  :format "Shift:\n    %v"
+                      (const :format "" (shift))
+                      (choice (number :tag "Pixels")
+                              (const :tag "Grid Intervals" grid)))
+               (cons  :format "Control:\n    %v"
+                      (const :format "" (control))
+                      (choice (number :tag "Pixels")
+                              (const :tag "Grid Intervals" grid)))
+               (cons :format "Control+Shift:\n    %v"
+                     (const :format "" (control shift))
+                     (choice (number :tag "Pixels")
+                             (const :tag "Grid Intervals" grid)))))
 
 (defcustom edraw-editor-default-transparent-bg-visible t
   "non-nil means the transparent background is colored by default."
@@ -2806,16 +2839,28 @@ document size or view box."
   (interactive "e")
   (edraw-editor-zoom-by-mouse event 0.5))
 
+(defun edraw-editor-scroll-distance-by-arrow-key (editor mods)
+  (pcase (alist-get
+          (seq-difference mods '(meta click double triple drag down)
+                          'eq)
+          edraw-editor-scroll-distance-by-arrow-key
+          1
+          nil #'seq-set-equal-p)
+    ((and (pred numberp) n)
+     n)
+    ('grid
+     (edraw-get-setting editor 'grid-interval))
+    (_ 10)))
+
 (defun edraw-editor-scroll-by-arrow-key (&optional editor n)
   (interactive "i\np")
   (let ((event last-input-event))
     (when-let ((editor (or editor (edraw-editor-at-input event))))
       (let* ((mods (event-modifiers event))
              (d (* (or n 1)
-                   (cond
-                    ((memq 'meta mods) (read-number (edraw-msg "Moving Distance: ") 20))
-                    ((memq 'shift mods) 50)
-                    (t 1))))
+                   (if (memq 'meta mods)
+                       (read-number (edraw-msg "Moving Distance: ") 20)
+                     (edraw-editor-scroll-distance-by-arrow-key editor mods))))
              (v (pcase (event-basic-type event)
                   ('left (cons (- d) 0))
                   ('right (cons d 0))
@@ -2864,7 +2909,7 @@ document size or view box."
   (let (quit)
     (while (not quit)
       (let ((event (read-event
-                    (edraw-msg "drag:Scroll, wheel:Zoom, 0:reset, q/r-click:quit"))))
+                    (edraw-msg "r-click:quit, drag:Scroll, wheel:Zoom,\nq/C-g:quit, [S|C|M-]arrow keys:Scroll, +/-:Zoom, 0:reset"))))
         (cond
          ;; Drag and scroll
          ((eq (car-safe event) 'down-mouse-1)
@@ -2879,6 +2924,10 @@ document size or view box."
           (edraw-zoom-out editor))
          ((eq event ?0)
           (edraw-reset-scroll-and-zoom editor))
+         ((eq event ?+)
+          (edraw-zoom-in editor))
+         ((eq event ?-)
+          (edraw-zoom-out editor))
          ((memq (event-basic-type event) '(left up right down))
           (edraw-editor-scroll-by-arrow-key editor)
           ))))))

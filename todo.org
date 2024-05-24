@@ -4564,3 +4564,10 @@ Bezier fitting(edraw-editor-tool-freehand-smoothing-methodが'bezier-fitting)は
 次の関数を追加:
 - [[elisp-function:edraw-editor-tool-freehand--smooth-bezier-fitting]]
 - [[elisp-function:edraw-xy-points-to-curves]]
+** DONE キーボードによるスクロールを改善する(移動量カスタマイズ、ヘルプ、+/-)
+CLOSED: [2024-05-24 Fri 17:30]
+インタラクティブスクロール(SPC:edraw-interactive-scroll-and-zoom)でキーボードでスクロール出来るが、表示される操作ヘルプに載っていないので気がつかない。ちゃんと矢印キーが効くことを明示する。
+
+ついでに移動量をカスタマイズできるようにし、デフォルト値を増やす。1pxスクロールしたいということはそうそう無いので。
+
+ついでに+/-キーでズームできるようにする。

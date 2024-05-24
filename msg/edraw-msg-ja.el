@@ -352,9 +352,9 @@
      "\"transform\" Property" "\"transform\"プロパティ"
      "a:auto  t:transform property  p:anchor points" "a:自動  t:transformプロパティ  p:アンカーポイント"
      "all, none, property names separated by spaces, or empty: " "all, none, 空白区切りのプロパティ名列, or 空: "
-     "drag:Scroll, wheel:Zoom, 0:reset, q/r-click:quit" "ドラッグ:スクロール, ホイール:ズーム, 0:リセット, q/右クリック:終了"
      "edraw-import: %s warnings raised" "edraw-import: %s 件の警告が発生しました"
      "q/R-Click:Cancel, RET/Dbl-Click:Commit,\ns:Scale(%.2f%% %.2f%%), r:Rotate(%.2fdeg), t:Translate,\no:Origin(%s %s), m:Transform Method(%s)" "q/右クリック:キャンセル, RET/ダブルクリック:確定,\ns:拡大縮小(%.2f%% %.2f%%), r:回転(%.2f度), t:平行移動,\no:原点(%s %s), m:変形方式(%s)"
+     "r-click:quit, drag:Scroll, wheel:Zoom,\nq/C-g:quit, [S|C|M-]arrow keys:Scroll, +/-:Zoom, 0:reset" "右クリック:終了, ドラッグ:スクロール, ホイール:ズーム,\nq/C-g:終了, [S|C|M-]矢印キー:スクロール, +/-:ズーム, 0:リセット"
      ;; [END MSG DATA]
      )))
 
