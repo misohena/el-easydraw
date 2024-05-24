@@ -2909,7 +2909,7 @@ document size or view box."
   (let (quit)
     (while (not quit)
       (let ((event (read-event
-                    (edraw-msg "r-click:quit, drag:Scroll, wheel:Zoom,\nq/C-g:quit, [S|C|M-]arrow keys:Scroll, +/-:Zoom, 0:reset"))))
+                    (edraw-msg "r-click:quit, drag:Scroll, wheel:Zoom,\nSPC/q/C-g:quit, [S|C|M-]arrow keys:Scroll, +/-:Zoom, 0:reset"))))
         (cond
          ;; Drag and scroll
          ((eq (car-safe event) 'down-mouse-1)
