@@ -228,7 +228,10 @@
         (setq track-mouse 'dragging))
       (let (result)
         (while (null result)
-          (let ((event (read-event)))
+          (let ((event (let (;; Suppress display of events
+                             ;; (e.g. down-mouse-1-) in echo area
+                             (echo-keystrokes 0))
+                         (read-event))))
             (cond
              ;; Ignore switch-frame event
              ;; (For Ubuntu 22/Emacs 27.1, To allow dragging in child frames)
