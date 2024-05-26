@@ -861,6 +861,11 @@ edraw-editor initialization is now called automatically."
   (let ((editor (or editor (edraw-current-editor))))
     (apply method editor args)))
 
+(defvar edraw-editor-defcmd--interactive-p nil)
+
+(defun edraw-editor-defcmd-interactive-p ()
+  edraw-editor-defcmd--interactive-p)
+
 (defmacro edraw-editor-defcmd (method-symbol arg-list &rest rest)
   ;; Basically intended to be used instead of cl-defmethod.
   ;;
@@ -917,7 +922,9 @@ edraw-editor initialization is now called automatically."
            ,(concat doc "\n\n" doc-arg-list)
            (interactive ,@(or interactive-spec
                               '((list (edraw-current-editor)))))
-           (edraw-editor-call-at-point (quote ,method-symbol) editor args))
+           (let ((edraw-editor-defcmd--interactive-p
+                  (called-interactively-p 'interactive)))
+             (edraw-editor-call-at-point (quote ,method-symbol) editor args)))
          ;; Define generic
          (cl-defgeneric ,method-symbol ,(cons 'OBJECT (cdr arg-list)))
          ;; Define method (edraw-* ((editor edraw-editor) ...) ...)
@@ -3060,7 +3067,9 @@ document size or view box."
 (edraw-editor-defcmd edraw-toggle-selection-all ((editor edraw-editor))
   (if (edraw-selected-shapes editor)
       (edraw-deselect-all-shapes editor)
-    (edraw-select-all-shapes editor)))
+    (edraw-select-all-shapes editor))
+  (when (edraw-editor-defcmd-interactive-p)
+    (edraw-display-selected-object-info editor)))
 
 
 (cl-defmethod edraw-on-selected-shape-changed ((editor edraw-editor)
@@ -3138,6 +3147,61 @@ document size or view box."
          (edraw-get-handle-points selected-anchor)
          (when prev-anchor (edraw-get-handle-points prev-anchor))
          (when next-anchor (edraw-get-handle-points next-anchor)))))))
+
+(cl-defmethod edraw-display-selected-object-coordinates ((editor edraw-editor))
+  (with-slots (selected-shapes selected-anchor selected-handle) editor
+    (cond
+     ((or selected-handle selected-anchor)
+      (let ((xy (edraw-get-xy (or selected-handle selected-anchor))))
+        (message "X:%s Y:%s" (edraw-x xy) (edraw-y xy))))
+     (selected-shapes
+      (let ((rect (edraw-shape-aabb selected-shapes)))
+        (message "L:%s T:%s R:%s B:%s CX:%s CY:%s"
+                 (edraw-rect-left rect)
+                 (edraw-rect-top rect)
+                 (edraw-rect-right rect)
+                 (edraw-rect-bottom rect)
+                 (edraw-rect-cx rect)
+                 (edraw-rect-cy rect)))))))
+
+(cl-defmethod edraw-display-selected-object-info ((editor edraw-editor)
+                                                  &optional addinfo)
+  (with-slots (selected-shapes selected-anchor selected-handle) editor
+    (cond
+     (selected-handle
+      (message "%s%s"
+               (format (edraw-msg "Handle (%g,%g) selected")
+                       (edraw-x (edraw-get-xy selected-handle))
+                       (edraw-y (edraw-get-xy selected-handle)))
+               (or addinfo "")))
+     (selected-anchor
+      (message "%s%s"
+               (format (edraw-msg "Anchor (%g,%g) selected")
+                       (edraw-x (edraw-get-xy selected-anchor))
+                       (edraw-y (edraw-get-xy selected-anchor)))
+               (or addinfo "")))
+     (selected-shapes
+      (let ((rect (edraw-shape-aabb selected-shapes)))
+        (message "%s%s"
+                 (if (cdr selected-shapes)
+                     (format (edraw-msg "%s objects (%g,%g)-(%g,%g) selected")
+                             (length selected-shapes)
+                             (edraw-rect-left rect)
+                             (edraw-rect-top rect)
+                             (edraw-rect-right rect)
+                             (edraw-rect-bottom rect))
+                   (format (edraw-msg "%s (%g,%g)-(%g,%g) selected")
+                           (capitalize
+                            (edraw-shape-type-name (car selected-shapes)))
+                           (edraw-rect-left rect)
+                           (edraw-rect-top rect)
+                           (edraw-rect-right rect)
+                           (edraw-rect-bottom rect)))
+                 (or addinfo ""))))
+     (t (message "%s%s"
+                 (edraw-msg "No objects selected")
+                 (or addinfo ""))))))
+
 
 ;;;;; Editor - Manipulate Selected Shapes
 
@@ -3311,22 +3375,6 @@ document size or view box."
                (edraw-display-selected-object-coordinates editor)))))
         ;; Record last operation type
         (setq edraw-editor-move-selected-by-arrow-key--last-op op)))))
-
-(cl-defmethod edraw-display-selected-object-coordinates ((editor edraw-editor))
-  (with-slots (selected-shapes selected-anchor selected-handle) editor
-    (cond
-     ((or selected-handle selected-anchor)
-      (let ((xy (edraw-get-xy (or selected-handle selected-anchor))))
-        (message "X:%s Y:%s" (edraw-x xy) (edraw-y xy))))
-     (selected-shapes
-      (let ((rect (edraw-shape-aabb selected-shapes)))
-        (message "L:%s T:%s R:%s B:%s CX:%s CY:%s"
-                 (edraw-rect-left rect)
-                 (edraw-rect-top rect)
-                 (edraw-rect-right rect)
-                 (edraw-rect-bottom rect)
-                 (edraw-rect-cx rect)
-                 (edraw-rect-cy rect)))))))
 
 (edraw-editor-defcmd edraw-transform-selected-interactive ((editor edraw-editor))
   (edraw-transform-interactive
@@ -3933,6 +3981,14 @@ document size or view box."
            (edraw-grid-round (edraw-x xy) inv-scale)
            (edraw-grid-round (edraw-y xy) inv-scale)))))))
 
+(cl-defmethod edraw-mouse-click-info ((editor edraw-editor) down-event)
+  (let ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)))
+    (concat
+     " - ["
+     (edraw-msg "Click:")
+     (format "%g,%g" (edraw-x down-xy) (edraw-y down-xy))
+     "]")))
+
 ;;;;; Editor - Input Event
 
 (defconst edraw-event-remap-table
@@ -4382,14 +4438,18 @@ position where the EVENT occurred."
         (if move-xy
             ;; Fix position
             ;; If selected handle, move it alone
-            (if (or meta-p
-                    (and selected-handle
-                         (edraw-same-point-p handle selected-handle)))
-                (edraw-move-on-transformed handle move-xy) ;;notify modification
-              (edraw-move-with-opposite-handle-on-transformed handle move-xy))
+            (progn
+              (if (or meta-p
+                      (and selected-handle
+                           (edraw-same-point-p handle selected-handle)))
+                  (edraw-move-on-transformed handle move-xy) ;;notify modification
+                (edraw-move-with-opposite-handle-on-transformed handle move-xy))
+              (message (edraw-msg "Moved handle to (%s,%s)")
+                       (edraw-x (edraw-get-xy handle))
+                       (edraw-y (edraw-get-xy handle))))
           ;; Click handle point
           (edraw-select-handle editor handle)
-          (edraw-display-selected-object-coordinates editor)))
+          (edraw-display-selected-object-info editor)))
       t)))
 
 (cl-defmethod edraw-mouse-down-anchor-point ((editor edraw-editor)
@@ -4419,13 +4479,24 @@ position where the EVENT occurred."
              (edraw-move-on-transformed anchor move-xy)))) ;;notify modification
         (if move-xy
             ;; Fix position
-            (edraw-move-on-transformed anchor move-xy) ;;notify modification
+            (progn
+              (edraw-move-on-transformed anchor move-xy) ;;notify modification
+              (message (edraw-msg "Moved anchor to (%s,%s)")
+                       (edraw-x (edraw-get-xy anchor))
+                       (edraw-y (edraw-get-xy anchor))))
           ;; Click the anchor point if the mouse does not move
           (edraw-select-anchor editor anchor)
-          (edraw-display-selected-object-coordinates editor)))
+          (edraw-display-selected-object-info editor)))
       t)))
 
 (cl-defmethod edraw-mouse-down-shape ((editor edraw-editor) down-event)
+  "Common reactions when a shape is pressed down with the mouse.
+
+Returns t if there is a shape at the pressed position, otherwise returns nil.
+
+If it returns t, this function always consumes the mouse up
+event. For example, it consumes the mouse-1 event corresponding
+to down-mouse-1 and processes drag and click."
   (let* ((down-xy (edraw-mouse-event-to-xy-raw editor down-event)) ;;Do not any rounding coordinates
          (down-xy-snapped (edraw-snap-xy editor down-xy))
          (selected-shapes (edraw-selected-shapes editor))
@@ -4446,7 +4517,7 @@ position where the EVENT occurred."
                (edraw-remove-shape-selection editor down-shape)
                (edraw-update-property-editor-on-selection-change editor)
                (setq moving-shapes nil))
-           ;; Add to selection
+           ;; Add to selection and move
            (edraw-add-shape-selection editor down-shape)
            (edraw-deselect-anchor editor) ;;When pressed delete key next time, I want the selected shapes to be deleted instead of the selected anchor
            (setq moving-shapes (edraw-selected-shapes editor))))
@@ -4458,37 +4529,48 @@ position where the EVENT occurred."
            (setq moving-shapes (list down-shape)))))
 
       ;; Move selected shapes
-      (when moving-shapes
-        (let* ((start-xy down-xy-snapped)
-               (move-xy nil))
-          ;; Preview while dragging
-          (edraw-editor-with-temp-modifications editor
-            (edraw-track-dragging
-             down-event
-             (lambda (move-event)
-               ;; Cancel previous move
-               (edraw-undo-all editor)
-               ;; Move
-               (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
-               (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
-                 (when shift-p
-                   (setq delta-xy (edraw-xy-snap-to-45deg delta-xy)))
-                 (dolist (shape moving-shapes)
-                   (edraw-translate shape delta-xy)))))) ;;notify modification
-          ;; Commit
-          (if move-xy
-              ;; On Drag
-              (edraw-make-undo-group editor 'shapes-move-by-drag
-                (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
-                  (when shift-p
-                    (setq delta-xy (edraw-xy-snap-to-45deg delta-xy)))
-                  (dolist (shape moving-shapes)
-                    (edraw-translate shape delta-xy)))) ;;notify modification
-            ;; On Click
-            (pcase event-type
-              ('down
-               (if down-selected-p
-                   (edraw-select down-shape)))))))
+      (if moving-shapes
+          (let* ((start-xy down-xy-snapped)
+                 (move-xy nil))
+            ;; Preview while dragging
+            (edraw-editor-with-temp-modifications editor
+              (edraw-track-dragging
+               down-event
+               (lambda (move-event)
+                 ;; Cancel previous move
+                 (edraw-undo-all editor)
+                 ;; Move
+                 (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+                 (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
+                   (when shift-p
+                     (setq delta-xy (edraw-xy-snap-to-45deg delta-xy)))
+                   (dolist (shape moving-shapes)
+                     (edraw-translate shape delta-xy)))))) ;;notify modification
+            ;; Commit
+            (if move-xy
+                ;; On Drag
+                (edraw-make-undo-group editor 'shapes-move-by-drag
+                  (let ((delta-xy (edraw-xy-sub move-xy start-xy)))
+                    (when shift-p
+                      (setq delta-xy (edraw-xy-snap-to-45deg delta-xy)))
+                    (dolist (shape moving-shapes)
+                      (edraw-translate shape delta-xy)) ;;notify modification
+                    (message (edraw-msg "Moved by (%s,%s)")
+                             (edraw-x delta-xy)
+                             (edraw-y delta-xy))))
+              ;; On Click
+              (pcase event-type
+                ('down
+                 (when down-selected-p
+                   (edraw-select down-shape))))
+              (edraw-display-selected-object-info
+               editor
+               (edraw-mouse-click-info editor down-event))))
+        ;; Consume `UP' event
+        (edraw-track-dragging down-event (lambda (_move-event)))
+        (edraw-display-selected-object-info
+         editor
+         (edraw-mouse-click-info editor down-event)))
       t)))
 
 (cl-defmethod edraw-mouse-drag-shape-duplicate ((editor edraw-editor)
@@ -4525,11 +4607,14 @@ position where the EVENT occurred."
         ;; Commit
         (if move-xy
             ;; On Drag
-            (edraw-make-undo-group editor 'shapes-duplicate-by-drag
-              (let ((new-shapes (edraw-duplicate-shapes target-shapes)))
-                (dolist (shape new-shapes)
-                  (edraw-translate shape delta-xy)) ;;notify modification
-                (edraw-select-shapes editor new-shapes)))
+            (progn
+              (edraw-make-undo-group editor 'shapes-duplicate-by-drag
+                (let ((new-shapes (edraw-duplicate-shapes target-shapes)))
+                  (dolist (shape new-shapes)
+                    (edraw-translate shape delta-xy)) ;;notify modification
+                  (edraw-select-shapes editor new-shapes)))
+              (message (edraw-msg "Duplicated %s shapes")
+                       (length target-shapes)))
           ;; On Click
           ))
       ;; Handled
@@ -4770,7 +4855,11 @@ position where the EVENT occurred."
             (if (edraw-selected-p shape)
                 (edraw-remove-shape-selection editor shape)
               (edraw-add-shape-selection editor shape)))
-          t))))))
+          t)
+        (edraw-display-selected-object-info
+         editor
+         (edraw-mouse-click-info editor down-event))
+        )))))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-select)
                                        down-event)
@@ -4794,10 +4883,24 @@ position where the EVENT occurred."
         (unless (edraw-rect-empty-p rect)
           (edraw-select-shapes editor
                                (edraw-find-shapes-by-rect editor rect))
+          (edraw-display-selected-object-info
+           editor
+           (concat " - ["
+                   (edraw-msg "Range:")
+                   (format "X=%g Y=%g W=%g H=%g"
+                           (edraw-rect-left rect)
+                           (edraw-rect-top rect)
+                           (edraw-rect-width rect)
+                           (edraw-rect-height rect))
+                   "]"))
           t)))
 
      ;; Deselect
-     (t (edraw-deselect-all-shapes editor)))))
+     (t
+      (edraw-deselect-all-shapes editor)
+      (edraw-display-selected-object-info
+       editor
+       (edraw-mouse-click-info editor down-event))))))
 
 (cl-defmethod edraw-on-double-mouse-1 ((tool edraw-editor-tool-select)
                                        click-event)
@@ -5384,8 +5487,10 @@ position where the EVENT occurred."
             (edraw-display-selected-object-coordinates editor)
 
             ;; Drag handle points of the new point
-            (edraw-create-symmetrical-handles-on-anchor
-             anchor-point down-event editor shift-p)
+            (unless (edraw-create-symmetrical-handles-on-anchor
+                     anchor-point down-event editor shift-p)
+              ;; Re-display anchor position
+              (edraw-display-selected-object-coordinates editor))
             )))))))
 
 (cl-defmethod edraw-on-C-down-mouse-1 ((tool edraw-editor-tool-path)
@@ -6382,6 +6487,15 @@ Unlike `dom-node' etc., attributes are set by the
   "Return the SVG tag generated by CLASS as a symbol.
 
 Return nil if undefined.")
+
+(cl-defgeneric edraw-shape-type-name (shape)
+  "Return the name used to explain the SHAPE type to the user.
+
+e.g. rect, ellipse, path, image, text, group, generator."
+  (let ((class-name (symbol-name (eieio-object-class-name shape))))
+    (if (string-match "\\`edraw-shape-\\(.+\\)\\'" class-name)
+        (match-string 1 class-name)
+      class-name)))
 
 (cl-defmethod edraw-get-editor ((shape edraw-shape))
   (oref shape editor))
