@@ -6652,7 +6652,8 @@ e.g. rect, ellipse, path, image, text, group, generator."
       nil)))
 
 (defun edraw-shape-descriptor-list-from-svg-string (svg-text editor)
-  (when-let ((container (edraw-svg-decode (concat "<g>" svg-text "</g>") nil)))
+  (when-let ((container (edraw-svg-decode-xml
+                         (concat "<g>" svg-text "</g>") nil)))
     (cl-loop for node in (dom-children container)
              for desc = (edraw-shape-descriptor-from-svg-element node editor)
              when desc collect desc)))

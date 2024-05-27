@@ -2951,7 +2951,7 @@ CLOSED: [2023-08-24 Thu 02:10]
 mhtml-modeには案外空いているキーが少ないので。
 ** DONE シェイプピッカーで図が表示されないのを修正する。
 CLOSED: [2023-08-24 Thu 15:51]
-一部でedraw-svg-decodeはsvg要素専門では無い！
+一部でedraw-svg-decodeはsvg要素専門では無い！ ([2024-05-27 Mon]追記:edraw-svg-decodeをedraw-svg-decode-xmlへ改名した)
 svg要素専門だと勘違いして色々修正してしまったのが原因。
 <g>要素をそのままdecodeすることもある。
 そちらの使い方の方が正しい。
@@ -4611,3 +4611,23 @@ CLOSED: [2024-05-26 Sun 19:07]
 「[[*選択操作後に現在の選択状態を表示する][選択操作後に現在の選択状態を表示する]]」も行う。
 
 ついでに「[[*座標を表示する機能を追加する][座標を表示する機能を追加する]]」のために座標を表示する。何をしたかのメッセージの後に (Click:123,456) のように表示する。ドラッグ(矩形)で範囲を選択した場合は、 (Range:X123 Y:234 W:567 H:890) のように表示する。右や左では無く幅や高さにするのは、ドラッグで寸法を計測できるようにするため。
+** DONE edraw-svg-decodeとedraw-svg-decode-svgの違いが分かりづらい
+CLOSED: [2024-05-27 Mon 10:51]
+
+[[elisp-function:edraw-svg-decode]]と[[elisp-function:edraw-svg-decode-svg]]の二つがあるが違いがパッと見分からない。
+
+これらは「[[*シェイプピッカーで図が表示されないのを修正する。][シェイプピッカーで図が表示されないのを修正する。]]」で分割された関数。
+
+[[elisp-function:edraw-svg-decode]]は<svg>要素に限らないXML文字列をデコードし、[[elisp-function:edraw-svg-decode-svg]]は<svg>要素全体をデコードするために用意されている。edraw-svg-decode-svgの方にはedraw-svg-decodeに加えて、トップレベルコメントへの対処やルートsvg要素に対するxmlns=属性の補完処理が入っている。
+
+これらは(libxmlを使っているので)XML名前空間を正しく扱えないが、基本的にedrawが出力したXMLのみを処理するので問題ない。必要に応じて名前空間の補正処理を入れてある。href→xlink:href、xmlns:xlink=追加、xmlns=追加など。Inkscapeが出力するSVGのように別の名前空間を使っていてその属性名がSVGのと被る場合(inkscape:versionとか)や、xmlnsをあまり一般的では無い使い方をしている場合は問題になるので注意すること。
+
+利用実態:
+
+- edraw-svg-decodeを直接利用しているところは、shape pickerがらみでSVG XML文字列をDOMノードに変換する部分だけ。(edraw-svg-decode (concat "<g>" text "</g>"))のような使い方をしている。もちろん、それに加えてedraw-svg-decode-svgもedraw-svg-decodeを利用している。
+- edraw-svg-decode-svgを利用しているところは、edrawで作成したデータを読み込むところだけ。edraw-org-link-load-svg、edraw-mode--parse-svg、edraw-svg-read-from-file。
+
+対策:
+
+- 関数名を改名する。 edraw-svg-decode → edraw-svg-decode-xml
+- 関数ドキュメントを書く。

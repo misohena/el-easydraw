@@ -1568,7 +1568,7 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-shape-to-svg-node-list (shape)
   (cond
    ((stringp shape)
-    (dom-children (edraw-svg-decode (concat "<g>" shape "</g>") nil)))
+    (dom-children (edraw-svg-decode-xml (concat "<g>" shape "</g>") nil)))
    ;;@todo Convert shape-descriptor to svg
    ((edraw-dom-element-p shape) (list shape))))
 

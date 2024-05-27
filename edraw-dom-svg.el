@@ -1023,7 +1023,21 @@ comment nodes."
 ;;;; SVG Encode / Decode
 
 
-(defun edraw-svg-decode (data base64-p)
+(defun edraw-svg-decode-xml (data base64-p)
+  "Convert XML data to DOM nodes.
+
+DATA is XML text or a string encoded with `edraw-svg-encode'.
+Basically, specify XML output by Edraw. There must be one
+top-level element. The root element does not need to be an <svg>
+element.
+
+When BASE64-P is non-nil, it means that DATA is a BASE64-encoded string.
+
+Automatically determines whether DATA is GZIP compressed.
+
+This function does not support XML namespaces.
+
+This function may change attributes regarding xlink for compatibility."
   (with-temp-buffer
     (insert data)
     (edraw-decode-buffer base64-p)
@@ -1036,7 +1050,30 @@ comment nodes."
 
 (defun edraw-svg-decode-svg (data base64-p
                                   &optional accepts-top-level-comments-p)
-  (let* ((dom (edraw-svg-decode data base64-p))
+  "Convert SVG image data to DOM node.
+
+DATA is SVG image data in plain text or encoded with `edraw-svg-encode'.
+
+The top node of DATA must be the <svg> element output by edraw.
+
+There may be comments before and after the <svg> element.
+
+If ACCEPTS-TOP-LEVEL-COMMENTS-P is non-nil and the top level of
+DATA contains comments, an element with the tag `top' is
+generated, and comments and the root <svg> element are placed
+below it. Use `edraw-dom-split-top-nodes' to separate surrounding
+comments and the root <svg> element from its `top' element. If
+ACCEPTS-TOP-LEVEL-COMMENTS-P is nil, only the root <svg> element
+will be returned.
+
+When BASE64-P is non-nil, it means that DATA is a BASE64-encoded string.
+
+Automatically determines whether DATA is GZIP compressed.
+
+This function does not support XML namespaces.
+
+This function may change attributes for compatibility."
+  (let* ((dom (edraw-svg-decode-xml data base64-p))
          (root-svg (car (edraw-dom-split-top-nodes dom))))
     ;; Recover missing xmlns on root-svg.
     ;; libxml-parse-xml-region drops the xmlns attribute.
