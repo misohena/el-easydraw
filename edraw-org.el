@@ -102,6 +102,22 @@ is expanded. Since the cause is not clear, it is expanded by default."
                   (integer :tag "Number of pixels")
                   (float :tag "Ratio to frame height")))))
 
+(defcustom edraw-org-link-image-link-formats '(bracket)
+  "A list of link formats to display inline.
+
+The link formats that can be specified are the types of links
+recognized by org-element: `bracket', `angle', or `plain'.
+
+Displaying `angle' and `plain' links inline will get in the way
+when editing the contents of bracket links, so by default only
+`bracket' links are displayed."
+  :group 'edraw-org
+  :type
+  '(set :tag "Link formats"
+        (const bracket)
+        (const angle)
+        (const plain)))
+
 
 ;;;; Link Type
 
@@ -631,19 +647,42 @@ Allowed values for TARGET-TYPE are:
 
     result))
 
+(defun edraw-org-link-image-make-search-regexp ()
+  (mapconcat
+   #'identity
+   (delq nil
+         (list
+          ;; (bracket link) [[edraw:...]] or ][edraw:...]] or ][<edraw:...>]]
+          (when (memq 'bracket edraw-org-link-image-link-formats)
+            (format "\\(?1:\\(?:[][]\\[\\|]\\[<\\)%s:.*?\\]\\]\\)"
+                    edraw-org-link-type))
+          ;; (angle link) <edraw:...>
+          (when (memq 'angle edraw-org-link-image-link-formats)
+            (format "\\(?1:<%s:.*?>\\)" edraw-org-link-type))
+          ;; (plain link) edraw:
+          (when (memq 'plain edraw-org-link-image-link-formats)
+            (format "\\(?:\\(?:[^[<]\\|\\`\\)\\<\\(?1:%s:[^ \t\n]\\)\\)"
+                    edraw-org-link-type))))
+   "\\|"))
+
 (defun edraw-org-link-image-update-region (beg end)
   (save-match-data
     (save-excursion
       (goto-char beg)
-      (let ((last-end beg))
-        (while (re-search-forward
-                ;; [[edraw:...]] or ][edraw:...]]
-                (format "[][]\\[%s:.*?\\]\\]" edraw-org-link-type) end t)
-          (goto-char (match-beginning 0))
+      (let ((last-end beg)
+            (regexp (edraw-org-link-image-make-search-regexp)))
+
+        ;; @todo Cases that start from middle of link
+
+        (while (re-search-forward regexp end t)
+          (goto-char (match-beginning 1))
           (if-let ((link-element (edraw-org-link-at-point)))
               (let ((link-begin (org-element-property :begin link-element))
                     (link-end (org-element-property :end link-element)))
-                (when (edraw-org-link-image-update link-begin link-end link-element)
+                (when (and (memq (org-element-property :format link-element)
+                                 edraw-org-link-image-link-formats)
+                           (edraw-org-link-image-update link-begin link-end
+                                                        link-element))
                   ;; Remove overlays before image
                   (edraw-org-link-image-remove-region last-end link-begin)
                   (setq last-end link-end))
