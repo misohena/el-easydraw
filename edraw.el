@@ -3939,6 +3939,50 @@ document size or view box."
 
 ;;;;; Editor - Mouse Coordinates
 
+(defun edraw-convert-mouse-event-if-out-of-down-object (move-event
+                                                        down-event)
+  "When MOVE-EVENT leaves the object where DOWN-EVENT occurred,
+convert MOVE-EVENT so that it continues to point to the
+coordinates on the object where DOWN-EVENT occurred."
+  (let ((move-pos (event-start move-event))
+        (down-pos (event-start down-event)))
+    (if ;;(edraw-posn-same-object-p move-pos down-pos)
+        ;; (and (eq (posn-window move-pos)
+        ;;          (posn-window down-pos))
+        ;;      (equal (posn-point move-pos)
+        ;;             (posn-point down-pos))
+        ;;      (eq (posn-object move-pos)
+        ;;          ???))
+        ;; Since it is difficult to determine whether the object being
+        ;; pointed to is a toolbar, calculations are always performed
+        ;; based on the displacement of frame coordinates.
+        nil
+        ;; In the target image
+        move-event
+      ;; Out of the target image
+      ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Click-Events.html
+      (let* ((new-event (copy-sequence move-event))
+             ;; Copy from down-event!
+             (new-pos (copy-sequence (nth 1 down-event))))
+        (setf (nth 1 new-event) new-pos)
+        (setf (nth 8 new-pos)
+              (let ((delta-xy (edraw-posn-delta-xy-frame-to-object down-pos))
+                    (xy-on-frame (edraw-posn-x-y-on-frame
+                                  move-pos
+                                  ;; When pointing at the button part
+                                  ;; of the toolbar, (posn-area
+                                  ;; move-pos) becomes the symbol
+                                  ;; specified in :map.
+                                  ;; (e.g.edraw-editor-select-tool-text)
+                                  t)))
+                (if (and delta-xy xy-on-frame)
+                    (cons (+ (car delta-xy) (car xy-on-frame))
+                          (+ (cdr delta-xy) (cdr xy-on-frame)))
+                  (cons 0 0))))
+        ;;(message "%s" (posn-object-x-y new-pos))
+        ;;(message "area=%s x-y=%s object-x-y=%s" (posn-area move-pos) (posn-x-y move-pos) (posn-object-x-y move-pos))
+        new-event))))
+
 (cl-defmethod edraw-mouse-event-to-xy-snapped ((editor edraw-editor) event)
   (edraw-snap-xy editor (edraw-mouse-event-to-xy-raw editor event)))
 
@@ -5583,6 +5627,14 @@ to down-mouse-1 and processes drag and click."
 
 ;;;;; Tool - Freehand Tool
 
+(defcustom edraw-editor-tool-freehand-dragged-outside-view nil
+  "Behavior when dragged outside view in the Freehand Tool."
+  :group 'edraw-editor
+  :type '(choice
+          (const :tag "Finish drawing" nil)
+          (const :tag "Draw outside view area" draw-outside)
+          (const :tag "Clip to view area" clip)))
+
 (defclass edraw-editor-tool-freehand (edraw-editor-tool)
   ())
 
@@ -5628,13 +5680,36 @@ to down-mouse-1 and processes drag and click."
                  down-event
                  (lambda (move-event)
                    (let ((move-xy
-                          (edraw-mouse-event-to-xy-snapped editor move-event)))
+                          (edraw-mouse-event-to-xy-snapped
+                           editor
+                           (if edraw-editor-tool-freehand-dragged-outside-view
+                               (edraw-convert-mouse-event-if-out-of-down-event
+                                move-event
+                                down-event)
+                             move-event))))
                      ;;@todo realtime simplification & smoothing the path
 
+                     ;; Clip
+                     (when (eq edraw-editor-tool-freehand-dragged-outside-view
+                               'clip)
+                       (setq move-xy
+                             (edraw-xy
+                              (edraw-clamp
+                               (edraw-x move-xy)
+                               (edraw-scroll-visible-area-left editor)
+                               (edraw-scroll-visible-area-right editor))
+                              (edraw-clamp
+                               (edraw-y move-xy)
+                               (edraw-scroll-visible-area-top editor)
+                               (edraw-scroll-visible-area-bottom editor)))))
+
+                     ;; Add point
                      (unless (edraw-xy-equal-p move-xy last-xy)
                        (push move-xy points)
                        (edraw-add-anchor-point preview-path move-xy)
-                       (setq last-xy move-xy))))))
+                       (setq last-xy move-xy))))
+                 nil nil nil nil
+                 (and edraw-editor-tool-freehand-dragged-outside-view t)))
             (edraw-remove preview-path))))
 
       ;; Create

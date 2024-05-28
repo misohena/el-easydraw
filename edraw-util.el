@@ -274,11 +274,16 @@
 
 ;;;; Input Event Coordinates
 
-(defun edraw-posn-x-y-on-frame (position)
+(defun edraw-posn-x-y-on-frame (position &optional default-inside-window-p)
   "Convert POSITION to frame coordinates.
 
 POSITION should be a list of the form returned by `event-start'
-and `event-end'."
+and `event-end'.
+
+If area of POSITION is an unknown location and
+DEFAULT-INSIDE-WINDOW-P is non-nil, the event is assumed to be
+within window and the result is returned. If it is nil, it
+returns nil."
   (let* ((window-or-frame (posn-window position))
          (window (and (windowp window-or-frame) window-or-frame))
          (area (posn-area position))
@@ -314,7 +319,9 @@ and `event-end'."
                        ;; MS-Windows x means the coordinate from the
                        ;; left edge of the window.
                        (list (nth 0 win) (nth 1 ins)
-                             (nth 2 win) (nth 3 ins)))))))
+                             (nth 2 win) (nth 3 ins))))
+                    (default-inside-window-p
+                     (window-inside-pixel-edges window)))))
         (when edges
           (cons (+ x (car edges))
                 (+ y (cadr edges))))))
