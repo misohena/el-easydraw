@@ -678,8 +678,20 @@ Allowed values for TARGET-TYPE are:
       (let ((last-end beg)
             (regexp (edraw-org-link-image-make-search-regexp)))
 
-        ;; @todo Cases that start from middle of link
+        ;; When start from the middle of a link
+        (when-let ((link-element (edraw-org-link-at-point)))
+          (let ((link-begin (org-element-property :begin link-element))
+                (link-end (org-element-property :end link-element)))
+            (when (< link-begin beg link-end)
+              ;;(message "Fontify from the middle of a link!")
+              (when (and (memq (org-element-property :format link-element)
+                               edraw-org-link-image-link-formats)
+                         (edraw-org-link-image-update link-begin link-end
+                                                      link-element))
+                (setq last-end link-end))
+              (goto-char link-end))))
 
+        ;; All links up to the END.
         (while (re-search-forward regexp end t)
           (goto-char (match-beginning 1))
           (if-let ((link-element (edraw-org-link-at-point)))

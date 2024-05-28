@@ -720,6 +720,16 @@ defgenericは全部に必要？ どこに書くべき？
 
 そもそもリンクを壊さずに一時的に特定のリンクをインライン画像化から外す機能があれば良い。オーバーレイにそのようなプロパティを指定しても良い。実際既にそのようなプロパティはあるが([[elisp-function:edraw-org-link-image-set-visible]])、編集中に使うものなのでそのまま使ってもよいものか。
 
+一応次のようにすればインライン画像化を解除できる。
+
+#+begin_src elisp
+(edraw-org-link-image-set-visible (edraw-org-link-image-overlay-at) nil)
+#+end_src
+
+とは言えこれで解除しても、ブラケットの中を編集するにはブラケットを壊すことになるし(もちろんC-c C-lで壊さずにもできるけど癖として壊してしまう)、その時にplainリンクが発生してそれが画像化されてしまい、再度解除しなければならない。煩わしい。
+
+インライン画像化を解除しつつ、リンクの折りたたみも解除するコマンドが欲しい。
+
 ** TODO ORG/複数行にわたるリンクに対応する？
 angleリンク(bracketリンクも? description部分のみ?)は複数行にわたってpathを書ける。
 正直そこまでする必要は無いと思うけど。
@@ -730,11 +740,6 @@ angleリンク(bracketリンクも? description部分のみ?)は複数行にわ�
 これはorg-modeのバグなので、解決するのを待つ。
 [[elisp-function:org-export-insert-image-links]]内でのorg-link-angle-reの取扱に間違いがある。正規表現link-reにorg-link-plain-reとorg-link-angle-reを含めているが、plain-reの方の括弧しか見ていない。typeやpathは必ずnilになる。
 そこさえ直れば、こちらはおそらく何もしなくても良いと思う。
-
-** TODO ORG/容量の大きいデータリンクが正しくインライン表示されないことがある
-edraw-org-link-image-modeでインライン画像表示しているときの話。
-LaTeXで数式を沢山入れると簡単に数万文字程度になってしまうが、そうすると編集直後やファイルを開いた直後などに文字列のままになってしまうことがある。リンクのfont-lockが中途半端な状態になっていることもある。
-おそらく長すぎてfontify範囲の末尾がリンクの末尾より前になっているのだと思う。
 
 ** TODO ORG/org-activate-linksがdefsubstになっている
 ので、adviceをかけるのはやめた方が良さそう。なんで動いているのだろう。インライン展開されない条件になってる？　いや、関数名シンボルが org-font-lock-keywords に載ってるからインライン展開されないのは当たり前だった。
@@ -4803,3 +4808,13 @@ angleリンクの例:
 [[https://misohena.jp/][<edraw:data=H4sIANlMVWYAA3VQUQ6DIAy9Cum+FXHJoka8ixMEooMFmeDthzrjPrY0bdP2vfal9TQLFB6jnihI554Vxt771F9TYwXOsyzDEQE7pAqj0sMvICnLEm9TQF4xJylELiDJlZDuU8zcTspoCiQl0NSWdw4FCnGybPEvUTEKnNnWJ/e2G4Q1L80ATc6agVPQRnNAvRpHCpe+7wHhphbfJMOW494BK1Y7d1xIttrRSA4pp5DiFEhuu+Q8prCneBGL6PFXzRtlAKW2UwEAAA==>]]
 
 カスタマイズ変数edraw-org-link-image-link-formatsを追加した。
+** DONE ORG/容量の大きいデータリンクが正しくインライン表示されないことがある
+CLOSED: [2024-05-28 Tue 14:15]
+edraw-org-link-image-modeでインライン画像表示しているときの話。
+LaTeXで数式を沢山入れると簡単に数万文字程度になってしまうが、そうすると編集直後やファイルを開いた直後などに文字列のままになってしまうことがある。リンクのfont-lockが中途半端な状態になっていることもある。
+
++おそらく長すぎてfontify範囲の末尾がリンクの末尾より前になっているのだと思う。+ fontify範囲の末尾がリンクの末尾より前にあっても、リンクの末尾まで画像化するようになっている。
+
+1行の長さが大きいとリンクの途中からfontifyが始まることがあるのが原因。リンクの途中からfontifyが始まると、開始位置から次のリンクの先頭までの間にあるオーバーレイは全て削除してしまう。なので画像が表示されない。
+
+fontifyの先頭がリンクの途中かどうかを調べ、もし途中ならそのリンクも更新する。
