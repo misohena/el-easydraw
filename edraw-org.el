@@ -661,7 +661,13 @@ Allowed values for TARGET-TYPE are:
             (format "\\(?1:<%s:.*?>\\)" edraw-org-link-type))
           ;; (plain link) edraw:
           (when (memq 'plain edraw-org-link-image-link-formats)
-            (format "\\(?:\\(?:[^[<]\\|\\`\\)\\<\\(?1:%s:[^ \t\n]\\)\\)"
+            ;; NG:
+            ;;   [edraw:?
+            ;;   <edraw:?
+            ;; OK:
+            ;;   \`edraw:?
+            ;;   \=edraw:?  <= There may be [ or < before it, but it is allowed.
+            (format "\\(?:\\(?:[^[<]\\|\\`\\|\\=\\)\\<\\(?1:%s:[^ \t\n]\\)\\)"
                     edraw-org-link-type))))
    "\\|"))
 
