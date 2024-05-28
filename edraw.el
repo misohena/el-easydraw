@@ -5683,7 +5683,7 @@ to down-mouse-1 and processes drag and click."
                           (edraw-mouse-event-to-xy-snapped
                            editor
                            (if edraw-editor-tool-freehand-dragged-outside-view
-                               (edraw-convert-mouse-event-if-out-of-down-event
+                               (edraw-convert-mouse-event-if-out-of-down-object
                                 move-event
                                 down-event)
                              move-event))))
