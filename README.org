@@ -40,6 +40,8 @@ Draw something and type =C-c C-c= and the data will be saved in the buffer.
 ** Link Notation
 
 #+begin_src org
+Bracket Links:
+
 [​[edraw:file=./example.edraw.svg]​]
 
 [​[edraw:data=<base64data>​]]
@@ -47,6 +49,29 @@ Draw something and type =C-c C-c= and the data will be saved in the buffer.
 [​[*Example][edraw:file=./example.edraw.svg]​]
 
 [​[*Example][edraw:data=<base64data>]​]
+
+Angle Links:
+
+<edraw:file=./example.edraw.svg>
+
+<edraw:data=<base64data>>
+
+Plain Links:
+
+edraw:file=./example.edraw.svg
+
+edraw:data=<base64data>
+#+end_src
+
+Path Syntax:
+
+: edraw:<prop1>=<value1>;<prop2>=<value2>;...;<propN>=<valueN>
+
+Note: If Base64 data is included in a plain link, the trailing symbol (= or +) may not be included in the range of the plain link. In that case, by specifying a dummy property at the end, you can include the entire thing in a plain link.
+
+#+begin_src org
+edraw:data=H4sIAGAXVWYAA22O0Q7CIAxFf4X0XcpmYsIC+5cpCEQEA2Swvxed0RcfmtvbnttU5NWQdvchS7ClPCbEWiutRxqTwZExhp2AHZmad+H2Dxw45/jeAqlOFSthYAyI1c7Y8jGrTtnF0B0dYBaGOCVBq7TUwzmqrY+SvhRydd5LSFr94if2PftqNwljl7YLzgJNr/7n/AQMbuxHzwAAAA==;eop=1 is a red rectangle.
+# `eop' means end of path
 #+end_src
 
 ** Inline Images

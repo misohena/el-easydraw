@@ -176,13 +176,16 @@ is expanded. Since the cause is not clear, it is expanded by default."
      (mapcar
       (lambda (prop)
         (if (string-match "\\`\\([^=]*\\)=\\(.*\\)\\'" prop)
-            (cons
-             (string-trim (match-string 1 prop))
-             (edraw-org-link-unescape
-              (string-trim (match-string 2 prop))
-              ;; If PATH is in the description part, brackets have not
-              ;; yet been unescaped
-              in-description-p))
+            (let ((name (string-trim (match-string 1 prop)))
+                  (value (edraw-org-link-unescape
+                          (string-trim (match-string 2 prop))
+                          ;; If PATH is in the description part,
+                          ;; brackets have not yet been unescaped
+                          in-description-p)))
+              (if (string= name (edraw-org-link-path-terminator-pname))
+                  ;; Remove dummy property
+                  nil
+                (cons name value)))
           (if noerror
               nil
             (error "Invalid link format: %s" path))))
@@ -243,18 +246,71 @@ Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
                     (point))))
     (org-element-put-property element :end end)))
 
-(defun edraw-org-link-replace-at-point (text part)
-  "Replace a PART of the link at the current point with TEXT.
+(defconst edraw-org-link-path-terminator-pname "eop"
+  "Property name to append to the end of path to match `org-link-plain-re'.
+
+For example, in the path \"edraw:data=abcdef==\", the \"=\" part
+at the end does not match `org-link-plain-re', but by adding a
+dummy property to the end of the path,
+\"edraw:data=abcdef==;eop=1\" matches `org-link-plain-re'.")
+
+(defun edraw-org-link-path-terminator-pname ()
+  edraw-org-link-path-terminator-pname)
+
+(defun edraw-org-link-path-terminator-required-p (path)
+  (memq (elt path (1- (length path))) '(?= ?+)))
+
+(defun edraw-org-link-path-terminator-add (path)
+  (concat path ";" edraw-org-link-path-terminator-pname "=1"))
+
+(defun edraw-org-link-replace-at-point (path part)
+  "Replace a PART of the link at the current point with PATH.
 
 This function will replace the link even if it is in the comment,
 so check the org element before using this function."
-  (when (org-in-regexp org-link-bracket-re 1)
-    (replace-match text t t nil
-                   (pcase part
-                     ('link 0)
-                     ('path 1)
-                     ('description 2)))
-    t))
+  (cond
+   ;; bracket link
+   ((org-in-regexp org-link-bracket-re 1)
+    (replace-match
+     (cond
+      ((string-empty-p path)
+       path)
+      ;; [[   ][<edraw:data=aaaaaaaaa==>]]
+      ((and (eq part 'description)
+            (eq (char-after (match-beginning 2)) ?<)
+            (eq (char-before (match-end 2)) ?>))
+       (concat "<" path ">"))
+      ;; [[   ][edraw:data=aaaaaaaaa==;eop=1]]
+      ((and (eq part 'description)
+            (edraw-org-link-path-terminator-required-p path))
+       (edraw-org-link-path-terminator-add path))
+      ;; [[   ][edraw:data=aaaaaaaaaAA]] or [[   ][edraw:file=hoge.edraw.svg]]
+      (t
+       path))
+     t t nil
+     (pcase part
+       ;;('link 0)
+       ('path 1)
+       ('description 2)))
+    t)
+   ;; angle link (Check before plain link)
+   ((org-in-regexp org-link-angle-re 1)
+    (replace-match (concat "<" path ">") t t)
+    t)
+   ;; plain link
+   ((org-in-regexp org-link-plain-re 1)
+    (replace-match
+     (cond
+      ((string-empty-p path)
+       path)
+      ;; edraw:data=aaaaaaaaa==;eop=1
+      ((edraw-org-link-path-terminator-required-p path)
+       (edraw-org-link-path-terminator-add path))
+      ;; edraw:data=aaaaaaaaaAA or edraw:file=hoge.edraw.svg
+      (t
+       path))
+     t t)
+    t)))
 
 (defun edraw-org-link-element-path-in-description (link-element
                                                    &optional link-type)
@@ -264,10 +320,17 @@ When LINK-TYPE is nil, use `edraw-org-link-type'."
   (when-let ((c-begin (org-element-property :contents-begin link-element))
              (c-end (org-element-property :contents-end link-element)))
     (let ((desc (buffer-substring-no-properties c-begin c-end)))
-      (when (string-match (format "\\`%s:\\(.*\\)\\'"
-                                  (or link-type edraw-org-link-type))
-                          desc)
-        (match-string 1 desc)))))
+      (cond
+       ;; angle link
+       ((string-match (format "\\`<%s:\\(.*\\)>\\'"
+                              (or link-type edraw-org-link-type))
+                      desc)
+        (match-string 1 desc))
+       ;; plain link
+       ((string-match (format "\\`%s:\\(.*\\)\\'"
+                              (or link-type edraw-org-link-type))
+                      desc)
+        (match-string 1 desc))))))
 
 (defun edraw-org-link-element-link-properties (link-element noerror &optional use-normal-file-link-p)
   "Return the property alist of LINK-ELEMENT.
