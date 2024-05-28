@@ -652,13 +652,13 @@ Allowed values for TARGET-TYPE are:
    #'identity
    (delq nil
          (list
-          ;; (bracket link) [[edraw:...]] or ][edraw:...]] or ][<edraw:...>]]
+          ;; (bracket link) [[edraw:? or ][edraw:? or ][<edraw:?
           (when (memq 'bracket edraw-org-link-image-link-formats)
-            (format "\\(?1:\\(?:[][]\\[\\|]\\[<\\)%s:.*?\\]\\]\\)"
+            (format "\\(?1:\\(?:[][]\\[\\|]\\[<\\)%s:[^]\n]\\)"
                     edraw-org-link-type))
-          ;; (angle link) <edraw:...>
+          ;; (angle link) <edraw:?
           (when (memq 'angle edraw-org-link-image-link-formats)
-            (format "\\(?1:<%s:.*?>\\)" edraw-org-link-type))
+            (format "\\(?1:<%s:[^>]\\)" edraw-org-link-type))
           ;; (plain link) edraw:
           (when (memq 'plain edraw-org-link-image-link-formats)
             ;; NG:
@@ -678,10 +678,12 @@ Allowed values for TARGET-TYPE are:
       (let ((last-end beg)
             (regexp (edraw-org-link-image-make-search-regexp)))
 
+        ;;(message "Fontify beg:%s end:%s" beg end)
         ;; When start from the middle of a link
         (when-let ((link-element (edraw-org-link-at-point)))
           (let ((link-begin (org-element-property :begin link-element))
                 (link-end (org-element-property :end link-element)))
+            ;;(message "Link at start %s-%s format:%s" link-begin link-end (org-element-property :format link-element))
             (when (< link-begin beg link-end)
               ;;(message "Fontify from the middle of a link!")
               (when (and (memq (org-element-property :format link-element)
@@ -692,8 +694,10 @@ Allowed values for TARGET-TYPE are:
               (goto-char link-end))))
 
         ;; All links up to the END.
+        ;;(message "Start search from %s" (point))
         (while (re-search-forward regexp end t)
           (goto-char (match-beginning 1))
+          ;;(message "Found candidate at %s" (point))
           (if-let ((link-element (edraw-org-link-at-point)))
               (let ((link-begin (org-element-property :begin link-element))
                     (link-end (org-element-property :end link-element)))
@@ -711,6 +715,7 @@ Allowed values for TARGET-TYPE are:
           (edraw-org-link-image-remove-region last-end end))))))
 
 (defun edraw-org-link-image-remove-region (beg end)
+  ;;(message "Remove %s-%s" beg end)
   ;;(remove-overlays beg end 'edraw-org-link-image-p t) ;;move the endpoints? split?
   (mapc #'delete-overlay (edraw-org-link-image-overlays-in beg end)))
 
