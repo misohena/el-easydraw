@@ -11005,7 +11005,7 @@ REF is a point reference in scaling-points."
              (opposite-vecs (when shift-p
                               (edraw-get-opposite-scaling-point-vectors
                                transformer ref))))
-        (message "old-xy=%s opposite-vecs=%s" old-xy opposite-vecs)
+        ;;(message "old-xy=%s opposite-vecs=%s" old-xy opposite-vecs)
         (edraw-track-dragging
          down-event
          (lambda (move-event)
@@ -11037,13 +11037,19 @@ REF is a point reference in scaling-points."
                     edraw-transform-origin-input-radius
                     #'edraw-xy-distance))
 
+(defconst edraw-transform-origin-snap-radius
+  edraw-transform-origin-input-radius
+  "Max snap distance.")
+
 (cl-defmethod edraw-set-transform-origin-by-dragging ((transformer edraw-shape-transformer)
                                                       down-event)
   (let* ((editor (edraw-get-editor transformer))
          (ref (edraw-find-origin-point transformer down-event)))
     (when ref
       (let ((old-xy (edraw-ref-xy-on-scaled transformer ref))
-            (shift-p (memq 'shift (event-modifiers down-event))))
+            (shift-p (memq 'shift (event-modifiers down-event)))
+            (snap-radius (/ edraw-transform-origin-snap-radius
+                            (float (edraw-scroll-scale editor)))))
         (edraw-track-dragging
          down-event
          (lambda (move-event)
@@ -11060,7 +11066,7 @@ REF is a point reference in scaling-points."
                                         (cons (cons 'ratio (car ratio-xy))
                                               (cons 'ratio (cdr ratio-xy))))
                                        move-xy)
-                                      8)) ;;Max snap distance
+                                      snap-radius))
                                  '((0.0 . 0.0) (0.5 . 0.0) (1.0 . 0.0)
                                    (0.0 . 0.5) (0.5 . 0.5) (1.0 . 0.5)
                                    (0.0 . 1.0) (0.5 . 1.0) (1.0 . 1.0)))))
