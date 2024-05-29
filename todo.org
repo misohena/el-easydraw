@@ -642,9 +642,6 @@ rectやellipse、textにもそういった問題はある。
 
 その他にも何かあるかもしれない。直接DOMを操作しているところは怪しい。
 
-** TODO edraw-shape-typesの:from-element等は静的メソッドにすべき?
-:from-elementや:create-elementに指定する関数はクラスに対する静的メソッドであるべきだろうか。
-
 ** TODO gタグのshape descriptor変換についての問題
 edraw-shape-descriptor-from-svg-element-without-editor関数にgタグに特化した処理がある。子孫の要素を再帰的にshape descriptorへ変換するためのもの。ここはこれでいいのだろうか。
 
@@ -4839,4 +4836,10 @@ CLOSED: [2024-05-28 Tue 17:14]
 カスタマイズ変数[[elisp-variable:edraw-editor-tool-freehand-dragged-outside-view]]を追加した。
 
 デフォルトは従来通りの動作にしておいた。他の環境で正しく動くのか不安なので。
+** DONE edraw-shapeオブジェクトの作成を静的メソッドを使うようにする
+CLOSED: [2024-05-29 Wed 08:53]
+edraw-shape-types変数(edraw-shape-type-alistへ改名)は中途半端なので、alistの値として:classのみを持つようにして、:from-elementと:create-elementはそのクラスの静的メソッドにする。
 
+ついでにedraw-shape-type-alistに直接初期値を指定するのでは無く、各defclassの近くでtypeとshape-classを登録するように変更する。edraw-shape-type-set関数を追加。
+
+これにより新しいオブジェクトタイプを追加しやすくする。
