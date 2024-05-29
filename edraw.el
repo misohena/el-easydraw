@@ -8066,7 +8066,7 @@ may be replaced by another mechanism."
 (cl-defmethod edraw-set-anchor-position ((shape edraw-shape-text) xy)
   "Returns t if the property is actually changed."
   (with-slots (element) shape
-    (when (edraw-xy-equal-p xy (edraw-get-anchor-position shape))
+    (unless (edraw-xy-equal-p xy (edraw-get-anchor-position shape))
       (edraw-set-properties
        shape
        (list
