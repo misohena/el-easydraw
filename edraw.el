@@ -3939,11 +3939,17 @@ document size or view box."
 
 ;;;;; Editor - Mouse Coordinates
 
-(defun edraw-convert-mouse-event-if-out-of-down-object (move-event
-                                                        down-event)
-  "When MOVE-EVENT leaves the object where DOWN-EVENT occurred,
-convert MOVE-EVENT so that it continues to point to the
-coordinates on the object where DOWN-EVENT occurred."
+(defun edraw-convert-mouse-event-on-down-object (move-event down-event)
+  "Convert the mouse event to retain the position on the object when
+it is pressed down.
+
+MOVE-EVENT is the event to be converted. It is not clear which
+part of the Emacs frame it points to.
+
+DOWN-EVENT is the event that occurs when the mouse is pressed down.
+
+MOVE-EVENT is converted to have the position (coordinates) on the
+object where the DOWN-EVENT occurred, and returned."
   (let ((move-pos (event-start move-event))
         (down-pos (event-start down-event)))
     (if ;;(edraw-posn-same-object-p move-pos down-pos)
@@ -5627,7 +5633,7 @@ to down-mouse-1 and processes drag and click."
 
 ;;;;; Tool - Freehand Tool
 
-(defcustom edraw-editor-tool-freehand-dragged-outside-view nil
+(defcustom edraw-editor-tool-freehand-dragged-outside-view 'draw-outside
   "Behavior when dragged outside view in the Freehand Tool."
   :group 'edraw-editor
   :type '(choice
@@ -5666,51 +5672,51 @@ to down-mouse-1 and processes drag and click."
       (edraw-deselect-all-shapes editor)
       ;; Preview
       (edraw-editor-with-silent-modifications
-        ;; Add a new path shape
-        (let ((preview-path (edraw-create-shape-default
-                             editor (edraw-svg-body editor) 'path)))
-          (unwind-protect
-              (progn
-                ;; Add the first point of the path
-                (push down-xy points)
-                (edraw-add-anchor-point preview-path down-xy)
+       ;; Add a new path shape
+       (let ((preview-path (edraw-create-shape-default
+                            editor (edraw-svg-body editor) 'path)))
+         (unwind-protect
+             (progn
+               ;; Add the first point of the path
+               (push down-xy points)
+               (edraw-add-anchor-point preview-path down-xy)
 
-                ;; Add new points on dragging
-                (edraw-track-dragging
-                 down-event
-                 (lambda (move-event)
-                   (let ((move-xy
-                          (edraw-mouse-event-to-xy-snapped
-                           editor
-                           (if edraw-editor-tool-freehand-dragged-outside-view
-                               (edraw-convert-mouse-event-if-out-of-down-object
-                                move-event
-                                down-event)
-                             move-event))))
-                     ;;@todo realtime simplification & smoothing the path
+               ;; Add new points on dragging
+               (edraw-track-dragging
+                down-event
+                (lambda (move-event)
+                  (let ((move-xy
+                         (edraw-mouse-event-to-xy-snapped
+                          editor
+                          (if edraw-editor-tool-freehand-dragged-outside-view
+                              (edraw-convert-mouse-event-on-down-object
+                               move-event
+                               down-event)
+                            move-event))))
+                    ;;@todo realtime simplification & smoothing the path
 
-                     ;; Clip
-                     (when (eq edraw-editor-tool-freehand-dragged-outside-view
-                               'clip)
-                       (setq move-xy
-                             (edraw-xy
-                              (edraw-clamp
-                               (edraw-x move-xy)
-                               (edraw-scroll-visible-area-left editor)
-                               (edraw-scroll-visible-area-right editor))
-                              (edraw-clamp
-                               (edraw-y move-xy)
-                               (edraw-scroll-visible-area-top editor)
-                               (edraw-scroll-visible-area-bottom editor)))))
+                    ;; Clip
+                    (when (eq edraw-editor-tool-freehand-dragged-outside-view
+                              'clip)
+                      (setq move-xy
+                            (edraw-xy
+                             (edraw-clamp
+                              (edraw-x move-xy)
+                              (edraw-scroll-visible-area-left editor)
+                              (edraw-scroll-visible-area-right editor))
+                             (edraw-clamp
+                              (edraw-y move-xy)
+                              (edraw-scroll-visible-area-top editor)
+                              (edraw-scroll-visible-area-bottom editor)))))
 
-                     ;; Add point
-                     (unless (edraw-xy-equal-p move-xy last-xy)
-                       (push move-xy points)
-                       (edraw-add-anchor-point preview-path move-xy)
-                       (setq last-xy move-xy))))
-                 nil nil nil nil
-                 (and edraw-editor-tool-freehand-dragged-outside-view t)))
-            (edraw-remove preview-path))))
+                    ;; Add point
+                    (unless (edraw-xy-equal-p move-xy last-xy)
+                      (push move-xy points)
+                      (edraw-add-anchor-point preview-path move-xy)
+                      (setq last-xy move-xy))))
+                nil nil nil nil
+                (and edraw-editor-tool-freehand-dragged-outside-view t)))
+           (edraw-remove preview-path))))
 
       ;; Create
       (when (>= (length points) 2)

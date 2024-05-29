@@ -4836,6 +4836,11 @@ CLOSED: [2024-05-28 Tue 17:14]
 カスタマイズ変数[[elisp-variable:edraw-editor-tool-freehand-dragged-outside-view]]を追加した。
 
 デフォルトは従来通りの動作にしておいた。他の環境で正しく動くのか不安なので。
+
+[2024-05-29 Wed]追記:他の環境でもテストしたのでデフォルトを外に線を描くものにした。
+- Ubuntu22 (Emacs27.1)
+- Debian12 (Emacs28.2 GTK+)
+- Mac Mini (Emacs27.?)
 ** DONE edraw-shapeオブジェクトの作成を静的メソッドを使うようにする
 CLOSED: [2024-05-29 Wed 08:53]
 edraw-shape-types変数(edraw-shape-type-alistへ改名)は中途半端なので、alistの値として:classのみを持つようにして、:from-elementと:create-elementはそのクラスの静的メソッドにする。
