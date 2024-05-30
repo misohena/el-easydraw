@@ -293,6 +293,7 @@
      "Show SVG" "SVGを表示"
      "Special Preset" "特殊プリセット"
      "Split Path at Point" "この点でパスを分割"
+     "Split Subpath at Point" "この点でサブパスを分割"
      "Split Subpaths" "サブパス毎に分割"
      "Start Marker" "始点マーカー"
      "Stroke" "線"

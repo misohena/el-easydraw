@@ -9403,19 +9403,32 @@ possible. Because undoing invalidates all point objects."
           (glued-p (edraw-glued-p spt)))
       (cond
        ((edraw-path-point-anchor-p ppoint)
-        `(((edraw-msg "Delete Point") edraw-delete-point)
-          ((edraw-msg "Split Path at Point") edraw-split-path-at)
-          ((edraw-msg "Insert Point Before") edraw-insert-point-before
-           :enable ,(not (null (edraw-path-point-prev-anchor ppoint))))
-          ((edraw-msg "Move by Coordinates...") edraw-move)
-          ((edraw-msg "Make Smooth") edraw-make-smooth)
-          ((edraw-msg "Make Corner") edraw-make-corner
-           :enable ,(or backward-handle forward-handle))
-          ((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
-           :visible ,(not glued-p)
-           :enable ,(edraw-can-be-glued-to-selected-or-overlapped-shape spt))
-          ((edraw-msg "Unglue") edraw-unglue
-           :visible ,glued-p)))
+        (let* ((multi-subpaths-p (edraw-contains-multiple-subpaths-p
+                                  (edraw-parent-shape spt)))
+               (next-anchor (edraw-path-point-next-anchor ppoint))
+               (prev-anchor (edraw-path-point-prev-anchor ppoint))
+               (not-end-of-subpath-p (and next-anchor
+                                          prev-anchor
+                                          (not (eq next-anchor ppoint))
+                                          (not (eq prev-anchor ppoint)))))
+          `(((edraw-msg "Delete Point") edraw-delete-point)
+            ((edraw-msg "Split Path at Point") edraw-split-path-at
+             :enable ,not-end-of-subpath-p
+             :visible ,(not multi-subpaths-p))
+            ((edraw-msg "Split Subpath at Point") edraw-split-subpath-at
+             :enable ,not-end-of-subpath-p
+             :visible ,multi-subpaths-p)
+            ((edraw-msg "Insert Point Before") edraw-insert-point-before
+             :enable ,(not (null (edraw-path-point-prev-anchor ppoint))))
+            ((edraw-msg "Move by Coordinates...") edraw-move)
+            ((edraw-msg "Make Smooth") edraw-make-smooth)
+            ((edraw-msg "Make Corner") edraw-make-corner
+             :enable ,(or backward-handle forward-handle))
+            ((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
+             :visible ,(not glued-p)
+             :enable ,(edraw-can-be-glued-to-selected-or-overlapped-shape spt))
+            ((edraw-msg "Unglue") edraw-unglue
+             :visible ,glued-p))))
        ((edraw-path-point-handle-p ppoint)
         `(((edraw-msg "Delete Point") edraw-delete-point)
           ((edraw-msg "Move by Coordinates...") edraw-move)
@@ -9472,6 +9485,16 @@ possible. Because undoing invalidates all point objects."
   "Returns t if the point SPT is part of a closed subpath in the path shape."
   (with-slots (ppoint) spt
     (edraw-path-anchor-in-closed-subpath-p ppoint)))
+
+(cl-defmethod edraw-split-subpath-at ((spt edraw-shape-point-path))
+  (with-slots (ppoint shape) spt
+    (when (edraw-path-point-anchor-p ppoint)
+      (edraw-make-undo-group (oref shape editor) 'split-subpath-at-anchor
+        (when (edraw-path-anchor-split-path ppoint)
+          (edraw-push-undo-properties shape 'split-path-at-anchor-d '(d))
+          (edraw-update-path-data shape)
+          (edraw-on-shape-changed shape 'split-subpath-at-anchor)
+          t)))))
 
 (cl-defmethod edraw-split-path-at ((spt edraw-shape-point-path))
   (with-slots (ppoint shape) spt
