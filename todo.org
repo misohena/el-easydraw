@@ -563,6 +563,30 @@ Emacsの window-text-pixel-size で比率を求めてはどうか。
 etc
 
 ** TODO テキスト/textPathに対応する
+** TODO テキスト/空のテキストにまつわる問題
+
+[[edraw:data=H4sIAAT7V2YAA6WQUU7EIBCGr0LG5xZa3Y3dlN6lFkpJKxjApetbu8nGRN88hvEAXkcuIu1q4oM+mWGGEP7vn8mUdi+Ql8x1FPJrAqjjUnSOQkbiY7wdlKXQOXe3w9h7n/rLVBuBc0IIjiigPTdWahWBNPsCduMgVf8blhVFgddfqErDG4dGCrHPYa1/jiEZBc5M7ZObuumF0feKAbLO6J5TUFpxQK0cBgoXbdsCwlUpfkKaHWI/x0f3LcvIEpHSyiVWPkSbbAtokSS1ajptKFhXG7fOtl1Wcb7wf3yuNqvPJofq4/QSpvN5DcdTmN/C/B6Oj2F6DtMc5qcSLyZViUXMuOnqE3lcxBSqAQAA]]
+
+- GUI変形の時に出る拡大率がおかしいような？
+
+** TODO パス編集/空のパスをどうするか
+現在までに見つかっている問題:
+- C-tで変形しようとするとエラーが出る
+  : Error running timer ‘edraw-update-image-on-timer’: (wrong-type-argument number-or-marker-p nil)
+  : *: Wrong type argument: number-or-marker-p, nil
+
+** TODO パス編集/1点だけのパスにまつわる問題を修正する
+1点だけのパスにはいくつか不具合がある。
+
+[[edraw:data=H4sIAOb5V2YAA3WRvU6EQBDHX2Uz12gi7MJ5JFxYEu3tfAE8FtiAu5dlPTg7MLHQwsLe1sLCVgtfRuLXW7iAJBaa/Uhm5vf/z042KDcpqk8LUVLItF4vMa6qyq7mtlQpdgkh2BAwIsu64CL/C3R838dDFVDFY51RmO8TQBnjaaYpOK4JNkyVXAoT2Q6EgWIrjWoKprId7n+FPKbAYhVV1km0ylMlz0QMqNRK5oyCkIIBSnhRUJglSQIIh0H6WyTjrem3jnSGTPLII3semRSjevKaOaRfU8L6eZI7eGpW66nPxCVSaKvk50breIB6xIrEKpOKQqkjpYfhFoY0ky5cCF8vb7tm3A/OR/vcNW3XXu8cHxx2zf1X8/R+dfd28/h58bIb4N4tDHBqjvmE8BuXw9SCrAEAAA==]]
+
+- マウスで選択出来ない
+- 「この点でパスを分割」が選べてしまう (エラーも出ない)
+- 「滑らかにする」が選べてしまう (エラーも出ない)
+- 「点を削除」が選べてしまう (実際に消えるが、空のパスが出来てしまう)
+- (コンテキストメニューを出して)「パスの向きを反転」が選べてしまう (エラーも出ない)
+- (コンテキストメニューを出してパス全体の)「滑らかにする」が選べてしまう (エラーも出ない)
+
 ** TODO パス編集/Aコマンドがあると編集中にエラーが発生するのを直す
 クリックしようとすると「Unsupported path command found」というエラーが発生する。
 ** TODO パス編集/アンカーポイントの複数選択・移動機能を追加する
@@ -630,6 +654,20 @@ reverseはfhpをbhpに変換する。
 - M .. L ..... Z L ..... Z L ..... Z のような書き方も出来る。一つのMを三つの閉パスが共有している形。
 
 path-cmdはともかく、path-pointは前後のアンカーやハンドルの取得、削除、追加等様々な処理が正しく動かなければならない。Mを指しているときは、そのMの次がどこになるのかpath-point自身が持たなければならない。
+
+** TODO パス編集/複数のサブパスがあることによる問題を調査・修正する
+Mが複数のサブパスで共有されるケース(Zの後にMが無いケース)は諦める。出来れば検出してエラーにするなり変換するなりする。
+
+問題は複数のサブパスが全ての部分で問題なく動くかどうか。
+複数サブパスで問題がありそうな所を探す。
+
+- パスに対するコマンド
+- パスツールで出来る操作
+- 当たり判定
+- アンカーに対する操作
+- ハンドルに対する操作
+- edraw-path.el内の@todo部分を見直す
+- インポート
 
 ** TODO パス編集/pathが1点以下になって見えなくなったらどうするか考える
 rectやellipse、textにもそういった問題はある。
@@ -4861,3 +4899,9 @@ CLOSED: [2024-05-29 Wed 09:43]
 
 原因:
 完全なうっかりミス。新しい座標が現在の座標と *同じ時* (when)に再設定していた。 *違うとき* (unless)に再設定しなければならない。
+** DONE パス編集/サブパスを作成・解除するコマンドを追加する
+CLOSED: [2024-05-30 Thu 13:15]
+- 複数のパスを結合するコマンドを追加する。 [[elisp-function:edraw-combine-paths]]
+- 一つのパスの中のサブパスを分割するコマンドを追加する。 [[elisp-function:edraw-split-subpaths]]
+- コンテキストメニューはpath用と共通用の両方を修正する。
+- 複数選択した図形が全てパスかどうかを判別するために [[elisp-function:edraw-shape-uniform-class]] メソッドを追加する。これを使って共通用のコンテキストメニューは表示を切り替える。

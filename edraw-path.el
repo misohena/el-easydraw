@@ -411,6 +411,10 @@
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4"))) => "M1,2L3,4L10,11L12,13"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-connect-cmdlist-front (edraw-path-cmdlist-from-d "M10 11L12 13") (edraw-path-cmdlist-from-d "M1 2L3 4L10 11"))) => "M1,2L3,4L10,11L10,11L12,13"
 
+(defun edraw-path-cmdlist-multiple-subpaths-p (cmdlist)
+  "Return non-nil if CMDLIST has multiple subpaths."
+  (not (null (edraw-path-cmd-next-subpath (edraw-path-cmdlist-front cmdlist)))))
+
 (defun edraw-path-cmdlist-split-subpaths (cmdlist)
   "Separate all subpaths contained in CMDLIST into new cmdlists.
 
@@ -1026,6 +1030,11 @@ One M command may correspond to multiple Z commands (see: https://www.w3.org/TR/
             prev-cmd
           ;; Return Z (Closed path)
           cmd)))))
+
+(defun edraw-path-cmd-next-subpath (cmd)
+  (when cmd
+    (when-let ((eos (edraw-path-cmd-end-of-subpath cmd)))
+      (edraw-path-cmd-next eos))))
 
 
 

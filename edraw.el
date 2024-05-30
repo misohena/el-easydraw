@@ -3485,6 +3485,9 @@ document size or view box."
   (edraw-ungroup-interactive (edraw-selected-multiple-shapes editor)))
 
 
+(edraw-editor-defcmd edraw-combine-selected-paths ((editor edraw-editor))
+  (edraw-combine-paths (edraw-selected-multiple-shapes editor)))
+
 
 (edraw-editor-defcmd edraw-edit-properties-of-selected-shapes ((editor edraw-editor))
   (edraw-editor-open-property-editor
@@ -7384,141 +7387,151 @@ SHAPE must be a `edraw-shape' or `edraw-multiple-shapes' object.
 
 If SHAPE is `edraw-multiple-shapes', the shapes it contains must
 match all selected shapes in the editor."
-  (edraw-menu-items-shape-common--convert
-   `(((edraw-msg "Select") edraw-select
-      :visible ,(and (edraw-shape-derived-p shape)
-                     (not (edraw-selected-p shape))))
-     ((edraw-msg "Deselect") edraw-deselect
-      :cmd-for-selected edraw-editor-toggle-selection-all
-      :visible ,(if (edraw-shape-derived-p shape)
-                    (edraw-selected-p shape)
-                  (edraw-multiple-shapes-p shape)))
-     ((edraw-msg "Temporary State")
-      (((edraw-msg "Invisible") edraw-toggle-visibility
-        :cmd-for-selected edraw-editor-toggle-visibility-selected
-        :button (:toggle . ,(not (edraw-visible-p shape))))
-       ((edraw-msg "Pointer Input Disabled") edraw-toggle-pickability
-        :cmd-for-selected edraw-editor-toggle-pickability-selected
-        :button (:toggle . ,(not (edraw-pickable-p shape))))
-       ((edraw-msg "Clear All States") edraw-clear-temporary-states
-        :cmd-for-selected edraw-editor-clear-temporary-states-selected
-        :enable ,(edraw-has-temporary-states-p shape))))
-     ((edraw-msg "Properties...") edraw-edit-properties
-      :cmd-for-selected edraw-editor-edit-properties-of-selected-shapes)
-     ((edraw-msg "Set")
-      (((edraw-msg "Fill...") edraw-edit-fill
-        :cmd-for-selected edraw-editor-edit-fill-selected
-        :visible ,(edraw-can-have-property-p shape 'fill))
-       ((edraw-msg "Stroke...") edraw-edit-stroke
-        :cmd-for-selected edraw-editor-edit-stroke-selected
-        :visible ,(edraw-can-have-property-p shape 'stroke))
-       ((edraw-msg "Href...") edraw-edit-href
-        :cmd-for-selected edraw-editor-edit-href-selected
-        :visible ,(edraw-can-have-property-p shape (edraw-svg-href-symbol)))
-       ((edraw-msg "Font Size...") edraw-edit-font-size
-        :cmd-for-selected edraw-editor-edit-font-size-selected
-        :visible ,(edraw-can-have-property-p shape 'font-size))
-       ;; Marker
-       ((edraw-msg "Start Marker")
-        (((edraw-msg "None") edraw-set-marker-start-none
-          :cmd-for-selected edraw-editor-set-marker-start-none-selected
-          :button (:toggle . ,(null (edraw-get-property shape 'marker-start))))
-         ((edraw-msg "Arrow") edraw-set-marker-start-arrow
-          :cmd-for-selected edraw-editor-set-marker-start-arrow-selected
-          :button (:toggle . ,(equal (edraw-svg-marker-type
-                                      (edraw-get-property shape 'marker-start))
-                                     "arrow")))
-         ((edraw-msg "Circle") edraw-set-marker-start-circle
-          :cmd-for-selected edraw-editor-set-marker-start-circle-selected
-          :button (:toggle . ,(equal (edraw-svg-marker-type
-                                      (edraw-get-property shape 'marker-start))
-                                     "circle")))
-         ("--single-line")
-         ((edraw-msg "Next Type") edraw-set-marker-start-next
-          :cmd-for-selected edraw-editor-set-marker-start-next-selected))
-        :visible ,(edraw-can-have-property-p shape 'marker-start))
-       ((edraw-msg "End Marker")
-        (((edraw-msg "None") edraw-set-marker-end-none
-          :cmd-for-selected edraw-editor-set-marker-end-none-selected
-          :button (:toggle . ,(null (edraw-get-property shape 'marker-end))))
-         ((edraw-msg "Arrow") edraw-set-marker-end-arrow
-          :cmd-for-selected edraw-editor-set-marker-end-arrow-selected
-          :button (:toggle . ,(equal (edraw-svg-marker-type
-                                      (edraw-get-property shape 'marker-end))
-                                     "arrow")))
-         ((edraw-msg "Circle") edraw-set-marker-end-circle
-          :cmd-for-selected edraw-editor-set-marker-end-circle-selected
-          :button (:toggle . ,(equal (edraw-svg-marker-type
-                                      (edraw-get-property shape 'marker-end))
-                                     "circle")))
-         ("--single-line")
-         ((edraw-msg "Next Type") edraw-set-marker-end-next
-          :cmd-for-selected edraw-editor-set-marker-end-next-selected))
-        :visible ,(edraw-can-have-property-p shape 'marker-end))))
-     ((edraw-msg "Transform")
-      (((edraw-msg "Transform...") edraw-transform-interactive
-        :cmd-for-selected edraw-editor-transform-selected-interactive)
-       ((edraw-msg "Translate...") edraw-translate
-        :cmd-for-selected edraw-editor-translate-selected)
-       ((edraw-msg "Scale...") edraw-scale
-        :cmd-for-selected edraw-editor-scale-selected)
-       ((edraw-msg "Rotate...") edraw-rotate
-        :cmd-for-selected edraw-editor-rotate-selected)
-       ((edraw-msg "Apply transform property to anchors")
-        edraw-apply-transform-prop-to-anchor-points
-        ;; @todo :cmd-for-selected ?
-        :enable ,(and (edraw-shape-derived-p shape)
-                      (edraw-transform-prop-exists-p shape)
-                      (not (edraw-matrix-identity-p
-                            (edraw-transform-prop-get-matrix shape)))))
-       ;; @todo Set for each shape?
-       ,(edraw-transform-method-menu shape)))
-     ((edraw-msg "Z-Order")
-      (((edraw-msg "Bring to Front") edraw-bring-to-front
-        :cmd-for-selected edraw-editor-bring-selected-to-front
+  (let* ((shape-p (edraw-shape-derived-p shape))
+         (selected-p (and shape-p (edraw-selected-p shape)))
+         (multiple-p (edraw-multiple-shapes-p shape))
+         (uniform-class (edraw-shape-uniform-class shape)))
+
+    (edraw-menu-items-shape-common--convert
+     `(((edraw-msg "Select") edraw-select
+        :visible ,(and shape-p (not selected-p)))
+       ((edraw-msg "Deselect") edraw-deselect
+        :cmd-for-selected edraw-editor-toggle-selection-all
+        :visible ,(if shape-p selected-p multiple-p))
+       ((edraw-msg "Temporary State")
+        (((edraw-msg "Invisible") edraw-toggle-visibility
+          :cmd-for-selected edraw-editor-toggle-visibility-selected
+          :button (:toggle . ,(not (edraw-visible-p shape))))
+         ((edraw-msg "Pointer Input Disabled") edraw-toggle-pickability
+          :cmd-for-selected edraw-editor-toggle-pickability-selected
+          :button (:toggle . ,(not (edraw-pickable-p shape))))
+         ((edraw-msg "Clear All States") edraw-clear-temporary-states
+          :cmd-for-selected edraw-editor-clear-temporary-states-selected
+          :enable ,(edraw-has-temporary-states-p shape))))
+       ((edraw-msg "Properties...") edraw-edit-properties
+        :cmd-for-selected edraw-editor-edit-properties-of-selected-shapes)
+       ((edraw-msg "Set")
+        (((edraw-msg "Fill...") edraw-edit-fill
+          :cmd-for-selected edraw-editor-edit-fill-selected
+          :visible ,(edraw-can-have-property-p shape 'fill))
+         ((edraw-msg "Stroke...") edraw-edit-stroke
+          :cmd-for-selected edraw-editor-edit-stroke-selected
+          :visible ,(edraw-can-have-property-p shape 'stroke))
+         ((edraw-msg "Href...") edraw-edit-href
+          :cmd-for-selected edraw-editor-edit-href-selected
+          :visible ,(edraw-can-have-property-p shape (edraw-svg-href-symbol)))
+         ((edraw-msg "Font Size...") edraw-edit-font-size
+          :cmd-for-selected edraw-editor-edit-font-size-selected
+          :visible ,(edraw-can-have-property-p shape 'font-size))
+         ;; Marker
+         ((edraw-msg "Start Marker")
+          (((edraw-msg "None") edraw-set-marker-start-none
+            :cmd-for-selected edraw-editor-set-marker-start-none-selected
+            :button (:toggle . ,(null (edraw-get-property shape 'marker-start))))
+           ((edraw-msg "Arrow") edraw-set-marker-start-arrow
+            :cmd-for-selected edraw-editor-set-marker-start-arrow-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type
+                                        (edraw-get-property shape 'marker-start))
+                                       "arrow")))
+           ((edraw-msg "Circle") edraw-set-marker-start-circle
+            :cmd-for-selected edraw-editor-set-marker-start-circle-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type
+                                        (edraw-get-property shape 'marker-start))
+                                       "circle")))
+           ("--single-line")
+           ((edraw-msg "Next Type") edraw-set-marker-start-next
+            :cmd-for-selected edraw-editor-set-marker-start-next-selected))
+          :visible ,(edraw-can-have-property-p shape 'marker-start))
+         ((edraw-msg "End Marker")
+          (((edraw-msg "None") edraw-set-marker-end-none
+            :cmd-for-selected edraw-editor-set-marker-end-none-selected
+            :button (:toggle . ,(null (edraw-get-property shape 'marker-end))))
+           ((edraw-msg "Arrow") edraw-set-marker-end-arrow
+            :cmd-for-selected edraw-editor-set-marker-end-arrow-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type
+                                        (edraw-get-property shape 'marker-end))
+                                       "arrow")))
+           ((edraw-msg "Circle") edraw-set-marker-end-circle
+            :cmd-for-selected edraw-editor-set-marker-end-circle-selected
+            :button (:toggle . ,(equal (edraw-svg-marker-type
+                                        (edraw-get-property shape 'marker-end))
+                                       "circle")))
+           ("--single-line")
+           ((edraw-msg "Next Type") edraw-set-marker-end-next
+            :cmd-for-selected edraw-editor-set-marker-end-next-selected))
+          :visible ,(edraw-can-have-property-p shape 'marker-end))))
+       ((edraw-msg "Transform")
+        (((edraw-msg "Transform...") edraw-transform-interactive
+          :cmd-for-selected edraw-editor-transform-selected-interactive)
+         ((edraw-msg "Translate...") edraw-translate
+          :cmd-for-selected edraw-editor-translate-selected)
+         ((edraw-msg "Scale...") edraw-scale
+          :cmd-for-selected edraw-editor-scale-selected)
+         ((edraw-msg "Rotate...") edraw-rotate
+          :cmd-for-selected edraw-editor-rotate-selected)
+         ((edraw-msg "Apply transform property to anchors")
+          edraw-apply-transform-prop-to-anchor-points
+          ;; @todo :cmd-for-selected ?
+          :enable ,(and shape-p
+                        (edraw-transform-prop-exists-p shape)
+                        (not (edraw-matrix-identity-p
+                              (edraw-transform-prop-get-matrix shape)))))
+         ;; @todo Set for each shape?
+         ,(edraw-transform-method-menu shape)))
+       ((edraw-msg "Z-Order")
+        (((edraw-msg "Bring to Front") edraw-bring-to-front
+          :cmd-for-selected edraw-editor-bring-selected-to-front
+          :enable ,(not (edraw-front-p shape)))
+         ((edraw-msg "Bring Forward") edraw-bring-forward
+          :cmd-for-selected edraw-editor-bring-selected-forward
+          :enable ,(not (edraw-front-p shape)))
+         ((edraw-msg "Send Backward") edraw-send-backward
+          :cmd-for-selected edraw-editor-send-selected-backward
+          :enable ,(not (edraw-back-p shape)))
+         ((edraw-msg "Send to Back") edraw-send-to-back
+          :cmd-for-selected edraw-editor-send-selected-to-back
+          :enable ,(not (edraw-back-p shape)))))
+       ((edraw-msg "Glue")
+        (((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
+          ;; @todo :cmd-for-selected ?
+          ;; @todo impl `edraw-get-point-connections' for multiple shapes
+          :enable ,(and shape-p
+                        (null (edraw-get-point-connections shape))))
+         ((edraw-msg "Unglue All") edraw-unglue-all
+          ;; @todo :cmd-for-selected ?
+          ;; @todo impl `edraw-get-point-connections' for multiple shapes
+          :enable ,(and shape-p
+                        (not (null (edraw-get-point-connections shape))))))
+        :visible ,shape-p)
+       ;; Basic Edit
+       ((edraw-msg "Delete...") edraw-delete-with-confirm
+        :cmd-for-selected edraw-editor-delete-selected)
+       ((edraw-msg "Duplicate") edraw-duplicate-and-select
+        :cmd-for-selected edraw-editor-duplicate-selected-shapes)
+       ((edraw-msg "Copy") edraw-copy
+        :cmd-for-selected edraw-editor-copy-selected-shapes)
+       ((edraw-msg "Cut") edraw-cut
+        :cmd-for-selected edraw-editor-cut-selected-shapes)
+       ;; Group
+       ((edraw-msg "Group") edraw-group
+        :cmd-for-selected edraw-editor-group-selected-shapes)
+       ((edraw-msg "Ungroup") edraw-ungroup
+        :cmd-for-selected edraw-editor-ungroup-selected-shapes
+        :enable ,(and multiple-p
+                      (edraw-group-p shape)))
+       ;; Navigate
+       ((edraw-msg "Select Next Above") edraw-select-next-shape
+        :cmd-for-selected edraw-editor-select-next-shape
         :enable ,(not (edraw-front-p shape)))
-       ((edraw-msg "Bring Forward") edraw-bring-forward
-        :cmd-for-selected edraw-editor-bring-selected-forward
-        :enable ,(not (edraw-front-p shape)))
-       ((edraw-msg "Send Backward") edraw-send-backward
-        :cmd-for-selected edraw-editor-send-selected-backward
+       ((edraw-msg "Select Next Below") edraw-select-previous-shape
+        :cmd-for-selected edraw-editor-select-previous-shape
         :enable ,(not (edraw-back-p shape)))
-       ((edraw-msg "Send to Back") edraw-send-to-back
-        :cmd-for-selected edraw-editor-send-selected-to-back
-        :enable ,(not (edraw-back-p shape)))))
-     ((edraw-msg "Glue")
-      (((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
-        ;; @todo :cmd-for-selected ?
-        ;; @todo impl `edraw-get-point-connections' for multiple shapes
-        :enable ,(and (edraw-shape-derived-p shape)
-                      (null (edraw-get-point-connections shape))))
-       ((edraw-msg "Unglue All") edraw-unglue-all
-        ;; @todo :cmd-for-selected ?
-        ;; @todo impl `edraw-get-point-connections' for multiple shapes
-        :enable ,(and (edraw-shape-derived-p shape)
-                      (not (null (edraw-get-point-connections shape))))))
-      :visible ,(edraw-shape-derived-p shape))
-     ((edraw-msg "Delete...") edraw-delete-with-confirm
-      :cmd-for-selected edraw-editor-delete-selected)
-     ((edraw-msg "Duplicate") edraw-duplicate-and-select
-      :cmd-for-selected edraw-editor-duplicate-selected-shapes)
-     ((edraw-msg "Copy") edraw-copy
-      :cmd-for-selected edraw-editor-copy-selected-shapes)
-     ((edraw-msg "Cut") edraw-cut
-      :cmd-for-selected edraw-editor-cut-selected-shapes)
-     ((edraw-msg "Group") edraw-group
-      :cmd-for-selected edraw-editor-group-selected-shapes)
-     ((edraw-msg "Ungroup") edraw-ungroup
-      :cmd-for-selected edraw-editor-ungroup-selected-shapes
-      :enable ,(and (edraw-multiple-shapes-p shape)
-                    (edraw-group-p shape)))
-     ((edraw-msg "Select Next Above") edraw-select-next-shape
-      :cmd-for-selected edraw-editor-select-next-shape
-      :enable ,(not (edraw-front-p shape)))
-     ((edraw-msg "Select Next Below") edraw-select-previous-shape
-      :cmd-for-selected edraw-editor-select-previous-shape
-      :enable ,(not (edraw-back-p shape))))
-   shape))
+       ;; Path
+       ((edraw-msg "Combine Paths") edraw-combine-paths
+        :cmd-for-selected edraw-editor-combine-selected-paths
+        :enable ,multiple-p
+        :visible ,(eq uniform-class 'edraw-shape-path)))
+     shape)))
 
 (cl-defmethod edraw-property-editor-actions ((shape edraw-shape))
   `((push-button :notify ,(lambda (&rest _)
@@ -8238,6 +8251,8 @@ may be replaced by another mechanism."
         :enable ,(edraw-closable-path-shape-p shape))
        ((edraw-msg "Open Path") edraw-open-path-shape
         :enable ,(edraw-closed-path-shape-p shape))
+       ((edraw-msg "Split Subpaths") edraw-split-subpaths
+        :enable ,(edraw-contains-multiple-subpaths-p shape))
        ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
        ((edraw-msg "Make Smooth") edraw-make-smooth)))))
 
@@ -8452,6 +8467,77 @@ may be replaced by another mechanism."
     (edraw-set-property path 'd d)
     ;; Succeeded
     t))
+
+(cl-defmethod edraw-combine-paths ((shapes list))
+  "Combine path objects.
+
+Only objects of class edraw-shape-path or its derived classes in
+SHAPES will be processed; all others will be ignored.
+
+All subpaths contained in the path data being processed will be
+combined into a single path data as is.
+
+A new path object will be created with the combined path data.
+
+The new path object will have the properties of the first object in SHAPES.
+
+All path objects being processed will be deleted."
+  ;; Filter out objects that are not path or its derived classes.
+  (let ((paths (seq-filter
+                (lambda (obj) (cl-typep obj 'edraw-shape-path))
+                shapes)))
+    (when (cdr paths) ;; Two or more paths are required
+      (let ((base-path (car paths))) ;;Use first one in PATHS as basis?
+        (edraw-make-undo-group
+            (edraw-get-editor base-path) 'combine-paths
+          (let ((new-path (edraw-clone base-path)))
+            ;; Set combined path data
+            (edraw-set-property
+             new-path 'd
+             (mapconcat (lambda (path)
+                          ;; Should I take path data from d= or cmdlist?
+                          ;; It would be problematic to have relative
+                          ;; coordinates (lowercase m command) at the
+                          ;; beginning, so get path data from cmdlist.
+                          ;; (dom-attr (edraw-element path) 'd)
+                          (edraw-path-cmdlist-to-string (oref path cmdlist)))
+                        paths))
+            ;; Remove old paths
+            (dolist (path paths)
+              (edraw-remove path))
+            ;; Select new path
+            (edraw-select new-path))))
+      t)))
+
+(cl-defmethod edraw-contains-multiple-subpaths-p ((shape edraw-shape-path))
+  (edraw-path-cmdlist-multiple-subpaths-p (oref shape cmdlist)))
+
+(cl-defmethod edraw-split-subpaths ((shape edraw-shape-path))
+  (edraw-make-undo-group (oref shape editor) 'split-subpaths
+    (with-slots (cmdlist) shape
+      (when-let ((new-cmdlists
+                  (edraw-path-cmdlist-split-subpaths ;; Destructive
+                   ;; Clone cmdlist
+                   (edraw-path-cmdlist-from-d
+                    (edraw-path-cmdlist-to-string cmdlist)))))
+
+        ;; Deselect
+        (when (edraw-selected-p shape)
+          (edraw-deselect shape))
+
+        ;; Create new path shapes
+        (dolist (new-cmdlist new-cmdlists)
+          (let ((new-shape (edraw-clone shape)))
+            (edraw-path-cmdlist-swap (oref new-shape cmdlist) new-cmdlist)
+            (edraw-update-path-data new-shape)
+            ;;@todo notify new-shape change?
+            ))
+        ;;@todo select new path objects?
+
+        ;; Delete old path shape
+        (edraw-remove shape)
+
+        t))))
 
 
 
@@ -10073,6 +10159,31 @@ possible. Because undoing invalidates all point objects."
    (change-hook :initform (edraw-hook-make))
    (prop-info-list-cache :initform nil)))
 
+;;;;; Multiple Shapes - Types
+
+(cl-defgeneric edraw-shape-uniform-class (shapes)
+  "When SHAPES consists of objects of a single class, return the
+ class symbol.
+
+Note that this does not return the common base class.")
+
+(cl-defmethod edraw-shape-uniform-class ((shapes list))
+  (when shapes
+    (let* ((first-shape (car shapes))
+           (first-class (and (eieio-object-p first-shape)
+                             (eieio-object-class first-shape))))
+      (cl-loop for shape in (cdr shapes)
+               unless (and (eieio-object-p shape)
+                           (eq (eieio-object-class shape) first-class))
+               return nil
+               finally return first-class))))
+
+(cl-defmethod edraw-shape-uniform-class ((shape edraw-shape))
+  (eieio-object-class shape))
+
+(cl-defmethod edraw-shape-uniform-class ((obj edraw-multiple-shapes))
+  (edraw-shape-uniform-class (oref obj shapes)))
+
 ;;;;; Multiple Shapes - Properties
 
 (cl-defmethod edraw-get-editor ((shape edraw-multiple-shapes))
@@ -10418,6 +10529,11 @@ Deselect all shapes, then select the shapes contained in OBJ."
   (when-let* ((back-most-shape (edraw-back-shape obj))
               (sibling (edraw-previous-sibling back-most-shape)))
     (edraw-select sibling)))
+
+;;;;; Multiple Shapes - Path
+
+(cl-defmethod edraw-combine-paths ((obj edraw-multiple-shapes))
+  (edraw-combine-paths (oref obj shapes)))
 
 ;;;;; Multiple Shapes - Other Editing Commands
 
