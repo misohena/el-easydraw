@@ -288,6 +288,11 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 
 [[edraw:data=H4sIANhljWUAA61VTW/TQBD9K9b2kkr+2LXXX1Ucqb2AUBESFyg3Y68TK4k3Wjt1yi1F4lZB6YE7B7hxRxz4L1iV+BnMemMlTVoElGQde2dnZ96beev0y9OhtphOijJCo6qaHVhWXddm7ZhcDC0bY2yBB1IuB4tJXoxvcyRhGFrtKtLqPK1GEaIUI23E8uGoipBtw+SUiTLnRYSISdCgn7Ks1PI0QiwVcW3IKVinsRgzcdNuYCMWgtdIU6vPVAZid4aHqzQEsswEK5k4ZYfljCXV07jKeYQKXjAAkLP6iC8iZBCsycuWA2mCZc8jpB5O2gcuclZAwHhecaSVleBj1kXJ8skkQnuESBKzuBppgPUxhNMNX0bVfY3q+AXSrEHfUvjuoEWMJBfJhG3xotu06B+ycjUYQIvcj5MCpSWLdltypsK0MDYpWbJjg74APJpyVZ539n9N/mWcjIeCz4v0DiBZlrXJhpubeHqGVvnSuIoNZW4dSEBjHJN1Qm8NJFDIJAKAKVGplMZqHVQkzpR2xELdVygYY2t8bXEkptsAuCS1gyD2fgcgUADgTN0XQSs61QajrGIB6eZi0tvbVdZ+JyWDFemO1+pYgdMGnRnPi8pIeFEATziu8GI47Blk/+DJ0aNex3NfP+xhZepqL6PAOQhck7obX6r7oRne+BwTjHXi4WO7uxPbdHzP9wLfphDOcXRCqenaIXZCHFLfC72uJEomO/XbqVHFFpWsOunK7q2ratuwQzoYcZGMOEh7mqepPIcZB+5l/orJjatpFk/zCUQ6mWsPeDXKEzT48eayWV6143Pz+rI5/9osv1y/A+NFc/7++u3Fz28fm+WHZvmpWX6H374ls61A/ScQkpznKm6+JzFd/ROmTTHdTyTbgtBv0Y0SCSHbmtA995iE0HMvhK77PsZh6FI9tM3Qc2hAsRP4ge/Qv5WBNYQL/sEGvwAOFT1I6QYAAA==]]
 
+** TODO 点接続/複数のサブパスがあるときに正しく接着しないことがある
+複数のサブパスがあって、特に閉パスがある場合、末端のアンカー点を接着させようとすると別の点が接着してしまうことがある。
+
+[[edraw:data=H4sIAOlNWGYAA6WUwY7TMBCGX8XyXlgpbuwQuu2qqQQnDt0LF2Bv3sRJrGbtynGbLid64YjEidMegcfgXagEr8E4TsjSbiUklKTJjGfG/2ePO6s3BWpkZssERxOKUSlkUVowIjC2t5WqE1xau7oMw6ZpRs3TkTZFGFFKQ0jFaCNMLbVKMBuxLuFyW0m1fCyNTafTsB3F81km8hrJLMEiM7whzgTvLTdLYf72E0q4MbrByI++9nrHvf2y0wyOlRG1MBvxvF6J1L7iVuoEK60EKJWieaG3CSaMIvdE7sbIiPxNgv3H2/ZDGykU1ONrqzGqrdFL0VfJZVUl+IxRd4HeFbclArFXUDEgF65wcIHigF5jFM5noVd4gouRVJq0Egdg8SFY/I9gzxDcQMb+G8vrQum2zUzvfKVWyUOq0O3afGZAEvKhPvJkRw38NzxdFkavVXZCS57n7WTFwySd3eFuvoxbTrzbBYxB+Q2dxkP+xF1D8R6uc5Be46AwHpRPPApzLgBjlLZa/G4PE6+0VJakWilQBMcADku/d6S23EDRtamenB1v+fmfOKGyo6iu4c8fEXuE43H90rlGjGkwposJDSK6YBENYv8ChEU7dH019pZ79YNjz2fF1h70Aso1INbyHczJ4IS5EMJVWmpoh5bRr9SkWynXPj8+fNrvvv38+OXX/fv97vN+93W/+w6/s9BlQ9sU8MDfx/w35f2mDH8EAAA=]]
+
 ** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
@@ -517,6 +522,12 @@ mouse.el内のmouse-drag-lineではset-transient-mapを使っている。一時�
 
 専用コマンドであれば、クリックしなくても座標を表示することが出来る。
 
+** TODO 図形の範囲が空になった時の問題を調べる
+- [[*テキスト/空のテキストにまつわる問題][テキスト/空のテキストにまつわる問題]]
+- [[*パス編集/1点だけのパスにまつわる問題を修正する][パス編集/1点だけのパスにまつわる問題を修正する]]
+- [[*パス編集/空のパスをどうするか][パス編集/空のパスをどうするか]]
+- rect、ellipse、image、generator、groupについても調べる
+
 ** TODO テキスト/スタイルシートを考慮する
 テキストの様々な設定はstyle属性でも設定できる。正しい境界矩形を計算するには、style属性も考慮しなければならない。
 またその際親からの継承も考慮すべき。これはstyleに限らないが。
@@ -592,6 +603,7 @@ etc
 ** TODO パス編集/アンカーポイントの複数選択・移動機能を追加する
 図形を調整するときに無いと不便。
 
+** TODO パス編集/一つのサブパスだけドラッグで選択・移動できるようにする
 ** TODO パス編集/無駄なCをLにする機能
 [[*変形/GUI変形時にマウスの位置に操作種類記号を表示する][変形/GUI変形時にマウスの位置に操作種類記号を表示する]]のために図形を書いた後、無駄なCをLにするのが大変だった。
 どこかのタイミングで無駄なCをLにすべきだが、どうしたらよいのだろうか。
@@ -649,6 +661,19 @@ edraw-set-propertiesで復元するのでは無く、専用のシリアライズ
 ** TODO パス編集/パスの始点を移動しようとして閉じてしまうミスを防げないか
 ** TODO パス編集/edraw-path-cmdに-backward-handle-pointタイプ(bhp)を追加する
 reverseはfhpをbhpに変換する。
+** TODO パス編集/サブパスを閉じたり開いたりするコマンドを追加する
+理想的にはクリックした場所のサブパスを特定して、それに対して操作する。
+出来なければアンカーポイントに対する操作でも仕方が無いけど。
+パスツールのクリックで閉じられれば必要性は薄い。
+開く方はサブパス分割コマンドで出来る。
+
+** TODO パス編集/パスツールで任意のサブパスの端点を延ばせるようにする
+複数のサブパスがあるときに。
+現在はpath dataの最初と最後しか延ばせない。
+** TODO パス編集/パスツールで開サブパスと開サブパスを連結できるようにする
+複数の開サブパスがあるときに、開サブパスの端から初めて別の開サブパスの端へjoinしたい。
+** TODO パス編集/パスツールで開サブパスを閉じられるようにする
+複数のサブパスがあるときに、一つの開サブパスの端から端へjoinしたい。
 ** TODO パス編集/cmdlistを複数のMやZに対応させる
 - M .. L ..... Z M .. L ..... Z のように単純に閉パスが二つあるだけのケース。
 - M .. L ..... Z L ..... Z L ..... Z のような書き方も出来る。一つのMを三つの閉パスが共有している形。
@@ -662,16 +687,44 @@ Mが複数のサブパスで共有されるケース(Zの後にMが無いケー�
 複数サブパスで問題がありそうな所を探す。
 
 - パスに対するコマンド
+  - パスを閉じる : 問題あり → *禁止*
+  - パスを開く : 問題あり → *禁止*
+  - パスの向きを反転 : 問題なし([[elisp-function:edraw-path-cmdlist-reverse]])
+  - 滑らかにする : 問題あり → *禁止*
+- アンカーに対するコマンド
+  - 点を削除 : 多分大丈夫 ([[elisp-function:edraw-path-point-remove]]の長さを見てよ……)
+  - 点でパスを分割 : 問題あり → *禁止* (その代わり *「点でサブパスを分割」を追加* )
+    「パス」を分割するのであって「サブパス」を分割するのではない所に問題の原因がある。
+    - 少なくともメニューに問題あり
+    - サブパスも分割される
+  - 前に点を追加 : 問題なし ([[elisp-function:edraw-path-anchor-insert-midpoint-before]])
+  - 座標で移動 : 問題なし
+  - 滑らかにする : 問題なし
+  - 角にする : 問題なし
+  - 接着 : 問題あり → うーん致命的では無いからいいかなぁ。概ね動くし。
+  - 接着解除 : 問題なし
+- ハンドルに対するコマンド
+  - 点を削除 : 問題なし
+  - 座標で移動 : 問題なし
 - パスツールで出来る操作
-- 当たり判定
-- アンカーに対する操作
-- ハンドルに対する操作
+  - パスデータの先頭と末尾以外(途中にあるサブパス端)からパスを延ばせない
+  - パスの先頭と末尾をつなげるとつなげたところにつながらない
+  - 途中のfhpは大丈夫？
+- その他
+  - 変形 : 問題なし
+- 当たり判定 : 問題無さそう
 - edraw-path.el内の@todo部分を見直す
 - インポート
 
-** TODO パス編集/pathが1点以下になって見えなくなったらどうするか考える
-rectやellipse、textにもそういった問題はある。
-検出してshapeを消すべき。
+怪しい操作は全てエラーにして、後の改良項目とする。
+
+[[edraw:data=H4sIAAZfWGYAA9VVTXObMBD9Kxrl0syAER/GTsZ4puXSA7700tQ3CgJTE/AIbJx/35VWshNst5n2lDGapxX78Z4WyYvuUJLjc910Ed30/e7RcYZhmAz+pBWl4zHGHPCg6PJ4rKtme83RfXh4cNRbSoYq7zcRnYaMkg2vyk0f0cAD48BFV7VNRN2JS5eLnBcdqfKI8lykgy1NWH1OxZaLt+s2s1Mh2oESfPsdK8yN/VVXmVGyE7zj4sA/dzue9d/Svmoj2rQNh/IVH760x4jaLiNyePKhRPDiKaI4+aEmrah4A/nSfd9S0vWi3XKTpajqOqJ3LpM/4LtL+w0BsivIaNkzmdiakcBia0qc5cJBhjd0eXZWiazmI2HBWFjwTmFTAg8oc/9bFvIi2VFFZi+YSTH5qyr3arfCsajwo3XL/wC6UJZSZV/KcuQhWy4EkCLYWWzszSN73oCfabYtRbtv8htciqJQxcrXQW3+YthhkA13BP/VVnALvElmawp+eE5v5OkKWE2JnDMrYIkbMssN2AotNBQFVQ8127yBiL2oP91dXCf3pnN216eiv3Azp/N+TNK7yRF2Aa5MhjQ9SSlkiecxC4bi6zOwA41AHOaxRiL9wY/40p+xlTTnEBZoDHUasF1pM0RcjnVwqBZJoFKed0Py8eU78NRIfFnXQBLAajja7AuVF/vwOr/MALxVJiCXTIHEnMUIRAJIMBifbFRrMNFZ1v/K5I8t9cedv/Z5uCen97b9/Gn62NtYI/GxEQaTgJ0R+pxovzUGBjoQAuD4WdAog/HJxo/IIJ7vEgb8TS9/A+0Dv+vOBwAA]]
+
+** TODO パス編集/パスを滑らかにするコマンドを閉パスや複数サブパスに対応させる
+[[elisp-function:edraw-make-smooth]]
+
+閉パスに対して実行すると開パスに変わってしまう。
+複数サブパスにも対応していない。
 
 ** TODO 新しいshape-typeを追加したときの問題を修正する
 - edraw-shape-descriptor-from-svg-element-without-editor ::

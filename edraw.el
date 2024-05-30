@@ -8244,17 +8244,22 @@ may be replaced by another mechanism."
     (edraw-set-properties-internal shape prop-list old-prop-list)))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape-path))
-  (let* ((items (copy-tree (cl-call-next-method))))
+  (let* ((items (copy-tree (cl-call-next-method)))
+         (multi-subpaths-p (edraw-contains-multiple-subpaths-p shape)))
     (append
      items
      `(((edraw-msg "Close Path") edraw-close-path-shape
-        :enable ,(edraw-closable-path-shape-p shape))
+        :enable ,(and (not multi-subpaths-p)
+                      (edraw-closable-path-shape-p shape)))
        ((edraw-msg "Open Path") edraw-open-path-shape
-        :enable ,(edraw-closed-path-shape-p shape))
+        :enable ,(and (not multi-subpaths-p)
+                      (edraw-closed-path-shape-p shape)))
        ((edraw-msg "Split Subpaths") edraw-split-subpaths
-        :enable ,(edraw-contains-multiple-subpaths-p shape))
+        :enable ,multi-subpaths-p)
        ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
-       ((edraw-msg "Make Smooth") edraw-make-smooth)))))
+       ((edraw-msg "Make Smooth") edraw-make-smooth
+        ;;@todo Add more conditions such as contains two or more anchor points
+        :enable ,(not multi-subpaths-p))))))
 
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
@@ -8372,16 +8377,23 @@ may be replaced by another mechanism."
   (edraw-on-shape-changed shape type))
 
 (cl-defmethod edraw-closed-path-shape-p ((shape edraw-shape-path))
+  "Return non-nil if SHAPE is a closed path.
+Note: This method does not support multiple subpaths."
   (with-slots (cmdlist) shape
     (not (null (edraw-path-cmdlist-closed-p cmdlist)))))
 
 (cl-defmethod edraw-closable-path-shape-p ((shape edraw-shape-path))
+  "Return non-nil if SHAPE is closeable.
+Note: This method does not support multiple subpaths."
   (with-slots (cmdlist) shape
     (not (null (edraw-path-cmdlist-closable-p cmdlist)))))
 
 (cl-defmethod edraw-close-path-shape ((shape edraw-shape-path))
+  "Close the SHAPE path.
+Note: This method does not support multiple subpaths."
   (with-slots (cmdlist) shape
-    (when (edraw-path-cmdlist-close-path cmdlist)
+    (when (and (not (edraw-contains-multiple-subpaths-p shape))
+               (edraw-path-cmdlist-close-path cmdlist))
       (edraw-make-undo-group (oref shape editor) 'shape-path-close
         (edraw-push-undo-properties shape 'shape-path-close '(d))
         (edraw-update-path-data shape)
@@ -8389,8 +8401,11 @@ may be replaced by another mechanism."
       t)))
 
 (cl-defmethod edraw-open-path-shape ((shape edraw-shape-path))
+  "Open the SHAPE path.
+Note: This method does not support multiple subpaths."
   (with-slots (cmdlist) shape
-    (when (edraw-path-cmdlist-open-path cmdlist)
+    (when (and (not (edraw-contains-multiple-subpaths-p shape))
+               (edraw-path-cmdlist-open-path cmdlist))
       (edraw-make-undo-group (oref shape editor) 'shape-path-open
         (edraw-push-undo-properties shape 'shape-path-open '(d))
         (edraw-update-path-data shape)
@@ -8462,11 +8477,14 @@ may be replaced by another mechanism."
         d))))
 
 (cl-defmethod edraw-make-smooth ((path edraw-shape-path))
-  (when-let ((d (edraw-xy-points-to-smooth-path-data
-                 (mapcar #'edraw-get-xy (edraw-get-anchor-points path)))))
-    (edraw-set-property path 'd d)
-    ;; Succeeded
-    t))
+  ;;@todo Support multiple subpaths
+  (when (and (not (edraw-contains-multiple-subpaths-p path))
+             (>= (edraw-get-anchor-point-count path) 2))
+    (when-let ((d (edraw-xy-points-to-smooth-path-data
+                   (mapcar #'edraw-get-xy (edraw-get-anchor-points path)))))
+      (edraw-set-property path 'd d)
+      ;; Succeeded
+      t)))
 
 (cl-defmethod edraw-combine-paths ((shapes list))
   "Combine path objects.
