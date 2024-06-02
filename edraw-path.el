@@ -128,6 +128,14 @@
       (setq cmd (edraw-path-cmd-prev cmd)))
     picked-point))
 
+(defun edraw-path-cmdlist-contains-cmd-p (cmdlist cmd)
+  (let ((it (edraw-path-cmdlist-begin cmdlist))
+        (end (edraw-path-cmdlist-end cmdlist)))
+    (while (and (not (eq it end))
+                (not (eq it cmd)))
+      (setq it (edraw-path-cmd--next it)))
+    (eq it cmd)))
+
 ;;;;;; cmdlist - Path Operations
 
 (defun edraw-path-cmdlist-translate (cmdlist delta-xy)
@@ -161,54 +169,9 @@
       t)))
 
 (defun edraw-path-cmdlist-close-path (cmdlist &optional close-straight-p)
-  (when-let ((last-cmd (edraw-path-cmdlist-back cmdlist))
-             (m-cmd (edraw-path-cmd-prev-M last-cmd))
-             (initial-xy (edraw-path-cmd-anchor-point-xy m-cmd 'fast)))
-    (when (edraw-path-cmd-is-type-p last-cmd 'C 'L '-forward-handle-point)
-      ;; Make sure there is a closing segment.
-      (cond
-       ;; '-forward-handle-point
-       ;; Replace -forward-handle-point with C command that curve to M
-       ((and (edraw-path-cmd-is-type-p last-cmd '-forward-handle-point)
-             (not close-straight-p))
-        (edraw-path-cmd-overwrite-from-ppoints
-         last-cmd 'C
-         (edraw-path-cmd-arg-pt last-cmd 0)
-         (edraw-path-point 'handle last-cmd 1 initial-xy)
-         (edraw-path-point 'anchor last-cmd 2 initial-xy)))
-
-       ;; 'C or 'L or ('-forward-handle-point and close-straight-p)
-       ;; Add a line segment from last point to initial point
-       ((not (edraw-xy-equal-p (edraw-path-cmd-anchor-point-xy last-cmd 'fast)
-                               initial-xy))
-        (setq last-cmd
-              (edraw-path-cmdlist-push-back
-               cmdlist (edraw-path-cmd 'L initial-xy)))))
-
-      ;; Add a handle point at the reflection of forward handle point
-      ;; on initial anchor point.
-      (unless close-straight-p
-        (when-let ((prev-xy (edraw-path-cmd-prev-anchor-point-xy last-cmd))
-                   (forward-handle (edraw-path-anchor-forward-handle
-                                    (edraw-path-cmd-anchor-point m-cmd 'fast))))
-          (let* ((vha (edraw-xy-sub ;;handle to anchor
-                       initial-xy
-                       (edraw-path-point-xy forward-handle)))
-                 (vha-len (edraw-xy-length vha))
-                 (last-dist (edraw-xy-distance initial-xy prev-xy))
-                 (new-handle-len (min (* 0.4 last-dist) vha-len)))
-            (when (> new-handle-len 0.1)
-              (edraw-path-cmd-L-to-C last-cmd)
-              (edraw-path-point-move
-               (edraw-path-cmd-arg-pt last-cmd 1)
-               (edraw-xy-add
-                initial-xy
-                (edraw-xy-nmul (/ new-handle-len vha-len) vha)))))))
-
-      ;; Add Z
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
-
-      t)))
+  "Close the last subpath in the CMDLIST"
+  (edraw-path-cmd-close-subpath (edraw-path-cmdlist-back cmdlist)
+                                close-straight-p))
 
 (defun edraw-path-cmdlist-reverse (cmdlist)
   ;; Check begin with M.
@@ -349,6 +312,10 @@
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10"))) => "M9,10C7,8 5,6 3,4L1,2"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10 Z L 11 12 L13 14 Z"))) => "M1,2L13,14L11,12L1,2ZL9,10C7,8 5,6 3,4L1,2Z"
 ;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 M 5 6 C 7 8 9 10 11 12 Z L 11 12 L13 14 Z"))) => "M5,6L13,14L11,12L5,6ZL11,12C9,10 7,8 5,6ZM3,4L1,2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10 Z"))) => "M1,2L9,10C7,8 5,6 3,4L1,2Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 1 2 Z"))) => "M1,2C7,8 5,6 3,4L1,2Z"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 L 3 4 C 5 6 7 8 9 10"))) => "M9,10C7,8 5,6 3,4L1,2"
+;; TEST: (edraw-path-cmdlist-to-string (edraw-path-cmdlist-reverse (edraw-path-cmdlist-from-d "M 1 2 3 4 5 6 Z L 10 11 12 13"))) => "M12,13L10,11L1,2M1,2L5,6L3,4L1,2Z"
 
 (defun edraw-path-cmdlist-insert-cmdlist-front (dst-cmdlist src-cmdlist)
   (when (eq dst-cmdlist src-cmdlist)
@@ -581,6 +548,48 @@ The CMDLIST will be empty after calling this function. "
         (cl-incf count)))
     count))
 
+(defun edraw-path-cmdlist-end-anchor-points (cmdlist)
+  "List all the endpoints contained in CMDLIST.
+
+Enumerates the start and end anchor points of all subpaths.
+
+Normally, two anchor points are enumerated for each open subpath,
+but for subpaths with only one M command, only one anchor point
+is enumerated.
+
+Closed subpaths and handle points are ignored.
+
+Anchor points shared by two or more subpaths are ignored even if
+the last subpath is open."
+  (let (result
+        first-cmd
+        last-cmd)
+    (edraw-path-cmdlist-loop cmdlist cmd
+      (cond
+       ;; On subpath boundary
+       ((edraw-path-cmd-is-M cmd)
+        (when (and first-cmd last-cmd)
+          (push (edraw-path-cmd-anchor-point first-cmd nil) result)
+          (unless (eq first-cmd last-cmd) ;; Unless single anchor (M x y M)
+            (push (edraw-path-cmd-anchor-point last-cmd nil) result)))
+        ;; Next subpath start
+        (setq first-cmd cmd)
+        (setq last-cmd cmd))
+       ;; Closed path
+       ((edraw-path-cmd-is-Z cmd)
+        (setq last-cmd nil))            ; At this time, the closing segment (if
+                                        ; any) is also invalidated.
+       ;; The last anchor point that has not yet been closed
+       ((edraw-path-cmd-has-anchor-point-p cmd) ;; Ignore -fhp
+        (setq last-cmd cmd))))
+    ;; Last subpath
+    (when (and first-cmd last-cmd)
+      (push (edraw-path-cmd-anchor-point first-cmd nil) result)
+      (unless (eq first-cmd last-cmd) ;; Unless single anchor (M x y M)
+        (push (edraw-path-cmd-anchor-point last-cmd nil) result)))
+    (nreverse result)))
+;; TEST: (mapcar #'edraw-path-point-xy (edraw-path-cmdlist-end-anchor-points (edraw-path-cmdlist-from-d "M1 2 3 4 5 6 Z L 7 8 Z L 9 10 M 11 12 L 13 14 C 15 16 17 18 19 20"))) => ((1.0 . 2.0) (9.0 . 10.0) (11.0 . 12.0) (19.0 . 20.0))
+
 ;;;;;; cmdlist - String Conversion
 
 (defun edraw-path-cmdlist-to-string (cmdlist)
@@ -809,6 +818,15 @@ The CMDLIST will be empty after calling this function. "
        (let ((type (edraw-path-cmd-type cmd)))
          (or (eq type 'L) (eq type 'C)))))
 
+(defun edraw-path-cmd-is-M-or-nil (cmd)
+  "Return non-nil when CMD is M command, terminal, or nil.
+
+Used to determine whether a Z command is followed by a subpath
+that shares the same M."
+  (or (null cmd)
+      (edraw-path-cmd-terminator-p cmd)
+      (edraw-path-cmd-is-M cmd)))
+
 ;;;;;; cmd - Command Mutation
 
 (defun edraw-path-cmd-overwrite-from-ppoints (cmd type &rest ppoints)
@@ -873,11 +891,29 @@ created.
   (when-let ((prev (edraw-path-cmd--prev cmd)))
     (unless (edraw-path-cmd-terminator-p prev)
       prev)))
+
 (defun edraw-path-cmd-next (cmd)
   "Return the next command of CMD. If CMD is the last command, return nil."
   (when-let ((next (edraw-path-cmd--next cmd)))
     (unless (edraw-path-cmd-terminator-p next)
       next)))
+
+(defun edraw-path-cmd-first (cmd)
+  (when (and cmd (not (edraw-path-cmd-terminator-p cmd)))
+    (while (not (edraw-path-cmd-terminator-p cmd))
+      (setq cmd (edraw-path-cmd--prev cmd)))
+    (edraw-path-cmd--next cmd)))
+
+(defun edraw-path-cmd-last (cmd)
+  (when (and cmd (not (edraw-path-cmd-terminator-p cmd)))
+    (while (not (edraw-path-cmd-terminator-p cmd))
+      (setq cmd (edraw-path-cmd--next cmd)))
+    (edraw-path-cmd--prev cmd)))
+
+(defun edraw-path-cmd-to-cmdlist (cmd)
+  (while (and cmd (not (edraw-path-cmd-terminator-p cmd)))
+    (setq cmd (edraw-path-cmd--prev cmd)))
+  cmd)
 
 (defun edraw-path-cmd-insert-before (this-cmd new-cmd)
   (when (and this-cmd new-cmd)
@@ -952,8 +988,8 @@ created.
   (null (edraw-path-cmd-next cmd))) ;; cmd--next is nil or terminator
 
 (defun edraw-path-cmd-subpaths-from-M (move-cmd)
-  "Return a list of subpath range (first . last) of path that
-beginning from MOVE-CMD.
+  "Return a list of range (first . last) of subpath that beginning
+from MOVE-CMD.
 
 Each range does not include the first M command.
 
@@ -983,9 +1019,11 @@ range always ends with the Z command."
       (nreverse subpath-list))))
 
 (defun edraw-path-cmd-Zs-from-M (move-cmd)
-  "Return a list of Z commands that correspond to M command specified by MOVE-CMD.
+  "Return a list of Z commands that correspond to M command
+ specified by MOVE-CMD.
 
-One M command may correspond to multiple Z commands (see: https://www.w3.org/TR/SVG11/paths.html#PathDataClosePathCommand )"
+One M command may correspond to multiple Z commands (see:
+https://www.w3.org/TR/SVG11/paths.html#PathDataClosePathCommand )"
   (when (and move-cmd
              (not (edraw-path-cmd-terminator-p move-cmd)))
     (let ((cmd (if (eq (edraw-path-cmd-type move-cmd) 'M)
@@ -999,20 +1037,73 @@ One M command may correspond to multiple Z commands (see: https://www.w3.org/TR/
         (setq cmd (edraw-path-cmd-next cmd)))
       (nreverse z-list))))
 
-(defun edraw-path-cmd-prev-M (close-cmd)
-  (when close-cmd
-    (let ((cmd close-cmd))
-      (while (and (setq cmd (edraw-path-cmd-prev cmd))
-                  (not (eq (edraw-path-cmd-type cmd) 'M))))
-      cmd)))
+(defun edraw-path-cmd-is-shared-M (cmd)
+  "Return non-nil if CMD is an M command shared by multiple subpaths.
+
+For example, in \"M 10 20 L 20 30 40 50 Z L 100 200\", the
+leading M is shared by two subpaths."
+  (and (edraw-path-cmd-is-M cmd)
+       (let ((boundary (edraw-path-cmd-next-type cmd 'M 'Z)))
+         (and (edraw-path-cmd-is-Z boundary)
+              (not (edraw-path-cmd-is-M-or-nil
+                    (edraw-path-cmd-next boundary)))))))
+;; TEST: (edraw-path-cmd-is-shared-M (edraw-path-cmdlist-front (edraw-path-cmdlist-from-d "M 10 20 L 20 30 40 50 Z L 100 200"))) => t
+;; TEST: (edraw-path-cmd-is-shared-M (edraw-path-cmdlist-front (edraw-path-cmdlist-from-d "M 10 20 L 20 30 40 50 Z M 100 200 L 200 200"))) => nil
+;; TEST: (edraw-path-cmd-is-shared-M (edraw-path-cmdlist-front (edraw-path-cmdlist-from-d "M 10 20 L 20 30 40 50 Z"))) => nil
+;; TEST: (edraw-path-cmd-is-shared-M (edraw-path-cmdlist-front (edraw-path-cmdlist-from-d "M 10 20 L 20 30 40 50"))) => nil
+
+(defun edraw-path-cmd-prev-type (cmd &rest types)
+  "Find the first command of the specified TYPES before CMD.
+CMD is the command that starts the search, and is not included in the search.
+TYPES is a list of command types to search for. Find a command that matches
+ one of its types.
+
+This command does not respect subpaths or other structures within
+the command list, it simply searches linearly through the command
+list."
+  (when (and cmd types)
+    (if (cdr types)
+        ;; multiple types
+        (while (and (setq cmd (edraw-path-cmd-prev cmd))
+                    (not (memq (edraw-path-cmd-type cmd) types))))
+      ;; single types
+      (let ((type (car types)))
+        (while (and (setq cmd (edraw-path-cmd-prev cmd))
+                    (not (eq (edraw-path-cmd-type cmd) type))))))
+    cmd))
+
+(defun edraw-path-cmd-next-type (cmd &rest types)
+  "Find the first command of the specified TYPES after CMD.
+CMD is the command that starts the search, and is not included in the search.
+TYPES is a list of command types to search for. Find a command that matches
+ one of its types.
+
+This command does not respect subpaths or other structures within
+the command list, it simply searches linearly through the command
+list."
+  (when (and cmd types)
+    (if (cdr types)
+        ;; multiple types
+        (while (and (setq cmd (edraw-path-cmd-next cmd))
+                    (not (memq (edraw-path-cmd-type cmd) types))))
+      ;; single types
+      (let ((type (car types)))
+        (while (and (setq cmd (edraw-path-cmd-next cmd))
+                    (not (eq (edraw-path-cmd-type cmd) type))))))
+    cmd))
+
+(defun edraw-path-cmd-prev-M (cmd)
+  "Return the first M command before CMD."
+  (edraw-path-cmd-prev-type cmd 'M))
 
 (defun edraw-path-cmd-end-of-subpath (cmd)
+  "Return the last command on the same subpath as CMD."
   (when cmd
-    (let (prev-cmd)
-      (if (and (edraw-path-cmd-is-M cmd)
-               (null (edraw-path-cmd-next cmd)))
-          ;; End with M
-          cmd
+    (if (and (edraw-path-cmd-is-M cmd)
+             (null (edraw-path-cmd-next cmd)))
+        ;; End with M
+        cmd
+      (let (prev-cmd)
         ;; Skip first M
         (when (edraw-path-cmd-is-M cmd)
           (setq prev-cmd cmd)
@@ -1032,9 +1123,60 @@ One M command may correspond to multiple Z commands (see: https://www.w3.org/TR/
           cmd)))))
 
 (defun edraw-path-cmd-next-subpath (cmd)
+  "Return the first command on a different subpath than CMD.
+
+However, if CMD is an M command shared by multiple subpaths, then
+CMD is assumed to be in the first of the subpaths that share the
+M command, and so returns the start of the second of the subpaths
+that share the same M command."
   (when cmd
     (when-let ((eos (edraw-path-cmd-end-of-subpath cmd)))
       (edraw-path-cmd-next eos))))
+
+(defun edraw-path-cmd-M-range-first (cmd)
+  "Return the first command in the same M range to which CMD belongs.
+
+The same M range is a range of consecutive subpaths that share a
+single M command. All of the subpaths are closed except for the
+last one, which may be open."
+  (when cmd
+    (if (edraw-path-cmd-is-M cmd)
+        cmd
+      (or (edraw-path-cmd-prev-M cmd)
+          ;; If it doesn't start with M (if it's broken)
+          (edraw-path-cmd-first cmd)))))
+
+(defun edraw-path-cmd-M-range-last (cmd)
+  "Return the last command in the same M range to which CMD belongs.
+
+The same M range is a range of consecutive subpaths that share a
+single M command. All of the subpaths are closed except for the
+last one, which may be open."
+  (when cmd
+    (if-let ((next-M (edraw-path-cmd-next-type cmd 'M)))
+        (edraw-path-cmd-prev next-M)
+      (edraw-path-cmd-last cmd))))
+
+(defun edraw-path-cmd-splice-M-range-to-first (cmd)
+  "Move the same M range to which CMD belongs to the end of cmdlist."
+  (when cmd
+    (let ((cmdlist-first (edraw-path-cmd-first cmd))
+          (first (edraw-path-cmd-M-range-first cmd))
+          (last (edraw-path-cmd-M-range-last cmd)))
+      (unless (eq first cmdlist-first)
+        (edraw-path-cmd-remove-range first last)
+        (edraw-path-cmd-insert-range-before cmdlist-first first last)))))
+;; TEST: (let ((cmdlist (edraw-path-cmdlist-from-d "M200 210 220 230 M 10 20 30 40 50 60 Z L 70 80 Z L 90 100 M 300 310 320 330"))) (edraw-path-cmd-splice-M-range-to-first (edraw-path-cmd-next (edraw-path-cmd-next-type (edraw-path-cmd-next (edraw-path-cmdlist-front cmdlist)) 'M))) (edraw-path-cmdlist-to-string cmdlist)) => "M10,20L30,40L50,60ZL70,80ZL90,100M200,210L220,230M300,310L320,330"
+
+(defun edraw-path-cmd-splice-M-range-to-last (cmd)
+  "Move the same M range to which CMD belongs to the beginning of cmdlist."
+  (when cmd
+    (let ((cmdlist-last (edraw-path-cmd-last cmd))
+          (first (edraw-path-cmd-M-range-first cmd))
+          (last (edraw-path-cmd-M-range-last cmd)))
+      (unless (eq last cmdlist-last)
+        (edraw-path-cmd-remove-range first last)
+        (edraw-path-cmd-insert-range-after cmdlist-last first last)))))
 
 
 
@@ -1069,6 +1211,17 @@ You can change the anchor point through returned object."
     (edraw-path-cmd-arg-xy cmd index)))
 
 (defun edraw-path-cmd-prev-anchor-point (cmd)
+  "Return the previous anchor command on the same subpath from CMD.
+
+This function wraps around closed subpaths, assuming their
+beginning and end are connected. If CMD is the first command in a
+closed subpath, wrap around to the last anchor command on the
+same closed path.
+
+If CMD is M and multiple subpaths share the M command, returns
+the last anchor of the first subpath.
+
+If there are no previous anchors on the same subpath, returns nil."
   ;;- If cmd is M, jump before the corresponding closing sequence. If
   ;;  not exists, return nil
   ;;- If cmd is Z and prev Z is closing segment, skip it.
@@ -1111,6 +1264,14 @@ You can change the anchor point through returned object."
       z-cmd)))
 
 (defun edraw-path-cmd-next-anchor-point (cmd)
+  "Return the next anchor command on the same subpath from CMD.
+
+This function wraps around closed subpaths, assuming their
+beginning and end are connected. If CMD is the last anchor
+command in a closed subpath, wrap around to the first anchor
+command (M) on the same closed path.
+
+If there are no previous anchors on the same subpath, returns nil."
   ;;- If cmd is Z or closing segment, jump to corresponding M.
   ;;- If next cmd is M, return nil.
   ;;- If next cmd is -fhp, skip it.
@@ -1269,6 +1430,59 @@ point or handle point at the position specified by XY."
     ('-forward-handle-point
      (edraw-path-point-transform (edraw-path-cmd-arg-pt cmd 0) matrix))))
 
+;;;;;; cmd - Subpath
+
+(defun edraw-path-cmd-close-subpath (cmd &optional close-straight-p)
+  "Close the subpath containing the CMD."
+  (when-let ((last-cmd (edraw-path-cmd-end-of-subpath cmd))
+             (m-cmd (edraw-path-cmd-prev-M last-cmd))
+             (initial-xy (edraw-path-cmd-anchor-point-xy m-cmd 'fast)))
+    (when (edraw-path-cmd-is-type-p last-cmd 'C 'L '-forward-handle-point)
+      ;; Make sure there is a closing segment.
+      (cond
+       ;; '-forward-handle-point
+       ;; Replace -forward-handle-point with C command that curve to M
+       ((and (edraw-path-cmd-is-type-p last-cmd '-forward-handle-point)
+             (not close-straight-p))
+        (edraw-path-cmd-overwrite-from-ppoints
+         last-cmd 'C
+         (edraw-path-cmd-arg-pt last-cmd 0)
+         (edraw-path-point 'handle last-cmd 1 initial-xy)
+         (edraw-path-point 'anchor last-cmd 2 initial-xy)))
+
+       ;; 'C or 'L or ('-forward-handle-point and close-straight-p)
+       ;; Add a line segment from last point to initial point
+       ((not (edraw-xy-equal-p (edraw-path-cmd-anchor-point-xy last-cmd 'fast)
+                               initial-xy))
+        (setq last-cmd
+              (edraw-path-cmd-insert-after last-cmd
+                                           (edraw-path-cmd 'L initial-xy)))))
+
+      ;; Add a handle point at the reflection of forward handle point
+      ;; on initial anchor point.
+      (unless close-straight-p
+        (when-let ((prev-xy (edraw-path-cmd-prev-anchor-point-xy last-cmd))
+                   (forward-handle (edraw-path-anchor-forward-handle
+                                    (edraw-path-cmd-anchor-point m-cmd 'fast))))
+          (let* ((vha (edraw-xy-sub ;;handle to anchor
+                       initial-xy
+                       (edraw-path-point-xy forward-handle)))
+                 (vha-len (edraw-xy-length vha))
+                 (last-dist (edraw-xy-distance initial-xy prev-xy))
+                 (new-handle-len (min (* 0.4 last-dist) vha-len)))
+            (when (> new-handle-len 0.1)
+              (edraw-path-cmd-L-to-C last-cmd)
+              (edraw-path-point-move
+               (edraw-path-cmd-arg-pt last-cmd 1)
+               (edraw-xy-add
+                initial-xy
+                (edraw-xy-nmul (/ new-handle-len vha-len) vha)))))))
+
+      ;; Add Z
+      (edraw-path-cmd-insert-after last-cmd (edraw-path-cmd 'Z))
+
+      t)))
+
 ;;;;;; cmd - Segment
 
 (defun edraw-path-cmd-divide-segment (cmd)
@@ -1352,6 +1566,12 @@ Use only special functions such as `edraw-path-cmd-from-ppoints'
 and `edraw-path-cmd-overwrite-from-ppoints'."
   (setf (edraw-path-point-cmd ppoint) cmd)
   (setf (edraw-path-point-arg-index ppoint) arg-index))
+
+(defun edraw-path-point-shared-p (ppoint)
+  "Return non-nil if PPOINT is shared by multiple subpaths.
+
+Basically, it should be converted in advance to prevent this from happening."
+  (edraw-path-cmd-is-shared-M (edraw-path-point-cmd ppoint)))
 
 ;;;;;; point - Type
 
@@ -1454,10 +1674,9 @@ and `edraw-path-cmd-overwrite-from-ppoints'."
       (while cmd
         (setq count
               (+ count
-                 (pcase (edraw-path-cmd-type cmd)
-                   ((or 'M 'L) 1)
-                   ((or 'C) 1)
-                   (_ 0))))
+                 (if (edraw-path-cmd-anchor-point cmd nil) ;; Exclude closing segment
+                     1
+                   0)))
         (setq cmd (edraw-path-cmd-prev cmd)))
       count)))
 
@@ -1668,13 +1887,60 @@ and `edraw-path-cmd-overwrite-from-ppoints'."
 ;;;;;; point - Anchor Point
 
 (defun edraw-path-anchor-first-p (ppoint)
-  (null (edraw-path-point-prev-anchor ppoint)))
+  (let ((cmd (edraw-path-point-cmd ppoint)))
+    ;; begin M
+    (and (edraw-path-cmd-is-M cmd)
+         (null (edraw-path-cmd-prev cmd)))))
 
 (defun edraw-path-anchor-last-p (ppoint)
-  (null (edraw-path-point-next-anchor ppoint)))
+  (let* ((curr (edraw-path-point-cmd ppoint))
+         (next (edraw-path-cmd-next curr)))
+    ;; (M|L|C) fhp? end
+    (and (edraw-path-cmd-is-type-p curr 'M 'L 'C)
+         (or (null next)
+             (and (edraw-path-cmd-is-fhp next)
+                  (null (edraw-path-cmd-next next)))))))
 
 (defun edraw-path-anchor-in-closed-subpath-p (ppoint)
+  "Return non-nil if PPOINT is within closed subpath.
+
+If PPOINT is a point shared by two or more subpaths, this returns
+non-nil, even if the last subpath is an open subpath."
+  ;;@todo Check (edraw-path-point-anchor-p ppoint)?
   (not (null (edraw-path-cmd-Zs-from-M (edraw-path-point-cmd ppoint)))))
+
+(defun edraw-path-first-anchor-in-open-subpath-p (ppoint)
+  "Return non-nil if PPOINT is the first anchor of an open subpath.
+
+If PPOINT is a point shared by two or more subpaths, this returns
+nil, even if the last subpath is an open subpath.
+
+If a subpath with a PPOINT contains only one anchor point, the
+PPOINT will be both the first and the last."
+  (and ppoint
+       (edraw-path-point-anchor-p ppoint)
+       ;; M [^Z]* (end|M)
+       (edraw-path-cmd-is-M (edraw-path-point-cmd ppoint))
+       (not (edraw-path-anchor-in-closed-subpath-p ppoint))))
+
+(defun edraw-path-last-anchor-in-open-subpath-p (ppoint)
+  "Return non-nil if PPOINT is the last anchor of an open subpath.
+
+If a subpath with a PPOINT contains only one anchor point, the
+PPOINT will be both the first and the last."
+  (when (and ppoint
+             (edraw-path-point-anchor-p ppoint))
+    (let* ((curr (edraw-path-point-cmd ppoint))
+           (next (edraw-path-cmd-next curr)))
+      ;; (M|L|C) fhp? (end|M)
+      (and (edraw-path-cmd-is-type-p curr 'M 'L 'C)
+           (or (and (edraw-path-cmd-is-fhp next)
+                    (edraw-path-cmd-is-M-or-nil (edraw-path-cmd-next next)))
+               (edraw-path-cmd-is-M-or-nil next))))))
+
+(defun edraw-path-end-anchor-p (ppoint)
+  (or (edraw-path-first-anchor-in-open-subpath-p ppoint)
+      (edraw-path-last-anchor-in-open-subpath-p ppoint)))
 
 (defun edraw-path-anchor-insert-midpoint-before (ppoint)
   (when (edraw-path-point-anchor-p ppoint)
@@ -1945,6 +2211,73 @@ multiple subpaths from a single path data."
 ;; TEST: (let ((cmdlist (edraw-path-cmdlist-from-d "M1,2L3,4 5,6Z"))) (edraw-path-anchor-split-path (nth 0 (edraw-path-cmdlist-anchor-points cmdlist))) (edraw-path-cmdlist-to-string cmdlist)) => "M1,2L3,4L5,6L1,2"
 ;; TEST: (let ((cmdlist (edraw-path-cmdlist-from-d "M1,2L3,4 5,6 1,2Z"))) (edraw-path-anchor-split-path (nth 1 (edraw-path-cmdlist-anchor-points cmdlist))) (edraw-path-cmdlist-to-string cmdlist)) => "M3,4L5,6L1,2L3,4"
 
+(defun edraw-path-end-anchor-to-first (anchor)
+  "Brings the end ANCHOR point to the beginning of the cmdlist."
+  (cond
+   ((edraw-path-anchor-first-p anchor) ;; Already the first
+    t)
+   ((edraw-path-first-anchor-in-open-subpath-p anchor)
+    (edraw-path-cmd-splice-M-range-to-first (edraw-path-point-cmd anchor))
+    t)
+   ((edraw-path-last-anchor-in-open-subpath-p anchor)
+    (let* ((cmd (edraw-path-point-cmd anchor))
+           (cmdlist (edraw-path-cmd-to-cmdlist cmd)))
+      (edraw-path-cmd-splice-M-range-to-last cmd)
+      (edraw-path-cmdlist-reverse cmdlist)
+      t))))
+
+(defun edraw-path-end-anchor-to-last (anchor)
+  "Brings the end ANCHOR point to the end of the cmdlist."
+  (cond
+   ((edraw-path-anchor-last-p anchor) ;; Already the last
+    t)
+   ((edraw-path-last-anchor-in-open-subpath-p anchor)
+    (edraw-path-cmd-splice-M-range-to-last (edraw-path-point-cmd anchor))
+    t)
+   ((edraw-path-first-anchor-in-open-subpath-p anchor)
+    (let* ((cmd (edraw-path-point-cmd anchor))
+           (cmdlist (edraw-path-cmd-to-cmdlist cmd)))
+      (edraw-path-cmd-splice-M-range-to-first cmd)
+      (edraw-path-cmdlist-reverse cmdlist)
+      t))))
+
+(defun edraw-path-anchor-connect-between-subpaths (anchor0 anchor1)
+  (when (and anchor0 anchor1
+             (edraw-path-point-anchor-p anchor0)
+             (edraw-path-point-anchor-p anchor1))
+    (let ((cmd0 (edraw-path-point-cmd anchor0))
+          (cmd1 (edraw-path-point-cmd anchor1)))
+      ;; On same cmdlist
+      (when (eq (edraw-path-cmd-first cmd0) (edraw-path-cmd-first cmd1))
+        (let ((first0 (edraw-path-cmd-M-range-first cmd0))
+              (first1 (edraw-path-cmd-M-range-first cmd1))
+              (last0 (edraw-path-cmd-M-range-last cmd0))
+              (first0-p (edraw-path-first-anchor-in-open-subpath-p anchor0))
+              (first1-p (edraw-path-first-anchor-in-open-subpath-p anchor1))
+              (last0-p (edraw-path-last-anchor-in-open-subpath-p anchor0))
+              (last1-p (edraw-path-last-anchor-in-open-subpath-p anchor1)))
+          (if (eq first0 first1)
+              ;; Same subpath
+              (when (or (and first0-p (not last0-p) (not first1-p) last1-p)
+                        (and (not first0-p) last0-p first1-p (not last1-p)))
+                ;; Different ends
+                (when (edraw-path-cmd-close-subpath cmd0)
+                  ;; Return the first anchor
+                  (edraw-path-cmd-anchor-point
+                   (edraw-path-cmd-M-range-first cmd0) 'fast)))
+            ;; Different subpath
+            (let ((tmp-cmdlist (edraw-path-cmdlist)))
+              (edraw-path-cmd-remove-range first0 last0)
+              (edraw-path-cmd-insert-range-after
+               (edraw-path-cmdlist-end tmp-cmdlist) first0 last0)
+              (edraw-path-end-anchor-to-first anchor1)
+              (when (edraw-path-cmdlist-connect-cmdlist-front
+                     (edraw-path-cmd-to-cmdlist cmd1)
+                     tmp-cmdlist)
+                
+                )
+              )))))))
+
 
 ;;;;;; point - Handle Point
 
@@ -2023,6 +2356,17 @@ the anchor point."
                      new-xy)))
     ;; target handle
     (edraw-path-point-move handle-point new-xy)))
+
+
+;;;;;; point - M-range
+
+(defun edraw-path-point-splice-M-range-to-first (ppoint)
+  (when ppoint
+    (edraw-path-cmd-splice-M-range-to-first (edraw-path-point-cmd ppoint))))
+
+(defun edraw-path-point-splice-M-range-to-last (ppoint)
+  (when ppoint
+    (edraw-path-cmd-splice-M-range-to-last (edraw-path-point-cmd ppoint))))
 
 
 

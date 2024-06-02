@@ -75,6 +75,7 @@
      "Color" "色"
      "Combine Paths" "パスの結合"
      "Connected" "接続しました"
+     "Continue" "継続"
      "Convert To Path" "パスへ変換"
      "Convert To [[edraw:data=]]" "[[edraw:data=]]形式へ変換"
      "Convert To [[edraw:file=]]" "[[edraw:file=]]形式へ変換"
