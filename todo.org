@@ -1,22 +1,36 @@
 
 
 * Inbox
-** TODO edraw-path-cmdlist系を書き替える
-edraw-path-cmdlist系はSVGパスコマンドの仕様に合わせすぎた気がする。
-+もっと抽象的なパスクラス(cmdlist相当)、パスセグメントクラス(cmd相当)を作った方が良かったかもしれない。パスセグメントはL、C、(可能なら)Aの線を表現する。cmdはMとかZがあって純粋にパスセグメントに相当しないから気持ち悪い。+
-+SVGパスデータは複数のMが書ける(複数のサブパスを持てる)のが頭痛の種だけど、それは複数のパスオブジェクトに分割して表現するとか。+
-+まぁ、結局どっちで書いても等価だし今更なんだけど。+
+** TODO インポート/複数のサブパスを解禁する
+edraw-path.elの書き換えによって複数のサブパスは完全にサポートされるようになった。
+** TODO パス編集/edraw-path-data-from-dは無効なパラメータをエラーにする
+Zの後にL等を付けずに座標を書いてもエラーにならず、何が間違っているのか気がつかない事がある。
+「M 1 2 3 4 5 6 Z 7 8」のように書いてサブパスが一つしか作られないおかしい、というように悩んでしまったりする。
+Zの消化しきれなかった引数 7 8 をエラーにすべき。
 
-コマンドオブジェクトを操作するやり方は場合分けが複雑すぎる。もっと単純にアンカーとハンドル、サブパス、複合パスを表現すべき。パスコマンド列(パスデータ)との変換さえあればそれで問題ないはず。パスコマンド列の構造をそのまま使う現在の手法のメリットは編集の前後でパスコマンド列の状態を維持しやすいことくらい。しかし現在既にそれを維持するつもりは全く無い。相対コマンドは絶対コマンドへ変換してしまっている。MやLの複数の座標シーケンスも単一の座標を持つ一つのコマンドに置き換えてしまっている。今更複数Z(複数のサブパスで共有されたM)を維持することに何の意味があるのか。closing segmentもバカバカしい。そんなのはSVGのZコマンドが直線で結ぶ仕様になっているせいで本質じゃない。出力時に検出して生成すれば済む話だ。なんで編集中にclosing segmentを生成したり取り除いたり無視したりしなければならないのか。forward handle pointもコマンド列の構造をそのまま使っているせい。全てのアンカーポイントが二つのハンドルを持てる構造になっていれば済む話だ。
+** TODO パス編集/アンカーの所属先shapeが変わったときの挙動を改善する
+edraw-path.elを書き直したことでSPTアンカーが無効になりにくくなったが、edraw-path-anchorオブジェクトが何らかの操作で別のedraw-path-dataへ無効にならずに移動する(所属替えする)ケースが発生するようになった(edraw-connect、edraw-path-anchor-connectが代表的。他にある？)。そのようなときにSPTを作り直しても良いが、漏れが発生する可能性がある。edraw-path-anchorオブジェクトからedraw-path-dataオブジェクトを(多少線形探索が必要だが)取得できるので、edraw-path-dataオブジェクトに親shapeオブジェクトを持たせれば解決できそう。edraw-shape-point-path-baseがshapeを持たずに、必要なときにanchorやhandleスロットから取得すれば良い。
 
-次の四つのデータ型を定義する。
+懸念:
+- パフォーマンス。
+- path-dataは一貫して同じshapeを指し示すか。swapを使っているので大丈夫なような気がするが、確認する必要がある。
+- そもそも必要性があるのかについてもっと調べた方が良い。再取得すれば済むのではないか。現状で変なバグがあるのかどうか。
+- この変更によって逆に問題が生じることは無いか。例えば何かの処理の途中で勝手に親shapeが変わってしまうと困るようなこと。あまり思いつかないけど。
 
-- edraw-path-compound
-- edraw-path-subpath
-- edraw-path-anchor
-- edraw-path-handle
+** TODO パス編集/パス内のSPT(edraw-shape-point)オブジェクトをキャッシュする
+edraw-path-anchorやedraw-path-handleに任意のプロパティを設定できるようにしたので、そこに生成したSPTを持たせることが出来る。そうすれば同じアンカーやハンドルに対して複数のSPTオブジェクトが発生しない。
 
-: shape-path 1 -- 1 compound 1 -- 0..* subpath 1 -- 0..* anchor 1 -- 0..2 handle
+懸念:
+- 逆にメモリを食う結果にならないだろうか。
+
+** TODO パス編集/アンカーの追加・削除のUNDOにd変更を使わないようにする
+次のメソッドを実装するとその助けになる。
+- edraw-add-anchor-nth
+- edraw-remove-anchor-nth
+
+注意:これを実装するとUNDOでアンカーが無効化されないので、無効化されることを期待した場所は動作が変わってしまう。例えばパスツールに何か影響はないか。いや、last-anchorについては結局UNDOで消えればその瞬間無効になってしまうか。
+
+となると無効化させないことに何か意味があるのだろうか。ドラッグ中にプレビューでアンカーを追加して、UNDOしてから元のアンカーに何かするようなケースだろうか。
 
 ** TODO メニュー表示にtmm-promptを使うか設定できるようにする
 [[elisp-function:edraw-popup-menu]]で[[elisp-function:x-popup-menu]]の代わりに[[elisp-function:tmm-prompt]]を使う。
@@ -310,6 +324,8 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 
 [[edraw:data=H4sIAOlNWGYAA6WUwY7TMBCGX8XyXlgpbuwQuu2qqQQnDt0LF2Bv3sRJrGbtynGbLid64YjEidMegcfgXagEr8E4TsjSbiUklKTJjGfG/2ePO6s3BWpkZssERxOKUSlkUVowIjC2t5WqE1xau7oMw6ZpRs3TkTZFGFFKQ0jFaCNMLbVKMBuxLuFyW0m1fCyNTafTsB3F81km8hrJLMEiM7whzgTvLTdLYf72E0q4MbrByI++9nrHvf2y0wyOlRG1MBvxvF6J1L7iVuoEK60EKJWieaG3CSaMIvdE7sbIiPxNgv3H2/ZDGykU1ONrqzGqrdFL0VfJZVUl+IxRd4HeFbclArFXUDEgF65wcIHigF5jFM5noVd4gouRVJq0Egdg8SFY/I9gzxDcQMb+G8vrQum2zUzvfKVWyUOq0O3afGZAEvKhPvJkRw38NzxdFkavVXZCS57n7WTFwySd3eFuvoxbTrzbBYxB+Q2dxkP+xF1D8R6uc5Be46AwHpRPPApzLgBjlLZa/G4PE6+0VJakWilQBMcADku/d6S23EDRtamenB1v+fmfOKGyo6iu4c8fEXuE43H90rlGjGkwposJDSK6YBENYv8ChEU7dH019pZ79YNjz2fF1h70Aso1INbyHczJ4IS5EMJVWmpoh5bRr9SkWynXPj8+fNrvvv38+OXX/fv97vN+93W/+w6/s9BlQ9sU8MDfx/w35f2mDH8EAAA=]]
 
+[2024-06-05 Wed]edraw-path.elの書き替え後に確認したが現象が再現できない。
+
 ** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
@@ -602,7 +618,7 @@ etc
 - C-tで変形しようとするとエラーが出る
   : Error running timer ‘edraw-update-image-on-timer’: (wrong-type-argument number-or-marker-p nil)
   : *: Wrong type argument: number-or-marker-p, nil
-
+  
 ** TODO パス編集/1点だけのパスにまつわる問題を修正する
 1点だけのパスにはいくつか不具合がある。
 
@@ -621,13 +637,6 @@ etc
 図形を調整するときに無いと不便。
 
 ** TODO パス編集/一つのサブパスだけドラッグで選択・移動できるようにする
-** TODO パス編集/無駄なCをLにする機能
-[[*変形/GUI変形時にマウスの位置に操作種類記号を表示する][変形/GUI変形時にマウスの位置に操作種類記号を表示する]]のために図形を書いた後、無駄なCをLにするのが大変だった。
-どこかのタイミングで無駄なCをLにすべきだが、どうしたらよいのだろうか。
-理想的には、編集中に不要になった時点で即Lにすべきだ。
-ただ、それはインデックス番号の関係で問題があったのでは無かったか。
-回避策はありそうなものだが、どうだろう(アンカー番号とハンドル番号を分ける)。
-
 ** TODO パス編集/pathはできるだけd全体をUNDOしないようにする
 「@todo Avoid using edraw-push-undo-path-d-change?」の部分。
 d全体をUNDOデータにすると実際にアンドゥしたときに全てのポイントが無効になり、選択状態を全て解除しなければならなくなるなどの弊害がある。
@@ -639,7 +648,9 @@ d全体をUNDOデータにすると実際にアンドゥしたときに全ての
 [2023-05-30 Tue]追記:
 [[elisp-function:edraw-create-forward-handle]]と[[elisp-function:edraw-create-backward-handle]]はできればUNDOでポイントが無効にならないようにしたい。なぜなら、ハンドルをドラッグするときに使用しており、UNDOで無効になるせいで再取得を余儀なくされているから(see: [[elisp-function:edraw-drag-handle-on-click-anchor]]、edraw-on-down-mouse-1(edraw-editor-tool-path)。
 
-** TODO パス編集/UNDOしたときに-forward-handle-pointが失われるのを何とかする
+** TODO パス編集/UNDOしたときに開パスの外側のハンドルが失われるのを何とかする
+(従来は-forward-handle-pointが失われていたが、edraw-path.elの書き換えで少し状況が変わった)
+
 edraw-move-nth-pointで指定indexのポイントが見つかれない問題として表面化する。
 
 ドラッグでアンカーを追加したときに((edraw-on-down-mouse-1 ((tool edraw-editor-tool-path)...)...)で)、次が呼ばれる。
@@ -673,57 +684,16 @@ dプロパティを復元する方式だとどうしても-forward-handle-point�
 edraw-push-undo-propertiesでdを保存するときに追加の処理を入れる感じ。
 edraw-set-propertiesで復元するのでは無く、専用のシリアライズデータ形式で保存・復元したらどうか。そうすれば数値の文字列化による誤差も回避できる。
 
+[2024-06-05 Wed]edraw-path.elを書き替えたので状況が少し変わったが、問題は残っている。結局d属性直接変更が行われると開パス端点(endpoint)の外側のハンドルは失われる。これは最終的にSVGとしてセーブ・ロードしたときに失われるのは避けがたい。独自のdata属性に記録すれば出来なくは無いけど。編集中については、引き続き地道にdを復元するUNDOを減らしていくしかない。書き換えによってそれが大分やりやすくなった。
+
 ** TODO パス編集/パスなどの辺をドラッグできるようにする？
 ** TODO パス編集/既存パスからの継続は選択中のパスに限定しない方が良い？
 ** TODO パス編集/パスの始点を移動しようとして閉じてしまうミスを防げないか
-** TODO パス編集/edraw-path-cmdに-backward-handle-pointタイプ(bhp)を追加する
-reverseはfhpをbhpに変換する。
 ** TODO パス編集/サブパスを閉じたり開いたりするコマンドを追加する
 理想的にはクリックした場所のサブパスを特定して、それに対して操作する。
 出来なければアンカーポイントに対する操作でも仕方が無いけど。
 パスツールのクリックで閉じられれば必要性は薄い。
 開く方はサブパス分割コマンドで出来る。
-
-** TODO パス編集/複数のサブパスがあることによる問題を調査・修正する
-Mが複数のサブパスで共有されるケース(Zの後にMが無いケース)は諦める。出来れば検出してエラーにするなり変換するなりする。
-
-問題は複数のサブパスが全ての部分で問題なく動くかどうか。
-複数サブパスで問題がありそうな所を探す。
-
-- パスに対するコマンド
-  - パスを閉じる : 問題あり → *禁止*
-  - パスを開く : 問題あり → *禁止*
-  - パスの向きを反転 : 問題なし([[elisp-function:edraw-path-cmdlist-reverse]])
-  - 滑らかにする : 問題あり → *禁止*
-- アンカーに対するコマンド
-  - 点を削除 : 多分大丈夫 ([[elisp-function:edraw-path-point-remove]]の長さを見てよ……)
-  - 点でパスを分割 : 問題あり → *禁止* (その代わり *「点でサブパスを分割」を追加* )
-    「パス」を分割するのであって「サブパス」を分割するのではない所に問題の原因がある。
-    - 少なくともメニューに問題あり
-    - サブパスも分割される
-  - 前に点を追加 : 問題なし ([[elisp-function:edraw-path-anchor-insert-midpoint-before]])
-  - 座標で移動 : 問題なし
-  - 滑らかにする : 問題なし
-  - 角にする : 問題なし
-  - 接着 : 問題あり → うーん致命的では無いからいいかなぁ。概ね動くし。
-  - 接着解除 : 問題なし
-- ハンドルに対するコマンド
-  - 点を削除 : 問題なし
-  - 座標で移動 : 問題なし
-- パスツールで出来る操作
-  - パスデータの先頭と末尾以外(途中にあるサブパス端)からパスを延ばせない
-  - パスの先頭と末尾をつなげるとつなげたところにつながらない
-  - 途中のfhpは大丈夫？
-  - 現在のコマンド列を編集するという構造ではまともに安全なコードが書けない。作り直すしかない。
-- その他
-  - 変形 : 問題なし
-- 当たり判定 : 問題無さそう
-- edraw-path.el内の@todo部分を見直す
-- インポート
-
-怪しい操作は全てエラーにして、後の改良項目とする。
-
-[[edraw:data=H4sIAAZfWGYAA9VVTXObMBD9Kxrl0syAER/GTsZ4puXSA7700tQ3CgJTE/AIbJx/35VWshNst5n2lDGapxX78Z4WyYvuUJLjc910Ed30/e7RcYZhmAz+pBWl4zHGHPCg6PJ4rKtme83RfXh4cNRbSoYq7zcRnYaMkg2vyk0f0cAD48BFV7VNRN2JS5eLnBcdqfKI8lykgy1NWH1OxZaLt+s2s1Mh2oESfPsdK8yN/VVXmVGyE7zj4sA/dzue9d/Svmoj2rQNh/IVH760x4jaLiNyePKhRPDiKaI4+aEmrah4A/nSfd9S0vWi3XKTpajqOqJ3LpM/4LtL+w0BsivIaNkzmdiakcBia0qc5cJBhjd0eXZWiazmI2HBWFjwTmFTAg8oc/9bFvIi2VFFZi+YSTH5qyr3arfCsajwo3XL/wC6UJZSZV/KcuQhWy4EkCLYWWzszSN73oCfabYtRbtv8htciqJQxcrXQW3+YthhkA13BP/VVnALvElmawp+eE5v5OkKWE2JnDMrYIkbMssN2AotNBQFVQ8127yBiL2oP91dXCf3pnN216eiv3Azp/N+TNK7yRF2Aa5MhjQ9SSlkiecxC4bi6zOwA41AHOaxRiL9wY/40p+xlTTnEBZoDHUasF1pM0RcjnVwqBZJoFKed0Py8eU78NRIfFnXQBLAajja7AuVF/vwOr/MALxVJiCXTIHEnMUIRAJIMBifbFRrMNFZ1v/K5I8t9cedv/Z5uCen97b9/Gn62NtYI/GxEQaTgJ0R+pxovzUGBjoQAuD4WdAog/HJxo/IIJ7vEgb8TS9/A+0Dv+vOBwAA]]
 
 ** TODO パス編集/パスを滑らかにするコマンドを閉パスや複数サブパスに対応させる
 [[elisp-function:edraw-make-smooth]]
@@ -4986,3 +4956,78 @@ CLOSED: [2024-06-02 Sun 15:55]
 path-cmdはともかく、path-pointは前後のアンカーやハンドルの取得、削除、追加等様々な処理が正しく動かなければならない。Mを指しているときは、そのMの次がどこになるのかpath-point自身が持たなければならない。
 
 [2024-06-02 Sun]複数のM(サブパス)はともかく複数のZ(Mの共有)は無理。複数のM(サブパス)もかなり困難を極め、バグがないことを全く保証できない状況。コマンド列を編集するというアプローチは限界。
+** DONE パス編集/edraw-path-cmdlist系を書き替える
+CLOSED: [2024-06-05 Wed 16:45]
+edraw-path-cmdlist系はSVGパスコマンドの仕様に合わせすぎた気がする。
++もっと抽象的なパスクラス(cmdlist相当)、パスセグメントクラス(cmd相当)を作った方が良かったかもしれない。パスセグメントはL、C、(可能なら)Aの線を表現する。cmdはMとかZがあって純粋にパスセグメントに相当しないから気持ち悪い。+
++SVGパスデータは複数のMが書ける(複数のサブパスを持てる)のが頭痛の種だけど、それは複数のパスオブジェクトに分割して表現するとか。+
++まぁ、結局どっちで書いても等価だし今更なんだけど。+
+
+コマンドオブジェクトを操作するやり方は場合分けが複雑すぎる。もっと単純にアンカーとハンドル、サブパス、複合パスを表現すべき。パスコマンド列(パスデータ)との変換さえあればそれで問題ないはず。パスコマンド列の構造をそのまま使う現在の手法のメリットは編集の前後でパスコマンド列の状態を維持しやすいことくらい。しかし現在既にそれを維持するつもりは全く無い。相対コマンドは絶対コマンドへ変換してしまっている。MやLの複数の座標シーケンスも単一の座標を持つ一つのコマンドに置き換えてしまっている。今更複数Z(複数のサブパスで共有されたM)を維持することに何の意味があるのか。closing segmentもバカバカしい。そんなのはSVGのZコマンドが直線で結ぶ仕様になっているせいで本質じゃない。出力時に検出して生成すれば済む話だ。なんで編集中にclosing segmentを生成したり取り除いたり無視したりしなければならないのか。forward handle pointもコマンド列の構造をそのまま使っているせい。全てのアンカーポイントが二つのハンドルを持てる構造になっていれば済む話だ。
+
+次の四つのデータ型を定義する。
+
+- edraw-path-compound
+- edraw-path-subpath
+- edraw-path-anchor
+- edraw-path-handle
+
+: shape-path 1 -- 1 compound 1 -- 0..* subpath 1 -- 0..* anchor 1 -- 0..2 handle
+
+同時にパスツールも全体的に見直して書き替えた。
+** DONE パス編集/無駄なCをLにする機能
+CLOSED: [2024-06-05 Wed 16:45]
+[[*変形/GUI変形時にマウスの位置に操作種類記号を表示する][変形/GUI変形時にマウスの位置に操作種類記号を表示する]]のために図形を書いた後、無駄なCをLにするのが大変だった。
+どこかのタイミングで無駄なCをLにすべきだが、どうしたらよいのだろうか。
+理想的には、編集中に不要になった時点で即Lにすべきだ。
+ただ、それはインデックス番号の関係で問題があったのでは無かったか。
+回避策はありそうなものだが、どうだろう(アンカー番号とハンドル番号を分ける)。
+
+[2024-06-05 Wed]edraw-path.elを書き直したときに解決した。編集中の構造と出力後の構造は完全に分離された。
+** DONE パス編集/edraw-path-cmdに-backward-handle-pointタイプ(bhp)を追加する
+CLOSED: [2024-06-05 Wed 17:01]
+reverseはfhpをbhpに変換する。
+[2024-06-05 Wed]edraw-path.elを書き直したときに解決した。d属性読み込みが発生すると消えてしまうのは仕方が無い。
+** DONE パス編集/複数のサブパスがあることによる問題を調査・修正する
+CLOSED: [2024-06-05 Wed 17:20]
+[2024-06-05 Wed]edraw-path.elを書き替えたので多くの問題が解決した。残っている者は個別のTODOにする。
+
+Mが複数のサブパスで共有されるケース(Zの後にMが無いケース)は諦める。出来れば検出してエラーにするなり変換するなりする。
+
+問題は複数のサブパスが全ての部分で問題なく動くかどうか。
+複数サブパスで問題がありそうな所を探す。
+
+- パスに対するコマンド
+  - パスを閉じる : 問題あり → *禁止*
+  - パスを開く : 問題あり → *禁止*
+  - パスの向きを反転 : 問題なし([[elisp-function:edraw-path-cmdlist-reverse]])
+  - 滑らかにする : 問題あり → *禁止*
+- アンカーに対するコマンド
+  - 点を削除 : 多分大丈夫 ([[elisp-function:edraw-path-point-remove]]の長さを見てよ……)
+  - 点でパスを分割 : 問題あり → *禁止* (その代わり *「点でサブパスを分割」を追加* )
+    「パス」を分割するのであって「サブパス」を分割するのではない所に問題の原因がある。
+    - 少なくともメニューに問題あり
+    - サブパスも分割される
+  - 前に点を追加 : 問題なし ([[elisp-function:edraw-path-anchor-insert-midpoint-before]])
+  - 座標で移動 : 問題なし
+  - 滑らかにする : 問題なし
+  - 角にする : 問題なし
+  - 接着 : 問題あり → うーん致命的では無いからいいかなぁ。概ね動くし。
+  - 接着解除 : 問題なし
+- ハンドルに対するコマンド
+  - 点を削除 : 問題なし
+  - 座標で移動 : 問題なし
+- パスツールで出来る操作
+  - パスデータの先頭と末尾以外(途中にあるサブパス端)からパスを延ばせない
+  - パスの先頭と末尾をつなげるとつなげたところにつながらない
+  - 途中のfhpは大丈夫？
+  - 現在のコマンド列を編集するという構造ではまともに安全なコードが書けない。作り直すしかない。
+- その他
+  - 変形 : 問題なし
+- 当たり判定 : 問題無さそう
+- edraw-path.el内の@todo部分を見直す
+- インポート
+
+怪しい操作は全てエラーにして、後の改良項目とする。
+
+[[edraw:data=H4sIAAZfWGYAA9VVTXObMBD9Kxrl0syAER/GTsZ4puXSA7700tQ3CgJTE/AIbJx/35VWshNst5n2lDGapxX78Z4WyYvuUJLjc910Ed30/e7RcYZhmAz+pBWl4zHGHPCg6PJ4rKtme83RfXh4cNRbSoYq7zcRnYaMkg2vyk0f0cAD48BFV7VNRN2JS5eLnBcdqfKI8lykgy1NWH1OxZaLt+s2s1Mh2oESfPsdK8yN/VVXmVGyE7zj4sA/dzue9d/Svmoj2rQNh/IVH760x4jaLiNyePKhRPDiKaI4+aEmrah4A/nSfd9S0vWi3XKTpajqOqJ3LpM/4LtL+w0BsivIaNkzmdiakcBia0qc5cJBhjd0eXZWiazmI2HBWFjwTmFTAg8oc/9bFvIi2VFFZi+YSTH5qyr3arfCsajwo3XL/wC6UJZSZV/KcuQhWy4EkCLYWWzszSN73oCfabYtRbtv8htciqJQxcrXQW3+YthhkA13BP/VVnALvElmawp+eE5v5OkKWE2JnDMrYIkbMssN2AotNBQFVQ8127yBiL2oP91dXCf3pnN216eiv3Azp/N+TNK7yRF2Aa5MhjQ9SSlkiecxC4bi6zOwA41AHOaxRiL9wY/40p+xlTTnEBZoDHUasF1pM0RcjnVwqBZJoFKed0Py8eU78NRIfFnXQBLAajja7AuVF/vwOr/MALxVJiCXTIHEnMUIRAJIMBifbFRrMNFZ1v/K5I8t9cedv/Z5uCen97b9/Gn62NtYI/GxEQaTgJ0R+pxovzUGBjoQAuD4WdAog/HJxo/IIJ7vEgb8TS9/A+0Dv+vOBwAA]]

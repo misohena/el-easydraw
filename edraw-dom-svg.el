@@ -2998,7 +2998,7 @@ PROPS is an alist of properties defined by the MARKER-TYPE."
 ;; (Depends on edraw-math.el)
 
 (defun edraw-svg-shape-aabb (element &optional matrix local-p)
-  (let ((edraw-path-cmdlist-to-seglist--include-empty-p t)) ;;Enumerate zero-length segments
+  (let ((edraw-path-data-to-seglist--include-empty-p t)) ;;Enumerate zero-length segments
     (edraw-path-seglist-aabb
      (edraw-svg-element-to-seglist element matrix local-p))))
 
@@ -3166,50 +3166,64 @@ This function does not consider the effect of the transform attribute."
 
 
 
-;;;; SVG Shapes to edraw-path-cmdlist
+;;;; SVG Shapes to edraw-path-data
 
 (defconst edraw-bezier-circle-point 0.552284749831) ;;https://stackoverflow.com/questions/1734745/how-to-create-circle-with-b%C3%A9zier-curves
 
 ;; (Depends on edraw-path.el)
 
-(defun edraw-svg-element-to-path-cmdlist (element &optional matrix transformed)
-  (edraw-svg-element-contents-to-path-cmdlist
+(defun edraw-svg-element-to-path-data (element &optional matrix transformed)
+  (edraw-svg-element-contents-to-path-data
    element
    (when transformed
      (edraw-svg-element-transform-get element matrix))))
 
-(defun edraw-svg-element-contents-to-path-cmdlist (element &optional matrix)
+(defun edraw-svg-element-contents-to-path-data (element &optional matrix)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
       ((or 'path 'rect 'ellipse 'circle 'text 'image)
-       (let ((cmdlist (edraw-svg-shape-contents-to-path-cmdlist element)))
+       (let ((data (edraw-svg-shape-contents-to-path-data element)))
          (unless (edraw-matrix-identity-p matrix)
-           (edraw-path-cmdlist-transform cmdlist matrix))
-         cmdlist))
+           (edraw-path-data-transform data matrix))
+         data))
       ('g
-       (edraw-svg-group-contents-to-path-cmdlist element matrix)))))
+       (edraw-svg-group-contents-to-path-data element matrix)))))
 
-(defun edraw-svg-shape-contents-to-path-cmdlist (element)
+(defun edraw-svg-shape-contents-to-path-data (element)
   (when (edraw-dom-element-p element)
     (pcase (dom-tag element)
-      ('path (edraw-svg-path-contents-to-path-cmdlist element))
-      ('rect (edraw-svg-rect-contents-to-path-cmdlist element))
-      ('ellipse (edraw-svg-ellipse-contents-to-path-cmdlist element))
-      ('circle (edraw-svg-circle-contents-to-path-cmdlist element))
-      ('text (edraw-svg-text-contents-to-path-cmdlist element))
-      ('image (edraw-svg-image-contents-to-path-cmdlist element)))))
+      ('path (edraw-svg-path-contents-to-path-data element))
+      ('rect (edraw-svg-rect-contents-to-path-data element))
+      ('ellipse (edraw-svg-ellipse-contents-to-path-data element))
+      ('circle (edraw-svg-circle-contents-to-path-data element))
+      ('text (edraw-svg-text-contents-to-path-data element))
+      ('image (edraw-svg-image-contents-to-path-data element)))))
 
-(defun edraw-svg-path-contents-to-path-cmdlist (element)
+(defun edraw-svg-path-contents-to-path-data (element)
   (let ((fill (edraw-dom-attr-with-inherit element 'fill))
         (d (dom-attr element 'd)))
     (when d
-      (let ((cmdlist (edraw-path-cmdlist-from-d d))
+      (let ((data (edraw-path-data-from-d d))
             (needs-closed-p (not (equal fill "none"))))
         (when needs-closed-p
-          (edraw-path-cmdlist-close-path cmdlist t))
-        cmdlist))))
+          (edraw-path-data-subpath-loop data subpath
+            (when (and (not (edraw-path-subpath-empty-p subpath))
+                       (not (edraw-path-subpath-closed-p subpath)))
+              ;; Connect the first and last anchors with a straight line.
+              ;; Because the closing segment is not shown.
+              (let ((first-anchor
+                     (edraw-path-subpath-anchor-first-or-nil subpath))
+                    (last-anchor
+                     (edraw-path-subpath-anchor-last-or-nil subpath)))
+                (when (edraw-path-anchor-has-backward-handle first-anchor)
+                  (edraw-path-anchor-remove-backward-handle first-anchor))
+                (when (edraw-path-anchor-has-forward-handle last-anchor)
+                  (edraw-path-anchor-remove-forward-handle last-anchor)))
+              ;; Close
+              (edraw-path-subpath-close subpath))))
+        data))))
 
-(defun edraw-svg-rect-contents-to-path-cmdlist (element)
+(defun edraw-svg-rect-contents-to-path-data (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement
   (let* ((x0 (or (edraw-svg-attr-coord element 'x) 0))
          (y0 (or (edraw-svg-attr-coord element 'y) 0))
@@ -3232,61 +3246,47 @@ This function does not consider the effect of the transform attribute."
          (y1 (+ y0 ry))
          (x2 (max x1 (- x3 rx)))
          (y2 (max y1 (- y3 ry)))
-         (cmdlist (edraw-path-cmdlist)))
+         (data (edraw-path-data))
+         (subpath (edraw-path-data-add-new-subpath data)))
 
     (cond
      ((or (= rx 0) (= ry 0))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'M (cons x0 y0)))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'L (cons x3 y0)))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'L (cons x3 y3)))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'L (cons x0 y3)))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'L (cons x0 y0)))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z)))
+      (edraw-path-subpath-add-new-anchor subpath (edraw-xy x0 y0))
+      (edraw-path-subpath-add-new-anchor subpath (edraw-xy x3 y0))
+      (edraw-path-subpath-add-new-anchor subpath (edraw-xy x3 y3))
+      (edraw-path-subpath-add-new-anchor subpath (edraw-xy x0 y3))
+      (edraw-path-subpath-close subpath))
 
      (t
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'M (cons x1 y0)))
+      (edraw-path-subpath-add-new-anchor subpath (edraw-xy x1 y0))
       (unless (= x1 x2)
-        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                               'L (cons x2 y0))))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'C
-                                             (cons (+ x2 crx) y0)
-                                             (cons x3 (- y1 cry))
-                                             (cons x3 y1)))
+        (edraw-path-subpath-add-new-anchor subpath (edraw-xy x2 y0)))
+      (edraw-path-subpath-curve-to subpath
+                                   (edraw-xy (+ x2 crx) y0)
+                                   (edraw-xy x3 (- y1 cry))
+                                   (edraw-xy x3 y1))
       (unless (= y1 y2)
-        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                               'L (cons x3 y2))))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'C
-                                             (cons x3 (+ y2 cry))
-                                             (cons (+ x2 crx) y3)
-                                             (cons x2 y3)))
+        (edraw-path-subpath-add-new-anchor subpath (edraw-xy x3 y2)))
+      (edraw-path-subpath-curve-to subpath
+                                   (edraw-xy x3 (+ y2 cry))
+                                   (edraw-xy (+ x2 crx) y3)
+                                   (edraw-xy x2 y3))
       (unless (= x1 x2)
-        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                               'L (cons x1 y3))))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'C
-                                             (cons (- x1 crx) y3)
-                                             (cons x0 (+ y2 cry))
-                                             (cons x0 y2)))
+        (edraw-path-subpath-add-new-anchor subpath (edraw-xy x1 y3)))
+      (edraw-path-subpath-curve-to subpath
+                                   (edraw-xy (- x1 crx) y3)
+                                   (edraw-xy x0 (+ y2 cry))
+                                   (edraw-xy x0 y2))
       (unless (= y1 y2)
-        (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                               'L (cons x0 y1))))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                             'C
-                                             (cons x0 (- y1 cry))
-                                             (cons (- x1 crx) y0)
-                                             (cons x1 y0)))
-      (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))))
-    cmdlist))
+        (edraw-path-subpath-add-new-anchor subpath (edraw-xy x0 y1)))
+      (edraw-path-subpath-curve-to subpath
+                                   (edraw-xy x0 (- y1 cry))
+                                   (edraw-xy (- x1 crx) y0)
+                                   (edraw-xy x1 y0))
+      (edraw-path-subpath-close subpath)))
+    data))
 
-(defun edraw-svg-ellipse-contents-to-path-cmdlist (element)
+(defun edraw-svg-ellipse-contents-to-path-data (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#EllipseElement
   (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
          (cy (or (edraw-svg-attr-coord element 'cy) 0))
@@ -3299,33 +3299,29 @@ This function does not consider the effect of the transform attribute."
          (c edraw-bezier-circle-point)
          (crx (* c rx))
          (cry (* c ry))
-         (cmdlist (edraw-path-cmdlist)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'M (cons right cy)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons right (+ cy cry))
-                                           (cons (+ cx crx) bottom)
-                                           (cons cx bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons (- cx crx) bottom)
-                                           (cons left (+ cy cry))
-                                           (cons left cy)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons left (- cy cry))
-                                           (cons (- cx crx) top)
-                                           (cons cx top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons (+ cx crx) top)
-                                           (cons right (- cy cry))
-                                           (cons right cy)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
-    cmdlist))
+         (data (edraw-path-data))
+         (subpath (edraw-path-data-add-new-subpath data)))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy right cy))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy right (+ cy cry))
+                                 (edraw-xy (+ cx crx) bottom)
+                                 (edraw-xy cx bottom))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy (- cx crx) bottom)
+                                 (edraw-xy left (+ cy cry))
+                                 (edraw-xy left cy))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy left (- cy cry))
+                                 (edraw-xy (- cx crx) top)
+                                 (edraw-xy cx top))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy (+ cx crx) top)
+                                 (edraw-xy right (- cy cry))
+                                 (edraw-xy right cy))
+    (edraw-path-subpath-close subpath)
+    data))
 
-(defun edraw-svg-circle-contents-to-path-cmdlist (element)
+(defun edraw-svg-circle-contents-to-path-data (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#CircleElement
   (let* ((cx (or (edraw-svg-attr-coord element 'cx) 0))
          (cy (or (edraw-svg-attr-coord element 'cy) 0))
@@ -3336,49 +3332,46 @@ This function does not consider the effect of the transform attribute."
          (bottom (+ cy r))
          (c edraw-bezier-circle-point)
          (cr (* c r))
-         (cmdlist (edraw-path-cmdlist)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'M (cons right cy)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons right (+ cy cr))
-                                           (cons (+ cx cr) bottom)
-                                           (cons cx bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons (- cx cr) bottom)
-                                           (cons left (+ cy cr))
-                                           (cons left cy)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons left (- cy cr))
-                                           (cons (- cx cr) top)
-                                           (cons cx top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd
-                                           'C
-                                           (cons (+ cx cr) top)
-                                           (cons right (- cy cr))
-                                           (cons right cy)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
-    cmdlist))
+         (data (edraw-path-data))
+         (subpath (edraw-path-data-add-new-subpath data)))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy right cy))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy right (+ cy cr))
+                                 (edraw-xy (+ cx cr) bottom)
+                                 (edraw-xy cx bottom))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy (- cx cr) bottom)
+                                 (edraw-xy left (+ cy cr))
+                                 (edraw-xy left cy))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy left (- cy cr))
+                                 (edraw-xy (- cx cr) top)
+                                 (edraw-xy cx top))
+    (edraw-path-subpath-curve-to subpath
+                                 (edraw-xy (+ cx cr) top)
+                                 (edraw-xy right (- cy cr))
+                                 (edraw-xy right cy))
+    (edraw-path-subpath-close subpath)
+    data))
 
-(defun edraw-svg-text-contents-to-path-cmdlist (element)
+(defun edraw-svg-text-contents-to-path-data (element)
   ;; Exact calculation is difficult, so use AABB instead
   (let* ((rect (edraw-svg-text-contents-aabb element))
          (left   (caar rect))
          (top    (cdar rect))
          (right  (cadr rect))
          (bottom (cddr rect))
-         (cmdlist (edraw-path-cmdlist)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'M (cons left top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
-    cmdlist))
+         (data (edraw-path-data))
+         (subpath (edraw-path-data-add-new-subpath data)))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy left top))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy right top))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy right bottom))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy left bottom))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy left top))
+    (edraw-path-subpath-close subpath)
+    data))
 
-(defun edraw-svg-image-contents-to-path-cmdlist (element)
+(defun edraw-svg-image-contents-to-path-data (element)
   ;; https://www.w3.org/TR/SVG11/struct.html#ImageElement
   (let* ((left   (or (edraw-svg-attr-coord element 'x) 0))
          (top    (or (edraw-svg-attr-coord element 'y) 0))
@@ -3386,27 +3379,28 @@ This function does not consider the effect of the transform attribute."
          (height (or (edraw-svg-attr-coord element 'height) 0))
          (right  (+ left width))
          (bottom (+ top height))
-         (cmdlist (edraw-path-cmdlist)))
+         (data (edraw-path-data))
+         (subpath (edraw-path-data-add-new-subpath data)))
     ;;@todo support overflow? clip?
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'M (cons left top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons right bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left bottom)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'L (cons left top)))
-    (edraw-path-cmdlist-push-back cmdlist (edraw-path-cmd 'Z))
-    cmdlist))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy left top))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy right top))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy right bottom))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy left bottom))
+    (edraw-path-subpath-add-new-anchor subpath (edraw-xy left top))
+    (edraw-path-subpath-close subpath)
+    data))
 
-(defun edraw-svg-group-contents-to-path-cmdlist (element &optional matrix)
-  (let (cmdlist)
+(defun edraw-svg-group-contents-to-path-data (element &optional matrix)
+  (let (data)
     (dolist (child (dom-children element))
       (when (edraw-dom-element-p child)
-        (let ((child-cmdlist (edraw-svg-element-to-path-cmdlist element matrix)))
-          (when (and child-cmdlist
-                     (not (edraw-path-cmdlist-empty-p child-cmdlist)))
-            (when cmdlist
-              (edraw-path-cmdlist-insert-cmdlist-front child-cmdlist cmdlist))
-            (setq cmdlist child-cmdlist)))))
-    cmdlist))
+        (let ((child-data (edraw-svg-element-to-path-data element matrix)))
+          (when (and child-data
+                     (edraw-path-data-has-anchor-p child-data))
+            (if data
+                (edraw-path-data-insert-data-last data child-data)
+              (setq data child-data))))))
+    data))
 
 
 
@@ -3447,8 +3441,8 @@ This function does not consider the effect of the transform attribute."
   (let ((fill (edraw-dom-attr-with-inherit element 'fill))
         (d (dom-attr element 'd)))
     (when d
-      (edraw-path-cmdlist-to-seglist
-       (edraw-path-cmdlist-from-d d)
+      (edraw-path-data-to-seglist
+       (edraw-path-data-from-d d)
        (not (equal fill "none"))))))
 
 (defun edraw-svg-rect-contents-to-seglist (element)
