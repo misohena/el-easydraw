@@ -737,7 +737,7 @@ Therefore, the following evaluation results will be the same:
       (setq prompt
             (replace-match
              (format edraw-minibuffer-default-prompt-format default) t t prompt
-             (if (match-string 1) 1 0))))
+             (if (match-beginning 1) 1 0))))
 
     (while
         (null
