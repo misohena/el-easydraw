@@ -21,8 +21,6 @@ shapeに対して点が増えたり減ったりするような操作を増やし
 ** TODO デバッグ出力機構がほしい
 デバッグモード時だけ、条件に一致しないものを警告するようなassertみたいな仕組みが欲しい。潜在的なバグを見つけられるように。アンカー等の無効化関連で。
 
-** TODO インポート/複数のサブパスを解禁する
-edraw-path.elの書き換えによって複数のサブパスは完全にサポートされるようになった。
 ** TODO パス編集/edraw-path-data-from-dは無効なパラメータをエラーにする
 Zの後にL等を付けずに座標を書いてもエラーにならず、何が間違っているのか気がつかない事がある。
 「M 1 2 3 4 5 6 Z 7 8」のように書いてサブパスが一つしか作られないおかしい、というように悩んでしまったりする。
@@ -5102,3 +5100,28 @@ CLOSED: [2024-06-06 Thu 11:44]
 CLOSED: [2024-06-06 Thu 13:47]
 - 現象: T sを押すとエラーが出るのを直す。
 - 原因: edraw-read-number-with-unitに問題あり。文字列と正規表現とのマッチの確認に文字列を指定しないmatch-stringを使っていたのが原因。ここは珍しいケースで、部分文字列を取り出すことが目的では無く(必ず空なので必要が無い)、括弧の1番目がマッチしているかの確認のために使っている。引数に文字列を指定しなかったのでバッファの中のマッチ範囲から取り出そうとしてバッファは空なのでエラーになる。ここはmatch-beginningでnilかどうかを判定すべき。
+** DONE インポート/複数のサブパスを解禁する
+CLOSED: [2024-06-06 Thu 13:50]
+edraw-path.elの書き換えによって複数のサブパスは完全にサポートされるようになった。
+
+試しに次のようなパスを作ってみた。
+
+#+begin_src svg
+<path stroke-width="2" stroke="#101010" fill="none" d="M100 100C100 120 140 160 160 160 160 140 120 100 100 100ZM100 100C100 80 60 40 40 40 40 60 80 100 100 100ZM100 100C100 120 60 160 40 160 40 140 80 100 100 100ZM100 100C100 80 140 40 160 40 160 60 120 100 100 100ZM100 100C100 160 120 180 180 180" />
+#+end_src
+
+これのZの後のM100 100を消す。Zの前のMは100 100なので、再度M100 100と書く必要は無い。
+
+#+begin_src svg
+<path stroke-width="2" stroke="#101010" fill="none" d="M100 100C100 120 140 160 160 160 160 140 120 100 100 100ZC100 80 60 40 40 40 40 60 80 100 100 100ZC100 120 60 160 40 160 40 140 80 100 100 100ZC100 80 140 40 160 40 160 60 120 100 100 100ZC100 160 120 180 180 180" /></g></svg>
+#+end_src
+
+ちゃんとedrawで開けた。
+
+[[edraw:data=H4sIAC1AYWYAA3VRy47CIBTd+xXkuraAkqY1pZtZzw/MrmMpJa1gKCP170XaqjOjgXNv4DwgUAxnicZjrwcOrXOnPcbe+8TvEmMl3hJCcFDAJNmPvdLdKyHN8xxHFpBXtWs5BC+gVijZunlxFnZQRnOgCYWysOLg0MghMJdY3xpVzUHUtvKb7+rQSWt+dA1ocNZ0goM2WgBqVN9zWDdNAwiXhXw2mfoC5ao4Va6dXZvlrEfMmpLbWJKm1JDxSQlBAR+xbwNYQPoHbObIHV/RkBEUaPY007j5T3hzz2Hs0dhrcTZR7Jc+fXMFuhDZHfGJsAwIn1uurgCxEosFAgAA]]
+
+もちろん中心は別々の五つのアンカーと認識されるし、このパスに何か変更を加えるとd属性が更新され、SVGの出力結果は共有Mではなくなる。
+
+まぁ、いいんじゃないかな。
+
+というわけで、インポートはこのデータ形式を許容するように修正する。

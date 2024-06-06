@@ -769,7 +769,7 @@ The result value might look like this:
     (cons attr-name value)))
 
 (defun edraw-import-svg-convert-attr-d (attr-name value _elem _context)
-  ;; Check multiple subpaths and A command
+  ;; Check unsupported path data (A command)
   (let ((cmds (condition-case err
                   (edraw-path-d-parse value)
                 (error
@@ -800,18 +800,7 @@ The result value might look like this:
     (when (and cmds (not (memq (caar cmds) '(M m))))
       (setq value nil cmds nil) ;;Discard
       (edraw-import-warn 'path-not-start-m
-                         (edraw-msg "Path data does not start with M")))
-
-    ;; Check multiple subpaths (multiple M or command after Z)
-    (when (and cmds (cl-loop for rest on (cdr cmds)
-                             for cmd = (car rest)
-                             when (or (memq (car cmd) '(M m))
-                                      (and (memq (car cmd) '(Z z))
-                                           (cdr rest)))
-                             return t))
-      (edraw-import-warn
-       'path-multiple-subpaths
-       (edraw-msg "Multiple subpaths are not supported and may cause display and operation problems"))))
+                         (edraw-msg "Path data does not start with M"))))
 
   (when value
     (cons attr-name value)))
