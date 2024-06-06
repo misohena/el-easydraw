@@ -2996,10 +2996,19 @@ document size or view box."
     (not (null (memq shape selected-shapes)))))
 
 (cl-defmethod edraw-selected-anchor ((editor edraw-editor))
-  (oref editor selected-anchor))
+  (when-let ((spt (oref editor selected-anchor)))
+    (if (edraw-valid-point-p spt)
+        spt
+      ;; (message "Warning: The selected anchor is invalid")
+      nil)))
 
 (cl-defmethod edraw-selected-handle ((editor edraw-editor))
-  (oref editor selected-handle))
+  (when-let ((spt (oref editor selected-handle)))
+    (if (and (edraw-valid-point-p spt)
+             (edraw-active-handle-p spt))
+        spt
+      ;; (message "Warning: The selected handle is invalid")
+      nil)))
 
 (cl-defmethod edraw-selecting-point-p ((editor edraw-editor))
   (when (or (oref editor selected-anchor)
@@ -3073,7 +3082,7 @@ document size or view box."
 
 
 (cl-defmethod edraw-on-selected-shape-changed ((editor edraw-editor)
-                                               shape type)
+                                               shape type hint)
   ;;(message "changed!! %s" type)
 
   (with-slots (selected-shapes selected-anchor selected-handle) editor
@@ -3081,19 +3090,22 @@ document size or view box."
      ((eq type 'shape-remove)
       (edraw-remove-shape-selection editor shape))
 
-     ((eq type 'shape-path-data)
-      (edraw-deselect-anchor editor) ;; All anchors have been destroyed
-      (edraw-invalidate-ui-parts editor 'selection-ui))
+     ((eq type 'shape-properties)
+      (if (and selected-anchor (assq 'd hint))
+          (edraw-deselect-anchor editor) ;; All anchors have been destroyed
+        (edraw-invalidate-ui-parts editor 'selection-ui)))
 
      ((and selected-anchor
-           (memq type '(point-remove))
+           (memq type '(anchor-remove anchor-transfer-out))
            ;; No shape in selected-shapes owns selected-anchor
+           ;; @todo Inefficient
            (not (edraw-point-in-selected-shapes-p editor selected-anchor)))
       (edraw-deselect-anchor editor))
 
      ((and selected-handle
-           (memq type '(point-remove anchor-make-corner))
+           (memq type '(handle-remove))
            ;; No shape in selected-shapes owns selected-handle
+           ;; @todo Inefficient
            (not (edraw-point-in-selected-shapes-p editor selected-handle)))
       (edraw-deselect-handle editor))
 
@@ -5331,13 +5343,10 @@ to down-mouse-1 and processes drag and click."
  if it is invalid."
   (with-slots (last-anchor) tool
     (when last-anchor
-      (let ((shape (edraw-parent-shape last-anchor)))
-        (unless (and shape
-                     (not (edraw-removed-p shape))
-                     (edraw-owned-shape-point-p shape last-anchor)
-                     (edraw-endpoint-p last-anchor))
-          ;;(message "Last anchor is invalid")
-          (setq last-anchor nil))))))
+      (unless (and (edraw-valid-point-p last-anchor)
+                   (edraw-endpoint-p last-anchor))
+        ;; (message "Last anchor is invalid")
+        (setq last-anchor nil)))))
 
 (cl-defmethod edraw-on-S-down-mouse-1 ((tool edraw-editor-tool-path) down-event)
   (edraw-on-down-mouse-1 tool down-event))
@@ -6823,12 +6832,12 @@ e.g. rect, ellipse, path, image, text, group, generator."
 
 ;;;;;; Hooks
 
-(cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type)
+(cl-defmethod edraw-on-shape-changed ((shape edraw-shape) type &optional hint)
   ;;(message "on shape changed %s %s" (edraw-name shape) type)
   (with-slots (editor) shape
     (edraw-update-related-point-connections shape type)
     (edraw-notify-parent-of-change shape type)
-    (edraw-notify-change-hook shape type)))
+    (edraw-notify-change-hook shape type hint)))
 
 (cl-defmethod edraw-notify-parent-of-change ((shape edraw-shape) type)
   (if-let ((parent (edraw-parent shape)))
@@ -6839,9 +6848,10 @@ e.g. rect, ellipse, path, image, text, group, generator."
                                       (_child edraw-shape) _type)
   (edraw-on-shape-changed shape 'child-change))
 
-(cl-defmethod edraw-notify-change-hook ((shape edraw-shape) type)
+(cl-defmethod edraw-notify-change-hook ((shape edraw-shape) type &optional hint
+                                        &rest _unknown)
   (with-slots (editor change-hook) shape
-    (edraw-hook-call change-hook shape type)))
+    (edraw-hook-call change-hook shape type hint)))
 
 (cl-defmethod edraw-add-change-hook ((shape edraw-shape) function &rest args)
   (with-slots (change-hook) shape
@@ -7197,7 +7207,7 @@ return it."
            (list #'edraw-set-properties shape old-prop-list))
           (edraw-on-shape-properties-changed shape old-prop-list)
           ;; NOTE: Other connected shapes may change.
-          (edraw-on-shape-changed shape 'shape-properties)))
+          (edraw-on-shape-changed shape 'shape-properties old-prop-list)))
       t)))
 
 (cl-defmethod edraw-on-shape-properties-changed ((_shape edraw-shape)
@@ -8347,23 +8357,35 @@ may be replaced by another mechanism."
   ;; Used by `edraw-get-nth-point'
   (cond
    ((edraw-path-anchor-p anchor-or-handle)
-    (let ((anchor anchor-or-handle))
-      (+ (* (edraw-path-anchor-index-in-data anchor) 3) 1)))
+    (let* ((anchor anchor-or-handle)
+           (index (edraw-path-anchor-index-in-data anchor)))
+      (when index
+        (+ (* index 3) 1))))
    ((edraw-path-handle-p anchor-or-handle)
-    (let ((handle anchor-or-handle))
-      (+ (* (edraw-path-anchor-index-in-data (edraw-path-handle-parent handle))
-            3)
-         (if (edraw-path-handle-forward-p handle) 2 0))))))
+    (let* ((handle anchor-or-handle)
+           (index (edraw-path-anchor-index-in-data
+                   (edraw-path-handle-parent handle))))
+      (when index
+        (+ (* index 3)
+           (if (edraw-path-handle-forward-p handle) 2 0)))))))
 
 (defun edraw-shape-path-point-nth (path-data index)
   ;; Used by `edraw-get-nth-point'
-  (let* ((anchor-index (/ index 3))
-         (sub-index (% index 3))
-         (anchor (edraw-path-data-anchor-nth path-data anchor-index)))
-    (pcase sub-index
-      (0 (edraw-path-anchor-backward-handle anchor))
-      (1 anchor)
-      (2 (edraw-path-anchor-forward-handle anchor)))))
+  (when (integerp index)
+    (let* ((anchor-index (/ index 3))
+           (sub-index (% index 3))
+           (anchor (edraw-path-data-anchor-nth path-data anchor-index)))
+
+      ;; (unless anchor
+      ;;   (message "Warning: Point #%s not found (anchor #%s/%s)"
+      ;;            index anchor-index
+      ;;            (edraw-path-data-anchor-count path-data)))
+
+      (when anchor
+        (pcase sub-index
+          (0 (edraw-path-anchor-backward-handle anchor))
+          (1 anchor)
+          (2 (edraw-path-anchor-forward-handle anchor)))))))
 
 (cl-defmethod edraw-get-nth-point ((shape edraw-shape-path) index)
   ;; Corresponds to `edraw-index-in-path'
@@ -8372,9 +8394,11 @@ may be replaced by another mechanism."
    (edraw-shape-path-point-nth (oref shape path-data) index)))
 
 (cl-defmethod edraw-get-nth-anchor-point ((shape edraw-shape-path) index)
-  (edraw-shape-path-make-anchor-object
-   shape
-   (edraw-path-data-anchor-nth (oref shape path-data) index)))
+  (let ((anchor (edraw-path-data-anchor-nth (oref shape path-data) index)))
+    ;; (unless anchor
+    ;;   (message "Warning: Anchor #%s not found (/ %s)"
+    ;;            index (edraw-path-data-anchor-count (oref shape path-data))))
+    (edraw-shape-path-make-anchor-object shape anchor)))
 
 (cl-defmethod edraw-get-first-anchor-point ((shape edraw-shape-path))
   (edraw-shape-path-make-anchor-object
@@ -8448,7 +8472,7 @@ If the last subpath becomes empty due to the deletion, also delete the subpath."
              (when (edraw-path-anchor-has-forward-handle anchor)
                (edraw-path-anchor-forward-handle-xy-relative anchor))))
       (edraw-update-path-d-attr shape)
-      (edraw-on-shape-changed shape 'point-remove))))
+      (edraw-on-shape-changed shape 'anchor-remove))))
 
 ;; (cl-defmethod edraw-add-anchor-nth ((shape edraw-shape-path)
 ;;                                     subpath-index
@@ -8606,7 +8630,10 @@ All path objects being processed will be deleted."
                 ;; Restores path-data that became emptied during UNDO
                 ;; @todo Avoid undo d=
                 (edraw-push-undo-properties path 'combine-paths '(d))
-                (edraw-update-path-d-attr path)) ;; Update empty d= for UNDO
+                ;; Update empty d= (changes required to undo)
+                (edraw-update-path-d-attr path)
+                ;; Notify that all anchors have removed from the path
+                (edraw-on-shape-changed path 'anchor-transfer-out))
 
               ;; Set combined path data to new-path
               (edraw-path-data-subpath-swap (oref new-path path-data)
@@ -8655,8 +8682,11 @@ All path objects being processed will be deleted."
               (edraw-on-shape-changed new-shape 'shape-init-path-data)
               (push new-shape new-shape-list)))
 
+          ;; Update empty d= (changes required to undo)
+          (edraw-update-path-d-attr shape)
+          ;; Notify that all anchors have removed from the old path shape
+          (edraw-on-shape-changed shape 'anchor-transfer-out)
           ;; Delete old path shape
-          (edraw-update-path-d-attr shape) ;; Update empty d= for UNDO
           (edraw-remove shape)
 
           ;; Select
@@ -9328,8 +9358,27 @@ Adding two vectors to SPT leads to the opposite point."
 (cl-defmethod edraw-parent-shape ((spt edraw-shape-point-path-base))
   (oref spt shape))
 
-(cl-defmethod edraw-push-undo-path-d-change ((spt edraw-shape-point-path-base)
-                                             type)
+(cl-defgeneric edraw-valid-point-p (spt)
+  "Return non-nil if the SPT is valid.
+
+Points (anchors, handles) in `edraw-shape-path' can become
+invalid due to modification operations. A typical example is
+removing a point, but operations that reduce points or move them
+to another shape can also invalidate points
+(`edraw-combine-paths', `edraw-split-subpaths', etc.).
+Also, modifying the d attribute invalidates all points in the
+shape.
+
+Behavior of operations on invalid points is undefined and should
+be avoided.
+
+To detect invalidation of a point, use `edraw-valid-point-p' or
+monitor changes with `edraw-add-change-hook'. edraw-editor
+monitors selected anchors and handles for invalidation using
+change hook.")
+
+(cl-defmethod edraw-push-undo-path-d-change
+  ((spt edraw-shape-point-path-base) type)
   "Register undo data that restores the entire d property.
 
 This is because undoing will revert the d attribute to its saved
@@ -9347,7 +9396,8 @@ objects."
                                         type
                                         old-xy
                                         &optional
-                                        opposite-index-old-xy)
+                                        opposite-index-old-xy
+                                        notify-change-type)
   (with-slots (shape) spt
     (let* ((index (edraw-index-in-path spt))
            (type (intern (format "%s-p%s" type index)))
@@ -9387,7 +9437,8 @@ objects."
                (list #'edraw-move-nth-point shape index old-xy)))))
 
         ;; Notify point move.
-        (edraw-on-shape-point-changed shape 'point-move)))))
+        (edraw-on-shape-point-changed shape (or notify-change-type
+                                                'point-move))))))
 
 
 ;;;;; Shape Point - Path Anchor
@@ -9398,10 +9449,12 @@ objects."
 (cl-defmethod edraw-get-point-type ((_spt edraw-shape-point-path-anchor))
   'anchor)
 
-;; (cl-defmethod edraw-valid-p ((spt edraw-shape-point-path-anchor))
-;;   (edraw-path-data-contains-anchor-p
-;;    (oref (oref spt shape) path-data)
-;;    (oref spt anchor)))
+(cl-defmethod edraw-valid-point-p ((spt edraw-shape-point-path-anchor))
+  (when-let* ((subpath (edraw-path-anchor-parent-subpath (oref spt anchor)))
+              (data (edraw-path-subpath-parent-data subpath)))
+    (let ((shape (oref spt shape)))
+      (and (eq data (oref shape path-data))
+           (not (edraw-removed-p shape))))))
 
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-path-anchor) spt2)
   (and spt2
@@ -9590,7 +9643,7 @@ Return the added anchor."
           (edraw-path-subpath-remove subpath))
         ;;@todo Avoid using edraw-push-undo-path-d-change?
         (edraw-push-undo-path-d-change spt 'path-point-delete)
-        (edraw-on-shape-point-changed shape 'point-remove)
+        (edraw-on-shape-point-changed shape 'anchor-remove)
         t))))
 
 (cl-defmethod edraw-insert-point-before ((spt edraw-shape-point-path-anchor))
@@ -9715,7 +9768,7 @@ invalid, so use this object instead."
           (edraw-update-path-d-attr shape1)
           (edraw-update-path-d-attr shape2)
           (edraw-on-shape-changed shape1 'connect-anchors)
-          (edraw-on-shape-changed shape2 'connect-anchors)
+          (edraw-on-shape-changed shape2 'anchor-transfer-out)
           (when (edraw-path-data-no-anchor-p (oref shape2 path-data))
             (edraw-remove shape2))
           ;; Return new SPT2 object (anchor2 is now inside shape1)
@@ -9814,6 +9867,24 @@ invalid, so use this object instead."
 (cl-defmethod edraw-get-point-type ((_spt edraw-shape-point-path-handle))
   'handle)
 
+(cl-defmethod edraw-valid-point-p ((spt edraw-shape-point-path-handle))
+  (when-let* ((anchor (edraw-path-handle-parent (oref spt handle)))
+              (subpath (edraw-path-anchor-parent-subpath anchor))
+              (data (edraw-path-subpath-parent-data subpath)))
+    (let ((shape (oref spt shape)))
+      (and (eq data (oref shape path-data))
+           (not (edraw-removed-p shape))))))
+
+(cl-defmethod edraw-active-handle-p ((spt edraw-shape-point-path-handle))
+  "If SPT is an active handle, return a non-nil value.
+
+Even if a handle is valid, it may not have any effect as a
+ control point. Specifically, this is the case when its
+ coordinates are in the same position as the anchor point. Such a
+ state in which it has no effect is called inactive, and a state
+ in which it has an effect is called active."
+  (edraw-path-handle-active-p (oref spt handle)))
+
 (cl-defmethod edraw-same-point-p ((spt1 edraw-shape-point-path-handle) spt2)
   (and spt2
        (object-of-class-p spt2 'edraw-shape-point-path-handle)
@@ -9871,9 +9942,10 @@ invalid, so use this object instead."
 (cl-defmethod edraw-get-opposite-handle-index-xy
   ((spt edraw-shape-point-path-handle))
   (when-let ((opposite-handle (edraw-path-handle-opposite-handle-or-nil
-                               (oref spt handle))))
+                               (oref spt handle)))
+             (index (edraw-shape-path-point-index opposite-handle)))
     (cons
-     (edraw-shape-path-point-index opposite-handle)
+     index
      (edraw-xy-clone (edraw-path-handle-xy opposite-handle)))))
 
 (cl-defmethod edraw-move-with-opposite-handle
@@ -9926,7 +9998,8 @@ invalid, so use this object instead."
         (edraw-make-undo-group (oref shape editor) 'path-point-delete
           ;; Delete Point
           (edraw-path-handle-remove handle)
-          (edraw-on-path-point-move spt 'path-point-delete old-xy)
+          (edraw-on-path-point-move spt 'path-point-delete old-xy
+                                    nil 'handle-remove)
           t)))))
 
 
@@ -10607,10 +10680,11 @@ Note that this does not return the common base class.")
       (dolist (shape (oref obj shapes))
         (edraw-remove-change-hook shape #'edraw-on-target-changed obj)))))
 
-(cl-defmethod edraw-on-target-changed ((obj edraw-multiple-shapes) _source type)
+(cl-defmethod edraw-on-target-changed ((obj edraw-multiple-shapes)
+                                       _source type hint)
   (with-slots (change-hook) obj
     ;; Treat changes to SOURCE as changes to OBJ
-    (edraw-hook-call change-hook obj type)));;@todo Convert type?
+    (edraw-hook-call change-hook obj type hint)));;@todo Convert type?
 
 ;;(cl-defmethod edraw-property-editor-shape-p (_obj) nil)
 ;;(cl-defmethod edraw-set-all-properties-as-default ((obj edraw-multiple-shapes)))

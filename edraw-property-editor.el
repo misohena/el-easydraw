@@ -141,8 +141,11 @@ values (PROP-NAME . VALUE) obtained by calling
 (cl-defgeneric edraw-add-change-hook (object function &rest args)
   "Add a FUNCTION to be called when OBJECT changes.
 
-The arguments passed to the function FUNCTION are ARGS, OBJECT,
-and information indicating the type of change.
+The arguments passed to the FUNCTION are the expansion of ARGS,
+OBJECT, a symbol or other structure representing the type of
+change, and additional information (hint) about the change.
+
+  (FUNCTION ARGS... OBJECT TYPE HINT)
 
 See `edraw-hook-add'.")
 
@@ -337,13 +340,15 @@ Used by the property editor to determine the type of object."
             (setcdr (cadr prev) new-value)))
           (setq changed t))))
     (when changed
-      (edraw-hook-call (oref holder change-hook) holder 'alist-properties))
+      (edraw-hook-call (oref holder change-hook) holder 'alist-properties nil))
     changed))
 
-(cl-defmethod edraw-add-change-hook ((holder edraw-alist-properties-holder) function &rest args)
+(cl-defmethod edraw-add-change-hook ((holder edraw-alist-properties-holder)
+                                     function &rest args)
   (apply 'edraw-hook-add (oref holder change-hook) function args))
 
-(cl-defmethod edraw-remove-change-hook ((holder edraw-alist-properties-holder) function &rest args)
+(cl-defmethod edraw-remove-change-hook ((holder edraw-alist-properties-holder)
+                                        function &rest args)
   (apply 'edraw-hook-remove (oref holder change-hook) function args))
 
 (cl-defmethod edraw-preset-type ((holder edraw-alist-properties-holder))
@@ -2143,7 +2148,7 @@ menu is pressed."
     (setq edraw-property-editor--pedit nil)))
 
 (cl-defmethod edraw-on-target-changed ((pedit edraw-property-editor)
-                                       _source type)
+                                       _source type &rest _unused-args)
   (cond
    ((or (eq type 'shape-remove)
         (eq type 'document-close))

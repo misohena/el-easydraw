@@ -1136,22 +1136,33 @@ around (the previous anchor is taken from the last anchor)."
 ;;;;;; Anchor Index
 
 (defun edraw-path-anchor-index-in-data (anchor)
-  "Return the position of ANCHOR within the path data."
-  (let ((index 0))
+  "Return the position of ANCHOR within the path data.
+If ANCHOR is not in the edraw-path-data object, return nil."
+  (let ((index 0)
+        (found-data nil))
     (while (progn
+             ;; Seek anchor sentinel (parent subpath or nil)
              (while (progn
                       (setq anchor (edraw-path-anchor-prev anchor))
                       (not (edraw-path-anchor-sentinel-p anchor)))
                (cl-incf index))
-             (when-let ((subpath
-                         (edraw-path-anchor-sentinel-to-subpath anchor)))
-               (setq subpath (edraw-path-subpath-prev subpath))
-               (unless (edraw-path-subpath-sentinel-p subpath)
-                 (setq anchor (edraw-path-subpath-anchor-sentinel subpath))))))
-    index))
+             ;;
+             (when-let* ((subpath ;; nil means not in subpath
+                          (edraw-path-anchor-sentinel-to-subpath anchor))
+                         (prev-subpath ;; nil means not in data
+                          (edraw-path-subpath-prev subpath)))
+               (let ((data (edraw-path-subpath-sentinel-to-data prev-subpath)))
+                 (if data
+                     (progn (setq found-data data) nil)
+                   ;; Next
+                   (setq anchor
+                         (edraw-path-subpath-anchor-sentinel prev-subpath)))))))
+    (when found-data
+      index)))
 ;; TEST: (let ((data (edraw-path-data-from-d "M0 1"))) (edraw-path-anchor-index-in-data (edraw-path-subpath-anchor-last-or-nil (edraw-path-data-last-or-nil data)))) => 0
 ;; TEST: (let ((data (edraw-path-data-from-d "M0 1 2 3"))) (edraw-path-anchor-index-in-data (edraw-path-subpath-anchor-last-or-nil (edraw-path-data-last-or-nil data)))) => 1
 ;; TEST: (let ((data (edraw-path-data-from-d "M0 1L10 11M20 21 30 31ZL50 51M60 61 70 71"))) (edraw-path-anchor-index-in-data (edraw-path-subpath-anchor-last-or-nil (edraw-path-data-last-or-nil data)))) => 7
+;; TEST: (let* ((data (edraw-path-data-from-d "M0 1L10 11M20 21 30 31ZL50 51M60 61 70 71")) (first (edraw-path-data-first-or-nil data)) (last (edraw-path-data-last-or-nil data))) (edraw-path-subpath-remove-range first last) (edraw-path-anchor-index-in-data (edraw-path-subpath-anchor-last-or-nil last))) => nil
 
 (defun edraw-path-anchor-next-nth (anchor-or-subpath-or-data index)
   "Return the INDEX-th anchor from the position specified by

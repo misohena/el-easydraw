@@ -1,6 +1,26 @@
 
 
 * Inbox
+** TODO オブジェクトの無効化を通知する専用の仕組みが必要では？
+shape、anchor、handleの無効化を検出する一般化された枠組みが必要では？
+現在は
+- 変更通知で監視する
+- 無効化判定関数を呼び出す
+という二つの方法がある。
+
+変更通知は通知typeの種類が問題になっている。
+shapeに対して点が増えたり減ったりするような操作を増やしたときに、本来ならその操作の種類を直接表現したtypeを使いたいのに、anchor-removeやanchor-transfer-outのような抽象的なtypeを使わなければならない。そもそもこの点の無効化を伝えるというのは意識をしていないと忘れてしまう。
+また、on-shape-changedは点接続の更新を伴うので効率が悪くなってしまった。
+つまり
+- 操作を増やしやすい
+  - 変化の種類を具体的なものにできるようにする
+  - それでいて無効化について意識が向くようにする(忘れないようにする)
+- 効率が良い
+ような仕組みが必要。
+
+** TODO デバッグ出力機構がほしい
+デバッグモード時だけ、条件に一致しないものを警告するようなassertみたいな仕組みが欲しい。潜在的なバグを見つけられるように。アンカー等の無効化関連で。
+
 ** TODO インポート/複数のサブパスを解禁する
 edraw-path.elの書き換えによって複数のサブパスは完全にサポートされるようになった。
 ** TODO パス編集/edraw-path-data-from-dは無効なパラメータをエラーにする
@@ -5031,3 +5051,50 @@ Mが複数のサブパスで共有されるケース(Zの後にMが無いケー�
 怪しい操作は全てエラーにして、後の改良項目とする。
 
 [[edraw:data=H4sIAAZfWGYAA9VVTXObMBD9Kxrl0syAER/GTsZ4puXSA7700tQ3CgJTE/AIbJx/35VWshNst5n2lDGapxX78Z4WyYvuUJLjc910Ed30/e7RcYZhmAz+pBWl4zHGHPCg6PJ4rKtme83RfXh4cNRbSoYq7zcRnYaMkg2vyk0f0cAD48BFV7VNRN2JS5eLnBcdqfKI8lykgy1NWH1OxZaLt+s2s1Mh2oESfPsdK8yN/VVXmVGyE7zj4sA/dzue9d/Svmoj2rQNh/IVH760x4jaLiNyePKhRPDiKaI4+aEmrah4A/nSfd9S0vWi3XKTpajqOqJ3LpM/4LtL+w0BsivIaNkzmdiakcBia0qc5cJBhjd0eXZWiazmI2HBWFjwTmFTAg8oc/9bFvIi2VFFZi+YSTH5qyr3arfCsajwo3XL/wC6UJZSZV/KcuQhWy4EkCLYWWzszSN73oCfabYtRbtv8htciqJQxcrXQW3+YthhkA13BP/VVnALvElmawp+eE5v5OkKWE2JnDMrYIkbMssN2AotNBQFVQ8127yBiL2oP91dXCf3pnN216eiv3Azp/N+TNK7yRF2Aa5MhjQ9SSlkiecxC4bi6zOwA41AHOaxRiL9wY/40p+xlTTnEBZoDHUasF1pM0RcjnVwqBZJoFKed0Py8eU78NRIfFnXQBLAajja7AuVF/vwOr/MALxVJiCXTIHEnMUIRAJIMBifbFRrMNFZ1v/K5I8t9cedv/Z5uCen97b9/Gn62NtYI/GxEQaTgJ0R+pxovzUGBjoQAuD4WdAog/HJxo/IIJ7vEgb8TS9/A+0Dv+vOBwAA]]
+** DONE 無効になったハンドルやアンカーが選択されたままになる
+CLOSED: [2024-06-06 Thu 11:44]
+パスツールで二つ以上アンカーを追加してUNDOすると、消えたアンカーがまだ選択され続けていてそれをドラッグしようとして無効なハンドルを動かそうとしてしまう。
+選択中のアンカーが無効になったことを正しく検出できていない。
+二つ目以降のアンカーの追加はadd-anchor-to-open-endで行っていてこれのUNDOはd属性の復元となっている。editorの選択オブジェクト管理部はd属性の変更を検出していない。他にも似たような問題があるはず。
+
+理想的には:
+- アンカーの無効化をちゃんと検出する。網羅的に。
+- 漏れがあった場合に備えて、無効なアンカーをチェックする仕組みを整備し、selected-anchorやselected-handleを取得するときに検証する。開発中はassertしたいけど。
+
+■ (とりあえずパスツールと選択管理の修正):
+- edraw-validate-last-anchorを修正。
+- edraw-selected-anchorやedraw-selected-handleで無効化を検出。
+- edraw-valid-point-pを追加。
+
+■ (d(パスデータ全体)の無効化を通知していない！　検出していない！):
+[[https://github.com/misohena/el-easydraw/commit/a762359290004b0d9f6bf5ab764229d66b4d2f43][Fix edraw-set-properties · misohena/el-easydraw@a762359]] のコミットでshape-path-dataという変更通知が消えてしまっている。
+→ とりあえず変更通知にhint引数を追加してshape-propertiesのときにd属性の変化を検出してdeselectするようにした。
+
+■ (無効を通知するより良い仕組みの必要性):
+しかしもっと明示的に点の無効化を通知する仕組みが必要では？　各メソッドでは無効になるアンカーがあるなら、それを何らかの関数に引き渡すとか。
+→別TODOとした。
+
+■ (edraw-path-anchorやedraw-path-subpathにおいて親がnilである状況に備える):
+それとedraw-path-*-parent系がnilを返すことをあまり想定していなかったかもしれない。使用箇所をチェックすべき。 →全てnullチェックを入れた。
+
+■ (アンカーが無効になる場所):
+無効化しそうな場所(関数 => 変更通知type):
+- edraw-shape-pathクラス
+  - edraw-set-properties => shape-properties (shapeの全anchor)
+  - edraw-remove-last-anchor => anchor-remove (削除したanchor)
+  - +edraw-make-smooth+ ※edraw-set-propertyでdを変更
+  - edraw-combine-paths => anchor-transfer-out (anchorは消えないが全て所属先が変わる)
+  - edraw-split-subpaths => anchor-transfer-out (anchorは消えないが全て所属先が変わる)
+- edraw-shape-point-path-anchorクラス
+  - edraw-delete-point => anchor-remove
+  - +edraw-make-smooth+ ※以前はhandleを消すことがあったが現在は消えない
+  - +edraw-make-corner+ ※以前はhandleを消すことがあったが現在は消えない
+  - edraw-connect => anchor-transfer-out
+- edraw-shape-point-path-handleクラス
+  - +edraw-delete-point => point-move!+ =>handle-remove ※基本的にハンドルはアンカーが無効にならないと無効にならない。
+- UNDO操作で上の関数を呼び出すとき
+
+↑リストの場所では確実に変更通知を出すようにした。アンカーが削除されるところではanchor-removeを、アンカーが転出するところではanchor-transfer-outをtypeとして通知するようにした。本当はもっと具体的なconnect-anchors-outのようにしたかったが、種類の増加を管理しなければならなくなる。
+
+■ (ハンドルの無効化):
+ハンドルについては基本的にアンカーが無効にならないと無効にならないが、無効にならないからと言って何も問題が無いわけでは無い。ハンドルを選択した後にアンカーを角にするとハンドルは消えるが、カーソル操作でハンドルを動かせる。明示的にハンドルを削除しても同様。これは選択UI表示との間で一貫性がない。anchor-make-cornerというtypeも監視しているが、これは既に存在していない。edraw-make-cornerは単に前後のハンドルに対してedraw-delete-pointしているだけ。 → edraw-delete-pointではhandle-removeをtypeとして通知するようにした。
