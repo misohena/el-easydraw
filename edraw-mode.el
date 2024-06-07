@@ -133,7 +133,8 @@ The following commands are available:
   ;; Remove read only properties
   (edraw-mode--text-unlock)
 
-  (remove-hook 'change-major-mode-hook 'edraw-mode-on-change-major-mode t))
+  ;; Remove local change-major-mode-hook (Not needed?)
+  (remove-hook 'change-major-mode-hook 'edraw-mode-finalize-major-mode t))
 
 
 
