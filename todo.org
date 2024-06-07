@@ -1,9 +1,6 @@
 
 
 * Inbox
-** TODO edraw-mode/編集開始時にバッファの先頭を確実に表示する
-水平スクロールされているとエディタの左側が切れてしまう。
-
 ** TODO オブジェクトの無効化を通知する専用の仕組みが必要では？
 shape、anchor、handleの無効化を検出する一般化された枠組みが必要では？
 現在は
@@ -5153,3 +5150,6 @@ CLOSED: [2024-06-08 Sat 07:54]
 ~(remove-hook 'change-major-mode-hook 'edraw-mode-on-change-major-mode t))~ というコードがあるが edraw-mode-on-change-major-mode という関数は存在しない。正しくは edraw-mode-finalize-major-mode 。
 しかしこれはローカルフックなので、メジャーモードが変わると全てクリアされるはず。不要なのかもしれない。
 呼ばれたコールバックが自分自身をremove-hookするのは一応大丈夫っぽい。remove-hookがremqするが、現在のリンクのcdrは次を指し続けているので。
+** DONE edraw-mode/編集開始時にバッファの左上を確実に表示する
+CLOSED: [2024-06-08 Sat 08:00]
+水平スクロールされているとエディタの左側が切れてしまう。

@@ -102,6 +102,10 @@ The following commands are available:
     (setq-local minor-mode-overriding-map-alist
                 '((context-menu-mode . nil)))
 
+    ;; Ensure the top left corner of the buffer is displayed
+    (goto-char (point-min))
+    (set-window-hscroll (selected-window) 0)
+
     (run-mode-hooks 'edraw-mode-hook)))
 
 (defconst edraw-mode--parse-svg--check-edraw-body t)
