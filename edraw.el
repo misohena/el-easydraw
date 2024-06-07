@@ -9234,6 +9234,26 @@ of the rectangle.
 Adding two vectors to SPT leads to the opposite point."
   nil)
 
+(cl-defgeneric edraw-valid-point-p (_spt)
+  "Return non-nil if the SPT is valid.
+
+Points (anchors, handles) in `edraw-shape-path' can become
+invalid due to modification operations. A typical example is
+removing a point, but operations that reduce points or move them
+to another shape can also invalidate points
+(`edraw-combine-paths', `edraw-split-subpaths', etc.).
+Also, modifying the d attribute invalidates all points in the
+shape.
+
+Behavior of operations on invalid points is undefined and should
+be avoided.
+
+To detect invalidation of a point, use `edraw-valid-point-p' or
+monitor changes with `edraw-add-change-hook'. edraw-editor
+monitors selected anchors and handles for invalidation using
+change hook."
+  t)
+
 (cl-defmethod edraw-anchor-p ((spt edraw-shape-point))
   (eq (edraw-get-point-type spt) 'anchor))
 
@@ -9357,25 +9377,6 @@ Adding two vectors to SPT leads to the opposite point."
 
 (cl-defmethod edraw-parent-shape ((spt edraw-shape-point-path-base))
   (oref spt shape))
-
-(cl-defgeneric edraw-valid-point-p (spt)
-  "Return non-nil if the SPT is valid.
-
-Points (anchors, handles) in `edraw-shape-path' can become
-invalid due to modification operations. A typical example is
-removing a point, but operations that reduce points or move them
-to another shape can also invalidate points
-(`edraw-combine-paths', `edraw-split-subpaths', etc.).
-Also, modifying the d attribute invalidates all points in the
-shape.
-
-Behavior of operations on invalid points is undefined and should
-be avoided.
-
-To detect invalidation of a point, use `edraw-valid-point-p' or
-monitor changes with `edraw-add-change-hook'. edraw-editor
-monitors selected anchors and handles for invalidation using
-change hook.")
 
 (cl-defmethod edraw-push-undo-path-d-change
   ((spt edraw-shape-point-path-base) type)
