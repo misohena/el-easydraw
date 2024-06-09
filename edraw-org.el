@@ -437,6 +437,11 @@ the time `edraw-org-link-recover-mouse-face' is called."
 (defconst edraw-org-link-image-map
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km org-mouse-map)
+    (when (version<= "28" emacs-version)
+      (define-key km [remap context-menu-open] 'edraw-org-link-image-menu-open))
+    (define-key km (kbd "<apps>") 'edraw-org-link-image-menu-open)
+    (define-key km (kbd "<menu>") 'edraw-org-link-image-menu-open)
+    (define-key km (kbd "S-<f10>") 'edraw-org-link-image-menu-open)
     (define-key km [down-mouse-3] 'ignore) ;; Disable context-menu-mode
     (define-key km [mouse-3] 'edraw-org-link-image-menu-at-mouse)
     (define-key km (kbd "C-c C-o") 'edraw-org-link-image-open-at-point)
@@ -446,8 +451,11 @@ the time `edraw-org-link-recover-mouse-face' is called."
 
 (defun edraw-org-link-image-menu-at-mouse (ev)
   (interactive "e")
-
   (mouse-set-point ev)
+  (edraw-org-link-image-menu-open))
+
+(defun edraw-org-link-image-menu-open ()
+  (interactive)
   (edraw-popup-menu
    "Edraw Link Menu"
    `(((edraw-msg "Edit") edraw-org-edit-link)
