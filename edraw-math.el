@@ -115,7 +115,8 @@
        (< (abs (cdr a)) epsilon)))
 
 (defsubst edraw-xy-equal-p (a b)
-  (equal a b))
+  (and (= (edraw-x a) (edraw-x b))
+       (= (edraw-y a) (edraw-y b))))
 
 (defsubst edraw-xy-assign (a b)
   (setcar a (car b))
