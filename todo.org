@@ -43,6 +43,9 @@ Zの後にL等を付けずに座標を書いてもエラーにならず、何が
 「M 1 2 3 4 5 6 Z 7 8」のように書いてサブパスが一つしか作られないおかしい、というように悩んでしまったりする。
 Zの消化しきれなかった引数 7 8 をエラーにすべき。
 
+そもそもエラー処理をちゃんとすべきかも。
+https://www.w3.org/TR/SVG/paths.html#PathDataErrorHandling によれば、エラーがある場合は、その直前までを有効にレンダリングせよとのこと。それによってユーザーがどこにエラーがあるか分かるからだと。その上で報告もせよと。
+
 ** TODO パス編集/アンカーの所属先shapeが変わったときの挙動を改善する
 edraw-path.elを書き直したことでSPTアンカーが無効になりにくくなったが、edraw-path-anchorオブジェクトが何らかの操作で別のedraw-path-dataへ無効にならずに移動する(所属替えする)ケースが発生するようになった(edraw-connect、edraw-path-anchor-connectが代表的。他にある？)。そのようなときにSPTを作り直しても良いが、漏れが発生する可能性がある。edraw-path-anchorオブジェクトからedraw-path-dataオブジェクトを(多少線形探索が必要だが)取得できるので、edraw-path-dataオブジェクトに親shapeオブジェクトを持たせれば解決できそう。edraw-shape-point-path-baseがshapeを持たずに、必要なときにanchorやhandleスロットから取得すれば良い。
 
@@ -67,37 +70,27 @@ edraw-path-anchorやedraw-path-handleに任意のプロパティを設定でき�
 
 となると無効化させないことに何か意味があるのだろうか。ドラッグ中にプレビューでアンカーを追加して、UNDOしてから元のアンカーに何かするようなケースだろうか。
 
-** TODO メニュー表示にtmm-promptを使うか設定できるようにする
-[[elisp-function:edraw-popup-menu]]で[[elisp-function:x-popup-menu]]の代わりに[[elisp-function:tmm-prompt]]を使う。
-
-選択肢は「使わない」「自動判別」「常に使う」の三つ。
-
-クリックしてキーでササッと項目を選択したい人は「常に使う」が有用なはず。まぁ、GUIのメニューでも項目の先頭文字で選べるかもしれないけど。
-
-「自動判別」のやり方はどうだろう。y-or-n-p等、キーかマウスかで挙動が変わるのは良くある。[[elisp-function:y-or-n-p]]は[[elisp-function:use-dialog-box-p]]を使っている。
-
-tmm-promptはデフォルトだとコマンドの実行までしてしまうので注意。NO-EXECUTE引数をtにするとコマンドシンボルを返してくる。イベントリストでは無い。
-
-#+begin_src elisp
-(defun edraw-popup-menu-tmm (name items &rest args)
-  (let* ((menu-map (edraw-make-menu-map name items))
-         (fn (tmm-prompt menu-map nil nil t)))
-    (cond
-     ((commandp fn)
-      (call-interactively fn))
-     ((functionp fn)
-      (apply fn args)))))
-#+end_src
-
-あ、tmm-promptを日本語メニューで使うとなかなか悲惨だ。どうしよう。
-英語圏の人なら使えると思うけど。
-
 ** TODO ツールバーに表示するツールを減らせるようにする
 その代わりメインメニューにツール選択メニューを追加する？
 ** TODO edraw-read-rectangleはクリックかどうかを判定すべき
 閾値以上の動きが無かった場合はクリックと判定し、必ず空の矩形を返す。
 一定量以上動いてから小さな矩形を作ることはできるものとする。
 クリックイベントを待つことが可能か、それとも自分で移動量を検出するか。
+
+** TODO 図形生成/MathMLを埋め込みたい
+MathMLをforeignObject要素で取り込めるらしい。
+
+foreignObjectに対応したedraw-shape-foreignが必要かも。
+
+latex表記をMathMLへ変換する方法があったはず。
+- mathtoweb
+- [[https://github.com/mathjax/MathJax-node][mathjax/MathJax-node: MathJax for Node]]
+- [[https://math.nist.gov/~BMiller/LaTeXML/][LaTeXML A LaTeX to XML/HTML/MathML Converter]]
+- pandoc
+- [[https://github.com/gvanas/blahtexml][gvanas/blahtexml: Blahtexml]]
+(参考:[[https://blog.miz-ar.info/2018/03/latex-math-to-mathml/][LaTeX数式 to MathML を考える | 雑記帳]])
+
+ただ、最大の問題はlibrsvgが対応していないこと。正直対応するとは思えない。
 
 ** TODO 図形生成/変形を何で行うかを変更できるようにしたい
 latexの場合はtransformで十分だが、グリッドの場合はtransformでやると線が太くなってしまうのでポイントの移動でやりたい。いや、再生成時に動いてしまうな。
@@ -5153,3 +5146,32 @@ CLOSED: [2024-06-08 Sat 07:54]
 ** DONE edraw-mode/編集開始時にバッファの左上を確実に表示する
 CLOSED: [2024-06-08 Sat 08:00]
 水平スクロールされているとエディタの左側が切れてしまう。
+** DONE メニュー表示にtmm-promptを使うか設定できるようにする
+CLOSED: [2024-06-09 Sun 11:02]
+[[elisp-function:edraw-popup-menu]]で[[elisp-function:x-popup-menu]]の代わりに[[elisp-function:tmm-prompt]]を使う。
+
+選択肢は「使わない」「自動判別」「常に使う」の三つ。
+
+クリックしてキーでササッと項目を選択したい人は「常に使う」が有用なはず。まぁ、GUIのメニューでも項目の先頭文字で選べるかもしれないけど。
+
+「自動判別」のやり方はどうだろう。y-or-n-p等、キーかマウスかで挙動が変わるのは良くある。[[elisp-function:y-or-n-p]]は[[elisp-function:use-dialog-box-p]]を使っている。
+
+tmm-promptはデフォルトだとコマンドの実行までしてしまうので注意。NO-EXECUTE引数をtにするとコマンドシンボルを返してくる。イベントリストでは無い。
+
+#+begin_src elisp
+(defun edraw-popup-menu-tmm (name items &rest args)
+  (let* ((menu-map (edraw-make-menu-map name items))
+         (fn (tmm-prompt menu-map nil nil t)))
+    (cond
+     ((commandp fn)
+      (call-interactively fn))
+     ((functionp fn)
+      (apply fn args)))))
+#+end_src
+
+あ、tmm-promptを日本語メニューで使うとなかなか悲惨だ。どうしよう。
+英語圏の人なら使えると思うけど。
+
+まぁ、カーソルキーで移動して使うことくらいはできる。それならGUIのメニューと同じだけど、C-nやC-pは使えるし意味はあるのかな。並び順が分かりづらいけど。
+
+一応実装した。

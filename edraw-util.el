@@ -137,7 +137,32 @@
                (list (cons (edraw-msg "Yes") t)
                      (cons (edraw-msg "No") nil))))))
 
+(defcustom edraw-popup-menu-style 'x
+  "How to display menus."
+  :group 'edraw
+  :type '(choice (const :tag "Determine with `use-dialog-box-p'" nil)
+                 (const :tag "Use `tmm-prompt'" tmm)
+                 (const :tag "Use `x-popup-menu'" x)))
+
+(defun edraw-popup-menu-style ()
+  (if (memq edraw-popup-menu-style '(x tmm))
+      edraw-popup-menu-style
+    (if (if (fboundp 'use-dialog-box-p) ;; Emacs 28 or later
+            (use-dialog-box-p)
+          ;; Emacs 27 behavior
+          (and (display-popup-menus-p)
+               last-input-event
+               (listp last-nonmenu-event)
+               use-dialog-box))
+        'x
+      'tmm)))
+
 (defun edraw-popup-menu (name items &rest args)
+  (if (eq (edraw-popup-menu-style) 'tmm)
+      (edraw-popup-menu--tmm name items args)
+    (edraw-popup-menu--x name items args)))
+
+(defun edraw-popup-menu--x (name items args)
   (let* ((menu-map (edraw-make-menu-map name items))
          (events (x-popup-menu t menu-map))
          (fn (lookup-key menu-map (apply 'vector events))))
@@ -146,6 +171,16 @@
       (call-interactively fn))
      ((functionp fn)
       (apply fn args)))))
+
+(defun edraw-popup-menu--tmm (name items args)
+  (let* ((menu-map (edraw-make-menu-map name items))
+         (fn (tmm-prompt menu-map nil nil t)))
+    (cond
+     ((commandp fn)
+      (call-interactively fn))
+     ((functionp fn)
+      (apply fn args)))))
+
 
 (defun edraw-popup-menu-call-interactively (name items)
   (let* ((menu-map (edraw-make-menu-map name items))
