@@ -162,9 +162,14 @@
       (edraw-popup-menu--tmm name items args)
     (edraw-popup-menu--x name items args)))
 
+(defun edraw-popup-menu--x-position ()
+  (let* ((pos (event-start last-input-event))
+         (xy (posn-x-y pos)))
+    (list (list (car xy) (cdr xy)) (posn-window pos))))
+
 (defun edraw-popup-menu--x (name items args)
   (let* ((menu-map (edraw-make-menu-map name items))
-         (events (x-popup-menu t menu-map))
+         (events (x-popup-menu (edraw-popup-menu--x-position) menu-map))
          (fn (lookup-key menu-map (apply 'vector events))))
     (cond
      ((commandp fn)
