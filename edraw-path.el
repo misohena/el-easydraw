@@ -750,6 +750,22 @@ The handles are also transformed."
 
 ;;;;;; Handle Points of Anchor
 
+(defun edraw-path-anchor-handles-symmetrical-p (anchor)
+  "Return non-nil if the two handles of the ANCHOR are in
+ point-symmetric positions around the ANCHOR."
+  (let ((bh (edraw-path-anchor--backward-handle anchor))
+        (fh (edraw-path-anchor--forward-handle anchor)))
+    (if bh
+        (if fh
+            (let ((b (edraw-path-handle-xy-relative bh))
+                  (f (edraw-path-handle-xy-relative fh)))
+              (and (= (- (edraw-x b)) (edraw-x f))
+                   (= (- (edraw-y b)) (edraw-y f))))
+          nil)
+      (if fh
+          nil
+        t))))
+
 (defun edraw-path-anchor-has-backward-handle (anchor)
   "Return non-nil if ANCHOR has a active backward handle."
   (when-let ((handle (edraw-path-anchor--backward-handle anchor)))
@@ -1679,7 +1695,8 @@ The handles of each anchor are also reversed."
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "m 10 10.1 l 10.2 189.9 -19.9 -199.97 z")) => "M10 10.1 20.2 200 0.3000000000000007 0.030000000000001137Z"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 10 20 h 30 40 -50 v 60 -70")) => "M10 20H40 80 30V80 10"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 10 20 H 30 40 -50 V 60 -70")) => "M10 20H30 40-50V60-70"
-;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M10 20C30 40 50 60 70 85 90 110 150 160 170 180"
+;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 10 20 C 30 40 50 60 70 85 S 150 160 170 180")) => "M10 20C30 40 50 60 70 85S150 160 170 180"
+;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M10 20C30 40 50 60 70 85S150 160 170 180")) => "M10 20C30 40 50 60 70 85S150 160 170 180"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 65 50 Q 130 85 65 120")) => "M65 50C108.33333333333334 73.33333333333333 108.33333333333334 96.66666666666667 65 120"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 100 100 c 50,50 100,50 150,0")) => "M100 100C150 150 200 150 250 100"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M100 100C150 150 200 150 250 100C200 50 150 50 100 100Z")) => "M100 100C150 150 200 150 250 100 200 50 150 50 100 100Z"
@@ -1718,48 +1735,60 @@ The handles of each anchor are also reversed."
 ;; TEST: (edraw-path-data-stringize-xys '((-1 . -2) (-3 . 4) (5 . -6) (7 . 8))) => "-1-2-3 4 5-6 7 8"
 ;; TEST: (edraw-path-data-stringize-xys '(1 -2 3)) => "1-2 3"
 
-(defun edraw-path-data-stringize-make-command (anchor)
-  (let* ((anchor-prev (edraw-path-anchor-prev anchor))
-         (cmd (cond
-               ;; First anchor
-               ((edraw-path-anchor-sentinel-p anchor-prev)
-                (list 'M
-                      (edraw-path-anchor-xy anchor)))
-               ;; Curve
-               ((or
-                 (edraw-path-anchor-has-forward-handle anchor-prev)
-                 (edraw-path-anchor-has-backward-handle anchor))
-                (list 'C
-                      (edraw-path-anchor-forward-handle-xy anchor-prev)
-                      (edraw-path-anchor-backward-handle-xy anchor)
-                      (edraw-path-anchor-xy anchor)))
-               ;; Straight Line
-               (t
-                (list 'L
-                      (edraw-path-anchor-xy anchor))))))
-    ;; Optimize
-    (when (eq (car cmd) 'L)
-      (let ((prev-xy (edraw-path-anchor-xy anchor-prev))
-            (line-xy (cadr cmd)))
-        (cond
-         ((= (edraw-y prev-xy) (edraw-y line-xy))
-          (setq cmd (list 'H (edraw-x line-xy))))
-         ((= (edraw-x prev-xy) (edraw-x line-xy))
-          (setq cmd (list 'V (edraw-y line-xy)))))))
-    cmd))
+(defun edraw-path-data-stringize-make-command (anchor close)
+  (if (and (not close) (edraw-path-anchor-first-p anchor))
+      ;; First anchor
+      (let ((xy (edraw-path-anchor-xy anchor))
+            (prev-subpath (edraw-path-subpath-prev
+                           (edraw-path-anchor-parent-subpath anchor))))
+        ;; M ... Z ... Z ... Z [*]
+        (if (and (not (edraw-path-subpath-sentinel-p prev-subpath))
+                 (edraw-path-subpath-closed-p prev-subpath)
+                 (not (edraw-path-subpath-empty-p prev-subpath))
+                 (edraw-xy-equal-p
+                  (edraw-path-anchor-xy
+                   (edraw-path-subpath-anchor-first-or-nil prev-subpath))
+                  xy))
+            nil ;; Omit M after Z
+          (list 'M xy)))
+    (let ((prev-anchor (edraw-path-anchor-prev-round anchor)))
+      (if (or (edraw-path-anchor-has-forward-handle prev-anchor)
+              (edraw-path-anchor-has-backward-handle anchor))
+          ;; Curve
+          (if (and
+               (not (edraw-path-anchor-first-p prev-anchor))
+               (edraw-path-anchor-handles-symmetrical-p prev-anchor))
+              (list 'S
+                    (edraw-path-anchor-backward-handle-xy anchor)
+                    (edraw-path-anchor-xy anchor))
+            (list 'C
+                  (edraw-path-anchor-forward-handle-xy prev-anchor)
+                  (edraw-path-anchor-backward-handle-xy anchor)
+                  (edraw-path-anchor-xy anchor)))
+        ;; Straight Line
+        (let ((prev-xy (edraw-path-anchor-xy prev-anchor))
+              (curr-xy (edraw-path-anchor-xy anchor)))
+          (cond
+           ((= (edraw-y prev-xy) (edraw-y curr-xy))
+            (list 'H (edraw-x curr-xy)))
+           ((= (edraw-x prev-xy) (edraw-x curr-xy))
+            (list 'V (edraw-y curr-xy)))
+           (t
+            (list 'L curr-xy))))))))
 
 (defun edraw-path-data-stringize-concat-cmd (str cmd last-cmd)
-  ;; Write command
-  (if (or (and (memq (car cmd) '(L C H V)) (eq (car cmd) (car last-cmd)))
-          (and (eq (car cmd) 'L) (eq (car last-cmd) 'M)))
-      ;; Omit command name
-      (setq str (edraw-path-data-stringize-concat-numstrs
-                 str ;; ... <number>
-                 (edraw-path-data-stringize-xys (cdr cmd))))
-    ;; With command name
-    (setq str (concat str
-                      (symbol-name (car cmd)) ;; ... <CMD>
-                      (edraw-path-data-stringize-xys (cdr cmd)))))
+  (when cmd
+    ;; Write command
+    (if (or (and (memq (car cmd) '(L H V C S)) (eq (car cmd) (car last-cmd)))
+            (and (eq (car cmd) 'L) (eq (car last-cmd) 'M)))
+        ;; Omit command name
+        (setq str (edraw-path-data-stringize-concat-numstrs
+                   str ;; ... <number>
+                   (edraw-path-data-stringize-xys (cdr cmd))))
+      ;; With command name
+      (setq str (concat str
+                        (symbol-name (car cmd)) ;; ... <CMD>
+                        (edraw-path-data-stringize-xys (cdr cmd))))))
   str)
 
 (defun edraw-path-data-to-string (data)
@@ -1768,10 +1797,11 @@ The handles of each anchor are also reversed."
       (unless (edraw-path-subpath-empty-p subpath) ;; Ignore empty subpath
         (let (last-cmd)
           (edraw-path-subpath-anchor-loop subpath anchor
-            (let ((cmd (edraw-path-data-stringize-make-command anchor)))
+            (let ((cmd (edraw-path-data-stringize-make-command anchor nil)))
               (setq result (edraw-path-data-stringize-concat-cmd
                             result cmd last-cmd))
               (setq last-cmd cmd)))
+
           ;; Close
           (when (edraw-path-subpath-closed-p subpath)
             ;; If the subpath is closed by a curve, a closing segment
@@ -1780,11 +1810,8 @@ The handles of each anchor are also reversed."
                   (last-anchor (edraw-path-subpath--anchor-last subpath)))
               (when (or (edraw-path-anchor-has-backward-handle first-anchor)
                         (edraw-path-anchor-has-forward-handle last-anchor))
-                (let ((cmd
-                       (list 'C
-                             (edraw-path-anchor-forward-handle-xy last-anchor)
-                             (edraw-path-anchor-backward-handle-xy first-anchor)
-                             (edraw-path-anchor-xy first-anchor))))
+                (let ((cmd (edraw-path-data-stringize-make-command
+                            first-anchor t)))
                   (setq result (edraw-path-data-stringize-concat-cmd
                                 result cmd last-cmd)))))
             ;; Z command
@@ -1794,6 +1821,8 @@ The handles of each anchor are also reversed."
 ;; TEST: (edraw-path-data-to-string (edraw-path-subpath-parent-data (edraw-path-data-add-new-subpath (edraw-path-data)))) => ""
 ;; TEST: (edraw-path-data-to-string (let* ((data (edraw-path-data)) (subpath (edraw-path-data-add-new-subpath data))) (dolist (xy '((1 . -2) (-3 . 4) (5 . 4) (5 . -6))) (edraw-path-subpath-add-new-anchor subpath xy)) data)) => "M1-2-3 4H5V-6"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M10 10 20 10 30 30 30 40 50 50")) => "M10 10H20L30 30V40L50 50"
+;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M0,0 L40,-20 L40,20 Z L20,40 L-20,40 Z L-40,20 L-40,-20 Z L0,-40")) => "M0 0 40-20V20ZL20 40H-20ZL-40 20V-20ZV-40"
+;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M180 180C200 180 220 200 220 220 220 240 200 260 180 260 160 260 140 240 140 220 140 200 160 180 180 180ZC180 160 200 140 220 140 240 140 260 160 260 180 260 200 240 220 220 220")) => "M180 180C200 180 220 200 220 220S200 260 180 260 140 240 140 220 160 180 180 180ZC180 160 200 140 220 140S260 160 260 180 240 220 220 220"
 
 
 
