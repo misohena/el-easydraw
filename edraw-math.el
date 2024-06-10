@@ -33,15 +33,118 @@
 
 ;;;; Number
 
-(cl-defmethod edraw-to-string ((n number))
+(defun edraw-number-to-string (n)
+  "Convert the number N to a string.
+
+Basically the same as `number-to-string' or (format \"%s\"), but
+this does not output unnecessary decimal points (.0) or negative
+signs (-0)."
   (if (floatp n)
       ;; Float
       (let ((ni (ffloor n)))
         (if (= ni n)
-            (format "%d" ni) ;;Remove .0
-          (format "%s" n))) ;;@todo Allow setting the number of digits
+            (format "%d" ni) ;;Remove .0 and Avoid -0
+          (number-to-string n)))
     ;; Integer?
-    (format "%d" n)))
+    (number-to-string n)))
+;; TEST: (edraw-number-to-string 0) => "0"
+;; TEST: (edraw-number-to-string -0.0) => "0"
+;; TEST: (edraw-number-to-string 123.0) => "123"
+;; TEST: (edraw-number-to-string -123) => "-123"
+
+(cl-defmethod edraw-to-string ((n number))
+  (edraw-number-to-string n))
+
+(defun edraw-number-to-string-dg (n digits-after-point
+                                    &optional max-digits-before-point)
+  "Convert the number N to a string by specifying the number of digits.
+
+DIGITS-AFTER-POINT is the number of digits to place after the
+decimal point. If N is less than 1, it is the number of digits
+after the first non-zero digit to preserve precision.
+
+MAX-DIGITS-BEFORE-POINT is the maximum number of digits that can
+appear before the decimal point when there are DIGITS-AFTER-POINT
+digits after it.
+
+If the integer part of N becomes larger than can be represented
+by MAX-DIGITS-BEFORE-POINT, the number of digits after the
+decimal point is reduced and the number of digits before it is
+increased, and if it can no longer be reduced, it is converted to
+exponential notation."
+  (if (= n 0)
+      "0"
+    (let ((an (abs n)))
+      (cond
+       ((< an 1.0)
+        (format (format "%%.%dg" digits-after-point) n))
+       (t
+        (format (format "%%.%dg"
+                        (+ (min (1+ (floor (log an 10)))
+                                (or max-digits-before-point
+                                    10))
+                           digits-after-point))
+                n))))))
+;; (edraw-number-to-string-dg 0 5) => "0"
+;; (edraw-number-to-string-dg 0.25 5) => "0.25"
+;; (edraw-number-to-string-dg (/ float-pi 1e5) 5) => "3.1416e-05"
+;; (edraw-number-to-string-dg (/ float-pi 1e4) 5) => "0.00031416"
+;; (edraw-number-to-string-dg (/ float-pi 1e1) 5) => "0.31416"
+;; (edraw-number-to-string-dg 1 5) => "1"
+;; (edraw-number-to-string-dg float-pi 5) => "3.14159"
+;; (edraw-number-to-string-dg (* float-pi 100) 5) => "314.15927"
+;; (edraw-number-to-string-dg (* float-pi 1e9) 5) => "3141592653.58979"
+;; (edraw-number-to-string-dg (* float-pi 1e13) 5) => "31415926535897.9"
+;; (edraw-number-to-string-dg (* float-pi 1e14) 5) => "314159265358979"
+;; (edraw-number-to-string-dg (* float-pi 1e15) 5) => "3.14159265358979e+15"
+;; (edraw-number-to-string-dg -0.0 5) => "0"
+;; (edraw-number-to-string-dg -0.25 5) => "-0.25"
+;; (edraw-number-to-string-dg (/ float-pi -1e5) 5) => "-3.1416e-05"
+;; (edraw-number-to-string-dg (/ float-pi -1e4) 5) => "-0.00031416"
+;; (edraw-number-to-string-dg (/ float-pi -1e1) 5) => "-0.31416"
+;; (edraw-number-to-string-dg 1 5) => "1"
+;; (edraw-number-to-string-dg (- float-pi) 5) => "-3.14159"
+;; (edraw-number-to-string-dg (* float-pi -100) 5) => "-314.15927"
+;; (edraw-number-to-string-dg (* float-pi -1e9) 5) => "-3141592653.58979"
+;; (edraw-number-to-string-dg (* float-pi -1e13) 5) => "-31415926535897.9"
+;; (edraw-number-to-string-dg (* float-pi -1e14) 5) => "-314159265358979"
+;; (edraw-number-to-string-dg (* float-pi -1e15) 5) => "-3.14159265358979e+15"
+
+(defcustom edraw-svg-number-format 'edraw-number-to-string
+  "Method for converting numbers into strings for embedding in SVG."
+  :group 'edraw
+  :type '(choice
+          (const :tag "Standard method with low loss" edraw-number-to-string)
+          (const :tag "7 digits in total (e.g. 1234.567, 1.234567)" "%.7g")
+          (function
+           :tag "A function that takes a number and returns a string")
+          (string
+           :tag "Format string")
+          (list
+           :tag "Specify number of digits"
+           (const :format "" edraw-number-to-string-dg)
+           (integer :tag "Digits after point" 4)
+           (integer :tag "Digits before point" 10))))
+
+(defun edraw-svg-numstr--format (n)
+  (if (= n 0)
+      "0" ;; Avoid -0
+    (format edraw-svg-number-format n)))
+
+(defun edraw-svg-numstr (n)
+  "Convert the number N to a string for embedding inside an SVG."
+  (cond
+   ((functionp edraw-svg-number-format)
+    (funcall edraw-svg-number-format n))
+   ((stringp edraw-svg-number-format)
+    (edraw-svg-numstr--format n))
+   ((listp edraw-svg-number-format)
+    (apply (car edraw-svg-number-format)
+           n
+           (cdr edraw-svg-number-format)))
+   (t
+    (edraw-number-to-string n))))
+
 
 (cl-defmethod edraw-clamp ((n number) min-value max-value)
   (cond
@@ -381,8 +484,8 @@ PO +----+--   (PO(Point of Opposite Corner)=PC+AX+AY)
           (edraw-xy-add
            pm
            (edraw-xy-divn (edraw-xy-nmul t-numer dir) (float t-denom))))))))
-;; TEST: (edraw-xy-snap-to-diagonal (edraw-xy 200 100) (edraw-xy 100 100) (edraw-xy -50 0) (edraw-xy 0 -50)) => (100.0 . 100.0)
-;; TEST: (edraw-xy-snap-to-diagonal (edraw-xy 300 100) (edraw-xy 200 100) (edraw-xy -50 -50) (edraw-xy 50 -50)) => (200.0 . 0.0)
+;; TEST: (edraw-xy-snap-to-rect-diagonal (edraw-xy 200 100) (edraw-xy 100 100) (edraw-xy -50 0) (edraw-xy 0 -50)) => (100.0 . 100.0)
+;; TEST: (edraw-xy-snap-to-rect-diagonal (edraw-xy 300 100) (edraw-xy 200 100) (edraw-xy -50 -50) (edraw-xy 50 -50)) => (200.0 . 0.0)
 
 ;;;; Rectangle
 

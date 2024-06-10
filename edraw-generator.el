@@ -290,7 +290,7 @@
              (edraw-svg-path
               (concat
                "M"
-               (mapconcat #'edraw-to-string
+               (mapconcat #'edraw-svg-numstr
                           (if transpose
                               (list y-min x y-max x)
                             (list x y-min x y-max))

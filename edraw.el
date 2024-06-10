@@ -5814,9 +5814,9 @@ attribute of the path element as a string."
    "M"
    (mapconcat (lambda (xy)
                 (concat
-                 (edraw-to-string (edraw-x xy))
+                 (edraw-svg-numstr (edraw-x xy))
                  " "
-                 (edraw-to-string (edraw-y xy))))
+                 (edraw-svg-numstr (edraw-y xy))))
               points
               "L")))
 
@@ -5831,19 +5831,19 @@ attribute of the path element as a string."
              (fore-xy (or (cdr pn) curr-xy)))
         (if prev-xy
             (setq result (concat result
-                                 (edraw-to-string (edraw-x back-xy)) " "
-                                 (edraw-to-string (edraw-y back-xy)) " "
-                                 (edraw-to-string (edraw-x curr-xy)) " "
-                                 (edraw-to-string (edraw-y curr-xy))))
+                                 (edraw-svg-numstr (edraw-x back-xy)) " "
+                                 (edraw-svg-numstr (edraw-y back-xy)) " "
+                                 (edraw-svg-numstr (edraw-x curr-xy)) " "
+                                 (edraw-svg-numstr (edraw-y curr-xy))))
           (setq result (concat result
                                "M"
-                               (edraw-to-string (edraw-x curr-xy)) " "
-                               (edraw-to-string (edraw-y curr-xy)))))
+                               (edraw-svg-numstr (edraw-x curr-xy)) " "
+                               (edraw-svg-numstr (edraw-y curr-xy)))))
         (when next-xy
           (setq result (concat result
                                "C"
-                               (edraw-to-string (edraw-x fore-xy)) " "
-                               (edraw-to-string (edraw-y fore-xy)) " ")))
+                               (edraw-svg-numstr (edraw-x fore-xy)) " "
+                               (edraw-svg-numstr (edraw-y fore-xy)) " ")))
         (setq prev-xy curr-xy)
         (setq points (cdr points))))
     result))
@@ -8576,17 +8576,17 @@ The order of all subpaths, anchors, and handles within the SHAPE is reversed."
                (unless suppress-first-move-command
                  (format
                   "M%s %s"
-                  (edraw-to-string (edraw-x (aref (car bezier-segments) 0)))
-                  (edraw-to-string (edraw-y (aref (car bezier-segments) 0)))))
+                  (edraw-svg-numstr (edraw-x (aref (car bezier-segments) 0)))
+                  (edraw-svg-numstr (edraw-y (aref (car bezier-segments) 0)))))
                (mapconcat
                 (lambda (segment)
                   (format "C%s %s %s %s %s %s"
-                          (edraw-to-string (edraw-x (aref segment 1)))
-                          (edraw-to-string (edraw-y (aref segment 1)))
-                          (edraw-to-string (edraw-x (aref segment 2)))
-                          (edraw-to-string (edraw-y (aref segment 2)))
-                          (edraw-to-string (edraw-x (aref segment 3)))
-                          (edraw-to-string (edraw-y (aref segment 3)))))
+                          (edraw-svg-numstr (edraw-x (aref segment 1)))
+                          (edraw-svg-numstr (edraw-y (aref segment 1)))
+                          (edraw-svg-numstr (edraw-x (aref segment 2)))
+                          (edraw-svg-numstr (edraw-y (aref segment 2)))
+                          (edraw-svg-numstr (edraw-x (aref segment 3)))
+                          (edraw-svg-numstr (edraw-y (aref segment 3)))))
                 bezier-segments ""))))
         d))))
 

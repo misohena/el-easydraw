@@ -473,9 +473,9 @@ The result value might look like this:
                                   (concat old-transform ;; or nil
                                           (when old-transform " ")
                                           "translate("
-                                          (edraw-to-string (or x 0))
+                                          (edraw-to-string (or x 0)) ;; edraw-svg-numstr? for matrix
                                           ","
-                                          (edraw-to-string (or y 0))
+                                          (edraw-to-string (or y 0)) ;; edraw-svg-numstr? for matrix
                                           ")")
                                 old-transform)))
           (when new-transform

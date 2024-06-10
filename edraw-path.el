@@ -1717,10 +1717,10 @@ The handles of each anchor are also reversed."
   (cond
    ((consp xy)
     (edraw-path-data-stringize-concat-numstrs
-     (edraw-to-string (edraw-x xy))
-     (edraw-to-string (edraw-y xy))))
+     (edraw-svg-numstr (edraw-x xy))
+     (edraw-svg-numstr (edraw-y xy))))
    ((numberp xy)
-    (edraw-to-string xy))
+    (edraw-svg-numstr xy))
    ((stringp xy)
     xy)))
 
@@ -2354,6 +2354,7 @@ are validated by `edraw-path-data-from-d'."
 
 (defun edraw-path-d-from-command-list (command-list)
   (mapconcat (lambda (command)
+               ;; Use edraw-svg-numstr?
                (mapconcat #'edraw-to-string command " ")) ;; Each element of COMMAND is a number or a symbol
              command-list
              " "))

@@ -1332,7 +1332,7 @@ parts being split."
   "Convert attribute value to string."
   (cond
    ((null value) "")
-   ((numberp value) (edraw-to-string value))
+   ((numberp value) (edraw-svg-numstr value))
    (t (format "%s" value))))
 
 ;;;;; Get Attribute
@@ -1605,12 +1605,12 @@ are set as strings."
 (defun edraw-svg-transform-from-matrix (mat)
   (when mat
     (format "matrix(%s,%s,%s,%s,%s,%s)"
-            (edraw-to-string (edraw-matrix-at mat 0))
-            (edraw-to-string (edraw-matrix-at mat 1))
-            (edraw-to-string (edraw-matrix-at mat 4))
-            (edraw-to-string (edraw-matrix-at mat 5))
-            (edraw-to-string (edraw-matrix-at mat 12))
-            (edraw-to-string (edraw-matrix-at mat 13)))))
+            (edraw-to-string (edraw-matrix-at mat 0)) ;; edraw-svg-numstr? for matrix
+            (edraw-to-string (edraw-matrix-at mat 1)) ;; edraw-svg-numstr? for matrix
+            (edraw-to-string (edraw-matrix-at mat 4)) ;; edraw-svg-numstr? for matrix
+            (edraw-to-string (edraw-matrix-at mat 5)) ;; edraw-svg-numstr? for matrix
+            (edraw-to-string (edraw-matrix-at mat 12)) ;; edraw-svg-numstr? for matrix
+            (edraw-to-string (edraw-matrix-at mat 13))))) ;; edraw-svg-numstr? for matrix
 
 (defun edraw-svg-element-transform-get (element &optional matrix)
   (edraw-matrix-mul-mat-mat
@@ -2488,7 +2488,7 @@ other purposes."
       (cond
        ((cdr new-xs)
         (edraw-svg-set-attr-string element attr
-                                   (mapconcat #'edraw-to-string new-xs " ")))
+                                   (mapconcat #'edraw-svg-numstr new-xs " ")))
        (new-xs
         (edraw-svg-set-attr-number element attr (car new-xs))))
 
