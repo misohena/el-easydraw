@@ -1704,37 +1704,6 @@ The handles of each anchor are also reversed."
 ;; TEST: (edraw-path-anchor-backward-handle-xy (edraw-path-subpath-anchor-first-or-nil (edraw-path-data-first-or-nil (edraw-path-data-from-d "M100 100C150 150 200 150 250 100C200 50 150 50 100 100Z")))) => (150.0 . 50.0)
 
 
-(defun edraw-path-data-stringize-concat-numstrs (left right)
-  (if left
-      (if (eq (aref right 0) ?-)
-          ;; 123-456
-          (concat left right)
-        ;; 123 456
-        (concat left " " right))
-    right))
-
-(defun edraw-path-data-stringize-xy (xy)
-  (cond
-   ((consp xy)
-    (edraw-path-data-stringize-concat-numstrs
-     (edraw-svg-numstr (edraw-x xy))
-     (edraw-svg-numstr (edraw-y xy))))
-   ((numberp xy)
-    (edraw-svg-numstr xy))
-   ((stringp xy)
-    xy)))
-
-(defun edraw-path-data-stringize-xys (xys)
-  (let (result)
-    (dolist (xy xys)
-      (setq result
-            (edraw-path-data-stringize-concat-numstrs
-             result
-             (edraw-path-data-stringize-xy xy))))
-    result))
-;; TEST: (edraw-path-data-stringize-xys '((-1 . -2) (-3 . 4) (5 . -6) (7 . 8))) => "-1-2-3 4 5-6 7 8"
-;; TEST: (edraw-path-data-stringize-xys '(1 -2 3)) => "1-2 3"
-
 (defun edraw-path-data-stringize-make-command (anchor close)
   (if (and (not close) (edraw-path-anchor-first-p anchor))
       ;; First anchor
@@ -1782,13 +1751,13 @@ The handles of each anchor are also reversed."
     (if (or (and (memq (car cmd) '(L H V C S)) (eq (car cmd) (car last-cmd)))
             (and (eq (car cmd) 'L) (eq (car last-cmd) 'M)))
         ;; Omit command name
-        (setq str (edraw-path-data-stringize-concat-numstrs
+        (setq str (edraw-path-cmdstr-concat-numstrs
                    str ;; ... <number>
-                   (edraw-path-data-stringize-xys (cdr cmd))))
+                   (edraw-path-cmdstr-xys (cdr cmd))))
       ;; With command name
       (setq str (concat str
                         (symbol-name (car cmd)) ;; ... <CMD>
-                        (edraw-path-data-stringize-xys (cdr cmd))))))
+                        (edraw-path-cmdstr-xys (cdr cmd))))))
   str)
 
 (defun edraw-path-data-to-string (data)
@@ -1823,6 +1792,143 @@ The handles of each anchor are also reversed."
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M10 10 20 10 30 30 30 40 50 50")) => "M10 10H20L30 30V40L50 50"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M0,0 L40,-20 L40,20 Z L20,40 L-20,40 Z L-40,20 L-40,-20 Z L0,-40")) => "M0 0 40-20V20ZL20 40H-20ZL-40 20V-20ZV-40"
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M180 180C200 180 220 200 220 220 220 240 200 260 180 260 160 260 140 240 140 220 140 200 160 180 180 180ZC180 160 200 140 220 140 240 140 260 160 260 180 260 200 240 220 220 220")) => "M180 180C200 180 220 200 220 220S200 260 180 260 140 240 140 220 160 180 180 180ZC180 160 200 140 220 140S260 160 260 180 240 220 220 220"
+
+
+(defun edraw-path-cmdstr-concat-numstrs (left right)
+  (if left
+      (if (eq (aref right 0) ?-)
+          ;; 123-456
+          (concat left right)
+        ;; 123 456
+        (concat left " " right))
+    right))
+
+(defun edraw-path-cmdstr-xy (xy)
+  (cond
+   ((consp xy)
+    (edraw-path-cmdstr-concat-numstrs
+     (edraw-svg-numstr (edraw-x xy))
+     (edraw-svg-numstr (edraw-y xy))))
+   ((numberp xy)
+    (edraw-svg-numstr xy))
+   ((stringp xy)
+    xy)))
+
+(defun edraw-path-cmdstr-xys (xys)
+  (let (result)
+    (dolist (xy xys)
+      (setq result
+            (edraw-path-cmdstr-concat-numstrs
+             result
+             (edraw-path-cmdstr-xy xy))))
+    result))
+;; TEST: (edraw-path-cmdstr-xys '((-1 . -2) (-3 . 4) (5 . -6) (7 . 8))) => "-1-2-3 4 5-6 7 8"
+;; TEST: (edraw-path-cmdstr-xys '(1 -2 3)) => "1-2 3"
+
+(defun edraw-path-cmdstr-curve (to-xy
+                                to-backward-xy from-forward-xy
+                                &optional from-xy from-backward-xy)
+  "Create a curve-to command string.
+
+TO-XY: Destination anchor coordinates.
+TO-BACKWARD-XY: Backward handle coordinates of the destination anchor.
+FROM-XY: Previous anchor coordinates.
+FROM-FORWARD-XY: Forward handle coordinates of the previous anchor.
+FROM-BACKWARD-XY: Backward handle coordinates of the previous anchor.
+
+Specifying FROM-XY makes it possible to find the difference with
+TO-XY, and a relative coordinate command may be created.
+
+Specifying FROM-BACKWARD-XY may create an S or s command."
+  (if from-xy
+      (let* ((symmetric
+              (or (and (null from-forward-xy)
+                       (null from-backward-xy))
+                  (and from-forward-xy
+                       from-backward-xy
+                       (edraw-xy-near-p
+                        (edraw-xy-sub from-forward-xy from-xy)
+                        (edraw-xy-sub from-xy from-backward-xy)
+                        1e-6))))
+             (str-xys-rel
+              (edraw-path-cmdstr-xys
+               (if symmetric
+                   (list
+                    (edraw-xy-sub to-backward-xy from-xy)
+                    (edraw-xy-sub to-xy from-xy))
+                 (list
+                  (edraw-xy-sub from-forward-xy from-xy)
+                  (edraw-xy-sub to-backward-xy from-xy)
+                  (edraw-xy-sub to-xy from-xy)))))
+             (str-xys-abs
+              (edraw-path-cmdstr-xys
+               (if symmetric
+                   (list to-backward-xy to-xy)
+                 (list from-forward-xy to-backward-xy to-xy)))))
+        (if (< (length str-xys-rel) (length str-xys-abs))
+            (concat (if symmetric "s" "c") str-xys-rel)
+          (concat (if symmetric "S" "C") str-xys-abs)))
+    (concat "C" (edraw-path-cmdstr-xys
+                 (list
+                  from-forward-xy to-backward-xy to-xy)))))
+;; TEST: (edraw-path-cmdstr-curve '(100 . 110) '(70 . 80) '(50 . 60)) => "C50 60 70 80 100 110"
+;; TEST: (edraw-path-cmdstr-curve '(-100 . -110) '(-70 . -80) '(-50 . -60)) => "C-50-60-70-80-100-110"
+;; TEST: (edraw-path-cmdstr-curve '(-100 . -110) '(-70 . -80) '(-50 . -60) '(-30 . -45)) => "c-20-15-40-35-70-65"
+;; TEST: (edraw-path-cmdstr-curve '(-100 . -110) '(-70 . -80) '(-50 . -60) '(-30 . -45) '(-10 . -30)) => "s-40-35-70-65"
+;; TEST: (edraw-path-cmdstr-curve '(10 . -10) '(20 . -80) '(-10 . 70) '(-90 . -10)) => "C-10 70 20-80 10-10"
+
+(defun edraw-path-cmdstr-line (to-xy &optional from-xy)
+  "Create a line-to command string.
+
+TO-XY: Destination anchor coordinates.
+FROM-XY: Previous anchor coordinates.
+
+Specifying FROM-XY makes it possible to calculate the difference
+with TO-XY, and may create a relative coordinate command, H or V
+command."
+  (if from-xy
+      (cond
+       ;; Horizontal
+       ((= (edraw-y to-xy) (edraw-y from-xy))
+        (let ((str-x-rel (edraw-svg-numstr (- (edraw-x to-xy)
+                                              (edraw-x from-xy))))
+              (str-x-abs (edraw-svg-numstr (edraw-x to-xy))))
+          (if (< (length str-x-rel) (length str-x-abs))
+              (concat "h" str-x-rel)
+            (concat "H" str-x-abs))))
+       ;; Vertical
+       ((= (edraw-x to-xy) (edraw-x from-xy))
+        (let ((str-y-rel (edraw-svg-numstr (- (edraw-y to-xy)
+                                              (edraw-y from-xy))))
+              (str-y-abs (edraw-svg-numstr (edraw-y to-xy))))
+          (if (< (length str-y-rel) (length str-y-abs))
+              (concat "v" str-y-rel)
+            (concat "V" str-y-abs))))
+       ;; Move
+       (t
+        (let ((str-xy-rel (edraw-path-cmdstr-xy (edraw-xy-sub to-xy from-xy)))
+              (str-xy-abs (edraw-path-cmdstr-xy to-xy)))
+          (if (< (length str-xy-rel) (length str-xy-abs))
+              (concat "l" str-xy-rel)
+            (concat "L" str-xy-abs)))))
+    (concat "L" (edraw-path-cmdstr-xy to-xy))))
+;; TEST: (edraw-path-cmdstr-line '(100 . 200)) => "L100 200"
+;; TEST: (edraw-path-cmdstr-line '(100 . 200) '(150 . 260)) => "l-50-60"
+;; TEST: (edraw-path-cmdstr-line '(100 . 200) '(50 . 60)) => "l50 140"
+;; TEST: (edraw-path-cmdstr-line '(100 . 200) '(-50 . 60)) => "L100 200"
+;; TEST: (edraw-path-cmdstr-line '(100 . 200) '(120 . 200)) => "H100"
+;; TEST: (edraw-path-cmdstr-line '(120 . 200) '(100 . 200)) => "h20"
+;; TEST: (edraw-path-cmdstr-line '(100 . 180) '(100 . 200)) => "V180"
+;; TEST: (edraw-path-cmdstr-line '(100 . 200) '(100 . 180)) => "v20"
+
+(defun edraw-path-cmdstr-move (xy)
+  "Create a move-to command string.
+
+XY: Anchor coordinates."
+  (concat
+   "M"
+   (edraw-path-cmdstr-xy xy)))
+;; TEST: (edraw-path-cmdstr-move '(-10 . -20)) => "M-10-20"
 
 
 

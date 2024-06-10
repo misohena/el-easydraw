@@ -5810,42 +5810,41 @@ attribute of the path element as a string."
     (_ (edraw-editor-tool-freehand--smooth-bezier-fitting points))))
 
 (defun edraw-editor-tool-freehand--make-poly-line (points)
-  (concat
-   "M"
-   (mapconcat (lambda (xy)
-                (concat
-                 (edraw-svg-numstr (edraw-x xy))
-                 " "
-                 (edraw-svg-numstr (edraw-y xy))))
-              points
-              "L")))
+  (or
+   (when points
+     (let ((prev-xy (car points)))
+       (concat
+        (edraw-path-cmdstr-move (car points))
+        (mapconcat (lambda (xy)
+                     (prog1 (edraw-path-cmdstr-line xy prev-xy)
+                       (setq prev-xy xy)))
+                   (cdr points)))))
+   ""))
 
 (defun edraw-editor-tool-freehand--smooth-each-point (points)
   (let ((result nil)
-        (prev-xy nil))
+        (prev-xy nil)
+        (prev-backward-xy nil)
+        (prev-forward-xy nil))
     (while points
       (let* ((curr-xy (car points))
              (next-xy (cadr points))
              (pn (edraw-path-anchor-make-smooth-xy curr-xy prev-xy next-xy))
-             (back-xy (or (car pn) curr-xy))
-             (fore-xy (or (cdr pn) curr-xy)))
+             (curr-backward-xy (or (car pn) curr-xy))
+             (curr-forward-xy (or (cdr pn) curr-xy)))
         (if prev-xy
             (setq result (concat result
-                                 (edraw-svg-numstr (edraw-x back-xy)) " "
-                                 (edraw-svg-numstr (edraw-y back-xy)) " "
-                                 (edraw-svg-numstr (edraw-x curr-xy)) " "
-                                 (edraw-svg-numstr (edraw-y curr-xy))))
+                                 (edraw-path-cmdstr-curve curr-xy
+                                                          curr-backward-xy
+                                                          prev-forward-xy
+                                                          prev-xy
+                                                          prev-backward-xy)))
           (setq result (concat result
-                               "M"
-                               (edraw-svg-numstr (edraw-x curr-xy)) " "
-                               (edraw-svg-numstr (edraw-y curr-xy)))))
-        (when next-xy
-          (setq result (concat result
-                               "C"
-                               (edraw-svg-numstr (edraw-x fore-xy)) " "
-                               (edraw-svg-numstr (edraw-y fore-xy)) " ")))
-        (setq prev-xy curr-xy)
-        (setq points (cdr points))))
+                               (edraw-path-cmdstr-move curr-xy))))
+        (setq prev-xy curr-xy
+              prev-forward-xy curr-forward-xy
+              prev-backward-xy curr-backward-xy
+              points (cdr points))))
     result))
 
 (defcustom edraw-editor-tool-freehand-bezier-fitting-tolerance 1.0
@@ -8571,22 +8570,20 @@ The order of all subpaths, anchors, and handles within the SHAPE is reversed."
     (when (>= size 2)
       (let* ((bezier-segments
               (edraw-fit-bezier-curve points-vector bezier-fitting-tolerance))
+             (prev-segment nil)
              (d
               (concat
                (unless suppress-first-move-command
-                 (format
-                  "M%s %s"
-                  (edraw-svg-numstr (edraw-x (aref (car bezier-segments) 0)))
-                  (edraw-svg-numstr (edraw-y (aref (car bezier-segments) 0)))))
+                 (edraw-path-cmdstr-move  (aref (car bezier-segments) 0)))
                (mapconcat
                 (lambda (segment)
-                  (format "C%s %s %s %s %s %s"
-                          (edraw-svg-numstr (edraw-x (aref segment 1)))
-                          (edraw-svg-numstr (edraw-y (aref segment 1)))
-                          (edraw-svg-numstr (edraw-x (aref segment 2)))
-                          (edraw-svg-numstr (edraw-y (aref segment 2)))
-                          (edraw-svg-numstr (edraw-x (aref segment 3)))
-                          (edraw-svg-numstr (edraw-y (aref segment 3)))))
+                  (prog1
+                      (edraw-path-cmdstr-curve
+                       (aref segment 3) (aref segment 2) (aref segment 1)
+                       (aref segment 0)
+                       (when prev-segment
+                         (aref prev-segment 2)))
+                    (setq prev-segment segment)))
                 bezier-segments ""))))
         d))))
 

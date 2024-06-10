@@ -221,6 +221,10 @@ exponential notation."
   (and (= (edraw-x a) (edraw-x b))
        (= (edraw-y a) (edraw-y b))))
 
+(defsubst edraw-xy-near-p (a b epsilon)
+  (and (< (abs (- (edraw-x a) (edraw-x b))) epsilon)
+       (< (abs (- (edraw-y a) (edraw-y b))) epsilon)))
+
 (defsubst edraw-xy-assign (a b)
   (setcar a (car b))
   (setcdr a (cdr b)))

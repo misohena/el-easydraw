@@ -5242,3 +5242,6 @@ SVG用の数値文字列変換を行う[[elisp-function:edraw-svg-numstr]]関数
 デフォルトをどうするか悩む。一番安全なのはedraw-number-to-string。ちょっと使った限りでは精度を落としても問題は見当たらない。精度を落とせば無駄な容量が減って使いやすくなる。
 
 とりあえずデフォルトは従来通りの挙動をするedraw-number-to-stringにしておく。手元では(edraw-number-to-string-dg 4 10)を使って様子を見る。
+** DONE 手書きツール/最適化されたパスデータを生成する
+CLOSED: [2024-06-10 Mon 18:26]
+H、V、S、相対座標コマンド(l、h、v、c、s)を生成してデータサイズを削減する。
