@@ -5715,6 +5715,17 @@ down in path tool."
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool-freehand))
   (message (edraw-msg "[Freehand Tool] Drag:Add path")))
 
+(defcustom edraw-editor-tool-freehand-separate-smoothing-process nil
+  "Non-nil means separating path object creation and smoothing processing.
+
+Since path object creation and line smoothing are performed
+separately, two pieces of undo data are also registered.
+
+That option was added to develop the smoothing process and to
+check the difference before and after smoothing."
+  :group 'edraw-editor
+  :type 'boolean)
+
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-freehand)
                                      down-event)
   (with-slots (editor) tool
@@ -5725,66 +5736,76 @@ down in path tool."
       (edraw-deselect-all-shapes editor)
       ;; Preview
       (edraw-editor-with-silent-modifications
-       ;; Add a new path shape
-       (let ((preview-path (edraw-create-shape-default
-                            editor (edraw-svg-body editor) 'path)))
-         (unwind-protect
-             (progn
-               ;; Add the first point of the path
-               (push down-xy points)
-               (edraw-add-anchor preview-path down-xy)
+        ;; Add a new path shape
+        (let ((preview-path (edraw-create-shape-default
+                             editor (edraw-svg-body editor) 'path)))
+          (unwind-protect
+              (progn
+                ;; Add the first point of the path
+                (push down-xy points)
+                (edraw-add-anchor preview-path down-xy)
 
-               ;; Add new points on dragging
-               (edraw-track-dragging
-                down-event
-                (lambda (move-event)
-                  (let ((move-xy
-                         (edraw-mouse-event-to-xy-snapped
-                          editor
-                          (if edraw-editor-tool-freehand-dragged-outside-view
-                              (edraw-convert-mouse-event-on-down-object
-                               move-event
-                               down-event)
-                            move-event))))
-                    ;;@todo realtime simplification & smoothing the path
+                ;; Add new points on dragging
+                (edraw-track-dragging
+                 down-event
+                 (lambda (move-event)
+                   (let ((move-xy
+                          (edraw-mouse-event-to-xy-snapped
+                           editor
+                           (if edraw-editor-tool-freehand-dragged-outside-view
+                               (edraw-convert-mouse-event-on-down-object
+                                move-event
+                                down-event)
+                             move-event))))
+                     ;;@todo realtime simplification & smoothing the path
 
-                    ;; Clip
-                    (when (eq edraw-editor-tool-freehand-dragged-outside-view
-                              'clip)
-                      (setq move-xy
-                            (edraw-xy
-                             (edraw-clamp
-                              (edraw-x move-xy)
-                              (edraw-scroll-visible-area-left editor)
-                              (edraw-scroll-visible-area-right editor))
-                             (edraw-clamp
-                              (edraw-y move-xy)
-                              (edraw-scroll-visible-area-top editor)
-                              (edraw-scroll-visible-area-bottom editor)))))
+                     ;; Clip
+                     (when (eq edraw-editor-tool-freehand-dragged-outside-view
+                               'clip)
+                       (setq move-xy
+                             (edraw-xy
+                              (edraw-clamp
+                               (edraw-x move-xy)
+                               (edraw-scroll-visible-area-left editor)
+                               (edraw-scroll-visible-area-right editor))
+                              (edraw-clamp
+                               (edraw-y move-xy)
+                               (edraw-scroll-visible-area-top editor)
+                               (edraw-scroll-visible-area-bottom editor)))))
 
-                    ;; Add point
-                    (unless (edraw-xy-equal-p move-xy last-xy)
-                      (push move-xy points)
-                      (edraw-add-anchor preview-path move-xy)
-                      (setq last-xy move-xy))))
-                nil nil nil nil
-                (and edraw-editor-tool-freehand-dragged-outside-view t)))
-           (edraw-remove preview-path))))
+                     ;; Add point
+                     (unless (edraw-xy-equal-p move-xy last-xy)
+                       (push move-xy points)
+                       (edraw-add-anchor preview-path move-xy)
+                       (setq last-xy move-xy))))
+                 nil nil nil nil
+                 (and edraw-editor-tool-freehand-dragged-outside-view t)))
+            (edraw-remove preview-path))))
 
       ;; Create
-      (when (>= (length points) 2)
+      (when (cdr points) ;;(>= (length points) 2)
         (setq points (nreverse points))
-        (let ((path-data
-               (if (edraw-get-setting editor 'grid-visible) ;;@todo Checking while snapping should be a dedicated predicate.
-                   ;; If snapped to grid, don't smooth.
-                   (edraw-editor-tool-freehand--make-poly-line points)
-                 ;; Smooth
-                 (edraw-editor-tool-freehand--make-smooth points))))
-          (when path-data
-            ;; Add a new path shape
-            (edraw-create-shape-default ;;modify
-             editor (edraw-svg-body editor) 'path
-             'd path-data)))))))
+        (when-let ((path-data
+                    (if (or
+                         (edraw-get-setting editor 'grid-visible) ;;@todo Checking while snapping should be a dedicated predicate.
+                         edraw-editor-tool-freehand-separate-smoothing-process)
+                        ;; If snapped to grid, don't smooth.
+                        ;; or when separating smoothing process.
+                        (edraw-editor-tool-freehand--make-poly-line points)
+                      ;; Smooth
+                      (edraw-editor-tool-freehand--make-smooth points))))
+          ;; Add a new path shape
+          (let ((path-obj
+                 (edraw-create-shape-default ;;modify
+                  editor (edraw-svg-body editor) 'path
+                  'd path-data)))
+
+            ;; Separated smoothing process
+            (when edraw-editor-tool-freehand-separate-smoothing-process
+              (when-let ((path-data-smoothed
+                          (edraw-editor-tool-freehand--make-smooth points)))
+                (edraw-set-property path-obj 'd path-data-smoothed)))
+            path-obj))))))
 
 (defcustom edraw-editor-tool-freehand-smoothing-method 'bezier-fitting
   "The smoothing method used by the Freehand tool."
