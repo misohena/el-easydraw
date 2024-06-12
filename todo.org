@@ -5259,3 +5259,8 @@ CLOSED: [2024-06-12 Wed 10:08]
 - 次の変数の -- を - へ変更。
   - edraw-editor-tool-freehand--bezier-fitting-corner-distance-min
   - edraw-editor-tool-freehand--bezier-fitting-corner-angle-min
+** DONE 透明背景を単一色にできるようにする
+CLOSED: [2024-06-12 Wed 16:04]
+edraw-editor-transparent-bg-color2にはnilを指定出来るようにする。
+edraw-editor-transparent-bg-color2がnilまたはedraw-editor-transparent-bg-color1と同じならば、市松模様を描画するプロセスは省く。
+ついでにcolor1とcolor2の両方とも、:typeをedraw-web-colorへ変更する。

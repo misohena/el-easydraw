@@ -406,11 +406,12 @@ Used by the `edraw-editor-scroll-by-arrow-key' command."
 (defcustom edraw-editor-transparent-bg-color1 "#ffffff"
   "The first color of the transparent background."
   :group 'edraw-editor
-  :type 'string)
+  :type '(edraw-web-color :tag "Color"))
 (defcustom edraw-editor-transparent-bg-color2 "#cccccc"
   "The second color of the transparent background."
   :group 'edraw-editor
-  :type 'string)
+  :type '(choice (edraw-web-color :tag "Color")
+                 (const :tag "Not used (Use color1 only)" nil)))
 (defcustom edraw-editor-transparent-bg-grid-size 8
   "The grid interval of the transparent background."
   :group 'edraw-editor
@@ -2382,9 +2383,12 @@ document size or view box."
    (edraw-svg-rect 0 0 width height
                    :fill edraw-editor-transparent-bg-color1
                    :stroke "none")
-   (edraw-svg-rect 0 0 width height
-                   :fill "url(#edraw-ui-pattern-transparent-bg)"
-                   :stroke "none")))
+   (when (and edraw-editor-transparent-bg-color2
+              (not (equal edraw-editor-transparent-bg-color1
+                          edraw-editor-transparent-bg-color2)))
+     (edraw-svg-rect 0 0 width height
+                     :fill "url(#edraw-ui-pattern-transparent-bg)"
+                     :stroke "none"))))
 
 (defun edraw-svg-ui-transparent-bg-pattern ()
   "Create a svg pattern of transparent background."
