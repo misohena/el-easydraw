@@ -5793,7 +5793,9 @@ check the difference before and after smoothing."
                         ;; or when separating smoothing process.
                         (edraw-editor-tool-freehand--make-poly-line points)
                       ;; Smooth
-                      (edraw-editor-tool-freehand--make-smooth points))))
+                      (edraw-editor-tool-freehand--make-smooth
+                       points
+                       (edraw-scroll-scale editor)))))
           ;; Add a new path shape
           (let ((path-obj
                  (edraw-create-shape-default ;;modify
@@ -5803,7 +5805,9 @@ check the difference before and after smoothing."
             ;; Separated smoothing process
             (when edraw-editor-tool-freehand-separate-smoothing-process
               (when-let ((path-data-smoothed
-                          (edraw-editor-tool-freehand--make-smooth points)))
+                          (edraw-editor-tool-freehand--make-smooth
+                           points
+                           (edraw-scroll-scale editor))))
                 (edraw-set-property path-obj 'd path-data-smoothed)))
             path-obj))))))
 
@@ -5816,7 +5820,7 @@ check the difference before and after smoothing."
           (const :tag "Approximate the whole with as few Bezier curves as possible" bezier-fitting)
           (function :tag "A function that creates path data")))
 
-(defun edraw-editor-tool-freehand--make-smooth (points)
+(defun edraw-editor-tool-freehand--make-smooth (points &optional scroll-scale)
   "Create path data from the list of POINTS.
 
 POINTS is a list of coordinates (edraw-xy).
@@ -5826,9 +5830,13 @@ attribute of the path element as a string."
   (pcase edraw-editor-tool-freehand-smoothing-method
     ('nil (edraw-editor-tool-freehand--make-poly-line points))
     ('each-point (edraw-editor-tool-freehand--smooth-each-point points))
-    ('bezier-fitting (edraw-editor-tool-freehand--smooth-bezier-fitting points))
+    ('bezier-fitting (edraw-editor-tool-freehand--smooth-bezier-fitting
+                      points
+                      scroll-scale))
     ((and (pred functionp) fun) (funcall fun points))
-    (_ (edraw-editor-tool-freehand--smooth-bezier-fitting points))))
+    (_ (edraw-editor-tool-freehand--smooth-bezier-fitting
+        points
+        scroll-scale))))
 
 (defun edraw-editor-tool-freehand--make-poly-line (points)
   (or
@@ -5912,13 +5920,19 @@ This variable only makes sense when
   :group 'edraw-editor
   :type 'number)
 
-(defun edraw-editor-tool-freehand--smooth-bezier-fitting (points)
+(defconst edraw-editor-tool-freehand--straight-line-tolerance 1.0)
+
+(defun edraw-editor-tool-freehand--smooth-bezier-fitting (points
+                                                          scroll-scale)
   (when-let ((curves
               ;; Split POINTS at corners
               (edraw-xy-points-to-curves
                (edraw-xy-remove-consecutive-same-points points)
                edraw-editor-tool-freehand--bezier-fitting-corner-angle-min
-               edraw-editor-tool-freehand--bezier-fitting-corner-distance-min)))
+               (/ edraw-editor-tool-freehand--bezier-fitting-corner-distance-min
+                  (float scroll-scale))
+               (/ edraw-editor-tool-freehand--straight-line-tolerance
+                  (float scroll-scale)))))
     ;;(message "curves=%s" (length curves))
     ;; Create Bezier curves and concat them
     (mapconcat (lambda (curve)
@@ -5931,9 +5945,9 @@ This variable only makes sense when
 
 (defun edraw-xy-points-straight-p (start-xy
                                    points end
-                                   perp-dist-tolerance
                                    &optional
-                                   end-v end-len)
+                                   end-v end-len
+                                   perp-dist-tolerance)
   "Return non-nil if the points are arranged in order on a straight line.
 
 Check that all points lie on a straight line from the point
@@ -5955,6 +5969,7 @@ these are calculated in advance, specifying them can eliminate
 unnecessary calculations."
   (unless end-v (setq end-v (edraw-xy-sub (car end) start-xy)))
   (unless end-len (setq end-len (edraw-xy-length end-v)))
+  (unless perp-dist-tolerance (setq perp-dist-tolerance 1.0))
   (when points
     (let* ((end-uv (if (< 1e-6 end-len) (edraw-xy-divn end-v end-len) nil))
            (it points)
@@ -5975,9 +5990,8 @@ unnecessary calculations."
 ;; TEST: (let ((points '((10 . 20) (12 . 21) (18 . 20)))) (edraw-xy-points-straight-p (car points) (cdr points) (nthcdr 2 points))) => t
 ;; TEST: (let ((points '((10 . 20) (12 . 21) (8 . 20)))) (edraw-xy-points-straight-p (car points) (cdr points) (nthcdr 2 points))) => nil
 
-(defconst edraw-editor-tool-freehand--straight-line-tolerance 1.5)
-
-(defun edraw-xy-points-straight-last (start-xy points min-distance)
+(defun edraw-xy-points-straight-last (start-xy points min-distance
+                                               perp-dist-tolerance)
   "Return last point on straight line from the starting point."
   (when (and start-xy points)
     (let ((it points)
@@ -5989,8 +6003,7 @@ unnecessary calculations."
                          (it-len (edraw-xy-length it-v)))
                     (when (edraw-xy-points-straight-p
                            start-xy points it
-                           edraw-editor-tool-freehand--straight-line-tolerance
-                           it-v it-len)
+                           it-v it-len perp-dist-tolerance)
                       ;;(cl-incf count)
                       (setq result-xy (car it))
                       (if (<= min-distance it-len)
@@ -5999,10 +6012,11 @@ unnecessary calculations."
                         t)))))
       ;;(message "count=%s" count)
       result-xy)))
-;; TEST: (let ((points '((10 . 20) (12 . 21) (18 . 20) (20 . 20.5)))) (edraw-xy-points-straight-last (car points) (cdr points) 5.0))
+;; TEST: (let ((points '((10 . 20) (12 . 21) (18 . 20) (20 . 20.5)))) (edraw-xy-points-straight-last (car points) (cdr points) 5.0 1.0)) => (18 . 20)
 
-
-(defun edraw-xy-points-to-curves (points min-angle min-distance)
+(defun edraw-xy-points-to-curves (points min-angle
+                                         min-distance
+                                         &optional perp-dist-tolerance)
   "Group the list of POINTS by curve. In other words, split at the corners.
 
 Returns a list of lists of points.
@@ -6029,12 +6043,14 @@ it is more than MIN-ANGLE."
       (while (cdr points)
         (let* ((p0 (or (edraw-xy-points-straight-last (car points)
                                                       curr-curve
-                                                      min-distance)
+                                                      min-distance
+                                                      perp-dist-tolerance)
                        (car curr-curve))) ;; Previous
                (p1 (car points)) ;; Current
                (p2 (or (edraw-xy-points-straight-last (car points)
                                                       (cdr points)
-                                                      min-distance)
+                                                      min-distance
+                                                      perp-dist-tolerance)
                        (cadr points))) ;; Next
                (v01 (edraw-xy-sub p1 p0))
                (v12 (edraw-xy-sub p2 p1)))
@@ -8694,8 +8710,13 @@ The order of all subpaths, anchors, and handles within the SHAPE is reversed."
   ;;@todo Support multiple subpaths
   (when (and (not (edraw-contains-multiple-subpaths-p path))
              (>= (edraw-get-anchor-point-count path) 2))
-    (when-let ((d (edraw-xy-points-to-smooth-path-data
-                   (mapcar #'edraw-get-xy (edraw-get-anchor-points path)))))
+    (when-let ((d
+                (edraw-xy-points-to-smooth-path-data
+                 (mapcar #'edraw-get-xy (edraw-get-anchor-points path)))
+                ;; (edraw-editor-tool-freehand--smooth-bezier-fitting;;
+                ;;  (mapcar #'edraw-get-xy (edraw-get-anchor-points path))
+                ;;  (edraw-scroll-scale (oref path editor)))
+                ))
       (edraw-set-property path 'd d)
       ;; Succeeded
       t)))
