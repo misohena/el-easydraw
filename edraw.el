@@ -5920,7 +5920,7 @@ This variable only makes sense when
   :group 'edraw-editor
   :type 'number)
 
-(defconst edraw-editor-tool-freehand--straight-line-tolerance 1.0)
+(defconst edraw-editor-tool-freehand--straight-line-tolerance 0.9)
 
 (defun edraw-editor-tool-freehand--smooth-bezier-fitting (points
                                                           scroll-scale)
@@ -6034,41 +6034,46 @@ it is more than MIN-ANGLE."
     (let ((min-angle-rad (degrees-to-radians min-angle))
           (min-distance-sq (* min-distance min-distance))
           curves
-          curr-curve)
+          curr-curve
+          (it points))
       ;; First point
-      (push (car points) curr-curve)
-      (setq points (cdr points))
+      (push (car it) curr-curve)
+      (setq it (cdr it))
 
       ;; Middle points
-      (while (cdr points)
-        (let* ((p0 (or (edraw-xy-points-straight-last (car points)
+      (while (cdr it)
+        (let* ((p0 (or (edraw-xy-points-straight-last (car it)
                                                       curr-curve
                                                       min-distance
                                                       perp-dist-tolerance)
                        (car curr-curve))) ;; Previous
-               (p1 (car points)) ;; Current
-               (p2 (or (edraw-xy-points-straight-last (car points)
-                                                      (cdr points)
+               (p1 (car it)) ;; Current
+               (p2 (or (edraw-xy-points-straight-last (car it)
+                                                      (cdr it)
                                                       min-distance
                                                       perp-dist-tolerance)
-                       (cadr points))) ;; Next
+                       (cadr it))) ;; Next
                (v01 (edraw-xy-sub p1 p0))
                (v12 (edraw-xy-sub p2 p1)))
           ;;(message "%s prev-len=%s next-len=%s angle=%s" p1 (edraw-xy-length v01) (edraw-xy-length v12) (radians-to-degrees (edraw-xy-angle v01 v12)))
           (when (and
-                 (>= (edraw-xy-length-squared v01) min-distance-sq)
-                 (>= (edraw-xy-length-squared v12) min-distance-sq)
+                 (or (>= (edraw-xy-length-squared v01) min-distance-sq)
+                     ;; If p0 is first point, accept even if short
+                     (eq p0 (car points)))
+                 (or (>= (edraw-xy-length-squared v12) min-distance-sq)
+                     ;; If p2 is last point, accept even if short
+                     (null (cddr it)))
                  (>= (abs (edraw-xy-angle v01 v12)) min-angle-rad))
             ;;(message "It's corner")
-            (push (car points) curr-curve)
+            (push (car it) curr-curve)
             (push (nreverse curr-curve) curves)
             (setq curr-curve nil))
-          (push (car points) curr-curve)
-          (setq points (cdr points))))
+          (push (car it) curr-curve)
+          (setq it (cdr it))))
 
       ;; Last point
-      (when points
-        (push (car points) curr-curve))
+      (when it
+        (push (car it) curr-curve))
       (push (nreverse curr-curve) curves)
       (nreverse curves))))
 ;; TEST: (edraw-xy-points-to-curves nil 45 5) => nil
