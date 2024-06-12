@@ -5885,7 +5885,11 @@ Valid only when `edraw-editor-tool-freehand-smoothing-method' is
   :group 'edraw-editor
   :type 'number)
 
-(defcustom edraw-editor-tool-freehand--bezier-fitting-corner-angle-min 45
+(define-obsolete-variable-alias
+  'edraw-editor-tool-freehand--bezier-fitting-corner-angle-min
+  'edraw-editor-tool-freehand-bezier-fitting-corner-angle-min
+  "2024-06-12")
+(defcustom edraw-editor-tool-freehand-bezier-fitting-corner-angle-min 45
   "The minimum angle at which an input point will be recognized as
 a corner when the freehand tool performs Bezier fitting. The unit
 is degrees.
@@ -5896,14 +5900,18 @@ vector to the next point is greater than or equal to this value.
 
 At the same time, the distance to the previous and next points is
 also taken into account, and the threshold can be set with
-`edraw-editor-tool-freehand--bezier-fitting-corner-distance-min'.
+`edraw-editor-tool-freehand-bezier-fitting-corner-distance-min'.
 
 This variable only makes sense when
 `edraw-editor-tool-freehand-smoothing-method' is \\='bezier-fitting."
   :group 'edraw-editor
   :type 'number)
 
-(defcustom edraw-editor-tool-freehand--bezier-fitting-corner-distance-min 5
+(define-obsolete-variable-alias
+  'edraw-editor-tool-freehand--bezier-fitting-corner-distance-min
+  'edraw-editor-tool-freehand-bezier-fitting-corner-distance-min
+  "2024-06-12")
+(defcustom edraw-editor-tool-freehand-bezier-fitting-corner-distance-min 5
   "The minimum distance at which an input point will be recognized
 as a corner when the freehand tool performs Bezier fitting.
 
@@ -5912,7 +5920,7 @@ if the distance from the previous and next points is greater
 than or equal to this value.
 
 At the same time, the setting value of
-`edraw-editor-tool-freehand--bezier-fitting-corner-distance-min' is
+`edraw-editor-tool-freehand-bezier-fitting-corner-distance-min' is
 also taken into account.
 
 This variable only makes sense when
@@ -5942,8 +5950,8 @@ If nil, no division will be performed."
               ;; Split POINTS at corners
               (edraw-xy-points-to-curves
                (edraw-xy-remove-consecutive-same-points points)
-               edraw-editor-tool-freehand--bezier-fitting-corner-angle-min
-               (/ edraw-editor-tool-freehand--bezier-fitting-corner-distance-min
+               edraw-editor-tool-freehand-bezier-fitting-corner-angle-min
+               (/ edraw-editor-tool-freehand-bezier-fitting-corner-distance-min
                   (float scroll-scale))
                (/ edraw-editor-tool-freehand--straight-line-tolerance
                   (float scroll-scale)))))
