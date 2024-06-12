@@ -5920,10 +5920,24 @@ This variable only makes sense when
   :group 'edraw-editor
   :type 'number)
 
+(defcustom edraw-editor-tool-freehand-bezier-fitting-max-div-distance 20
+  "Each section of the input polyline will be divided so that it
+ does not exceed this length.
+If nil, no division will be performed."
+  :group 'edraw-editor
+  :type '(choice (number :tag "Length")
+                 (const :tag "No division" nil)))
+
 (defconst edraw-editor-tool-freehand--straight-line-tolerance 0.9)
 
 (defun edraw-editor-tool-freehand--smooth-bezier-fitting (points
                                                           scroll-scale)
+  (when edraw-editor-tool-freehand-bezier-fitting-max-div-distance
+    (edraw-xy-points-divide-long-sections
+     points
+     (/ edraw-editor-tool-freehand-bezier-fitting-max-div-distance
+        (float scroll-scale))))
+
   (when-let ((curves
               ;; Split POINTS at corners
               (edraw-xy-points-to-curves
@@ -6081,6 +6095,34 @@ it is more than MIN-ANGLE."
 ;; TEST: (edraw-xy-points-to-curves '((10 . 20) (100 . 30)) 45 5) => (((10 . 20) (100 . 30)))
 ;; TEST: (edraw-xy-points-to-curves '((10 . 20) (100 . 30) (200 . 40)) 45 5) => (((10 . 20) (100 . 30) (200 . 40)))
 ;; TEST: (edraw-xy-points-to-curves '((10 . 20) (100 . 30) (100 . 100)) 45 5) => (((10 . 20) (100 . 30)) ((100 . 30) (100 . 100)))
+
+
+(defun edraw-xy-points-divide-long-sections (points max-dist)
+  "Insert points so that each segment of the polyline represented
+ by POINTS is no longer than MAX-DIST.
+This function is destructive: the list POINTS is modified."
+  (setq max-dist (float max-dist))
+  (let ((it points))
+    (while (cdr it)
+      (let ((dist (edraw-xy-distance (car it) (cadr it))))
+        (when (< max-dist dist)
+          (let* ((ndiv (ceiling (/ dist max-dist)))
+                 (p0 (car it))
+                 (p1 (cadr it))
+                 (dx (- (edraw-x p1) (edraw-x p0)))
+                 (dy (- (edraw-y p1) (edraw-y p0))))
+            (cl-loop for i from 1 to (1- ndiv)
+                     for new-xy = (edraw-xy
+                                   (+ (edraw-x p0) (/ (* dx i) (float ndiv)))
+                                   (+ (edraw-y p0) (/ (* dy i) (float ndiv))))
+                     for new-cell = (cons new-xy (cdr it))
+                     do
+                     (setcdr it new-cell)
+                     (setq it new-cell)))))
+      (setq it (cdr it))))
+  points)
+;; TEST: (edraw-xy-points-divide-long-sections (list '(1 . 2) '(10 . 2) '(100 . 2) '(200 . 2) '(250 . 2)) 40) => ((1 . 2) (10 . 2) (40.0 . 2.0) (70.0 . 2.0) (100 . 2) (133.33333333333334 . 2.0) (166.66666666666669 . 2.0) (200 . 2) (225.0 . 2.0) (250 . 2))
+
 
 
 ;;;;; Tool - Custom Shape Tool
