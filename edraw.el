@@ -5919,6 +5919,7 @@ This variable only makes sense when
                (edraw-xy-remove-consecutive-same-points points)
                edraw-editor-tool-freehand--bezier-fitting-corner-angle-min
                edraw-editor-tool-freehand--bezier-fitting-corner-distance-min)))
+    ;;(message "curves=%s" (length curves))
     ;; Create Bezier curves and concat them
     (mapconcat (lambda (curve)
                  (edraw-xy-points-to-smooth-path-data
@@ -5927,6 +5928,79 @@ This variable only makes sense when
                   (not (eq curve (car curves)))))
                curves
                "")))
+
+(defun edraw-xy-points-straight-p (start-xy
+                                   points end
+                                   perp-dist-tolerance
+                                   &optional
+                                   end-v end-len)
+  "Return non-nil if the points are arranged in order on a straight line.
+
+Check that all points lie on a straight line from the point
+START-XY to the vector END-V.
+
+Also check that all points are lined up in order in the direction
+of the vector END-V. Return nil if there is a point that returns
+to the opposite direction.
+
+The range to be checked is from POINTS to just before END. POINTS
+is a list of `edraw-xy'. END is a cons cell reachable from POINTS.
+
+PERP-DIST-TOLERANCE is the tolerance for how much deviation from
+the line in the vertical direction is allowed.
+
+If END-V is omitted, it is the car of END minus START-XY. If
+END-LEN is omitted, it is the length of the vector END-V. If
+these are calculated in advance, specifying them can eliminate
+unnecessary calculations."
+  (unless end-v (setq end-v (edraw-xy-sub (car end) start-xy)))
+  (unless end-len (setq end-len (edraw-xy-length end-v)))
+  (when points
+    (let* ((end-uv (if (< 1e-6 end-len) (edraw-xy-divn end-v end-len) nil))
+           (it points)
+           (prev-x 0))
+      (when end-uv
+        (while (and it
+                    (not (eq it end))
+                    (let* ((curr-xy (car it))
+                           (curr-v (edraw-xy-sub curr-xy start-xy))
+                           (x (edraw-xy-dot end-uv curr-v))
+                           (y (abs (edraw-xy-perpdot end-uv curr-v))))
+                      (when (and (<= prev-x x) ;; Moving forward
+                                 (<= y perp-dist-tolerance)) ;; Deviation
+                        (setq prev-x x)
+                        (setq it (cdr it))
+                        t))))
+        (eq it end)))))
+;; TEST: (let ((points '((10 . 20) (12 . 21) (18 . 20)))) (edraw-xy-points-straight-p (car points) (cdr points) (nthcdr 2 points))) => t
+;; TEST: (let ((points '((10 . 20) (12 . 21) (8 . 20)))) (edraw-xy-points-straight-p (car points) (cdr points) (nthcdr 2 points))) => nil
+
+(defconst edraw-editor-tool-freehand--straight-line-tolerance 1.5)
+
+(defun edraw-xy-points-straight-last (start-xy points min-distance)
+  "Return last point on straight line from the starting point."
+  (when (and start-xy points)
+    (let ((it points)
+          ;;(count 0)
+          result-xy)
+      (while (and it
+                  (let* ((it-xy (car it))
+                         (it-v (edraw-xy-sub it-xy start-xy))
+                         (it-len (edraw-xy-length it-v)))
+                    (when (edraw-xy-points-straight-p
+                           start-xy points it
+                           edraw-editor-tool-freehand--straight-line-tolerance
+                           it-v it-len)
+                      ;;(cl-incf count)
+                      (setq result-xy (car it))
+                      (if (<= min-distance it-len)
+                          nil
+                        (setq it (cdr it))
+                        t)))))
+      ;;(message "count=%s" count)
+      result-xy)))
+;; TEST: (let ((points '((10 . 20) (12 . 21) (18 . 20) (20 . 20.5)))) (edraw-xy-points-straight-last (car points) (cdr points) 5.0))
+
 
 (defun edraw-xy-points-to-curves (points min-angle min-distance)
   "Group the list of POINTS by curve. In other words, split at the corners.
@@ -5941,7 +6015,7 @@ MIN-ANGLE and MIN-DISTANCE are used to determine \"corner\".
 A point is recognized as a corner if it is more than MIN-DISTANCE
 away from the points before and after it, and the angle between
 the two straight lines formed between the points before and after
-it is more than MIN-ANGLE. ."
+it is more than MIN-ANGLE."
   (when points
     (let ((min-angle-rad (degrees-to-radians min-angle))
           (min-distance-sq (* min-distance min-distance))
@@ -5953,15 +6027,23 @@ it is more than MIN-ANGLE. ."
 
       ;; Middle points
       (while (cdr points)
-        (let* ((p0 (car curr-curve)) ;; Previous
+        (let* ((p0 (or (edraw-xy-points-straight-last (car points)
+                                                      curr-curve
+                                                      min-distance)
+                       (car curr-curve))) ;; Previous
                (p1 (car points)) ;; Current
-               (p2 (cadr points)) ;; Next
+               (p2 (or (edraw-xy-points-straight-last (car points)
+                                                      (cdr points)
+                                                      min-distance)
+                       (cadr points))) ;; Next
                (v01 (edraw-xy-sub p1 p0))
                (v12 (edraw-xy-sub p2 p1)))
+          ;;(message "%s prev-len=%s next-len=%s angle=%s" p1 (edraw-xy-length v01) (edraw-xy-length v12) (radians-to-degrees (edraw-xy-angle v01 v12)))
           (when (and
                  (>= (edraw-xy-length-squared v01) min-distance-sq)
                  (>= (edraw-xy-length-squared v12) min-distance-sq)
                  (>= (abs (edraw-xy-angle v01 v12)) min-angle-rad))
+            ;;(message "It's corner")
             (push (car points) curr-curve)
             (push (nreverse curr-curve) curves)
             (setq curr-curve nil))
