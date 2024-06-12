@@ -8488,8 +8488,9 @@ may be replaced by another mechanism."
         :enable ,multi-subpaths-p)
        ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
        ((edraw-msg "Make Smooth") edraw-make-smooth
-        ;;@todo Add more conditions such as contains two or more anchor points
-        :enable ,(not multi-subpaths-p))))))
+        ;;@todo Add more conditions such as contains 3 or more anchor points
+        ;;:enable
+        )))))
 
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
@@ -8766,18 +8767,31 @@ The order of all subpaths, anchors, and handles within the SHAPE is reversed."
         d))))
 
 (cl-defmethod edraw-make-smooth ((path edraw-shape-path))
-  ;;@todo Support multiple subpaths
-  (when (and (not (edraw-contains-multiple-subpaths-p path))
-             (>= (edraw-get-anchor-point-count path) 2))
-    (when-let ((d
-                (edraw-xy-points-to-smooth-path-data
-                 (mapcar #'edraw-get-xy (edraw-get-anchor-points path)))
-                ;; (edraw-editor-tool-freehand--smooth-bezier-fitting;;
-                ;;  (mapcar #'edraw-get-xy (edraw-get-anchor-points path))
-                ;;  (edraw-scroll-scale (oref path editor)))
-                ))
+  (let ((path-data (oref path path-data))
+        d)
+    (edraw-path-data-subpath-loop path-data subpath
+      (let (points)
+        (edraw-path-subpath-anchor-loop subpath anchor
+          (push (edraw-path-anchor-xy anchor) points))
+        (when (cddr points) ;; 3 or more points
+          (when (edraw-path-subpath-closed-p subpath)
+            (push (edraw-path-anchor-xy
+                   (edraw-path-subpath-anchor-first-or-nil subpath))
+                  points))
+          (when-let (subpath-d
+                     (edraw-xy-points-to-smooth-path-data points)
+                     ;; Emulate Freehand Tool
+                     ;; (edraw-editor-tool-freehand--smooth-bezier-fitting
+                     ;;  points
+                     ;;  (edraw-scroll-scale (oref path editor)))
+                     )
+            ;;(message "subpath-d=%s" subpath-d)
+            (setq d (concat d subpath-d
+                            (when (edraw-path-subpath-closed-p subpath)
+                              "Z")))))))
+    (when d
+      ;;(message "d=%s" d)
       (edraw-set-property path 'd d)
-      ;; Succeeded
       t)))
 
 (cl-defmethod edraw-combine-paths ((shapes list))
