@@ -2460,11 +2460,11 @@ are validated by `edraw-path-data-from-d'."
 
 (defun edraw-path-d-from-command-list (command-list)
   (mapconcat (lambda (command)
-               ;; Use edraw-svg-numstr?
-               (mapconcat #'edraw-to-string command " ")) ;; Each element of COMMAND is a number or a symbol
-             command-list
-             " "))
-;; TEST: (edraw-path-d-from-command-list '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))) => "Z M 10 20.1 L 0.1 20 200 -0.5"
+               (concat
+                (symbol-name (car command))
+                (edraw-path-cmdstr-xys (cdr command))))
+             command-list))
+;; TEST: (edraw-path-d-from-command-list '((Z) (M 10 20.1) (L 0.1 20.0 200.0 -0.5))) => "ZM10 20.1L0.1 20 200-0.5"
 
 (defun edraw-path-d-translate (d xy)
   (let ((x (car xy))
@@ -2481,11 +2481,14 @@ are validated by `edraw-path-data-from-d'."
                             (seq-map-indexed (lambda (n idx)
                                                (+ n (if (= (% idx 2) 0) x y)))
                                              args))
-                           ;;(('H))
-                           ;;(('V))
-                           ;;(('A))
+                           ('H
+                            (mapcar (lambda (n) (+ n x)) args))
+                           ('V
+                            (mapcar (lambda (n) (+ n y)) args))
+                           ;;('A)
                            (_ args))))))))
-;; TEST: (edraw-path-d-translate '"M 10 20 L 30 40 50 60" '(100 . 200)) => "M 110 220 L 130 240 150 260"
+;; TEST: (edraw-path-d-translate "M 10 20 L 30 40 50 60" '(100 . 200)) => "M110 220L130 240 150 260"
+;; TEST: (edraw-path-d-translate "M 10 20 H 30 40 V 50 60" '(100 . 200)) => "M110 220H130 140V250 260"
 
 
 (provide 'edraw-path)

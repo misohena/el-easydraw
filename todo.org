@@ -5269,3 +5269,10 @@ CLOSED: [2024-06-12 Wed 16:04]
 edraw-editor-transparent-bg-color2にはnilを指定出来るようにする。
 edraw-editor-transparent-bg-color2がnilまたはedraw-editor-transparent-bg-color1と同じならば、市松模様を描画するプロセスは省く。
 ついでにcolor1とcolor2の両方とも、:typeをedraw-web-colorへ変更する。
+** DONE edraw-path-d-translateをH、Vコマンドに対応させる。
+CLOSED: [2024-07-01 Mon 13:43]
+edraw-path-d-translateやそれを使っているedraw-svg-element-translateはこのプロジェクト内では使っていないが、他で使っていたので一応修正する。
+
+次の二つの関数を修正する。
+- edraw-path-d-from-command-list
+- edraw-path-d-translate
