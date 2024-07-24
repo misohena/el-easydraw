@@ -779,6 +779,7 @@ edraw-editor initialization is now called automatically."
       (edraw-select-tool editor nil) ;;deselect tool (some tools need to disconnect)
       (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?
       (edraw-update-image-timer-cancel editor)
+      (edraw-flush-image editor)
       (delete-overlay overlay))))
 
 ;;;;; Editor - User Settings
@@ -2126,8 +2127,7 @@ document size or view box."
     (edraw-update-ui-parts editor)
     (edraw-call-hook editor 'before-image-update)
 
-    (when image
-      (image-flush image))
+    (edraw-flush-image editor t) ;; without-overlay-put=t
 
     (setq image
           (apply #'create-image
@@ -2141,6 +2141,15 @@ document size or view box."
                    ;; Cancel image-scale effect
                    :scale 1.0)))
     (overlay-put overlay 'display image)))
+
+(cl-defmethod edraw-flush-image ((editor edraw-editor)
+                                 &optional without-overlay-put)
+  (with-slots (overlay image) editor
+    (when image
+      (image-flush image)
+      (when (and overlay (not without-overlay-put))
+        (overlay-put overlay 'display nil))
+      (setq image nil))))
 
 (defun edraw-editor-svg-node-filter (dom)
   (if-let ((shape (edraw-shape-from-element-no-create dom)))

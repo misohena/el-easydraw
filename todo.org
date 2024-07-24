@@ -1,6 +1,13 @@
 
 
 * Inbox
+** TODO 出来る限り使わない画像をimage-flushする
+[[*メモリリークのような現象を何とかする][メモリリークのような現象を何とかする]]の続き。
+
+最低限インタラクティブな部分(つまり高頻度、image-cache-eviction-delayよりも短い期間で沢山の画像を生成しうる場所)ではimage-flushを使うべき。オーバーレイを削除するときも忘れずに。
+- ツールバー画像
+- カラーピッカー
+
 ** TODO shape pickerやらproperty editorやらのコンテキストメニュー改善
 他の場所もあったっけ？
 キーでコンテキストメニューが開けるようにする。
@@ -5276,7 +5283,7 @@ CLOSED: [2024-07-24 Wed 09:32]
 編集後は既にimage-flushしている。
 
 同じ内容のedrawリンクが複数並んでいる状況を考えた場合、画像キャッシュはクリアすべきでは無いはず。クリアしたら画像キャッシュの意味が無い。
-** DONE メモリリークのような現象を何とかする。
+** DONE メモリリークのような現象を何とかする
 CLOSED: [2024-07-24 Wed 09:33]
 [[https://github.com/misohena/el-easydraw/issues/27][Memory Leak · Issue #27 · misohena/el-easydraw]]
 
@@ -5297,4 +5304,7 @@ CLOSED: [2024-07-24 Wed 09:33]
 テストして調べるべき。
 
 [[*メモリリークのような現象を何とかする。][メモリリークのような現象を何とかする。]]でimage-flushするようにした。
-
+** DONE edraw-editor終了時にimageをimage-flushする
+CLOSED: [2024-07-24 Wed 17:56]
+[[*メモリリークのような現象を何とかする][メモリリークのような現象を何とかする]]の続き。
+終了する時(edraw-close)にimage-flushしていないのでする。
