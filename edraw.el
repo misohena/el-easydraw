@@ -684,6 +684,7 @@ line-prefix and wrap-prefix are used in org-indent.")
                (or edraw-editor-image-scaling-factor image-scaling-factor))
     :type number)
    (image :initform nil)
+   (image-toolbar :initform nil)
    (image-update-timer :initform nil)
    (invalid-ui-parts :initform nil)
    (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
@@ -780,6 +781,7 @@ edraw-editor initialization is now called automatically."
       (edraw-notify-document-close-to-all-shapes editor) ;;should edraw-clear?
       (edraw-update-image-timer-cancel editor)
       (edraw-flush-image editor)
+      (edraw-flush-toolbar-image editor)
       (delete-overlay overlay))))
 
 ;;;;; Editor - User Settings
@@ -2127,7 +2129,7 @@ document size or view box."
     (edraw-update-ui-parts editor)
     (edraw-call-hook editor 'before-image-update)
 
-    (edraw-flush-image editor t) ;; without-overlay-put=t
+    (edraw-flush-image editor)
 
     (setq image
           (apply #'create-image
@@ -2142,13 +2144,10 @@ document size or view box."
                    :scale 1.0)))
     (overlay-put overlay 'display image)))
 
-(cl-defmethod edraw-flush-image ((editor edraw-editor)
-                                 &optional without-overlay-put)
-  (with-slots (overlay image) editor
+(cl-defmethod edraw-flush-image ((editor edraw-editor))
+  (with-slots (image) editor
     (when image
       (image-flush image)
-      (when (and overlay (not without-overlay-put))
-        (overlay-put overlay 'display nil))
       (setq image nil))))
 
 (defun edraw-editor-svg-node-filter (dom)
@@ -4162,7 +4161,7 @@ position where the EVENT occurred."
 (defconst edraw-editor-toolbar-button-h 24)
 
 (cl-defmethod edraw-update-toolbar ((editor edraw-editor))
-  (with-slots (overlay keymap image-scale (current-tool tool))
+  (with-slots (overlay keymap image-scale image-toolbar (current-tool tool))
       editor
     (let* (;; Put components
            (icon-w edraw-editor-toolbar-button-w)
@@ -4268,13 +4267,22 @@ position where the EVENT occurred."
                 (let ((key-id (nth 1 hot-spot)))
                   (define-key km (vector key-id 'mouse-1) key-id)))
               km)))
+      ;; Flush old image
+      (edraw-flush-toolbar-image editor)
       ;; Put IMAGE to the left side of the editor overlay
+      (setq image-toolbar image)
       (overlay-put overlay
                    'before-string (propertize "*"
                                               'display image
                                               'face 'default
                                               'keymap toolbar-keymap
                                               'pointer 'arrow)))))
+
+(cl-defmethod edraw-flush-toolbar-image ((editor edraw-editor))
+  (with-slots (image-toolbar) editor
+    (when image-toolbar
+      (image-flush image-toolbar)
+      (setq image-toolbar nil))))
 
 (defun edraw-editor-make-toolbar-button
     (parent x y w h image-scale icon key-id help-echo selected-p)

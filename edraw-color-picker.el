@@ -1333,6 +1333,7 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
 
 (cl-defmethod edraw-close ((display edraw-color-picker-display-overlay))
   (with-slots (overlay target-property) display
+    (edraw-flush-image display)
     (pcase target-property
       ('display
        (overlay-put overlay 'display nil))
@@ -1342,6 +1343,7 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
     (delete-overlay overlay)))
 
 (cl-defmethod edraw-update ((display edraw-color-picker-display-overlay))
+  (edraw-flush-image display)
   (with-slots (overlay target-property keymap picker) display
     (pcase target-property
       ('display
@@ -1354,6 +1356,20 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
                      'face 'default
                      'keymap keymap
                      'pointer 'arrow))))))
+
+(cl-defmethod edraw-flush-image ((display edraw-color-picker-display-overlay))
+  (with-slots (overlay target-property keymap picker) display
+    (pcase target-property
+      ('display
+       (let ((spec (overlay-get overlay 'display)))
+         (when (imagep spec)
+           (image-flush spec))))
+      ((or 'before-string 'after-string)
+       (let ((text (overlay-get overlay target-property)))
+         (when (and text (not (string-empty-p text)))
+           (let ((spec (get-text-property 0 'display text)))
+             (when (imagep spec)
+               (image-flush spec)))))))))
 
 (defun edraw-color-picker-make-overlay (overlay-or-args-props)
   "If OVERLAY-OR-ARGS-PROPS is an overlay, return it as is.
