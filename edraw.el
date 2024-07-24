@@ -683,7 +683,7 @@ line-prefix and wrap-prefix are used in org-indent.")
     :initform (image-compute-scaling-factor
                (or edraw-editor-image-scaling-factor image-scaling-factor))
     :type number)
-   (image)
+   (image :initform nil)
    (image-update-timer :initform nil)
    (invalid-ui-parts :initform nil)
    (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
@@ -2125,6 +2125,9 @@ document size or view box."
     (edraw-update-image-timer-cancel editor)
     (edraw-update-ui-parts editor)
     (edraw-call-hook editor 'before-image-update)
+
+    (when image
+      (image-flush image))
 
     (setq image
           (apply #'create-image
