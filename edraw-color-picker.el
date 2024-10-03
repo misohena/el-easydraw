@@ -1142,7 +1142,7 @@
 (defun edraw-color-picker-at-input (event)
   (if (or (mouse-event-p event)
           (memq (event-basic-type event)
-                '(wheel-up wheel-down 'mouse-4 'mouse-5 'drag-n-drop)))
+                '(wheel-up wheel-down mouse-4 mouse-5 drag-n-drop)))
       (let* ((mouse-pos (event-start event))
              (window (posn-window mouse-pos))
              (buffer (window-buffer window))

@@ -5322,3 +5322,16 @@ CLOSED: [2024-10-04 Fri 03:40]
                  (const nil :tag "Same as `edraw-shape-picker-thumbnail-width'"))
   :group 'edraw-shape-picker)
 #+end_src
+** DONE Emacs30で出るmemqの警告に対処する
+CLOSED: [2024-10-04 Fri 03:43]
+: edraw-color-picker.el:1144:12: Warning: `memq' called with literal list that may never match (element 3 of arg 2)
+: edraw.el:850:12: Warning: `memq' called with literal list that may never match (element 3 of arg 2)
+
+両方とも同じコードになっている。おそらくコピーして出来たところ。
+
+#+begin_src elisp
+          (memq (event-basic-type event)
+                '(wheel-up wheel-down 'mouse-4 'mouse-5 'drag-n-drop)))
+#+end_src
+
+リストの中がクォートされているのでクォートを外す。
