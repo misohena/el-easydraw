@@ -5309,3 +5309,16 @@ CLOSED: [2024-07-24 Wed 18:24]
 - ツールバー画像
 - カラーピッカー
 - +シェイプピッカー (更新頻度は低いが消しておいたほうが良い。同じshapeを複数のバッファで表示することもそう多くは無いだろうし)+ いや、シェイプピッカーを閉じた後再度開くときにキャッシュがあった方が高速に動作しそうだからそのままにしておく。
+** DONE Emacs30で出るdefcustomの警告に対処する
+CLOSED: [2024-10-04 Fri 03:40]
+: edraw-shape-picker.el:75:29: Warning: in defcustom for `edraw-shape-picker-thumbnail-max-width': misplaced :tag keyword in `const' type
+: edraw-shape-picker.el:81:29: Warning: in defcustom for `edraw-shape-picker-thumbnail-max-height': misplaced :tag keyword in `const' type
+
+#+begin_src elisp
+(defcustom edraw-shape-picker-thumbnail-max-width nil
+  "Maximum width of a thumbnail."
+  :type '(choice integer
+                 ;; ↓nilが最後に来なければならない。
+                 (const nil :tag "Same as `edraw-shape-picker-thumbnail-width'"))
+  :group 'edraw-shape-picker)
+#+end_src

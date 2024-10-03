@@ -72,13 +72,13 @@
 (defcustom edraw-shape-picker-thumbnail-max-width nil
   "Maximum width of a thumbnail."
   :type '(choice integer
-                 (const nil :tag "Same as `edraw-shape-picker-thumbnail-width'"))
+                 (const :tag "Same as `edraw-shape-picker-thumbnail-width'" nil))
   :group 'edraw-shape-picker)
 
 (defcustom edraw-shape-picker-thumbnail-max-height nil
   "Maximum height of a thumbnail."
   :type '(choice integer
-                 (const nil :tag "Same as `edraw-shape-picker-thumbnail-height'"))
+                 (const :tag "Same as `edraw-shape-picker-thumbnail-height'" nil))
   :group 'edraw-shape-picker)
 
 (defcustom edraw-shape-picker-thumbnail-padding 5
