@@ -32,7 +32,6 @@
 
 ;;; Code:
 
-(require 'mwheel)
 (require 'cl-lib)
 (require 'eieio)
 (require 'edraw-widget)
@@ -495,8 +494,8 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km [down-mouse-2] 'edraw-editor-scroll-by-dragging)
     (define-key km [down-mouse-3] 'edraw-editor-dispatch-event) ;; Disable context-menu-mode
     (define-key km [mouse-3] 'edraw-editor-dispatch-event)
-    (define-key km (vector (intern (format "C-%s" mouse-wheel-up-event))) 'edraw-editor-zoom-out-by-mouse)
-    (define-key km (vector (intern (format "C-%s" mouse-wheel-down-event))) 'edraw-editor-zoom-in-by-mouse)
+    (define-key km (vector (intern (format "C-%s" edraw-wheel-up-event))) 'edraw-editor-zoom-in-by-mouse)
+    (define-key km (vector (intern (format "C-%s" edraw-wheel-down-event))) 'edraw-editor-zoom-out-by-mouse)
     (define-key km " " 'edraw-editor-interactive-scroll-and-zoom)
     (when (version<= "28" emacs-version)
       (define-key km [remap context-menu-open] 'edraw-editor-popup-context-menu))
@@ -1540,9 +1539,9 @@ For use with `edraw-editor-with-temp-undo-list',
          ;; Scroll and Zoom
          ((eq (car-safe event) 'down-mouse-2)
           (edraw-editor-scroll-by-dragging event))
-         ((eq (car-safe event) mouse-wheel-down-event)
+         ((eq (car-safe event) edraw-wheel-up-event)
           (edraw-zoom-in editor))
-         ((eq (car-safe event) mouse-wheel-up-event)
+         ((eq (car-safe event) edraw-wheel-down-event)
           (edraw-zoom-out editor))
          ((eq event ?0)
           (edraw-reset-scroll-and-zoom editor))
@@ -2942,9 +2941,9 @@ document size or view box."
               (eq event ?q)
               (eq event ? ))
           (setq quit t))
-         ((eq (car-safe event) mouse-wheel-down-event)
+         ((eq (car-safe event) edraw-wheel-up-event)
           (edraw-zoom-in editor))
-         ((eq (car-safe event) mouse-wheel-up-event)
+         ((eq (car-safe event) edraw-wheel-down-event)
           (edraw-zoom-out editor))
          ((eq event ?0)
           (edraw-reset-scroll-and-zoom editor))
@@ -4074,8 +4073,9 @@ object where the DOWN-EVENT occurred, and returned."
 ;;;;; Editor - Input Event
 
 (defconst edraw-event-remap-table
-  `((,mouse-wheel-up-event . wheel-down)
-    (,mouse-wheel-down-event . wheel-up)))
+  (when (version< emacs-version "30")
+    `((,edraw-wheel-down-event . wheel-down)
+      (,edraw-wheel-up-event . wheel-up))))
 
 (defun edraw-editor-event-handler-name (event)
   (let* ((event-name (car event))
@@ -12061,11 +12061,11 @@ REF is a point reference in scaling-points."
                  ;; Scroll
                  ((eq (car-safe event) 'down-mouse-2)
                   (edraw-editor-scroll-by-dragging event))
-                 ((or (eq (car-safe event) mouse-wheel-down-event)
-                      (eq (car-safe event) (intern (concat "C-" (symbol-name mouse-wheel-down-event)))))
+                 ((or (eq (car-safe event) edraw-wheel-up-event)
+                      (eq (car-safe event) (intern (concat "C-" (symbol-name edraw-wheel-up-event)))))
                   (edraw-zoom-in editor))
-                 ((or (eq (car-safe event) mouse-wheel-up-event)
-                      (eq (car-safe event) (intern (concat "C-" (symbol-name mouse-wheel-up-event)))))
+                 ((or (eq (car-safe event) edraw-wheel-down-event)
+                      (eq (car-safe event) (intern (concat "C-" (symbol-name edraw-wheel-down-event)))))
                   (edraw-zoom-out editor))
                  ((eq event ?0)
                   (edraw-reset-scroll-and-zoom editor))

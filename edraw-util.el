@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'mwheel)
 (require 'cl-lib)
 (require 'seq)
 (require 'subr-x)
@@ -311,6 +312,30 @@
            (eq (car (posn-object pos1)) ;;ex: 'image
                (car (posn-object pos2))) ;;ex: 'image
          t)))
+
+;;;; Mouse Wheel Event
+
+(defconst edraw-wheel-down-event
+  (if (and (version< emacs-version "30")
+           (boundp 'mouse-wheel-up-event))
+      ;; Emacs 29:
+      ;;  w32-win ns-win haiku-win pgtk-win => wheel-down
+      ;;  other environments => mouse-5
+      mouse-wheel-up-event ;; up!
+    ;; Emacs 30:
+    ;;  always => wheel-down
+    'wheel-down))
+
+(defconst edraw-wheel-up-event
+  (if (and (version< emacs-version "30")
+           (boundp 'mouse-wheel-down-event))
+      ;; Emacs 29:
+      ;;  w32-win ns-win haiku-win pgtk-win => wheel-up
+      ;;  other environments => mouse-4
+      mouse-wheel-down-event ;; down!
+    ;; Emacs 30:
+    ;;  always => wheel-up
+    'wheel-up))
 
 ;;;; Input Event Coordinates
 
