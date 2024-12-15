@@ -323,7 +323,7 @@
 (cl-defmethod edraw-ui-state-get ((ui-state edraw-ui-state)
                                   domain key &optional default)
   (edraw-ui-state-prepare ui-state)
-  (alist-get key (alist-get domain (oref ui-state store) default)))
+  (alist-get key (alist-get domain (oref ui-state store)) default))
 
 (cl-defgeneric edraw-ui-state-set (ui-state domain key value))
 

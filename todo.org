@@ -1,6 +1,11 @@
 
 
 * Inbox
+** TODO パスに沿った繰り返しパターンを作れるようにする
+[[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
+
+生成すること自体はそれほど難しくはない。しかしUIをどうするかが問題。とりあえず生成するコマンドだけ先に作る。いや、変換するコマンドにするか(元となるパスを消すかどうかが問題)。
+
 ** TODO shape pickerやらproperty editorやらのコンテキストメニュー改善
 他の場所もあったっけ？
 キーでコンテキストメニューが開けるようにする。
@@ -5415,3 +5420,13 @@ mouse-wheel-up/down-eventの代わりになるような変数を用意する。
 - edraw-wheel-up-event (mouse-wheel-down-eventの代わり down!!)
 - edraw-wheel-down-event (mouse-wheel-up-eventの代わり up!!)
 変数名はwheel-up/wheel-downに合わせる。ホイールを上に回したらwheel-upが起き、下に回したらwheel-downが発生する。それが自然な方向。mouse-wheel-down/up-eventはそれとは逆向きになっているので、この際自然な方向に表記を直してしまう。
+** DONE カラーピッカーを開こうとしたときにエラーが出る
+CLOSED: [2024-12-15 Sun 11:33]
+edraw-ui-state.configが存在しない存在しない段階で、pathを描いてp fを押すとedraw-color-ensureにnilが渡されて「Invalid color `nil'」のエラーが出る。p sだとエラーが出ないのはおそらくstroke色がnoneではないから。
+
+- +edraw-color-picker-ensure-colorはnoneを許容すべきか？+ edraw-color-picker-ensure-colorはedraw-colorオブジェクトを返すのでnoneは許容できない。ただし、noneが来て、最新の色が見つけられなくてもエラーが発生しないようにすべき(適当な色を返すべき)。
+- edraw-ui-state-getの実装に誤りがある。
+  ~(alist-get key (alist-get domain (oref ui-state store) default))~
+  はdefaultがdomainに対してかかっている。本来はkeyに対してかかるべき。
+  なのでedraw-ui-state-getを使用しているところは全て調べるべき。
+  defaultを指定しているところはedraw-get-recent-colorsの一箇所のみなのでここ以外では問題が生じない。

@@ -2181,8 +2181,11 @@ Valid options are:
   (if (cl-typep obj 'edraw-color)
       obj
     (or (if (stringp obj) (edraw-color-picker-color-from-string obj options))
-        (edraw-color-ensure (car
-                             (edraw-color-picker-get-recent-colors options)))
+        (let ((last-color (car (edraw-color-picker-get-recent-colors options))))
+          ;; Don't throw an error if the last color cannot be obtained
+          ;; or is abnormal.
+          (when last-color
+            (ignore-errors (edraw-color-ensure last-color))))
         (edraw-color-f 1 0 0 1))))
 
 
