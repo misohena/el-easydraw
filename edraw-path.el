@@ -2063,10 +2063,7 @@ which is useful for operations like interior-exterior determination."
 
 
 (defun edraw-path-seglist-from-d (d &optional needs-closed-p)
-  "Convert the path data attribute(<path d=D>) to a list of segments.
-
-When ALLOW-POINT-SHARING is non-nil, it allows point (edraw-xy) objects
-to be shared in multiple places."
+  "Convert the path data attribute(<path d=D>) to a list of segments."
   (let (segments first-xy last-xy)
     (let* ((line-to
             (lambda (xy)
