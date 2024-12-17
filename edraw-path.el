@@ -1527,13 +1527,17 @@ The handles of each anchor are also reversed."
 
 ;;;; Path String Conversion
 
-(defun edraw-path-data-from-d (d)
-  "Convert path data attribute(<path d=D>) to edraw-path-data object."
+(defun edraw-path-d-convert (d move-to line-to curve-to close)
+  "Convert path data attribute(<path d=D>) to move, line, curve, and close.
+
+  MOVE-TO (xy)
+  LINE-TO (xy)
+  CURVE-TO (p1 p2 p)
+  CLOSE (move-xy)"
   ;; ref: https://www.w3.org/TR/SVG11/paths.html#PathData
-  (let ((data (edraw-path-data))
-        (cmd-list (edraw-path-d-parse d))
+  (let ((cmd-list (edraw-path-d-parse d))
         (current-xy (cons 0 0)) ;; Last xy for relative calculation
-        subpath ;; Current subpath
+        moved
         prev-cmd-type ;; Previous cmd type
         shared-move-xy ;; Start point of subpath used if Z is not followed by M
         prev-qt) ;; Previous control point for Q or T
@@ -1551,6 +1555,7 @@ The handles of each anchor are also reversed."
              (setcdr cmd-args (cdr args-last-cell))
              (setcdr args-last-cell nil)
              args-head))
+
          (get-xy (cmd-args &optional update-current-xy relative-p x-or-y)
            ;; "Take 2 (or 1) arguments from CMD-ARGS and return a
            ;; coordinate-pair."
@@ -1570,20 +1575,11 @@ The handles of each anchor are also reversed."
              (when update-current-xy
                (setq current-xy xy))
              xy))
-         (push-anchor (xy)
-           ;; "Push XY to the end of current subpath."
-           (unless subpath
-             (setq subpath (edraw-path-data-add-new-subpath data))
-             (when shared-move-xy ;; After Z
-               (edraw-path-subpath-add-new-anchor subpath shared-move-xy)))
-           (edraw-path-subpath-add-new-anchor subpath xy))
-         (push-curve (p1 p2 p)
-           ;; "Push curve segment to the end of current subpath."
-           (push-anchor p) ;; Ensure subpath and previous anchor
-           (let* ((curr-anchor (edraw-path-subpath-anchor-last-or-nil subpath))
-                  (prev-anchor (edraw-path-anchor-prev curr-anchor)))
-             (edraw-path-anchor-set-backward-handle-xy curr-anchor p2)
-             (edraw-path-anchor-set-forward-handle-xy prev-anchor p1))))
+
+         (move-if-after-z ()
+           (unless moved
+             (funcall move-to shared-move-xy)
+             (setq moved t))))
       ;; cmd loop
       (dolist (cmd-args cmd-list)
         (let* ((cmd-type (car cmd-args))
@@ -1592,60 +1588,47 @@ The handles of each anchor are also reversed."
           (pcase cmd-type
 
             ((or 'M 'm)
-             (setq shared-move-xy nil)
-             (setq subpath nil)
+             (setq shared-move-xy nil
+                   moved t)
              (let ((xy (get-xy cmd-args t rel-p)))
-               (push-anchor xy) ;; Create a new subpath.
+               (funcall move-to xy)
                (setq shared-move-xy xy))
              (while (cdr cmd-args) ;; lineto-argument-sequence
-               (push-anchor (get-xy cmd-args t rel-p))))
+               (funcall line-to (get-xy cmd-args t rel-p))))
 
             ((or 'Z 'z)
-             ;; Delete the closing segment.
-             ;; If the last point of a closed path is in the same
-             ;; position as the first point, delete it.
-             (when (and subpath
-                        (not (edraw-path-subpath-empty-p subpath)))
-               (let ((last-anchor (edraw-path-subpath--anchor-last subpath)))
-                 (when (edraw-xy-equal-p (edraw-path-anchor-xy last-anchor)
-                                         shared-move-xy)
-                   ;; Transfer the backward handle of the last anchor
-                   ;; to the backward handle of the first anchor.
-                   (when (edraw-path-anchor-has-backward-handle last-anchor)
-                     (edraw-path-anchor-set-backward-handle-xy
-                      (edraw-path-subpath--anchor-first subpath)
-                      (edraw-path-anchor-backward-handle-xy last-anchor)))
-                   ;; Delete the last anchor.
-                   (edraw-path-anchor-remove last-anchor))))
-             ;; Close the subpath
-             (when subpath
-               (edraw-path-subpath-close subpath)
-               (setq subpath nil))
+             (funcall close shared-move-xy)
              ;; The next subpath that does not start with M starts at
              ;; the position of the last M command.
-             (setq current-xy shared-move-xy))
+             (setq current-xy shared-move-xy
+                   moved nil))
 
             ((or 'L 'l)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; lineto-argument-sequence
-               (push-anchor (get-xy cmd-args t rel-p))))
+               (funcall line-to (get-xy cmd-args t rel-p))))
 
             ((or 'H 'h)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; horizontal-lineto-argument-sequence
-               (push-anchor (get-xy cmd-args t rel-p 'x))))
+               (funcall line-to (get-xy cmd-args t rel-p 'x))))
 
             ((or 'V 'v)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; vertical-lineto-argument-sequence
-               (push-anchor (get-xy cmd-args t rel-p 'y))))
+               (funcall line-to (get-xy cmd-args t rel-p 'y))))
 
             ((or 'C 'c)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; curveto-argument-sequence
                (let ((p1 (get-xy cmd-args nil rel-p))
                      (p2 (get-xy cmd-args nil rel-p))
                      (p (get-xy cmd-args t rel-p)))
                  (setq prev-qt p2)
-                 (push-curve p1 p2 p))))
+                 (funcall curve-to p1 p2 p))))
 
             ((or 'S 's)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; smooth-curveto-argument-sequence
                (let ((p1
                       ;; the reflection of the second control point on
@@ -1656,9 +1639,10 @@ The handles of each anchor are also reversed."
                      (p2 (get-xy cmd-args nil rel-p))
                      (p (get-xy cmd-args t rel-p)))
                  (setq prev-qt p2)
-                 (push-curve p1 p2 p))))
+                 (funcall curve-to p1 p2 p))))
 
             ((or 'Q 'q)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; quadratic-bezier-curveto-argument-sequence
                (let* ((p0 current-xy)
                       (qp1 (get-xy cmd-args nil rel-p))
@@ -1667,9 +1651,10 @@ The handles of each anchor are also reversed."
                       (p1 (car cp))
                       (p2 (cdr cp)))
                  (setq prev-qt qp1)
-                 (push-curve p1 p2 p))))
+                 (funcall curve-to p1 p2 p))))
 
             ((or 'T 't)
+             (move-if-after-z)
              (while (cdr cmd-args) ;; smooth-quadratic-bezier-curveto-argument-sequence
                (let* ((p0 current-xy)
                       (qp1
@@ -1683,12 +1668,62 @@ The handles of each anchor are also reversed."
                       (p1 (car cp))
                       (p2 (cdr cp)))
                  (setq prev-qt qp1)
-                 (push-curve p1 p2 p))))
+                 (funcall curve-to p1 p2 p))))
 
             ;;@todo support A command
             ;; ((or 'A 'a) )
             (_ (error "Unsupported path command found: %s in %s" cmd-args d)))
-          (setq prev-cmd-type cmd-type))))
+          (setq prev-cmd-type cmd-type))))))
+
+(defun edraw-path-data-from-d (d)
+  "Convert path data attribute(<path d=D>) to edraw-path-data object."
+  ;; ref: https://www.w3.org/TR/SVG11/paths.html#PathData
+  (let ((data (edraw-path-data))
+        ;; Current subpath
+        subpath)
+    (let* ((move-to
+            (lambda (xy)
+              ;; "Push XY to new subpath."
+              (setq subpath (edraw-path-data-add-new-subpath data))
+              (edraw-path-subpath-add-new-anchor subpath xy)))
+           (push-anchor
+            (lambda (xy)
+              ;; "Push XY to the end of current subpath."
+              (unless subpath
+                (message "AssertionError: (not (null subpath))")
+                (setq subpath (edraw-path-data-add-new-subpath data)))
+              (edraw-path-subpath-add-new-anchor subpath xy)))
+           (push-curve
+            (lambda (p1 p2 p)
+              ;; "Push curve segment to the end of current subpath."
+              (funcall push-anchor p) ;; Ensure subpath and previous anchor
+              (let* ((curr-anchor (edraw-path-subpath-anchor-last-or-nil subpath))
+                     (prev-anchor (edraw-path-anchor-prev curr-anchor)))
+                (edraw-path-anchor-set-backward-handle-xy curr-anchor p2)
+                (edraw-path-anchor-set-forward-handle-xy prev-anchor p1))))
+           (close
+            (lambda (shared-move-xy)
+              ;; Delete the closing segment.
+              ;; If the last point of a closed path is in the same
+              ;; position as the first point, delete it.
+              (when (and subpath
+                         (not (edraw-path-subpath-empty-p subpath)))
+                (let ((last-anchor (edraw-path-subpath--anchor-last subpath)))
+                  (when (edraw-xy-equal-p (edraw-path-anchor-xy last-anchor)
+                                          shared-move-xy)
+                    ;; Transfer the backward handle of the last anchor
+                    ;; to the backward handle of the first anchor.
+                    (when (edraw-path-anchor-has-backward-handle last-anchor)
+                      (edraw-path-anchor-set-backward-handle-xy
+                       (edraw-path-subpath--anchor-first subpath)
+                       (edraw-path-anchor-backward-handle-xy last-anchor)))
+                    ;; Delete the last anchor.
+                    (edraw-path-anchor-remove last-anchor))))
+              ;; Close the subpath
+              (when subpath
+                (edraw-path-subpath-close subpath)
+                (setq subpath nil)))))
+      (edraw-path-d-convert d move-to push-anchor push-curve close))
     data))
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "")) => ""
 ;; TEST: (edraw-path-data-to-string (edraw-path-data-from-d "M 10 10.1 L 20.2 20e1 .3 .3e-1 Z")) => "M10 10.1 20.2 200 0.3 0.03Z"
@@ -1960,6 +1995,8 @@ which is useful for operations like interior-exterior determination."
     segments))
 ;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)])
 ;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M10,20 30,40 10,20 100,200 100,200 120,220")) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (100.0 . 200.0)] [(100.0 . 200.0) (120.0 . 220.0)])
+;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M0,0 L40,-20 L40,20 Z L20,40 L-20,40 Z L-40,20 L-40,-20 Z L0,-40")) => ([(0.0 . 0.0) (40.0 . -20.0)] [(40.0 . -20.0) (40.0 . 20.0)] [(40.0 . 20.0) (0.0 . 0.0)] [(0.0 . 0.0) (20.0 . 40.0)] [(20.0 . 40.0) (-20.0 . 40.0)] [(-20.0 . 40.0) (0.0 . 0.0)] [(0.0 . 0.0) (-40.0 . 20.0)] [(-40.0 . 20.0) (-40.0 . -20.0)] [(-40.0 . -20.0) (0.0 . 0.0)] [(0.0 . 0.0) (0.0 . -40.0)])
+;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M180 180C200 180 220 200 220 220 220 240 200 260 180 260 160 260 140 240 140 220 140 200 160 180 180 180ZC180 160 200 140 220 140 240 140 260 160 260 180 260 200 240 220 220 220")) => ([(180.0 . 180.0) (200.0 . 180.0) (220.0 . 200.0) (220.0 . 220.0)] [(220.0 . 220.0) (220.0 . 240.0) (200.0 . 260.0) (180.0 . 260.0)] [(180.0 . 260.0) (160.0 . 260.0) (140.0 . 240.0) (140.0 . 220.0)] [(140.0 . 220.0) (140.0 . 200.0) (160.0 . 180.0) (180.0 . 180.0)] [(180.0 . 180.0) (180.0 . 160.0) (200.0 . 140.0) (220.0 . 140.0)] [(220.0 . 140.0) (240.0 . 140.0) (260.0 . 160.0) (260.0 . 180.0)] [(260.0 . 180.0) (260.0 . 200.0) (240.0 . 220.0) (220.0 . 220.0)])
 
 (defun edraw-path-subpath-to-seglist (subpath &optional needs-closed-p)
   "Convert subpath to segment list."
@@ -2023,6 +2060,57 @@ which is useful for operations like interior-exterior determination."
                  (mapcar #'edraw-xy-clone points))
           segments))
   segments)
+
+
+(defun edraw-path-seglist-from-d (d &optional needs-closed-p)
+  "Convert the path data attribute(<path d=D>) to a list of segments.
+
+When ALLOW-POINT-SHARING is non-nil, it allows point (edraw-xy) objects
+to be shared in multiple places."
+  (let (segments first-xy last-xy)
+    (let* ((line-to
+            (lambda (xy)
+              (let ((p0 last-xy) (p1 xy))
+                (when (or edraw-path-data-to-seglist--include-empty-p
+                          (not (edraw-xy-equal-p p0 p1)))
+                  (push (vector (edraw-xy-clone p0) (edraw-xy-clone p1))
+                        segments)))
+              (setq last-xy xy)))
+           (curve-to
+            (lambda (p1 p2 p3)
+              (let ((p0 last-xy))
+                (when (or edraw-path-data-to-seglist--include-empty-p
+                          (not (and (edraw-xy-equal-p p0 p1)
+                                    (edraw-xy-equal-p p0 p2)
+                                    (edraw-xy-equal-p p0 p3))))
+                  (push (vector (edraw-xy-clone p0) (edraw-xy-clone p1)
+                                (edraw-xy-clone p2) (edraw-xy-clone p3))
+                        segments)))
+              (setq last-xy p3)))
+           (close
+            (lambda (move-xy)
+              (unless (edraw-xy-equal-p move-xy last-xy)
+                (funcall line-to move-xy))
+              (setq last-xy nil)))
+           (close-if-open
+            (lambda ()
+              (when (and needs-closed-p last-xy)
+                (funcall close first-xy))))
+           (move-to
+            (lambda (xy)
+              (funcall close-if-open)
+              ;; "Push XY to new subpath."
+              (setq first-xy xy
+                    last-xy xy))))
+      (edraw-path-d-convert d move-to line-to curve-to close)
+      (funcall close-if-open))
+    (nreverse segments)))
+;; TEST: (edraw-path-seglist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)])
+;; TEST: (edraw-path-seglist-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20" t) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)] [(100.0 . 20.0) (10.0 . 20.0)])
+;; TEST: (edraw-path-seglist-from-d "M10,20 30,40 10,20 100,200 100,200 120,220") => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (100.0 . 200.0)] [(100.0 . 200.0) (120.0 . 220.0)])
+;; TEST: (edraw-path-seglist-from-d "M0,0 L40,-20 L40,20 Z L20,40 L-20,40 Z L-40,20 L-40,-20 Z L0,-40") => ([(0.0 . 0.0) (40.0 . -20.0)] [(40.0 . -20.0) (40.0 . 20.0)] [(40.0 . 20.0) (0.0 . 0.0)] [(0.0 . 0.0) (20.0 . 40.0)] [(20.0 . 40.0) (-20.0 . 40.0)] [(-20.0 . 40.0) (0.0 . 0.0)] [(0.0 . 0.0) (-40.0 . 20.0)] [(-40.0 . 20.0) (-40.0 . -20.0)] [(-40.0 . -20.0) (0.0 . 0.0)] [(0.0 . 0.0) (0.0 . -40.0)])
+;; TEST: (edraw-path-seglist-from-d "M180 180C200 180 220 200 220 220 220 240 200 260 180 260 160 260 140 240 140 220 140 200 160 180 180 180ZC180 160 200 140 220 140 240 140 260 160 260 180 260 200 240 220 220 220") => ([(180.0 . 180.0) (200.0 . 180.0) (220.0 . 200.0) (220.0 . 220.0)] [(220.0 . 220.0) (220.0 . 240.0) (200.0 . 260.0) (180.0 . 260.0)] [(180.0 . 260.0) (160.0 . 260.0) (140.0 . 240.0) (140.0 . 220.0)] [(140.0 . 220.0) (140.0 . 200.0) (160.0 . 180.0) (180.0 . 180.0)] [(180.0 . 180.0) (180.0 . 160.0) (200.0 . 140.0) (220.0 . 140.0)] [(220.0 . 140.0) (240.0 . 140.0) (260.0 . 160.0) (260.0 . 180.0)] [(260.0 . 180.0) (260.0 . 200.0) (240.0 . 220.0) (220.0 . 220.0)])
+
 
 ;;;;; Path and Rectangle Intersection Test
 

@@ -3441,9 +3441,7 @@ This function does not consider the effect of the transform attribute."
   (let ((fill (edraw-dom-attr-with-inherit element 'fill))
         (d (dom-attr element 'd)))
     (when d
-      (edraw-path-data-to-seglist
-       (edraw-path-data-from-d d)
-       (not (equal fill "none"))))))
+      (edraw-path-seglist-from-d d (not (equal fill "none"))))))
 
 (defun edraw-svg-rect-contents-to-seglist (element)
   ;; https://www.w3.org/TR/SVG11/shapes.html#RectElement

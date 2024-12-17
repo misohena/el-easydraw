@@ -1,6 +1,7 @@
 
 
 * Inbox
+** TODO keymapに項目名を入れる
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -9,9 +10,6 @@
 Inkscapeのpattern along pathや、もしくはそれ以外に何か仕組みがあると良い。
 パスデータフィルターのような物があれば良いのだけど。
 正直あまり良い方法が思いつかない。
-
-** TODO d属性からpath-dataを経由せず直接seglistを作成する関数が欲しい
-(edraw-svg-path-contents-to-seglistがpath-dataを経由するのは無駄。これは点が多いパスデータにおいてはメモリ消費量(GC時間)と処理速度に大きな影響があるはず)
 
 ** TODO shape pickerやらproperty editorやらのコンテキストメニュー改善
 他の場所もあったっけ？
@@ -5469,3 +5467,12 @@ CLOSED: [2024-12-17 Tue 23:36]
 edraw-path-data-to-seglistやedraw-path-subpath-to-seglistにおいて、
 空のセグメントがあると(同一サブパス内の)それが現れる前のセグメントが消えてしまう。
 edraw-path-data-to-seglist--pushが確実にsegmentsを返していないのが原因。
+** DONE d属性からpath-dataを経由せず直接seglistを作成する関数が欲しい
+CLOSED: [2024-12-17 Tue 23:43]
+(edraw-svg-path-contents-to-seglistがpath-dataを経由するのは無駄。これは点が多いパスデータにおいてはメモリ消費量(GC時間)と処理速度に大きな影響があるはず)
+
+まず、edraw-path-data-from-dから汎用的な部分を分離する。move-to、line-to、curve-to、closeの関数を指定するedraw-path-d-convert関数を作成。
+
+edraw-path-d-convertを使用してedraw-path-seglist-from-dを実装する。
+
+点を共有する(edraw-xy-cloneを使用しない)オプションも用意しようとしたが、あまり適切では無いことに気がついたので止めた。edraw-svg-element-contents-to-seglistはedraw-path-seglist-transformを使用してセグメントリスト内の各点を行列で変換するので、点を共有してしまうと複数回変換を適用してしまう可能性がある。
