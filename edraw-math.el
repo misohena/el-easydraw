@@ -355,6 +355,17 @@ angle is returned between -pi and pi."
          (- (* x c) (* y s))
          (+ (* x s) (* y c))))))))
 
+(defun edraw-xy-complex-mul (a b)
+  "Multiply two 2D vectors A and B as if they were complex numbers.
+Each vector's x is the real part and y is the imaginary part.
+Return a new 2D vector (Ax*Bx-Ay*By, Ax*By+Ay*Bx)."
+  (let ((ax (car a))
+        (ay (cdr a))
+        (bx (car b))
+        (by (cdr b)))
+    (cons (- (* ax bx) (* ay by))
+          (+ (* ax by) (* ay bx)))))
+
 (defun edraw-xy-interpolate (a b alpha)
   (let ((ra (- 1.0 alpha)))
     (cons (+ (* ra (car a)) (* alpha (car b)))

@@ -1,10 +1,17 @@
 
 
 * Inbox
-** TODO パスに沿った繰り返しパターンを作れるようにする
+** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
-生成すること自体はそれほど難しくはない。しかしUIをどうするかが問題。とりあえず生成するコマンドだけ先に作る。いや、変換するコマンドにするか(元となるパスを消すかどうかが問題)。
+元のパスを破壊せずに新しくパスを作るような仕組み。
+パラメータの調整も後から変更できるような仕組み。
+Inkscapeのpattern along pathや、もしくはそれ以外に何か仕組みがあると良い。
+パスデータフィルターのような物があれば良いのだけど。
+正直あまり良い方法が思いつかない。
+
+** TODO d属性からpath-dataを経由せず直接seglistを作成する関数が欲しい
+(edraw-svg-path-contents-to-seglistがpath-dataを経由するのは無駄。これは点が多いパスデータにおいてはメモリ消費量(GC時間)と処理速度に大きな影響があるはず)
 
 ** TODO shape pickerやらproperty editorやらのコンテキストメニュー改善
 他の場所もあったっけ？
@@ -5430,3 +5437,30 @@ edraw-ui-state.configが存在しない存在しない段階で、pathを描い�
   はdefaultがdomainに対してかかっている。本来はkeyに対してかかるべき。
   なのでedraw-ui-state-getを使用しているところは全て調べるべき。
   defaultを指定しているところはedraw-get-recent-colorsの一箇所のみなのでここ以外では問題が生じない。
+** DONE パスに沿った繰り返しパターンを作れるようにする
+CLOSED: [2024-12-17 Tue 14:04]
+[[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
+
+生成するのは最低限基本的なパターンだけで良いみたい。ジグザグ線、波線、コイル。
+
+生成すること自体はそれほど難しくはない。しかしUIをどうするかが問題。
+
+とりあえず最低限生成するコマンドだけ先に作る。デフォルトでは生成したパスと置き換える。クローンしてdだけ書き替えても良いのだけど、元の線を残したままにしたいことは少ない気がする。必要なら複製してから実行すれば良いわけだし。
+
+生成はサブパス単位で行う必要がある。サブパスをseglistへ変換する関数が必要。また、サブパスがclosedなら生成するものも閉パスでなければならない。
+
+- 次のメソッドを追加
+  - shape指定版
+    - edraw-generate-zigzag-path-along path /params/
+    - edraw-generate-wavy-path-along path /params/
+    - edraw-generate-coil-path-along path /params/
+  - editor指定版
+    - edraw-{editor-}generate-zigzag-path-along-selected editor /params/
+    - edraw-{editor-}generate-wavy-path-along-selected editor /params/
+    - edraw-{editor-}generate-coil-path-along-selected editor /params/
+- キー割り当て
+  - ~~z~ : edraw-generate-zigzag-path-along-selected
+  - ~~w~ : edraw-generate-wavy-path-along-selected
+  - ~~c~ : edraw-generate-coil-path-along-selected
+- pathのget-actionsにメニューを追加。「Generate Shape Along Path」の下に三種類の項目を追加する。三種類の項目には :cmd-for-selected を追加し、edraw-menu-items-shape-common--convertを使ってキー割り当てを表示する
+- 生成パラメータは保存し次回のデフォルト値とする

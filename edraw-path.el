@@ -1936,68 +1936,83 @@ XY: Anchor coordinates."
 
 (defvar edraw-path-data-to-seglist--include-empty-p nil)
 
-(defun edraw-path-data-to-seglist (data needs-closed-p)
-  "Convert path DATA to segment list.
+(defun edraw-path-data-to-seglist (data &optional needs-closed-p)
+  "Convert the path DATA into a list of segments.
 
-A segment is a straight line or a Bezier curve.
+Return a list of segments.
 
-straight line: [(x0 . y0) (x1 . y1)]
+Each segment is either a straight line or a Bezier curve, represented
+in the following formats:
 
-bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
-"
+- Straight line: [(x0 . y0) (x1 . y1)]
+- Bezier curve: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
+
+If NEEDS-CLOSED-P is non-nil, modify the resulting list of segments to
+ensure the path is closed. This means that even if the original path
+data is an open path, it will be forcibly converted into a closed path,
+which is useful for operations like interior-exterior determination."
   (let (segments)
     (edraw-path-data-subpath-loop data subpath
-      (unless (edraw-path-subpath-empty-p subpath) ;; Ignore empty subpath
-        (let (last-xy)
-          (edraw-path-subpath-anchor-loop subpath anchor
-            (when last-xy ;;Ignore first anchor
-              (let ((anchor-prev (edraw-path-anchor-prev anchor)))
-                (cond
-                 ;; Curve
-                 ((or
-                   (edraw-path-anchor-has-forward-handle anchor-prev)
-                   (edraw-path-anchor-has-backward-handle anchor))
-                  (setq segments
-                        (edraw-path-data-to-seglist--push
-                         segments
-                         last-xy
-                         (edraw-path-anchor-forward-handle-xy anchor-prev)
-                         (edraw-path-anchor-backward-handle-xy anchor)
-                         (edraw-path-anchor-xy anchor))))
-                 ;; Straight Line
-                 (t
-                  (setq segments
-                        (edraw-path-data-to-seglist--push
-                         segments
-                         last-xy
-                         (edraw-path-anchor-xy anchor)))))))
-            (setq last-xy (edraw-path-anchor-xy anchor)))
-          ;; Close
-          (let ((first-anchor (edraw-path-subpath--anchor-first subpath))
-                (last-anchor (edraw-path-subpath--anchor-last subpath)))
-            (when (or (edraw-path-subpath-closed-p subpath)
-                      (and needs-closed-p
-                           (not (edraw-xy-equal-p
-                                 (edraw-path-anchor-xy first-anchor)
-                                 (edraw-path-anchor-xy last-anchor)))))
-              ;; If the subpath is closed by a curve, a closing segment
-              ;; is required
-              (if (or (edraw-path-anchor-has-backward-handle first-anchor)
-                      (edraw-path-anchor-has-forward-handle last-anchor))
-                  (setq segments
-                        (edraw-path-data-to-seglist--push
-                         segments
-                         last-xy
-                         (edraw-path-anchor-forward-handle-xy last-anchor)
-                         (edraw-path-anchor-backward-handle-xy first-anchor)
-                         (edraw-path-anchor-xy first-anchor)))
+      (setq segments
+            (nconc
+             segments
+             (edraw-path-subpath-to-seglist subpath needs-closed-p))))
+    segments))
+;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)])
+
+(defun edraw-path-subpath-to-seglist (subpath &optional needs-closed-p)
+  "Convert subpath to segment list."
+  (let (segments)
+    (unless (edraw-path-subpath-empty-p subpath) ;; Ignore empty subpath
+      (let (last-xy)
+        (edraw-path-subpath-anchor-loop subpath anchor
+          (when last-xy ;;Ignore first anchor
+            (let ((anchor-prev (edraw-path-anchor-prev anchor)))
+              (cond
+               ;; Curve
+               ((or
+                 (edraw-path-anchor-has-forward-handle anchor-prev)
+                 (edraw-path-anchor-has-backward-handle anchor))
                 (setq segments
                       (edraw-path-data-to-seglist--push
                        segments
                        last-xy
-                       (edraw-path-anchor-xy first-anchor)))))))))
+                       (edraw-path-anchor-forward-handle-xy anchor-prev)
+                       (edraw-path-anchor-backward-handle-xy anchor)
+                       (edraw-path-anchor-xy anchor))))
+               ;; Straight Line
+               (t
+                (setq segments
+                      (edraw-path-data-to-seglist--push
+                       segments
+                       last-xy
+                       (edraw-path-anchor-xy anchor)))))))
+          (setq last-xy (edraw-path-anchor-xy anchor)))
+        ;; Close
+        (let ((first-anchor (edraw-path-subpath--anchor-first subpath))
+              (last-anchor (edraw-path-subpath--anchor-last subpath)))
+          (when (or (edraw-path-subpath-closed-p subpath)
+                    (and needs-closed-p
+                         (not (edraw-xy-equal-p
+                               (edraw-path-anchor-xy first-anchor)
+                               (edraw-path-anchor-xy last-anchor)))))
+            ;; If the subpath is closed by a curve, a closing segment
+            ;; is required
+            (if (or (edraw-path-anchor-has-backward-handle first-anchor)
+                    (edraw-path-anchor-has-forward-handle last-anchor))
+                (setq segments
+                      (edraw-path-data-to-seglist--push
+                       segments
+                       last-xy
+                       (edraw-path-anchor-forward-handle-xy last-anchor)
+                       (edraw-path-anchor-backward-handle-xy first-anchor)
+                       (edraw-path-anchor-xy first-anchor)))
+              (setq segments
+                    (edraw-path-data-to-seglist--push
+                     segments
+                     last-xy
+                     (edraw-path-anchor-xy first-anchor))))))))
     (nreverse segments)))
-;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)])
 
 (defun edraw-path-data-to-seglist--push (segments &rest points)
   ;; Exclude length=0
@@ -2335,7 +2350,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
 
 ;;;;; Bezier Segment
 
-(defun edraw-path-bezier-seg-straight-p (seg)
+(defun edraw-path-bezier-seg-straight-p (seg &optional flatness)
   (let* ((p0 (elt seg 0))
          (p1 (elt seg 1))
          (p2 (elt seg 2))
@@ -2344,7 +2359,7 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
          (v01 (edraw-xy-sub p1 p0))
          (v32 (edraw-xy-sub p2 p3))
          (d03 (edraw-xy-length v03))
-         (flatness 0.5)
+         (flatness (or flatness 0.5))
          (flatness-sq (* flatness flatness))
          (allowable-perpdot (* flatness d03))
          (allowable-dot (* 0.5 d03)))
@@ -2363,6 +2378,8 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
       nil) ;;p2 is before p0 or after p3
      (t t))))
 ;; TEST: (edraw-path-bezier-seg-straight-p [(10 . 10) (12 . 10) (18 . 10) (20 . 10)]) => t
+;; TEST: (edraw-path-bezier-seg-straight-p [(10 . 10) (12 . 10.5) (18 . 9.5) (20 . 10)]) => t
+;; TEST: (edraw-path-bezier-seg-straight-p [(10 . 10) (12 . 10.51) (18 . 9.5) (20 . 10)]) => nil
 
 (defun edraw-path-bezier-seg-rough-aabb (seg)
   "Return the rough axis-aligned bounding box of SEG."
@@ -2396,6 +2413,293 @@ bezier curve line: [(x0 . y0) (x1 . y1) (x2 . y2) (x3 . y3)]
      (vector p0 q0 r0 s)
      (vector s r1 q2 p3))))
 
+
+;;;;; Length
+
+(defun edraw-path-bezier-seg-small-p (seg length)
+  "Return non-nil if the cubic bezier SEG is small enough relative to LENGTH."
+  (let* ((p0 (elt seg 0))
+         (p1 (elt seg 1))
+         (p2 (elt seg 2))
+         (p3 (elt seg 3))
+         (len-sq (* length length)))
+    (and
+     (< (edraw-xy-distance-squared p0 p1) len-sq)
+     (< (edraw-xy-distance-squared p0 p2) len-sq)
+     (< (edraw-xy-distance-squared p0 p3) len-sq)
+     (< (edraw-xy-distance-squared p1 p2) len-sq)
+     (< (edraw-xy-distance-squared p1 p3) len-sq)
+     (< (edraw-xy-distance-squared p2 p3) len-sq))))
+
+(defun edraw-path-seg-length (seg epsilon)
+  "Return the length of SEG.
+
+EPSILON is the threshold of the allowable error. The smaller it is, the
+more accurate the result will be, but the slower it will be. The actual
+length error will accumulate during the complex calculation process, so
+it will almost always be larger than this value."
+  (cond
+   ((= (length seg) 2)
+    (edraw-xy-distance (elt seg 0) (elt seg 1)))
+   ((or (edraw-path-bezier-seg-straight-p seg)
+        (edraw-path-bezier-seg-small-p seg epsilon))
+    (edraw-xy-distance (elt seg 0) (elt seg 3)))
+   (t
+    (let ((seg2 (edraw-path-bezier-seg-divide seg)))
+      (+ (edraw-path-seg-length (car seg2) epsilon)
+         (edraw-path-seg-length (cdr seg2) epsilon))))))
+
+(defun edraw-path-seglist-length (seglist epsilon)
+  "Return the length of SEGLIST.
+
+EPSILON is the threshold of the allowable error. The smaller it is, the
+more accurate the result will be, but the slower it will be. The actual
+length error will accumulate during the complex calculation process, so
+it will almost always be larger than this value."
+  (cl-loop for seg in seglist
+           sum (edraw-path-seg-length seg epsilon)))
+
+;;;;; Iterate on Segments
+
+(defun edraw-path-seg-for-each-intervals (seg interval-length
+                                              dist-from-start
+                                              epsilon
+                                              function)
+  "Call FUNCTION at points on line SEG with a constant INTERVAL-LENGTH."
+  (cond
+   ((= (length seg) 2)
+    (edraw-path-straight-seg-for-each-intervals (elt seg 0) (elt seg 1)
+                                                interval-length
+                                                dist-from-start function))
+   ((or (edraw-path-bezier-seg-straight-p seg)
+        (edraw-path-bezier-seg-small-p seg epsilon))
+    (edraw-path-straight-seg-for-each-intervals (elt seg 0) (elt seg 3)
+                                                interval-length
+                                                dist-from-start function))
+   (t
+    (let ((seg2 (edraw-path-bezier-seg-divide seg)))
+      (setq dist-from-start
+            (edraw-path-seg-for-each-intervals
+             (car seg2) interval-length dist-from-start epsilon function))
+      (setq dist-from-start
+            (edraw-path-seg-for-each-intervals
+             (cdr seg2) interval-length dist-from-start epsilon function))
+      dist-from-start))))
+
+(defun edraw-path-straight-seg-for-each-intervals (p0 p1
+                                                      interval-length
+                                                      dist-from-start
+                                                      function)
+  (if (edraw-xy-equal-p p0 p1)
+      ;; Ignore empty segment
+      dist-from-start
+    (let* ((length (edraw-xy-distance p0 p1))
+           (bos dist-from-start)
+           (eos (+ dist-from-start length)))
+      (cl-loop for interval-index from (ceiling (/ bos interval-length))
+               for curr-dist = (* interval-index interval-length)
+               while (< curr-dist eos) ;; NOTE: P1 is not included
+               do (funcall function
+                           ;; Number of intervals
+                           interval-index
+                           ;; Distance from start point
+                           curr-dist
+                           ;; Position
+                           (edraw-xy-interpolate
+                            p0
+                            p1
+                            (/ (- curr-dist bos) length))
+                           ;; Tangent vector
+                           (edraw-xy-normalize
+                            (edraw-xy-sub p1 p0))))
+      eos)))
+
+(defun edraw-path-seglist-for-each-intervals (seglist
+                                              interval-length
+                                              dist-from-start
+                                              epsilon
+                                              function)
+  (dolist (seg seglist)
+    (setq dist-from-start
+          (edraw-path-seg-for-each-intervals
+           seg interval-length dist-from-start epsilon function)))
+  ;; TODO: generate last point? how calculate tangent?
+  ;;(when (= (mod dist-from-start interval-length) 0) )
+  )
+
+
+;;;;; Generate shapes along segments
+
+(defun edraw-generate-path-subpath-zigzag-line-along-seglist
+    (seglist closed wavelength amplitude &optional noerror)
+  "Generate a zigzag line along SEGLIST.
+Return an `edraw-path-subpath' object.
+When CLOSED is non-nil, it means SEGLIST is a closed path.
+WAVELENGTH and AMPLITUDE are generation parameters.
+When NOERROR is non-nil, errors are ignored and the function returns nil."
+  (when (and (not noerror) (null seglist))
+    (error "Empty seglist"))
+  (when seglist
+    (let* ((epsilon 0.1)
+           (seglist-length (edraw-path-seglist-length seglist epsilon))
+           (num-waves (ceiling (/ seglist-length wavelength)))
+           (actual-wavelength (/ seglist-length num-waves))
+           (subpath (edraw-path-subpath closed)))
+      (when (and (not noerror) (zerop seglist-length))
+        (error "seglist length is 0"))
+      (unless (zerop seglist-length)
+        ;; First point
+        (unless closed
+          (edraw-path-subpath-add-new-anchor subpath (elt (car seglist) 0)))
+
+        (edraw-path-seglist-for-each-intervals
+         seglist
+         (* 0.5 actual-wavelength)
+         (- (* 0.25 actual-wavelength))
+         epsilon
+         (lambda (i _dist pt tan)
+           (edraw-path-subpath-add-new-anchor
+            subpath
+            (edraw-xy-add pt (edraw-xy-nmul
+                              (if (cl-oddp i) (- amplitude) amplitude)
+                              (edraw-xy-rot90 tan))))))
+        ;; Last point
+        (unless closed
+          (let ((last-seg (car (last seglist))))
+            (edraw-path-subpath-add-new-anchor subpath
+                                               (if (= (length last-seg) 2)
+                                                   (elt last-seg 1)
+                                                 (elt last-seg 3)))))
+        subpath))))
+
+(defun edraw-generate-path-subpath-wavy-line-along-seglist
+    (seglist closed wavelength amplitude &optional noerror)
+  "Generate a wavy line along SEGLIST.
+Return an `edraw-path-subpath' object.
+When CLOSED is non-nil, it means SEGLIST is a closed path.
+WAVELENGTH and AMPLITUDE are generation parameters.
+When NOERROR is non-nil, errors are ignored and the function returns nil."
+  (when (and (not noerror) (null seglist))
+    (error "Empty seglist"))
+  (when seglist
+    (let* ((epsilon 0.1)
+           (seglist-length (edraw-path-seglist-length seglist epsilon))
+           (num-waves (ceiling (/ seglist-length wavelength)))
+           (actual-wavelength (/
+                               (if closed
+                                   seglist-length
+                                 ;; Reduce slightly to include the end point
+                                 (if (< seglist-length 1.0)
+                                     (* seglist-length 0.99)
+                                   (- seglist-length 0.01)))
+                               num-waves))
+           (subpath (edraw-path-subpath closed)))
+      (when (and (not noerror) (zerop seglist-length))
+        (error "seglist length is 0"))
+      (unless (zerop seglist-length)
+        (edraw-path-seglist-for-each-intervals
+         seglist
+         (* 0.5 actual-wavelength) 0 epsilon
+         (lambda (i _dist pt tan)
+           (let ((forward-handle
+                  (edraw-xy-add
+                   (edraw-xy-nmul (if (cl-oddp i) (- amplitude) amplitude)
+                                  (edraw-xy-rot90 tan))
+                   (edraw-xy-nmul (* 0.2 wavelength)
+                                  tan))))
+             (edraw-path-subpath-add-new-anchor subpath
+                                                pt
+                                                (edraw-xy-neg forward-handle)
+                                                forward-handle))))
+        subpath))))
+
+(defun edraw-coil-line-fun (phase rx ry wavelength phase-shift)
+  (let* ((th (/ (* 2 float-pi (+ phase phase-shift)) 4))
+         (x (+ (* (- 1 (cos th)) rx) (* 0.25 wavelength phase-shift)))
+         (y (* (sin th) ry)))
+    (edraw-xy x y)))
+
+(defun edraw-generate-path-subpath-coil-line-along-seglist
+    (seglist closed wavelength amplitude aspect-ratio &optional noerror)
+  "Generate a coil line along SEGLIST.
+Return an `edraw-path-subpath' object.
+When CLOSED is non-nil, it means SEGLIST is a closed path.
+WAVELENGTH and AMPLITUDE are generation parameters.
+When NOERROR is non-nil, errors are ignored and the function returns nil."
+  (when (and (not noerror) (null seglist))
+    (error "Empty seglist"))
+  ;; TODO: Calculate more accurately.
+  ;;
+  ;; To calculate more accurately, we need to consider two things:
+  ;; - Fitting the coil generation function with a Bezier curve
+  ;; - More detailed transformation of coordinates along the path
+
+  ;; The correct coil line can be generated with the following code:
+  ;; (require 'svg)
+  ;; (let ((wavelength 50)
+  ;;       (amplitude 100)
+  ;;       (aspect-ratio 0.5)
+  ;;       (svg (svg-create 640 480 :viewBox "0 -240 640 480")))
+  ;;   (svg-rectangle svg 0 -240 640 480 :fill "#ccc" :stroke "none")
+  ;;   (svg-line svg 0 0 640 0 :stroke "red" :fill "none")
+  ;;   (svg-polyline
+  ;;    svg
+  ;;    (cl-loop for d from 0 to 640
+  ;;             for th = (/ (* 2 float-pi d) wavelength)
+  ;;             collect
+  ;;             (cons
+  ;;              (+ (* (- 1 (cos th)) amplitude aspect-ratio) d)
+  ;;              (* (sin th) amplitude)))
+  ;;    :stroke "blue" :fill "none")
+  ;;   (svg-insert-image svg))
+
+  (when seglist
+    (let* ((epsilon 0.1)
+           (seglist-length (edraw-path-seglist-length seglist epsilon))
+           (num-waves (ceiling (/ seglist-length wavelength)))
+           (actual-wavelength (/
+                               (if closed
+                                   seglist-length
+                                 ;; Reduce slightly to include the end point
+                                 (if (< seglist-length 1.0)
+                                     (* seglist-length 0.9999)
+                                   (- seglist-length 0.01)))
+                               num-waves))
+           (rx (* aspect-ratio amplitude))
+           (ry amplitude)
+           (subpath (edraw-path-subpath closed)))
+      (when (and (not noerror) (zerop seglist-length))
+        (error "seglist length is 0"))
+      (unless (zerop seglist-length)
+        (edraw-path-seglist-for-each-intervals
+         seglist
+         (* 0.25 actual-wavelength) 0 epsilon
+         (lambda (i _dist pt tan)
+           (let* ((phase (% i 4))
+                  (p0 (edraw-coil-line-fun phase rx ry actual-wavelength 0))
+                  (p1 (edraw-coil-line-fun phase rx ry actual-wavelength 0.4))
+                  (anchor-pt
+                   (edraw-xy-add pt (edraw-xy-complex-mul p0 tan)))
+                  (handle-vec
+                   (pcase phase
+                     ;; Tilt slightly when crossing the path (phase=0, 2).
+                     (0 (let ((p2 (edraw-coil-line-fun
+                                   phase rx ry actual-wavelength 0.2)))
+                          (edraw-xy (- (edraw-x p2) (edraw-x p0))
+                                    (- (edraw-y p1) (edraw-y p0)))))
+                     (1 (edraw-xy (- (edraw-x p1) (edraw-x p0)) 0))
+                     (2 (let ((p2 (edraw-coil-line-fun
+                                   phase rx ry actual-wavelength -0.2)))
+                          (edraw-xy (- (edraw-x p0) (edraw-x p2))
+                                    (- (edraw-y p1) (edraw-y p0)))))
+                     (3 (edraw-xy (- (edraw-x p1) (edraw-x p0)) 0))))
+                  (forward-handle
+                   (edraw-xy-complex-mul handle-vec tan)))
+             (edraw-path-subpath-add-new-anchor subpath
+                                                anchor-pt
+                                                (edraw-xy-neg forward-handle)
+                                                forward-handle))))
+        subpath))))
 
 
 ;;;; SVG Path Data Parser

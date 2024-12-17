@@ -568,6 +568,9 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "pp" 'edraw-editor-edit-properties-of-selected-shapes)
     (define-key km "p<" 'edraw-editor-set-marker-start-next-selected)
     (define-key km "p>" 'edraw-editor-set-marker-end-next-selected)
+    (define-key km "~z" 'edraw-editor-generate-zigzag-path-along-selected)
+    (define-key km "~w" 'edraw-editor-generate-wavy-path-along-selected)
+    (define-key km "~c" 'edraw-editor-generate-coil-path-along-selected)
     (define-key km (kbd "M-RET") 'edraw-editor-edit-properties-of-selected-shapes)
     (define-key km (kbd "<delete>") 'edraw-editor-delete-selected)
     (define-key km (kbd "<left>") 'edraw-editor-move-selected-by-arrow-key)
@@ -8498,19 +8501,28 @@ may be replaced by another mechanism."
          (multi-subpaths-p (edraw-contains-multiple-subpaths-p shape)))
     (append
      items
-     `(((edraw-msg "Close Path") edraw-close-path-shape
-        :enable ,(and (not multi-subpaths-p)
-                      (edraw-open-path-shape-p shape)))
-       ((edraw-msg "Open Path") edraw-open-path-shape
-        :enable ,(and (not multi-subpaths-p)
-                      (edraw-closed-path-shape-p shape)))
-       ((edraw-msg "Split Subpaths") edraw-split-subpaths
-        :enable ,multi-subpaths-p)
-       ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
-       ((edraw-msg "Make Smooth") edraw-make-smooth
-        ;;@todo Add more conditions such as contains 3 or more anchor points
-        ;;:enable
-        )))))
+     (edraw-menu-items-shape-common--convert
+      `(((edraw-msg "Close Path") edraw-close-path-shape
+         :enable ,(and (not multi-subpaths-p)
+                       (edraw-open-path-shape-p shape)))
+        ((edraw-msg "Open Path") edraw-open-path-shape
+         :enable ,(and (not multi-subpaths-p)
+                       (edraw-closed-path-shape-p shape)))
+        ((edraw-msg "Split Subpaths") edraw-split-subpaths
+         :enable ,multi-subpaths-p)
+        ((edraw-msg "Reverse Path Direction") edraw-reverse-path)
+        ((edraw-msg "Make Smooth") edraw-make-smooth
+         ;;@todo Add more conditions such as contains 3 or more anchor points
+         ;;:enable
+         )
+        ((edraw-msg "Generate Shape Along Path")
+         (((edraw-msg "Zigzag Line") edraw-generate-zigzag-path-along
+           :cmd-for-selected edraw-editor-generate-zigzag-path-along-selected)
+          ((edraw-msg "Wavy Line") edraw-generate-wavy-path-along
+           :cmd-for-selected edraw-editor-generate-wavy-path-along-selected)
+          ((edraw-msg "Coil Line") edraw-generate-coil-path-along
+           :cmd-for-selected edraw-editor-generate-coil-path-along-selected))))
+      shape))))
 
 
 (cl-defmethod edraw-transform-auto ((shape edraw-shape-path) matrix)
@@ -8911,6 +8923,235 @@ All path objects being processed will be deleted."
 
           t)))))
 
+;;;;;; Generate Repeated Pattern
+
+(defcustom edraw-generate-path-along-replace t
+  "Non-nil means that the shape generated along the path will replace the
+original path."
+  :group 'edraw-editor
+  :type 'boolean)
+
+(cl-defmethod edraw-generate-path-along ((base-shape edraw-shape-path)
+                                         subpath-generator)
+  "Create a new path along BASE-SHAPE.
+
+SUBPATH-GENERATOR is a function that returns a new `edraw-path-subpath'
+object, and takes two arguments: the subpath to process, converted to a
+seglist, and a boolean indicating whether the subpath is a closed path.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (edraw-make-undo-group (edraw-get-editor base-shape) 'generate-path-along
+    (let ((base-path-data (oref base-shape path-data))
+          (new-path-data (edraw-path-data)))
+      ;; Generate new-path-data
+      (edraw-path-data-subpath-loop base-path-data base-subpath
+        (let ((new-subpath (funcall
+                            subpath-generator
+                            (edraw-path-subpath-to-seglist base-subpath)
+                            (edraw-path-subpath-closed-p base-subpath))))
+          (when new-subpath
+            (edraw-path-data-insert-subpath-last new-path-data new-subpath))))
+      ;; Apply new-path-data
+      (unless (edraw-path-data-subpath-empty-p new-path-data)
+        (let ((new-shape (if edraw-generate-path-along-replace
+                             base-shape
+                           (edraw-clone base-shape)))
+              (new-path-d (edraw-path-data-to-string new-path-data)))
+          (edraw-set-property new-shape 'd new-path-d)
+          new-shape)))))
+
+(defun edraw-generate-path-along--get-last-params (editor type)
+  "Get the last used generation parameters."
+  (let* ((ui-state (oref editor ui-state))
+         (root (edraw-ui-state-get ui-state
+                                   'generate-along-path 'last-params))
+         (types (alist-get 'types root)))
+    (alist-get type types)))
+
+(defun edraw-generate-path-along--set-last-params (editor type param-alist)
+  "Save the last used generation parameters."
+  (let* ((ui-state (oref editor ui-state))
+         (root (edraw-ui-state-get ui-state 'generate-along-path 'last-params)))
+    (setf (alist-get type (alist-get 'types root)) param-alist)
+    (edraw-ui-state-set ui-state 'generate-along-path 'last-params root)
+    (ignore-errors ;; TODO: Should errors be handled within edraw-ui-state-save?
+      (edraw-ui-state-save ui-state))))
+
+(defun edraw-generate-path-along--read-params (editor type param-info-list args)
+  "Read generation parameters from ARGS or minibuffer."
+  (if (and (= (length args) (length param-info-list))
+           (seq-every-p #'identity args))
+      args
+    (let* ((last-params
+            (edraw-generate-path-along--get-last-params editor type))
+           (read-params
+            (cl-loop for (name msg default) in param-info-list
+                     collect
+                     (cons
+                      name
+                      (read-number msg (alist-get name last-params default))))))
+      (edraw-generate-path-along--set-last-params editor type read-params)
+      (mapcar #'cdr read-params))))
+
+(defun edraw-generate-zigzag-path-read-params (editor &rest args)
+  (edraw-generate-path-along--read-params
+   editor 'zigzag
+   `((wavelength ,(edraw-msg "Wavelength: ") 20.0)
+     (amplitude ,(edraw-msg "Amplitude: ") 5.0))
+   args))
+
+(cl-defmethod edraw-generate-zigzag-path-along ((shape edraw-shape-path)
+                                                &optional wavelength amplitude)
+  "Generate zigzag lines along the path SHAPE.
+
+WAVELENGTH is the length of one cycle of the repeating pattern.
+
+AMPLITUDE is the distance between the original path and the outermost
+edge of the zigzag line.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (cl-destructuring-bind (wavelength amplitude)
+      (edraw-generate-zigzag-path-read-params
+       (edraw-get-editor shape) wavelength amplitude)
+    (edraw-generate-path-along
+     shape
+     (lambda (seglist closed)
+       (edraw-generate-path-subpath-zigzag-line-along-seglist
+        seglist closed wavelength amplitude t)))))
+
+(edraw-editor-defcmd edraw-generate-zigzag-path-along-selected
+    ((editor edraw-editor) &optional wavelength amplitude)
+  "Generate zigzag lines along selected paths in EDITOR.
+
+WAVELENGTH is the length of one cycle of the repeating pattern.
+
+AMPLITUDE is the distance between the original path and the outermost
+edge of the zigzag line.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (_ (unless (seq-some
+                      (lambda (shape) (cl-typep shape 'edraw-shape-path))
+                      (edraw-selected-shapes editor))
+               (error (edraw-msg "No path selected"))))
+          (params (edraw-generate-zigzag-path-read-params editor)))
+     (cons editor params)))
+  (edraw-make-undo-group editor 'generate-path-along-selected
+    (dolist (shape (edraw-selected-shapes editor))
+      (when (cl-typep shape 'edraw-shape-path)
+        (edraw-generate-zigzag-path-along shape wavelength amplitude)))))
+
+(defun edraw-generate-wavy-path-read-params (editor &rest args)
+  (edraw-generate-path-along--read-params
+   editor 'wavy
+   `((wavelength ,(edraw-msg "Wavelength: ") 20.0)
+     (amplitude ,(edraw-msg "Amplitude: ") 5.0))
+   args))
+
+(cl-defmethod edraw-generate-wavy-path-along ((shape edraw-shape-path)
+                                              &optional wavelength amplitude)
+  "Generate wavy lines along the path SHAPE.
+
+WAVELENGTH is the length of one cycle of the repeating pattern.
+
+AMPLITUDE is the distance between the original path and the outermost
+edge of the zigzag line.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (cl-destructuring-bind (wavelength amplitude)
+      (edraw-generate-wavy-path-read-params
+       (edraw-get-editor shape) wavelength amplitude)
+    (edraw-generate-path-along
+     shape
+     (lambda (seglist closed)
+       (edraw-generate-path-subpath-wavy-line-along-seglist
+        seglist closed wavelength amplitude t)))))
+
+(edraw-editor-defcmd edraw-generate-wavy-path-along-selected
+    ((editor edraw-editor) &optional wavelength amplitude)
+  "Generate wavy lines along selected paths in EDITOR.
+
+WAVELENGTH is the length of one cycle of the repeating pattern.
+
+AMPLITUDE is the distance between the original path and the outermost
+edge of the wavy line.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (_ (unless (seq-some
+                      (lambda (shape) (cl-typep shape 'edraw-shape-path))
+                      (edraw-selected-shapes editor))
+               (error (edraw-msg "No path selected"))))
+          (params (edraw-generate-wavy-path-read-params editor)))
+     (cons editor params)))
+  (edraw-make-undo-group editor 'generate-path-along-selected
+    (dolist (shape (edraw-selected-shapes editor))
+      (when (cl-typep shape 'edraw-shape-path)
+        (edraw-generate-wavy-path-along shape wavelength amplitude)))))
+
+(defun edraw-generate-coil-path-read-params (editor &rest args)
+  (edraw-generate-path-along--read-params
+   editor 'coil
+   `((wavelength ,(edraw-msg "Wavelength: ") 10.0)
+     (amplitude ,(edraw-msg "Amplitude: ") 10.0)
+     (aspect-ratio ,(edraw-msg "Aspect Ratio: ") 0.5))
+   args))
+
+(cl-defmethod edraw-generate-coil-path-along ((shape edraw-shape-path)
+                                              &optional
+                                              wavelength amplitude aspect-ratio)
+  "Generate coil lines along the path SHAPE.
+
+WAVELENGTH is the length of one cycle of the repeating pattern.
+
+AMPLITUDE is the distance between the original path and the outermost
+edge of the zigzag line.
+
+ASPECT-RATIO is the amplitude of the coil in the direction of travel,
+and is specified as a ratio to AMPLITUDE.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (cl-destructuring-bind (wavelength amplitude aspect-ratio)
+      (edraw-generate-coil-path-read-params
+       (edraw-get-editor shape) wavelength amplitude aspect-ratio)
+    (edraw-generate-path-along
+     shape
+     (lambda (seglist closed)
+       (edraw-generate-path-subpath-coil-line-along-seglist
+        seglist closed wavelength amplitude aspect-ratio t)))))
+
+(edraw-editor-defcmd edraw-generate-coil-path-along-selected
+    ((editor edraw-editor) &optional wavelength amplitude aspect-ratio)
+  "Generate coil lines along selected paths in EDITOR.
+
+WAVELENGTH is the length of one cycle of the repeating pattern.
+
+AMPLITUDE is the distance between the original path and the outermost
+edge of the coil line.
+
+If the variable `edraw-generate-path-along-replace' is non-nil, the
+result replaces the path itself."
+  (interactive
+   (let* ((editor (edraw-current-editor))
+          (_ (unless (seq-some
+                      (lambda (shape) (cl-typep shape 'edraw-shape-path))
+                      (edraw-selected-shapes editor))
+               (error (edraw-msg "No path selected"))))
+          (params (edraw-generate-coil-path-read-params editor)))
+     (cons editor params)))
+  (edraw-make-undo-group editor 'generate-path-along-selected
+    (dolist (shape (edraw-selected-shapes editor))
+      (when (cl-typep shape 'edraw-shape-path)
+        (edraw-generate-coil-path-along shape
+                                        wavelength amplitude aspect-ratio)))))
 
 
 ;;;;; Shape - Group
