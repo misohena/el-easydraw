@@ -5464,3 +5464,8 @@ CLOSED: [2024-12-17 Tue 14:04]
   - ~~c~ : edraw-generate-coil-path-along-selected
 - pathのget-actionsにメニューを追加。「Generate Shape Along Path」の下に三種類の項目を追加する。三種類の項目には :cmd-for-selected を追加し、edraw-menu-items-shape-common--convertを使ってキー割り当てを表示する
 - 生成パラメータは保存し次回のデフォルト値とする
+** DONE edraw-path-data-to-seglistの結果が一部欠落する問題を修正する
+CLOSED: [2024-12-17 Tue 23:36]
+edraw-path-data-to-seglistやedraw-path-subpath-to-seglistにおいて、
+空のセグメントがあると(同一サブパス内の)それが現れる前のセグメントが消えてしまう。
+edraw-path-data-to-seglist--pushが確実にsegmentsを返していないのが原因。

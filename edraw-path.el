@@ -1959,6 +1959,7 @@ which is useful for operations like interior-exterior determination."
              (edraw-path-subpath-to-seglist subpath needs-closed-p))))
     segments))
 ;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M10,20 L30,40 L10,20 Z C20,0 80,0 100,20") nil) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (20.0 . 0.0) (80.0 . 0.0) (100.0 . 20.0)])
+;; TEST: (edraw-path-data-to-seglist (edraw-path-data-from-d "M10,20 30,40 10,20 100,200 100,200 120,220")) => ([(10.0 . 20.0) (30.0 . 40.0)] [(30.0 . 40.0) (10.0 . 20.0)] [(10.0 . 20.0) (100.0 . 200.0)] [(100.0 . 200.0) (120.0 . 220.0)])
 
 (defun edraw-path-subpath-to-seglist (subpath &optional needs-closed-p)
   "Convert subpath to segment list."
@@ -2020,7 +2021,8 @@ which is useful for operations like interior-exterior determination."
             (not (edraw-xy-list-equal-all-p points)))
     (push (apply #'vector
                  (mapcar #'edraw-xy-clone points))
-          segments)))
+          segments))
+  segments)
 
 ;;;;; Path and Rectangle Intersection Test
 
