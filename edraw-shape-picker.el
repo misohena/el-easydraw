@@ -2176,6 +2176,8 @@ The following commands are available on thumbnails:
       ;;  Mode
       (setq-local mode-name "EShapes")
       (setq-local major-mode 'edraw-shape-picker-file-mode)
+      ;;  Disable adding a newline at the end of the file
+      (setq-local require-final-newline nil)
       ;;  Hooks
       (add-hook 'write-contents-functions #'edraw-shape-picker-file-mode--save-buffer nil t)
       (add-hook 'change-major-mode-hook #'edraw-shape-picker-file-mode--maybe-devisualize nil t)
