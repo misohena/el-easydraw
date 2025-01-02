@@ -10715,16 +10715,34 @@ Even if a handle is valid, it may not have any effect as a
          (when xy-src-next-inside
            (let* ((dst-shape-center (edraw-shape-center dst))
                   (dir (edraw-xy-sub xy-src-next-inside dst-shape-center))
-                  (len-sq (edraw-xy-length-squared dir)))
-             (when (> len-sq 1e-6)
-               (let ((xy (car (last (edraw-svg-element-and-line-intersections
-                                     (edraw-element (oref dst shape))
-                                     dst-shape-center
-                                     dir)))))
+                  (dist-dstc-to-src-sq (edraw-xy-length-squared dir)))
+             (when (> dist-dstc-to-src-sq 1e-6)
+               (let ((xy
+                      (car (last (edraw-svg-element-and-line-intersections
+                                  (edraw-element (oref dst shape))
+                                  dst-shape-center
+                                  dir)))))
                  ;; Add gap
                  (let ((gap (edraw-gap-distance src (oref dst shape))))
-                   (when (and gap (/= gap 0))
-                     (setq xy (edraw-xy-add xy (edraw-xy-nmul (/ gap (sqrt len-sq)) dir)))))
+                   (when (and (numberp gap) (/= gap 0))
+                     (let* ((dist-dstc-to-src (sqrt dist-dstc-to-src-sq))
+                            (dist-dstc-to-edge (edraw-xy-distance
+                                                xy dst-shape-center))
+                            (dist-src-to-edge (edraw-xy-distance
+                                               xy-src-next-inside xy))
+                            (max-gap
+                             (if (<= dist-dstc-to-src dist-dstc-to-edge)
+                                 ;; src is inside dst
+                                 0
+                               ;; Limit to src-edge distance
+                               ;; If it is exceeded, the marker will be reversed
+                               (max 0 (- dist-src-to-edge 1))))
+                            (gap (min max-gap gap)))
+                       (when (> gap 0)
+                         (setq xy (edraw-xy-add xy
+                                                (edraw-xy-nmul
+                                                 (/ gap dist-dstc-to-src)
+                                                 dir)))))))
                  ;;(message "Compute dst %s to %s (dir=%s) = %s" dst-shape-center xy-src-next-inside dir xy)
                  (edraw-set-xy src xy)
                  xy))))
