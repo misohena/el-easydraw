@@ -2,6 +2,15 @@
 
 * Inbox
 ** TODO keymapに項目名を入れる
+** TODO マーカー/プロパティエディタで「-」ボタンが消えることがある :BUG:
+マーカータイプを選択してから「+」で開き、markerWidthをドラッグやホイールで変更すると-がボタンでは無くなる。 *プロパティエディタバッファが選択されていない時に起きる*
+
+[[*図形生成/プロパティエディタで「-」ボタンが消えることがある][図形生成/プロパティエディタで「-」ボタンが消えることがある]] も同じかも？
+
+** TODO 点接続/マーカーのoverhang量よりも近づいたときの問題を直す :BUG:
+
+[[edraw:data=H4sIAK8jdmcAA61TTY+bMBD9K5ZzSaQYbEhYiAApe6qqVpV66NeNggErxEbGCey/7xgTZVfa1e6hsoxnxh6/98ZDOlwbNIrKtBkOdhSjloumNeBQcKZzJ4cMt8b0B98fx9EbQ0/pxodd6kMqRleuB6FkhpnHloTD1Al5ei2NJUniz7s4TyteD0hUGeaVLkZiXYieC33i+mWcUNKqrlPgiOKsZIWRO/bTEWeWq4t8WujPoV7zgesrPw49L833wgiVYakkB9qCj49qyjDZU2QnJKA5SfP6V4ad8Xs2lBZcwp3FxSiMBqPViWd4xagdtwBZighFqEXXLTh52hemRSDmK91StNuSEMWzEf7ByM9T39EGw+rPUw1E0TTDPs3fN9/mXqG/RXlqtLrYutzYOZWOyaqu6xmseZ6kqie84FWFKYgL2wNhXD6USVDe82M73pUe3Bnu7sxZ4LTYZXKL/zpuEMa7PQ/j/4vLgr23n6HjyBr+8iau8IRLQL7obr16u902+DnVXglpSKmkBA3Q+vCDHNeEbQ7fHj+vbxo22+OautCtnPYW6IOYooj+AHZfHiIvYWGCGIu9mEXRi875gGjbPg1M+A/zf09H8HvIAwAA]]
+
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -643,6 +652,23 @@ etc
 [[edraw:data=H4sIAAT7V2YAA6WQUU7EIBCGr0LG5xZa3Y3dlN6lFkpJKxjApetbu8nGRN88hvEAXkcuIu1q4oM+mWGGEP7vn8mUdi+Ql8x1FPJrAqjjUnSOQkbiY7wdlKXQOXe3w9h7n/rLVBuBc0IIjiigPTdWahWBNPsCduMgVf8blhVFgddfqErDG4dGCrHPYa1/jiEZBc5M7ZObuumF0feKAbLO6J5TUFpxQK0cBgoXbdsCwlUpfkKaHWI/x0f3LcvIEpHSyiVWPkSbbAtokSS1ajptKFhXG7fOtl1Wcb7wf3yuNqvPJofq4/QSpvN5DcdTmN/C/B6Oj2F6DtMc5qcSLyZViUXMuOnqE3lcxBSqAQAA]]
 
 - GUI変形の時に出る拡大率がおかしいような？
+
+** TODO マーカー/マーカー選択ダイアログを作る
+edraw-marker-pickerを作成する。メニューの代わりに使用できるようにする。
+child-frameで表示する。出来なければメニューで十分だと思う。
+** TODO マーカー/自動的に方向を調整する
+参照点を矢印先端(refX=0, refY=0)にしつつ、矢印の末尾が線上を通るようにマーカーを回転させる。
+
+[[edraw:data=H4sIABEidmcAA91UTY+bMBD9K6PJZSsFsCGhZIWR2l566aWXtkd3MR8KsdHghOy/rzFEySq7qva6AiP7eT7emxmRD6cazodODwIba/vHKBrHMRyT0FAdxYyxyFngbPJ47lq9f82Q73a7yN8ijG1pG4FJxhAa1daNFRhv3OGkaGiNFshDjkVeqmqAthSoSpJjMB0depC0V/QSD1hgeqUDSWRGhNnk15yGM3ZBvi/JPNSTGhSd1JehV0/2p7StEaiNVo5Hq8av5iww2DKYlnMA70Sq+i1w3vzxG0Ot0i6mPFqDMFgyeyVwxdn0XIBgkcwRqrbrljxF3kvbgBPyI0jXQQJs7dKl6wTBktRDZeggkIyVVj3wjH1CiIo8mrW8UQj+wQpxKziaJqDIybGEs8/57L9vztO1NH/l074mc9TlldoscaaxqqrKJ6tvnUz5fOE2cwgGK8lFP1L3sHp9+lyTJh0pg4x92zBwr2sdxAwSNmEvhP+vTLHn5AncXdy53sZdKPDUc+DxTGLq3sTCwdfAizKlyztd/F7XNgu3wDdZ+HkL6RLp3YKi2i331yj+AZqQGu5dBAAA]]
+
+問題:
+
+- 計算方法 : 線の端点から一定距離を最初に超えた場所を探す
+  - 見つからない場合がある
+  - 適切ではない場合がある
+- 更新タイミング
+- 通過点指定方法 : マーカータイププロパティで指定する
+- 中空抜き色 : これだけやっても、中空菱形や中空三角形などでは問題が生じる
 
 ** TODO パス編集/空のパスをどうするか
 現在までに見つかっている問題:
@@ -5489,3 +5515,35 @@ Doom Emacsで
 と出るらしい。 "save-buffer: Text is read-only" で検索すると、image-modeで同じエラーが出る問題についての議論が見つかる。 require-final-newline が非nilのときにこの問題が起こるらしい。試しにshape pickerバッファで (setq require-final-newline t) にしてみるとエラーが出た。ファイル末尾に改行を追加しようとしてエラーが出るということなのだろうか？ (ppでの出力はちゃんと最後に改行が入るはずではあるのだけど)
 
 hexl-modeは ~(setq-local require-final-newline nil)~ している。これにならって edraw-shape-picker-file-mode でも同じようにしたところ、エラーは出なくなった。hookで非nilにされている場合は無意味だけどとりあえずこれで試して貰う。
+** DONE UMLに使うための最低限のマーカーを追加する
+CLOSED: [2025-01-02 Thu 12:58]
+ついでにできるだけ拡張しやすくする。
+
+追加するマーカータイプ:
+- open-arrow (後ろが空いた線のみの矢印)
+- hollow-diamond (中空菱形)
+- filled-diamond (塗りつぶし菱形)
+- hollow-triangle (中空三角)
+- filled-triangle (塗りつぶし三角)
+- hollow-circle (中空円)
+- filled-circle (塗りつぶし円)
+
+参照点(refX, refY)について。open-arrowのみ矢印の先端を参照点にする。その他は矢印の末尾を参照点にする。基本的に矢印の先頭を参照点にした方が使いやすくなるが、曲線を使ったときに矢印の末尾が線と交差せず見た目が悪くなってしまう。参照点が末尾だと手動の位置合わせが面倒になるが、接着機能で使う分には問題ない。
+
+マーカータイプ情報(edraw-svg-marker-types)に次の拡張を行う。
+
+- :path-dataプロパティを追加。:creatorの代わりにこれを使うことで、パスデータ文字列で図形を定義できるようにする。
+- :overhangに数値を指定出来るようにする。
+- :get-propsは:path-dataがある場合はデフォルトでedraw-svg-marker-path-propsを使う。
+- :prop-info-listは:path-dataがある場合はデフォルトでedraw-svg-marker-path-prop-info-listを使う。
+
+マーカーをメニューなどから選択して設定するコマンドを追加する。
+- edraw-editor-set-marker-start-selected (p m <)
+- edraw-editor-set-marker-end-selected (p m >)
+- edraw-set-marker-start-selected editor
+- edraw-set-marker-end-selected editor
+- edraw-set-marker-start-by-menu holder
+- edraw-set-marker-end-by-menu holder
+
+
+[[edraw:data=H4sIAOsadmcAA92ZX2+rNhTAv4rFfUmlkNjYGFMlkdr7sGnSNOle6d5tby44CWqCI6BNu08/G5uEBlJSkklr1KIQ13DO7/zzsTvJnxfgZb1K86mzLIrN7Xi83W5HWzyS2WLsQQjHaoZjpty+rJL0sW0iCsNwXP7VAdskLpZTx6fQAUuRLJbF1CGe+vIssjyR6dRBI+TMJrGY5yCJp46IM7519Vc1uubZo8jejrvQXcrVSm7dIkt4ulgJB5h5P40sBGE18quVWA5tMpGL7Fnc5RsRFd94kcipk8pUPf+ciO29fJk6rg+BvtQDoHwoE/M/p465+au8kVkiUvVO/lRIB+RFJh/F1PmCoP6pBlzLjRwwT1YrK2c22fBiCRTN73DoYkCHEMAh/tsB49lkbFQ+Ao2uELrIeJrPZbaeOpkseCEGiMGbE4zhuXIjUpdnmdx+Rju4VBsCKkOoO3wCMGllpYek9EROpASry9O/p1OatxxBrExQp0TK34GWNAwAGcJzPO5fiQE6QakbJVnUSG9ySEpODWkV0SqYAbo8p1EURC/lq6JX8+pStd5+Dq4CvxOTXVkB6+1v5Llagog/1brWkuuXWtoQvk6DdIOTqsNprQD/S2ybFrVK4NUrgXdOHPjXaI5ubFqF/+fBbl0SLhcIwZVapJt8t+eJE76WafwZ0JtbHqhaP1UKWXlz1toQVpHwiezRujJcziT4ak3SnR7wOtOjG5xd+9I41sdfs0mm9ARme2FmHj1M2xvogUePi0w+6XB4u6GxwTefz0thi/pDMn6tewVDvTGGP4g2QQ1gjzufs4hFh7gGY/ca/6zXlPQxL7hrlNTqhpT5PPLpnobpn04/eHt7sb0dSw8ryyJtwhf7/Yhkgb3A9zg7QzKtSaZGshXsvSMYx1744D2gCwkmb5ExgXufmfBzRarEPmWrwZd3zlxVca4pupFJWriRTFNFkEh9fnw3gDe3f9z/Nqh8djO8G7jIjFXW1G9RgYLCYOQFXgCQPpHBeARDEgAWjigL0ZHQOUp9QJMXPCsaPI3j1NN5drrXeConWR6M4YixkGgERPwA4ACB0uQfRmkNiSCmnEf4QiHBbCxSExItEdFuw8N25MZ5L4LqZ7bnBU+FXwUPQSMIAwY8xEaEhBQg7I9ggCjw/GAEMQnPDKE2HH9H8q6NyB64qqse/Ip1mBO14EH76ZXj3wkrCybwzbz/QO3qfK1Lb7qf1xDTUKSu5Q6TWExqManFJBbTs5gnFqCD8HlXefZ2bk8AagGYBWAWgFoAYgHoaQCNdq2LorH96Y/CDIq+1yjlp0EzKNSisNNQDpvuLpKWQtEPRF0GxLMgngFR4waEGRAM+69qH142eqLYMoBtGcC2DGBbBrAtA9g7Mbwa54adLI2j1/4wNtmxTXZskx3bZMc22U/tNg4PvzpRSGN+TxCb9NgmPbZJj23SY5v0+NSkPzi86QShjfk9QWzKE1i7DJgBsSmP2fHOM4bCjxmMzmgzyL7NOOx4j/f4ocCqVyIXFVu29nu5pd/s4zHPl2qp4K+1fzO1O5N9LCrZxzqeqr2p+HXLY7ugyhO2jVAbVIp/hH36g0K8FF2a3N3fD+DIB+pqdOtvTzDAXKqn8+Qfobc09uucr5OVMmbO09xVO+5E7Te1WJen0VKqze46iWO9a3/VO1njFRWFs+9LvhGTsZ7aU89ds3hxPRE1iiJfKfqLSEXGC5mdpWxty3BpZa1ViT5j+qZUOE/Pfbd9YT290BoVa+/LpywSX2W8C4HxQl3582L2L37yYHSWJAAA]]

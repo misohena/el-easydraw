@@ -148,15 +148,18 @@
 (defun edraw-popup-menu-style ()
   (if (memq edraw-popup-menu-style '(x tmm))
       edraw-popup-menu-style
-    (if (if (fboundp 'use-dialog-box-p) ;; Emacs 28 or later
-            (use-dialog-box-p)
-          ;; Emacs 27 behavior
-          (and (display-popup-menus-p)
-               last-input-event
-               (listp last-nonmenu-event)
-               use-dialog-box))
+    (if (edraw-use-dialog-box-p)
         'x
       'tmm)))
+
+(defun edraw-use-dialog-box-p ()
+  (if (fboundp 'use-dialog-box-p) ;; Emacs 28 or later
+      (use-dialog-box-p)
+    ;; Emacs 27 behavior
+    (and (display-popup-menus-p)
+         last-input-event
+         (listp last-nonmenu-event)
+         use-dialog-box)))
 
 (defun edraw-popup-menu (name items &rest args)
   (if (eq (edraw-popup-menu-style) 'tmm)

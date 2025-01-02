@@ -568,6 +568,8 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "pp" 'edraw-editor-edit-properties-of-selected-shapes)
     (define-key km "p<" 'edraw-editor-set-marker-start-next-selected)
     (define-key km "p>" 'edraw-editor-set-marker-end-next-selected)
+    (define-key km "pm<" 'edraw-editor-set-marker-start-selected)
+    (define-key km "pm>" 'edraw-editor-set-marker-end-selected)
     (define-key km "~z" 'edraw-editor-generate-zigzag-path-along-selected)
     (define-key km "~w" 'edraw-editor-generate-wavy-path-along-selected)
     (define-key km "~c" 'edraw-editor-generate-coil-path-along-selected)
@@ -3569,6 +3571,12 @@ document size or view box."
                                                           edraw-editor))
   (edraw-set-marker-end-next (edraw-selected-multiple-shapes editor)))
 
+(edraw-editor-defcmd edraw-set-marker-start-selected ((editor edraw-editor))
+  (edraw-set-marker-start-by-menu (edraw-selected-multiple-shapes editor)))
+
+(edraw-editor-defcmd edraw-set-marker-end-selected ((editor edraw-editor))
+  (edraw-set-marker-end-by-menu (edraw-selected-multiple-shapes editor)))
+
 ;; Temporary State
 
 (edraw-editor-defcmd edraw-toggle-visibility-selected ((editor edraw-editor))
@@ -6557,6 +6565,15 @@ This function is destructive: the list POINTS is modified."
 (cl-defmethod edraw-set-marker-end-next ((holder edraw-properties-holder))
   (edraw-set-marker-next holder 'marker-end))
 
+(cl-defmethod edraw-set-marker-by-menu ((holder edraw-properties-holder)
+                                        prop-name)
+  (edraw-set-marker holder prop-name
+                    (edraw-svg-marker-read-type)))
+(cl-defmethod edraw-set-marker-start-by-menu ((holder edraw-properties-holder))
+  (edraw-set-marker-by-menu holder 'marker-start))
+(cl-defmethod edraw-set-marker-end-by-menu ((holder edraw-properties-holder))
+  (edraw-set-marker-by-menu holder 'marker-end))
+
 (cl-defmethod edraw-has-property-p ((holder edraw-properties-holder) prop-name)
   "Return t if HOLDER holds the value of the property named PROP-NAME.
 
@@ -7689,6 +7706,8 @@ match all selected shapes in the editor."
             :button (:toggle . ,(equal (edraw-svg-marker-type
                                         (edraw-get-property shape 'marker-start))
                                        "circle")))
+           ((edraw-msg "More...") edraw-set-marker-start-by-menu
+            :cmd-for-selected edraw-editor-set-marker-start-by-menu)
            ("--single-line")
            ((edraw-msg "Next Type") edraw-set-marker-start-next
             :cmd-for-selected edraw-editor-set-marker-start-next-selected))
@@ -7707,6 +7726,8 @@ match all selected shapes in the editor."
             :button (:toggle . ,(equal (edraw-svg-marker-type
                                         (edraw-get-property shape 'marker-end))
                                        "circle")))
+           ((edraw-msg "More...") edraw-set-marker-end-by-menu
+            :cmd-for-selected edraw-editor-set-marker-end-by-menu)
            ("--single-line")
            ((edraw-msg "Next Type") edraw-set-marker-end-next
             :cmd-for-selected edraw-editor-set-marker-end-next-selected))

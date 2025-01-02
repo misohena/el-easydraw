@@ -2763,6 +2763,96 @@ the properties."
 
 ;;;; SVG Marker
 
+(defconst edraw-svg-marker-path-prop-info-list
+  ;; Name Source Type Flags
+  `(,(edraw-svg-prop-info 'markerWidth nil 'number nil)
+    ,(edraw-svg-prop-info 'markerHeight nil 'number nil)
+    ,(edraw-svg-prop-info 'refX nil 'number nil)))
+
+(defun edraw-svg-marker-path-props (marker-attrs)
+  (list
+   (cons 'markerWidth (alist-get 'markerWidth marker-attrs "100"))
+   (cons 'markerHeight (alist-get 'markerHeight marker-attrs "100"))
+   (cons 'refX (alist-get 'refX marker-attrs "0"))))
+
+(defun edraw-svg-marker-path-overhang (marker stroke-width tip-pos)
+  (/ (* stroke-width
+        tip-pos ;; tip position
+        (edraw-svg-marker-prop-number marker 'markerWidth 100))
+     100.0)) ;; viewBox width
+
+(defun edraw-svg-marker-path-create (prop-name
+                                     element marker
+                                     path-info
+                                     &optional viewbox default-size)
+  (let* ((path-props (and (consp path-info) path-info))
+         (path-data (if (stringp path-info)
+                        path-info
+                      (plist-get path-props :d)))
+         (default-w (or (car default-size) "100"))
+         (default-h (or (cdr default-size) "100"))
+         (path-stroke (plist-get path-props :stroke))
+         (path-fill (plist-get path-props :fill))
+         (path-transform
+          ;; @todo I want to use auto-start-reverse
+          ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
+          (when (eq prop-name 'marker-start) "rotate(180)"))
+         (cx (plist-get path-props :cx))
+         (cy (plist-get path-props :cy))
+         (cr (plist-get path-props :cr)))
+    (edraw-dom-element
+     'marker
+     :markerWidth (edraw-svg-marker-prop-str marker 'markerWidth default-w)
+     :markerHeight (edraw-svg-marker-prop-str marker 'markerHeight default-h)
+     :preserveAspectRatio "none"
+     :viewBox (cond
+               ((stringp viewbox) viewbox)
+               ((and (consp viewbox) (consp (car viewbox)) (consp (cdr viewbox)))
+                (format "%s %s %s %s"
+                        (edraw-rect-left viewbox)
+                        (edraw-rect-top viewbox)
+                        (edraw-rect-width viewbox)
+                        (edraw-rect-height viewbox)))
+               (t "-50 -50 100 100"))
+     :refX (edraw-svg-marker-prop-str marker 'refX "0")
+     :refY "0"
+     :orient "auto"
+     :stroke
+     (if path-stroke
+         ;; @todo I want to use context-stroke and remove `edraw-svg-update-marker-properties'
+         ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
+         (if (equal path-stroke "context-stroke")
+             (let ((stroke (dom-attr element 'stroke)))
+               (if (or (null stroke) (equal stroke "none"))
+                   "none" ;;stroke may change later
+                 stroke))
+           path-stroke)
+       "none")
+     :stroke-width "1"
+     :fill
+     (if path-fill
+         ;; @todo I want to use context-stroke and remove `edraw-svg-update-marker-properties'
+         ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
+         (if (equal path-fill "context-stroke")
+             (let ((stroke (dom-attr element 'stroke)))
+               (if (or (null stroke) (equal stroke "none"))
+                   "none" ;;stroke may change later
+                 stroke))
+           path-fill)
+       "none")
+     ;; Children
+     (when (and cx cy cr)
+       (edraw-svg-circle
+        cx cy cr
+        :attributes
+        (when path-transform (list :transform path-transform))))
+     (when path-data
+       (edraw-svg-path
+        path-data
+        :attributes
+        (when path-transform (list :transform path-transform)))))))
+
+
 (defconst edraw-svg-marker-arrow-overhang
   (/ (*
       6 ;;markerWidth
@@ -2783,30 +2873,11 @@ the properties."
    (cons 'refX (alist-get 'refX marker-attrs "0"))))
 
 (defun edraw-svg-marker-arrow-create (prop-name element marker)
-  (edraw-dom-element
-   'marker
-   :markerWidth (edraw-svg-marker-prop-str marker 'markerWidth "6")
-   :markerHeight (edraw-svg-marker-prop-str marker 'markerHeight "6")
-   :preserveAspectRatio "none"
-   :viewBox "-10 -10 20 20"
-   :refX (edraw-svg-marker-prop-str marker 'refX "0")
-   :refY "0"
-   :orient "auto"
-   :stroke "none"
-   :fill
-   ;; @todo I want to use context-stroke and remove edraw-svg-update-marker-properties
-   ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
-   (let ((stroke (dom-attr element 'stroke)))
-     (if (or (null stroke) (equal stroke "none"))
-         "none" ;;stroke may change later
-       stroke))
-   ;; Children
-   (edraw-svg-path
-    ;; @todo I want to use auto-start-reverse
-    ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/484
-    (if (eq prop-name 'marker-start)
-        "M10,-7 10,7 -4,0Z" ;; <|
-      "M-10,-7 -10,7 4,0Z")))) ;; |>
+  (edraw-svg-marker-path-create
+   prop-name element marker
+   (list :d "M-10,-7 -10,7 4,0Z" :fill "context-stroke")
+   "-10 -10 20 20"
+   (cons 6 6)))
 
 (defun edraw-svg-marker-circle-props (marker-attrs)
   (list
@@ -2814,48 +2885,48 @@ the properties."
    (cons 'markerHeight (alist-get 'markerHeight marker-attrs "4"))
    (cons 'refX (alist-get 'refX marker-attrs "0"))))
 
-(defun edraw-svg-marker-circle-create (_prop-name element marker)
-  (edraw-dom-element
-   'marker
-   :markerWidth (edraw-svg-marker-prop-str marker 'markerWidth "4")
-   :markerHeight (edraw-svg-marker-prop-str marker 'markerHeight "4")
-   :preserveAspectRatio "none"
-   :viewBox "-5 -5 10 10"
-   :refX (edraw-svg-marker-prop-str marker 'refX "0")
-   :refY "0"
-   :orient "auto"
-   :stroke "none"
-   :fill
-   ;; @todo I want to use context-stroke
-   ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/618
-   (let ((stroke (dom-attr element 'stroke)))
-     (if (or (null stroke) (equal stroke "none"))
-         "none" ;;stroke may change later
-       stroke))
-   ;; Children
-   (edraw-svg-circle "0" "0" "4")))
+(defun edraw-svg-marker-circle-create (prop-name element marker)
+  (edraw-svg-marker-path-create
+   prop-name element marker
+   (list :cx 0 :cy 0 :cr 4 :fill "context-stroke")
+   "-5 -5 10 10"
+   (cons 4 4)))
+
+
 
 (defconst edraw-svg-marker-types
+  ;; Use "user-*" for user customizations.
+  ;; Do not use "" or "none".
   `(("arrow"
      :overhang edraw-svg-marker-arrow-overhang
      :creator edraw-svg-marker-arrow-create
      :get-props edraw-svg-marker-arrow-props
-     :prop-info-list
-     ;; (edraw-svg-prop-info
-     ;; Name Source Type Flags
-     (,(edraw-svg-prop-info 'markerWidth nil 'number nil)
-      ,(edraw-svg-prop-info 'markerHeight nil 'number nil)
-      ,(edraw-svg-prop-info 'refX nil 'number nil)))
+     :prop-info-list ,edraw-svg-marker-path-prop-info-list)
     ("circle"
      :creator edraw-svg-marker-circle-create
      :get-props edraw-svg-marker-circle-props
-     :prop-info-list
-     ;; (edraw-svg-prop-info
-     ;; Name Source Type Flags
-     (,(edraw-svg-prop-info 'markerWidth nil 'number nil)
-      ,(edraw-svg-prop-info 'markerHeight nil 'number nil)
-      ,(edraw-svg-prop-info 'refX nil 'number nil)))
-    ;; Ignore "" or "none"
+     :prop-info-list ,edraw-svg-marker-path-prop-info-list)
+    ("open-arrow"
+     :path-data (:d "M-6,-3 0,0 -6,3" :stroke "context-stroke")
+     :overhang 1)
+    ("hollow-diamond"
+     :path-data (:d "M0,0 4,-3 8,0 4,3Z" :stroke "context-stroke")
+     :overhang 8.83333333) ;; (+ 8 (* 0.5 (/ (sqrt (+ (* 4 4) (* 3 3))) 3)))
+    ("filled-diamond"
+     :path-data (:d "M0,0 4,-3 8,0 4,3Z" :stroke "context-stroke" :fill "context-stroke")
+     :overhang 8.83333333)
+    ("hollow-triangle"
+     :path-data (:d "M0,-3 6,0 0,3Z" :stroke "context-stroke")
+     :overhang 7)
+    ("filled-triangle"
+     :path-data (:d "M0,-3 6,0 0,3Z" :stroke "context-stroke" :fill "context-stroke")
+     :overhang 7)
+    ("hollow-circle"
+     :path-data (:cx 2 :cy 0 :cr 2 :stroke "context-stroke")
+     :overhang 4.5)
+    ("filled-circle"
+     :path-data (:cx 2 :cy 0 :cr 2 :stroke "context-stroke" :fill "context-stroke")
+     :overhang 4.5)
     ))
 
 (defun edraw-svg-marker-type-all ()
@@ -2869,21 +2940,60 @@ the properties."
              return (caadr x))))
 ;; TEST: (edraw-svg-marker-type-next nil) => "arrow"
 ;; TEST: (edraw-svg-marker-type-next "arrow") => "circle"
-;; TEST: (edraw-svg-marker-type-next "circle") => nil
+;; TEST: (edraw-svg-marker-type-next (caar (last edraw-svg-marker-types))) => nil
+
+(defun edraw-svg-marker-type-props (type)
+  "Return information about the marker TYPE as a PLIST."
+  (alist-get type edraw-svg-marker-types nil nil #'equal))
 
 (defun edraw-svg-marker-prop-info-list (type)
-  (when-let ((props (alist-get type edraw-svg-marker-types nil nil #'equal)))
-    (plist-get props :prop-info-list)))
+  "Return information about the properties of marker objects of the marker
+TYPE."
+  (when-let* ((type-props (edraw-svg-marker-type-props type)))
+    (or
+     (plist-get type-props :prop-info-list)
+     (when (plist-get type-props :path-data)
+       edraw-svg-marker-path-prop-info-list))))
 
 (defun edraw-svg-marker-type-funcall (type key &rest args)
-  (when-let ((props (alist-get type edraw-svg-marker-types nil nil #'equal)))
-    (when-let ((fun (plist-get props key)))
-      (apply fun args))))
+  (when-let* ((type-props (edraw-svg-marker-type-props type))
+              (fun (plist-get type-props key)))
+    (apply fun args)))
+
+(defun edraw-svg-marker-read-type (&optional initial-input)
+  (if (edraw-use-dialog-box-p)
+      (edraw-svg-marker-read-type-from-menu)
+    (edraw-svg-marker-read-type-from-minibuffer initial-input)))
+;; EXAMPLE: (edraw-svg-marker-read-type)
+
+(defvar edraw-svg-marker-read-type-hist nil)
+
+(defun edraw-svg-marker-read-type-from-minibuffer (&optional initial-input)
+  (completing-read (edraw-msg "Marker type: ")
+                   (edraw-svg-marker-type-all) nil t initial-input
+                   'edraw-svg-marker-read-type-hist))
+;; EXAMPLE: (edraw-svg-marker-read-type-from-minibuffer)
+
+(defun edraw-svg-marker-read-type-from-menu ()
+  (x-popup-menu
+   t
+   (list
+    (edraw-msg "Marker Type")
+    (nconc
+     (list "" (cons " " ""))
+     (cl-loop for type in (edraw-svg-marker-type-all)
+              collect (cons type type))))))
+;; EXAMPLE: (edraw-svg-marker-read-type-from-menu)
 
 (defun edraw-svg-marker-create-element (marker prop-name referrer-element)
-  (edraw-svg-marker-type-funcall (edraw-svg-marker-type marker) :creator
-                                 prop-name referrer-element
-                                 marker))
+  (when-let* ((type (edraw-svg-marker-type marker))
+              (type-props (edraw-svg-marker-type-props type)))
+    (if-let* ((fun (plist-get type-props :creator)))
+        (funcall fun prop-name referrer-element marker)
+      (if-let* ((path-data (plist-get type-props :path-data)))
+          (edraw-svg-marker-path-create prop-name referrer-element marker
+                                        path-data)
+        nil))))
 
 (defun edraw-svg-marker-from-element (element prop-name deftbl)
   "Create a marker descriptor from the attribute PROP-NAME of the ELEMENT."
@@ -2900,16 +3010,26 @@ the properties."
           (edraw-svg-marker
            marker-type
            (when marker-element
-             (edraw-svg-marker-type-funcall
-              marker-type :get-props (dom-attributes marker-element)))))))))
+             (let ((type-props (edraw-svg-marker-type-props marker-type))
+                   (marker-attrs (dom-attributes marker-element)))
+               (if-let* ((get-props (plist-get type-props :get-props)))
+                   (funcall get-props marker-attrs)
+                 (when (plist-get type-props :path-data)
+                   (edraw-svg-marker-path-props marker-attrs)))))))))))
 
 (defun edraw-svg-marker-overhang (element prop-name deftbl)
-  (when-let ((marker (edraw-svg-marker-from-element element prop-name deftbl)))
-    (edraw-svg-marker-type-funcall (edraw-svg-marker-type marker) :overhang
-                                   marker
-                                   ;;@todo support group stroke-width
-                                   (or (edraw-svg-attr-length element 'stroke-width) 1)
-                                   )))
+  (when-let* ((marker (edraw-svg-marker-from-element element prop-name deftbl))
+              (type (edraw-svg-marker-type marker))
+              (type-props (edraw-svg-marker-type-props type)))
+    (let ((overhang (plist-get type-props :overhang))
+          (stroke-width
+           ;;@todo support group stroke-width
+           (or (edraw-svg-attr-length element 'stroke-width) 1)))
+      (cond
+       ((functionp overhang)
+        (funcall overhang marker stroke-width))
+       ((numberp overhang)
+        (edraw-svg-marker-path-overhang marker stroke-width overhang))))))
 
 
 (defun edraw-svg-marker (marker-type props)
