@@ -726,6 +726,19 @@ editor when the selected shape changes."
     (edraw-display-buffer display)))
 
 
+;;;;; Event Buffer
+
+(defun edraw-property-editor--buffer-on-last-event ()
+  ;; For mouse event
+  (if (consp last-command-event)
+      (window-buffer (posn-window (event-start last-command-event)))
+    (current-buffer)))
+
+(defmacro edraw-property-editor--with-event-buffer (&rest body)
+  `(with-current-buffer (edraw-property-editor--buffer-on-last-event)
+     (when edraw-property-editor--pedit
+       ,@body)))
+
 ;;;;; Prop Widget
 
 (cl-defmethod edraw-create-prop-widget ((pedit edraw-property-editor)
@@ -785,7 +798,7 @@ once. widget-value-set updates the same property four times."
                                                 prop-info)
   (let ((prop-name (edraw-svg-prop-info-name prop-info)))
     (lambda (widget _changed-widget &optional event)
-      ;;(message "on widget changed %s event=%s" (edraw-svg-prop-info-name prop-info) event)
+      ;;(message "on widget changed %s event=%s buffer=%s" (edraw-svg-prop-info-name prop-info) event (current-buffer))
       ;; Called 4 times per widget-value-set call.
       ;; 1. delete chars (event=(before-change BEG END))
       ;; 2. delete chars (event=(after-change BEG END))
@@ -1065,46 +1078,46 @@ as a string."
 
 (defun edraw-property-editor-number-dragging (down-event)
   (interactive "e")
-  (when-let ((field (edraw-property-editor-field-at down-event)))
-    (with-slots (buffer min-value max-value divisor) field
-      (let* ((window (posn-window (event-start down-event)))
-             (down-x (car (posn-x-y (event-start down-event))))
-             (down-pos (posn-point (event-start down-event)))
-             (start-value (edraw-get-value field))
-             (min-x (when min-value
-                      (+ (* divisor (- min-value start-value)) down-x)))
-             (max-x (when max-value
-                      (+ (* divisor (- max-value start-value)) down-x)))
-             ;; If mouse-fine-grained-tracking is nil,
-             ;; motion events come only character by character.
-             ;; However, when the mouse pointer is over an image,
-             ;; events come pixel by pixel.
-             (ov (when edraw-property-editor-number-dragging-use-slider-bar
-                   (with-current-buffer buffer
-                     (save-excursion
-                       (goto-char down-pos)
-                       (make-overlay (line-beginning-position)
-                                     (line-beginning-position)))))))
-        (when ov
-          (overlay-put ov 'after-string "\n")
-          (edraw-property-editor-number-dragging-image-update
-           ov window down-x min-x max-x))
-        (unwind-protect
-            (let ((mouse-fine-grained-tracking t))
-              (edraw-track-dragging
-               down-event
-               (lambda (move-event)
-                 (let* ((move-x (car (posn-x-y (event-start move-event))))
-                        (delta-value (/ (- move-x down-x) divisor))
-                        (new-value (+ start-value delta-value)))
-                   (edraw-set-value field new-value)
-                   (when ov
-                     (edraw-property-editor-number-dragging-image-update
-                      ov window move-x min-x max-x))
-                   ))
-               nil nil 'window))
-          (when ov
-            (delete-overlay ov)))))))
+  (edraw-property-editor--with-event-buffer
+   (when-let ((field (edraw-property-editor-field-at down-event)))
+     (with-slots (buffer min-value max-value divisor) field
+       (let* ((window (posn-window (event-start down-event)))
+              (down-x (car (posn-x-y (event-start down-event))))
+              (down-pos (posn-point (event-start down-event)))
+              (start-value (edraw-get-value field))
+              (min-x (when min-value
+                       (+ (* divisor (- min-value start-value)) down-x)))
+              (max-x (when max-value
+                       (+ (* divisor (- max-value start-value)) down-x)))
+              ;; If mouse-fine-grained-tracking is nil,
+              ;; motion events come only character by character.
+              ;; However, when the mouse pointer is over an image,
+              ;; events come pixel by pixel.
+              (ov (when edraw-property-editor-number-dragging-use-slider-bar
+                    (save-excursion
+                      (goto-char down-pos)
+                      (make-overlay (line-beginning-position)
+                                    (line-beginning-position))))))
+         (when ov
+           (overlay-put ov 'after-string "\n")
+           (edraw-property-editor-number-dragging-image-update
+            ov window down-x min-x max-x))
+         (unwind-protect
+             (let ((mouse-fine-grained-tracking t))
+               (edraw-track-dragging
+                down-event
+                (lambda (move-event)
+                  (let* ((move-x (car (posn-x-y (event-start move-event))))
+                         (delta-value (/ (- move-x down-x) divisor))
+                         (new-value (+ start-value delta-value)))
+                    (edraw-set-value field new-value)
+                    (when ov
+                      (edraw-property-editor-number-dragging-image-update
+                       ov window move-x min-x max-x))
+                    ))
+                nil nil 'window))
+           (when ov
+             (delete-overlay ov))))))))
 
 (defun edraw-property-editor-number-dragging-image-update (ov window
                                                               x min-x max-x)
@@ -1652,8 +1665,9 @@ as a string."
 
 (defun edraw-property-editor-field-wheel-increase (n event)
   (interactive "p\ne")
-  (when-let ((field (edraw-property-editor-field-at event)))
-    (edraw-increase field n)))
+  (edraw-property-editor--with-event-buffer
+   (when-let ((field (edraw-property-editor-field-at event)))
+     (edraw-increase field n))))
 
 (defun edraw-property-editor-field-wheel-decrease (n event)
   (interactive "p\ne")
@@ -1750,17 +1764,6 @@ as a string."
       (edraw-svg-prop-from-string prop-info w-value)))))
 
 ;;;;; Bottom Buttons
-
-(defun edraw-property-editor--buffer-on-last-event ()
-  ;; For mouse event
-  (if (consp last-command-event)
-      (window-buffer (posn-window (event-start last-command-event)))
-    (current-buffer)))
-
-(defmacro edraw-property-editor--with-event-buffer (&rest body)
-  `(with-current-buffer (edraw-property-editor--buffer-on-last-event)
-     (when edraw-property-editor--pedit
-       ,@body)))
 
 (defun edraw-property-editor--close (&rest _ignore)
   (interactive)

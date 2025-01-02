@@ -1,10 +1,5 @@
 
 * Inbox
-** TODO マーカー/プロパティエディタで「-」ボタンが消えることがある :BUG:
-マーカータイプを選択してから「+」で開き、markerWidthをドラッグやホイールで変更すると-がボタンでは無くなる。 *プロパティエディタバッファが選択されていない時に起きる*
-
-[[*図形生成/プロパティエディタで「-」ボタンが消えることがある][図形生成/プロパティエディタで「-」ボタンが消えることがある]] も同じかも？
-
 ** TODO 点接続/マーカーのoverhang量よりも近づいたときの問題を直す :BUG:
 
 [[edraw:data=H4sIAK8jdmcAA61TTY+bMBD9K5ZzSaQYbEhYiAApe6qqVpV66NeNggErxEbGCey/7xgTZVfa1e6hsoxnxh6/98ZDOlwbNIrKtBkOdhSjloumNeBQcKZzJ4cMt8b0B98fx9EbQ0/pxodd6kMqRleuB6FkhpnHloTD1Al5ei2NJUniz7s4TyteD0hUGeaVLkZiXYieC33i+mWcUNKqrlPgiOKsZIWRO/bTEWeWq4t8WujPoV7zgesrPw49L833wgiVYakkB9qCj49qyjDZU2QnJKA5SfP6V4ad8Xs2lBZcwp3FxSiMBqPViWd4xagdtwBZighFqEXXLTh52hemRSDmK91StNuSEMWzEf7ByM9T39EGw+rPUw1E0TTDPs3fN9/mXqG/RXlqtLrYutzYOZWOyaqu6xmseZ6kqie84FWFKYgL2wNhXD6USVDe82M73pUe3Bnu7sxZ4LTYZXKL/zpuEMa7PQ/j/4vLgr23n6HjyBr+8iau8IRLQL7obr16u902+DnVXglpSKmkBA3Q+vCDHNeEbQ7fHj+vbxo22+OautCtnPYW6IOYooj+AHZfHiIvYWGCGIu9mEXRi875gGjbPg1M+A/zf09H8HvIAwAA]]
@@ -119,7 +114,6 @@ latex表記をMathMLへ変換する方法があったはず。
 ** TODO 図形生成/変形を何で行うかを変更できるようにしたい
 latexの場合はtransformで十分だが、グリッドの場合はtransformでやると線が太くなってしまうのでポイントの移動でやりたい。いや、再生成時に動いてしまうな。
 
-** TODO 図形生成/プロパティエディタで「-」ボタンが消えることがある
 ** TODO 図形生成/デフォルトプロパティをどうするか
 マーカーのデフォルトプロパティに似た仕組みを作る？
 いや、図形全体のデフォルトプロパティを、タイプ毎に持たせたい。
@@ -5557,3 +5551,11 @@ CLOSED: [2025-01-02 Thu 20:00]
 
 edraw-editor-mapの中で2ストローク以上の物に対して item-name を設定する。
 which-key-modeで表示するため。
+** DONE マーカー/プロパティエディタで「-」ボタンが消えることがある :BUG:
+CLOSED: [2025-01-02 Thu 21:36]
+マーカータイプを選択してから「+」で開き、markerWidthをドラッグやホイールで変更すると-がボタンでは無くなる。 *プロパティエディタバッファが選択されていない時に起きる* 。カレントバッファがプロパティエディタのバッファになっていないのが原因。
+
+[[*図形生成/プロパティエディタで「-」ボタンが消えることがある][図形生成/プロパティエディタで「-」ボタンが消えることがある]] も同じかも？
+** DONE 図形生成/プロパティエディタで「-」ボタンが消えることがある
+CLOSED: [2025-01-02 Thu 21:36]
+[[*マーカー/プロパティエディタで「-」ボタンが消えることがある][マーカー/プロパティエディタで「-」ボタンが消えることがある]] で対策したので一応DONEにする。違う原因だったらまたTODOを作る。
