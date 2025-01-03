@@ -26,6 +26,7 @@
 
 (require 'mwheel)
 (require 'cl-lib)
+(require 'cl-print)
 (require 'seq)
 (require 'subr-x)
 (require 'edraw-msg)
@@ -38,6 +39,97 @@
   :prefix "edraw-"
   :group 'multimedia)
 
+
+;;;; Debug
+
+(eval-and-compile
+  (defcustom edraw-log-generate nil
+    "Non-nil means generate logging code."
+    :group 'edraw :type 'boolean))
+
+(defcustom edraw-log-output nil
+  "Non-nil means to output logs."
+  :group 'edraw :type 'boolean)
+
+(defcustom edraw-log-output-regexp nil
+  "Regular expression that matches FORMAT-STRING. Only matches are output."
+  :group 'edraw :type '(choice (const nil) regexp))
+
+(defun edraw-log-watch (regexp)
+  (interactive (list (read-regexp "Regexp matching FORMAT-STRING: ")))
+  (if (and (stringp regexp) (not (string-empty-p regexp)))
+      (setq edraw-log-output t
+            edraw-log-output-regexp regexp)
+    (setq edraw-log-output nil
+          edraw-log-output-regexp nil)
+    (message "Disabled log output")))
+
+(defun edraw-log--match-p (format-string)
+  (and edraw-log-output
+       (or (null edraw-log-output-regexp)
+           (string-match-p edraw-log-output-regexp format-string))
+       format-string))
+
+(defun edraw-log--message (format-string &rest args)
+  (when (or (null edraw-log-output-regexp)
+            (string-match-p edraw-log-output-regexp format-string))
+    (apply #'message (concat "edraw: " format-string) args)))
+
+(defmacro edraw-log (format-string &rest args)
+  (when edraw-log-generate
+    `(let ((fmt (edraw-log--match-p ,format-string)))
+       (when fmt
+         (edraw-log--message fmt ,@args)))))
+
+(defmacro edraw-log-when (cond format-string &rest args)
+  (when edraw-log-generate
+    `(let ((fmt (edraw-log--match-p ,format-string)))
+       (when (and fmt ,cond)
+         (edraw-log--message fmt ,@args)))))
+
+(defmacro edraw-log-unless (cond format-string &rest args)
+  (when edraw-log-generate
+    `(let ((fmt (edraw-log--match-p ,format-string)))
+       (when (and fmt (not ,cond))
+         (edraw-log--message fmt ,@args)))))
+
+(defmacro edraw-assert (cond msg)
+  (when edraw-log-generate
+    `(when (and edraw-log-output (not ,cond))
+       (display-warning 'edraw
+                        (format-message
+                         (concat ,msg " : Assertion failed: %s")
+                         ,(prin1-to-string cond))))))
+
+(defvar edraw-log-stringize-depth 0)
+(defvar edraw-log-stringize-print-level 2)
+
+;; (defun edraw-log-stringize (object)
+(cl-defgeneric edraw-log-stringize (object)
+  (let ((print-level edraw-log-stringize-print-level)
+        (print-length 12))
+    (cl-prin1-to-string object)))
+
+(cl-defmethod edraw-log-stringize ((object list))
+  (cond
+   ((null object)
+    "nil")
+   ((>= edraw-log-stringize-depth
+        (or print-level edraw-log-stringize-print-level))
+    "(...)")
+   (t
+    (let ((edraw-log-stringize-depth (1+ edraw-log-stringize-depth))
+          (result (concat "(" (edraw-log-stringize (car object)))))
+      (setq object (cdr object))
+      (while (consp object)
+        (setq result (concat result " " (edraw-log-stringize (car object))))
+        (setq object (cdr object)))
+      (when object
+        (setq result (concat result " . " (edraw-log-stringize object))))
+      (concat result ")")))))
+;; TEST: (edraw-log-stringize nil) => "nil"
+;; TEST: (edraw-log-stringize '(1 . 2)) => "(1 . 2)"
+;; TEST: (edraw-log-stringize '((1 . 2) . (3 . 4))) => "((1 . 2) 3 . 4)"
 
 ;;;; Clipboard
 

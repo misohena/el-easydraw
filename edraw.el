@@ -1044,6 +1044,7 @@ Undo is performed by applying FUNCTION to ARGUMENTS.
 To call multiple functions at once, specify #\\='edraw-call-each-args as FUNCTION.
 
 This function deletes all redo data."
+  ;; (edraw-log "Undo: Push type=%s data=%s" type (edraw-log-stringize data))
   (with-slots (undo-list redo-list) editor
     (unless edraw-editor-redo-in-progress
       (setq redo-list nil))
@@ -6847,6 +6848,11 @@ e.g. rect, ellipse, path, image, text, group, generator."
 
 (cl-defmethod edraw-get-editor ((shape edraw-shape))
   (oref shape editor))
+
+(cl-defmethod edraw-log-stringize ((object edraw-shape))
+  (format "#<shape %s %s>"
+          (edraw-shape-type object)
+          (edraw-name object)))
 
 ;;;;;; Internal
 
