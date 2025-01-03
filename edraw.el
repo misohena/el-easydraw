@@ -1815,20 +1815,22 @@ document size or view box."
                      (edraw-msg "Scale X [px|%]: ") 1.0
                      `(("%" . ,(lambda (n _def)
                                  (/ n 100.0)))
-                       ("px" . ,(lambda (n _def)
-                                  (let ((w (edraw-rect-width aabb)))
-                                    (if (zerop w)
-                                        1.0
-                                      (/ n (float w))))))))))
+                       ,@(when aabb
+                           `(("px" . ,(lambda (n _def)
+                                        (let ((w (edraw-rect-width aabb)))
+                                          (if (zerop w)
+                                              1.0
+                                            (/ n (float w))))))))))))
          (sy (or sy (edraw-read-number-with-unit
                      (edraw-msg "Scale Y [px|%]: ") sx
                      `(("%" . ,(lambda (n _def)
                                  (/ n 100.0)))
-                       ("px" . ,(lambda (n _def)
-                                  (let ((h (edraw-rect-height aabb)))
-                                    (if (zerop h)
-                                        1.0
-                                      (/ n (float h))))))))))
+                       ,@(when aabb
+                           `(("px" . ,(lambda (n _def)
+                                        (let ((h (edraw-rect-height aabb)))
+                                          (if (zerop h)
+                                              1.0
+                                            (/ n (float h))))))))))))
          (_ (when (and (= sx 1) (= sy 1))
               (error (edraw-msg "No need to scale"))))
          (origin-xy (or origin-xy (edraw-read-origin-xy aabb))))
@@ -2032,28 +2034,31 @@ document size or view box."
         (edraw-select group)
 
         ;; Translate GROUP to center of the view area
-        (let ((aabb (edraw-shape-aabb group))
-              (vl (edraw-scroll-visible-area-left editor))
-              (vt (edraw-scroll-visible-area-top editor))
-              (vr (edraw-scroll-visible-area-right editor))
-              (vb (edraw-scroll-visible-area-bottom editor)))
-          ;; Use transform property. because:
-          ;; - To avoid losing numerical precision
-          ;; - Text may not be moved (tspan (x=, y=, dx=, dy= attributes) of imported text may not comply with edraw specifications)
-          (if (and (<= vl (edraw-rect-left aabb))
-                   (<= vt (edraw-rect-top aabb))
-                   (<= (edraw-rect-right aabb) vr)
-                   (<= (edraw-rect-bottom aabb) vb))
-              (edraw-set-property group
-                                  'transform
-                                  (edraw-svg-transform-from-matrix (edraw-matrix)))
-            (edraw-transform-prop-multiply
-             group
-             (edraw-matrix-translate-xy
-              (edraw-xy-sub
-               (edraw-xy (* 0.5 (+ vl vr))
-                         (* 0.5 (+ vt vb)))
-               (edraw-rect-center aabb))))))))))
+        (when-let* ((aabb (edraw-shape-aabb group)))
+          (let ((vl (edraw-scroll-visible-area-left editor))
+                (vt (edraw-scroll-visible-area-top editor))
+                (vr (edraw-scroll-visible-area-right editor))
+                (vb (edraw-scroll-visible-area-bottom editor)))
+            ;; Use transform property. because:
+            ;; - To avoid losing numerical precision
+            ;; - Text may not be moved (tspan (x=, y=, dx=, dy= attributes)
+            ;;   of imported text may not comply with edraw specifications)
+            (if (and (<= vl (edraw-rect-left aabb))
+                     (<= vt (edraw-rect-top aabb))
+                     (<= (edraw-rect-right aabb) vr)
+                     (<= (edraw-rect-bottom aabb) vb))
+                (edraw-set-property group
+                                    'transform
+                                    (edraw-svg-transform-from-matrix
+                                     (edraw-matrix)))
+              (edraw-transform-prop-multiply
+               group
+               (edraw-matrix-translate-xy
+                (edraw-xy-sub
+                 (edraw-xy (* 0.5 (+ vl vr))
+                           (* 0.5 (+ vt vb)))
+                 (edraw-rect-center aabb)))))))
+        t))))
 
 
 ;;;;;; Editor - Document - Menu
@@ -3195,14 +3200,15 @@ document size or view box."
       (let ((xy (edraw-get-xy (or selected-handle selected-anchor))))
         (message "X:%s Y:%s" (edraw-x xy) (edraw-y xy))))
      (selected-shapes
-      (let ((rect (edraw-shape-aabb selected-shapes)))
-        (message "L:%s T:%s R:%s B:%s CX:%s CY:%s"
-                 (edraw-rect-left rect)
-                 (edraw-rect-top rect)
-                 (edraw-rect-right rect)
-                 (edraw-rect-bottom rect)
-                 (edraw-rect-cx rect)
-                 (edraw-rect-cy rect)))))))
+      (if-let* ((rect (edraw-shape-aabb selected-shapes)))
+          (message "L:%s T:%s R:%s B:%s CX:%s CY:%s"
+                   (edraw-rect-left rect)
+                   (edraw-rect-top rect)
+                   (edraw-rect-right rect)
+                   (edraw-rect-bottom rect)
+                   (edraw-rect-cx rect)
+                   (edraw-rect-cy rect))
+        (message (edraw-msg "Empty shape")))))))
 
 (cl-defmethod edraw-display-selected-object-info ((editor edraw-editor)
                                                   &optional addinfo)
@@ -3221,22 +3227,30 @@ document size or view box."
                        (edraw-y (edraw-get-xy selected-anchor)))
                (or addinfo "")))
      (selected-shapes
-      (let ((rect (edraw-shape-aabb selected-shapes)))
-        (message "%s%s"
-                 (if (cdr selected-shapes)
-                     (format (edraw-msg "%s objects (%g,%g)-(%g,%g) selected")
-                             (length selected-shapes)
+      (if-let* ((rect (edraw-shape-aabb selected-shapes)))
+          (message "%s%s"
+                   (if (cdr selected-shapes)
+                       (format (edraw-msg "%s objects (%g,%g)-(%g,%g) selected")
+                               (length selected-shapes)
+                               (edraw-rect-left rect)
+                               (edraw-rect-top rect)
+                               (edraw-rect-right rect)
+                               (edraw-rect-bottom rect))
+                     (format (edraw-msg "%s (%g,%g)-(%g,%g) selected")
+                             (capitalize
+                              (edraw-shape-type-name (car selected-shapes)))
                              (edraw-rect-left rect)
                              (edraw-rect-top rect)
                              (edraw-rect-right rect)
-                             (edraw-rect-bottom rect))
-                   (format (edraw-msg "%s (%g,%g)-(%g,%g) selected")
+                             (edraw-rect-bottom rect)))
+                   (or addinfo ""))
+        (message "%s%s"
+                 (if (cdr selected-shapes)
+                     (format (edraw-msg "%s objects selected")
+                             (length selected-shapes))
+                   (format (edraw-msg "%s selected")
                            (capitalize
-                            (edraw-shape-type-name (car selected-shapes)))
-                           (edraw-rect-left rect)
-                           (edraw-rect-top rect)
-                           (edraw-rect-right rect)
-                           (edraw-rect-bottom rect)))
+                            (edraw-shape-type-name (car selected-shapes)))))
                  (or addinfo ""))))
      (t (message "%s%s"
                  (edraw-msg "No objects selected")
@@ -6318,11 +6332,14 @@ This function is destructive: the list POINTS is modified."
                      (unless (edraw-empty-undo-p editor)
                        (edraw-undo editor))
                      ;; Apply new transform
-                     (let ((matrix
-                            (if (edraw-xy-equal-p move-xy down-xy)
-                                (edraw-matrix-translate-xy down-xy)
-                              (edraw-matrix-fit-rect-to-rect
-                               ref-box (edraw-rect-pp down-xy move-xy)))))
+                     (when-let* ((matrix
+                                  (cond
+                                   ((edraw-xy-equal-p move-xy down-xy)
+                                    (edraw-matrix-translate-xy down-xy))
+                                   (ref-box
+                                    (edraw-matrix-fit-rect-to-rect
+                                     ref-box
+                                     (edraw-rect-pp down-xy move-xy))))))
                        (edraw-make-undo-group editor 'put-custom-shape--preview
                          (edraw-transform shapes matrix))))))
               (dolist (shape shapes)
@@ -6343,8 +6360,9 @@ This function is destructive: the list POINTS is modified."
           (edraw-make-undo-group editor 'put-custom-shape
             (let* ((shapes (edraw-create-selected-custom-shapes tool))
                    (ref-box (edraw-selected-custom-shapes-ref-box tool shapes))
-                   (matrix (edraw-matrix-fit-rect-to-rect
-                            ref-box (edraw-rect-pp down-xy move-xy))))
+                   (matrix (when ref-box
+                             (edraw-matrix-fit-rect-to-rect
+                              ref-box (edraw-rect-pp down-xy move-xy)))))
               (unless (edraw-matrix-identity-p matrix)
                 (edraw-transform shapes matrix))))))))))
 
@@ -6468,7 +6486,7 @@ This function is destructive: the list POINTS is modified."
             ;; Fit to RECT
             (when (and no-interactive-func-p
                        (not (edraw-rect-empty-p rect)))
-              (let ((aabb (edraw-shape-aabb shape)))
+              (when-let* ((aabb (edraw-shape-aabb shape)))
                 (edraw-transform-prop-multiply
                  shape
                  (edraw-matrix-fit-rect-to-rect aabb rect))))
@@ -7826,7 +7844,11 @@ match all selected shapes in the editor."
 ;;;;;; Boundary
 
 (cl-defgeneric edraw-shape-aabb (object)
-  "Return the axis aligned bounding box of the OBJECT.")
+  "Return the axis aligned bounding box of the OBJECT.
+If OBJECT is empty, return an empty rectangle or `nil'.
+
+Note: The returned value may be `nil' or an empty rectangle. You can
+check for either using `edraw-rect-empty-p'.")
 
 (cl-defmethod edraw-shape-aabb ((shape edraw-shape))
   (edraw-svg-shape-aabb (edraw-element shape))) ;;@todo cache?
@@ -7838,7 +7860,11 @@ match all selected shapes in the editor."
     aabb))
 
 (cl-defgeneric edraw-shape-aabb-local (object)
-  "Return the local axis aligned bounding box of the OBJECT.")
+  "Return the local axis aligned bounding box of the OBJECT.
+If OBJECT is empty, return an empty rectangle or `nil'.
+
+Note: The returned value may be `nil' or an empty rectangle. You can
+check for either using `edraw-rect-empty-p'.")
 
 (cl-defmethod edraw-shape-aabb-local ((shape edraw-shape))
   (edraw-svg-shape-aabb (edraw-element shape) nil t)) ;;@todo cache?
@@ -7907,11 +7933,12 @@ Some classes have efficient implementations."
              (and (null (cdr selected-shapes))
                   (car selected-shapes))
              ;; the most front overlapping shape
-             (car (edraw-find-shapes-by-rect
-                   (reverse
-                    (or selected-shapes ;;@todo sort?
-                        (remq shape (edraw-all-shapes editor))))
-                   (edraw-shape-aabb shape))))))
+             (when-let* ((aabb (edraw-shape-aabb shape)))
+               (car (edraw-find-shapes-by-rect
+                     (reverse
+                      (or selected-shapes ;;@todo sort?
+                          (remq shape (edraw-all-shapes editor))))
+                     aabb))))))
       dst-shape)))
 
 (cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((shape edraw-shape))
@@ -11553,6 +11580,9 @@ Deselect all shapes, then select the shapes contained in OBJ."
                     :class "edraw-ui-transform"))
       transformer)))
 
+(cl-defmethod edraw-empty-aabb-p ((transformer edraw-shape-transformer))
+  (edraw-rect-empty-p (oref transformer original-aabb)))
+
 (cl-defmethod edraw-scaling-point-dir ((transformer edraw-shape-transformer)
                                        ref)
   "Returns the position of REF in scaled-aabb.
@@ -12284,101 +12314,104 @@ REF is a point reference in scaling-points."
   (let* ((transformer (edraw-shape-transformer-create target))
          (editor (edraw-get-editor target))
          result)
+    (if (edraw-empty-aabb-p transformer)
+        (message (edraw-msg "The empty shapes cannot be transformed"))
 
-    ;; Hide selection UI and show transformation UI
-    (oset editor selection-ui-visible nil)
-    (edraw-invalidate-ui-parts editor 'selection-ui)
-    (edraw-add-hook editor 'before-image-update
-                    'edraw-update-ui-svg transformer)
-    (edraw-invalidate-image editor)
+      ;; Hide selection UI and show transformation UI
+      (oset editor selection-ui-visible nil)
+      (edraw-invalidate-ui-parts editor 'selection-ui)
+      (edraw-add-hook editor 'before-image-update
+                      'edraw-update-ui-svg transformer)
+      (edraw-invalidate-image editor)
 
-    ;;@todo Implement using transient keymap or editing tool. However,
-    ;;it is bad if it is transformed from another command before
-    ;;committing the transformation.
-    (edraw-editor-with-temp-modifications editor
-      (unwind-protect
-          (track-mouse
-            (setq track-mouse 'dragging)
-            (while (null result)
-              (let ((event (read-event
-                            (format (edraw-msg "q/R-Click:Cancel, RET/Dbl-Click:Commit,\ns:Scale(%.2f%% %.2f%%), r:Rotate(%.2fdeg), t:Translate,\no:Origin(%s %s), m:Transform Method(%s)")
-                                    (* 100 (edraw-scale-x transformer))
-                                    (* 100 (edraw-scale-y transformer))
-                                    (edraw-rotation-angle transformer)
-                                    (edraw-origin-x-string transformer)
-                                    (edraw-origin-y-string transformer)
-                                    (edraw-get-transform-method editor)
-                                    ))))
-                (cond
-                 ;; Prefix C-c
-                 ((eq event ?\C-c)
-                  (pcase (read-event "C-c-")
-                    ;; Cancel
-                    (?\C-k (setq result 'cancel))
-                    ;; Commit
-                    (?\C-c (setq result 'ok))))
-                 ;; Mouse Down
-                 ((memq (car-safe event) '(S-down-mouse-1 down-mouse-1))
-                  (edraw-on-mouse-down transformer event))
-                 ;; Mouse Move
-                 ((mouse-movement-p event)
-                  (edraw-on-mouse-move transformer event))
-                 ;; Cancel
-                 ((or (eq (car-safe event) 'mouse-3)
-                      (eq event ?q))
-                  (setq result 'cancel))
-                 ;; Commit
-                 ((or (eq (car-safe event) 'double-down-mouse-1)
-                      (eq event ?\C-m)
-                      (eq event ?\C-j)
-                      (eq event 'return))
-                  (setq result 'ok))
-                 ;; Set Transform Parameters
-                 ((eq event ?s)
-                  (edraw-set-scale-interactive transformer))
-                 ((eq event ?S)
-                  (edraw-scale-interactive transformer))
-                 ((eq event ?r)
-                  (edraw-set-rotation-angle-interactive transformer))
-                 ((eq event ?R)
-                  (edraw-rotate-interactive transformer))
-                 ((eq event ?t)
-                  (edraw-translate-interactive transformer))
-                 ((eq event ?o)
-                  (edraw-set-transform-origin-interactive transformer))
-                 ((eq event ?m)
-                  (when-let ((method
-                              (pcase (read-char (edraw-msg "a:auto  t:transform property  p:anchor points"))
-                                (?a 'auto)
-                                (?t 'transform-property)
-                                (?p 'anchor-points))))
-                    (edraw-set-transform-method editor method)))
-                 ;; ((memq (event-basic-type event) '(left up right down))
-                 ;;  @todo translate by key
-                 ;;  )
-                 ;; Scroll
-                 ((eq (car-safe event) 'down-mouse-2)
-                  (edraw-editor-scroll-by-dragging event))
-                 ((or (eq (car-safe event) edraw-wheel-up-event)
-                      (eq (car-safe event) (intern (concat "C-" (symbol-name edraw-wheel-up-event)))))
-                  (edraw-zoom-in editor))
-                 ((or (eq (car-safe event) edraw-wheel-down-event)
-                      (eq (car-safe event) (intern (concat "C-" (symbol-name edraw-wheel-down-event)))))
-                  (edraw-zoom-out editor))
-                 ((eq event ?0)
-                  (edraw-reset-scroll-and-zoom editor))
-                 ((eq event ?#)
-                  (edraw-toggle-grid-visible editor))
-                 ))))
-        ;; Hide transformation UI and show selection UI
-        (edraw-remove-hook editor 'before-image-update
-                           'edraw-update-ui-svg transformer)
-        (edraw-remove-ui-svg transformer)
-        (edraw-invalidate-image editor)
-        (oset editor selection-ui-visible t)
-        (edraw-invalidate-ui-parts editor 'selection-ui)))
-    (when (eq result 'ok)
-      (edraw-transform target (edraw-get-transform-matrix transformer)))))
+      ;;@todo Implement using transient keymap or editing tool. However,
+      ;;it is bad if it is transformed from another command before
+      ;;committing the transformation.
+      (edraw-editor-with-temp-modifications editor
+        (unwind-protect
+            (track-mouse
+              (setq track-mouse 'dragging)
+              (while (null result)
+                (let ((event
+                       (read-event
+                        (format (edraw-msg "q/R-Click:Cancel, RET/Dbl-Click:Commit,\ns:Scale(%.2f%% %.2f%%), r:Rotate(%.2fdeg), t:Translate,\no:Origin(%s %s), m:Transform Method(%s)")
+                                (* 100 (edraw-scale-x transformer))
+                                (* 100 (edraw-scale-y transformer))
+                                (edraw-rotation-angle transformer)
+                                (edraw-origin-x-string transformer)
+                                (edraw-origin-y-string transformer)
+                                (edraw-get-transform-method editor)
+                                ))))
+                  (cond
+                   ;; Prefix C-c
+                   ((eq event ?\C-c)
+                    (pcase (read-event "C-c-")
+                      ;; Cancel
+                      (?\C-k (setq result 'cancel))
+                      ;; Commit
+                      (?\C-c (setq result 'ok))))
+                   ;; Mouse Down
+                   ((memq (car-safe event) '(S-down-mouse-1 down-mouse-1))
+                    (edraw-on-mouse-down transformer event))
+                   ;; Mouse Move
+                   ((mouse-movement-p event)
+                    (edraw-on-mouse-move transformer event))
+                   ;; Cancel
+                   ((or (eq (car-safe event) 'mouse-3)
+                        (eq event ?q))
+                    (setq result 'cancel))
+                   ;; Commit
+                   ((or (eq (car-safe event) 'double-down-mouse-1)
+                        (eq event ?\C-m)
+                        (eq event ?\C-j)
+                        (eq event 'return))
+                    (setq result 'ok))
+                   ;; Set Transform Parameters
+                   ((eq event ?s)
+                    (edraw-set-scale-interactive transformer))
+                   ((eq event ?S)
+                    (edraw-scale-interactive transformer))
+                   ((eq event ?r)
+                    (edraw-set-rotation-angle-interactive transformer))
+                   ((eq event ?R)
+                    (edraw-rotate-interactive transformer))
+                   ((eq event ?t)
+                    (edraw-translate-interactive transformer))
+                   ((eq event ?o)
+                    (edraw-set-transform-origin-interactive transformer))
+                   ((eq event ?m)
+                    (when-let ((method
+                                (pcase (read-char (edraw-msg "a:auto  t:transform property  p:anchor points"))
+                                  (?a 'auto)
+                                  (?t 'transform-property)
+                                  (?p 'anchor-points))))
+                      (edraw-set-transform-method editor method)))
+                   ;; ((memq (event-basic-type event) '(left up right down))
+                   ;;  @todo translate by key
+                   ;;  )
+                   ;; Scroll
+                   ((eq (car-safe event) 'down-mouse-2)
+                    (edraw-editor-scroll-by-dragging event))
+                   ((or (eq (car-safe event) edraw-wheel-up-event)
+                        (eq (car-safe event) (intern (concat "C-" (symbol-name edraw-wheel-up-event)))))
+                    (edraw-zoom-in editor))
+                   ((or (eq (car-safe event) edraw-wheel-down-event)
+                        (eq (car-safe event) (intern (concat "C-" (symbol-name edraw-wheel-down-event)))))
+                    (edraw-zoom-out editor))
+                   ((eq event ?0)
+                    (edraw-reset-scroll-and-zoom editor))
+                   ((eq event ?#)
+                    (edraw-toggle-grid-visible editor))
+                   ))))
+          ;; Hide transformation UI and show selection UI
+          (edraw-remove-hook editor 'before-image-update
+                             'edraw-update-ui-svg transformer)
+          (edraw-remove-ui-svg transformer)
+          (edraw-invalidate-image editor)
+          (oset editor selection-ui-visible t)
+          (edraw-invalidate-ui-parts editor 'selection-ui)))
+      (when (eq result 'ok)
+        (edraw-transform target (edraw-get-transform-matrix transformer))))))
 
 
 

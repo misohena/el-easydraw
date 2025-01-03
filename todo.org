@@ -1,19 +1,6 @@
 
 * Inbox
 ** TODO マーカー/アンカーポイントのメニューで設定できるようにする
-** TODO edraw-svg-shape-aabbがnilを返す可能性を考慮していないのを修正する
-
-中身が無い図形(空のgroupやpath)の場合nilを返す。
-nilの矩形を元に計算をすると算術エラーが発生するので問題。
-(~Wrong type argument: number-or-marker-p, nil~ などが発生する)
-
-- edraw-import-from-edraw-svg
-- edraw-point-connection-aabb
-  - edraw-get-xy => connectionに関する全ての呼び出し元でnilチェックしてる
-  - edraw-shape-center
-    - edraw-update-src
-    - edraw-update
-
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -5603,3 +5590,26 @@ CLOSED: [2025-01-03 Fri 18:03]
 とりあえずedraw-shape-centerはaabbがnilの場合は素直にnilを返すように修正。edraw-update-srcはedraw-shape-centerがnilの場合はそれ以上のしないようにした。
 
 +これとは別に、edraw-removeは削除処理をする前にpoint connectionを解除した方が良いと思う。+ とりあえず保留。別TODOへ移した: [[*点接続/edraw-removeはshapeを削除する前に点接続を解除する][点接続/edraw-removeはshapeを削除する前に点接続を解除する]]
+** DONE edraw-svg-shape-aabbがnilを返す可能性を考慮していないのを修正 :BUG:
+CLOSED: [2025-01-03 Fri 22:18]
+
+edraw-svg-shape-aabbは中身が無い図形(空のgroupやpath)の場合nilを返す。
+
+nilの矩形を元に計算をすると算術エラーが発生するので問題。
+(~Wrong type argument: number-or-marker-p, nil~ などが発生する)
+
+- [X] edraw-import-from-edraw-svg : 1点のpathを作ってそのSVGをインポートするとエラー
+- [X] edraw-selected-shapes-aabb
+  - [X] edraw-read-scale-params : px指定をscaleに変換する部分でエラー
+    - +edraw-read-origin-xy+ 問題なし
+  - +edraw-read-rotate-params+ 問題なし
+    - +edraw-read-origin-xy+ 問題なし
+- [X] edraw-display-selected-object-coordinates : 1点のpathを作って選択し矢印キーで移動するとエラー
+- [X] edraw-display-selected-object-info : 1点のpathを作って全選択するとエラー
+- [X] edraw-selected-custom-shapes-ref-box
+  - [X] edraw-on-down-mouse-1 edraw-editor-tool-custom-shape
+- +edraw-set-scale-params+ 問題なし(edraw-read-scale-paramsが問題なければ)
+- +edraw-set-rotate-params+ 問題なし
+- [X] edraw-glue-destination-of-selected-or-overlapped-shape おそらく問題ないが早い段階でのチェックを追加
+- +edraw-point-connection-aabb (shape, shape-text)+ 直前に対処済み
+- [X] edraw-shape-transformer-create : 1点のpathを作ってGUI変形しようとするとエラー
