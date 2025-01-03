@@ -295,6 +295,7 @@
      "Send to Back" "最背面へ"
      "Set Background..." "背景設定..."
      "Set Grid Interval..." "グリッド間隔設定..."
+     "Set Marker..." "マーカー設定..."
      "Set Property" "プロパティ設定"
      "Set View Size..." "表示サイズ設定..."
      "Set as default" "デフォルトとして設定"

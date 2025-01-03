@@ -10127,7 +10127,8 @@ Return the added anchor."
            (multi-subpaths-p (edraw-contains-multiple-subpaths-p
                               (edraw-parent-shape spt)))
            (splittable (not (edraw-endpoint-p spt))))
-      `(((edraw-msg "Delete Point") edraw-delete-point)
+      `(((edraw-msg "Set Marker...") edraw-set-marker-by-menu)
+        ((edraw-msg "Delete Point") edraw-delete-point)
         ((edraw-msg "Split Path at Point") edraw-split-path-at
          :enable ,splittable
          :visible ,(not multi-subpaths-p))
@@ -10145,6 +10146,17 @@ Return the added anchor."
          :enable ,(edraw-can-be-glued-to-selected-or-overlapped-shape spt))
         ((edraw-msg "Unglue") edraw-unglue
          :visible ,glued-p)))))
+
+(cl-defmethod edraw-set-marker-by-menu ((spt edraw-shape-point-path-anchor))
+  (let* ((shape (oref spt shape))
+         (first-p (edraw-first-end-p spt)) ;; open path and first anchor
+         (last-p (edraw-last-end-p spt)) ;; open path and last anchor
+         (prop-name (cond
+                     ((and first-p last-p) 'marker-mid) ;; Only 1 point
+                     (first-p 'marker-start)
+                     (last-p 'marker-end)
+                     (t 'marker-mid))))
+    (edraw-set-marker-by-menu shape prop-name)))
 
 (cl-defmethod edraw-delete-point ((spt edraw-shape-point-path-anchor))
   (with-slots (anchor shape) spt

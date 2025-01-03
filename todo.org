@@ -1,6 +1,5 @@
 
 * Inbox
-** TODO マーカー/アンカーポイントのメニューで設定できるようにする
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -5613,3 +5612,9 @@ nilの矩形を元に計算をすると算術エラーが発生するので問�
 - [X] edraw-glue-destination-of-selected-or-overlapped-shape おそらく問題ないが早い段階でのチェックを追加
 - +edraw-point-connection-aabb (shape, shape-text)+ 直前に対処済み
 - [X] edraw-shape-transformer-create : 1点のpathを作ってGUI変形しようとするとエラー
+** DONE マーカー/アンカーのメニューでマーカーを設定できるようにする
+CLOSED: [2025-01-03 Fri 22:57]
+
+アンカーのコンテキストメニューに「マーカー設定」を追加する。
+
+アンカーの場所によってmarker-start、marker-mid、marker-endを判別して設定する。
