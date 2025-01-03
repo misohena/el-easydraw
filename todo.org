@@ -1,12 +1,18 @@
 
 * Inbox
-** TODO 点接続/グループのREDOでエラーになる :BUG:
+** TODO マーカー/アンカーポイントのメニューで設定できるようにする
+** TODO edraw-svg-shape-aabbがnilを返す可能性を考慮していないのを修正する
 
-[[edraw:data=H4sIACVYdmcAA7VVPW/bMBD9KwSzOGhkfdiWZcMykExFgaJFgfRrYyRKJiyRAsVESjdnKDp0aoYO3fvD6j/SIynFbhGnGVIItsnj3Xt37070or7KUVsWvI7xSqlq7rpN0wyb0VDI3A08z3PBA1uXeVswvr7P0Z/NZq45xahhqVrFOBh7GK0oy1cKNhFsrqismeAx9oc+Xi5SmtWIpTGmqSSNo7dgLYlcU/mn3QmclSgKARtGSsFTjKzbO0vle15ved4RGlMlaU3lFT2tK5qoN0QxEWMuOIVcGG3ORBtjZ+Ih/YEAZIIkzd7H2C4+mIWQjHLAJJdKYFQrKdY0xke+p5/e4HRl+xhlrCg6nuWiImqFoJiX3omHxifOCEVmMfqIkZKE15mQZYylUETRgR95xxi5y4Vry4GF1mW5kFAAak061+b7oMo75S5Iss6luNR69Vnb6m2GR1mWGbJ8P0ik17jjS4kijjVrhywYecFFRnbxkX7+KUmwy3C8yzyypQRa89aemFT+Ip1OZ6MsIqE5NWJaZZxaEQmIl7IYHB2eFFBzD7ASjCsnEZxDeTCKMPSnA+94/ursxSCZhBOapOnxyenA8a2tr1ijQAsjGJHpdBiG4fStyXuv048Q4b7yetYDkifJJAnHYfA0kvuB1XxsJQ+s5Ib3KeGj/wtvfnf4irZ3+D1cJqDNNfsEFH7YbTNSsgLCa3jnHLgWGMy+jnUIT1ZCwoEeKMvQzWQwhraouiIcJQWp6/4dMWFw2dE7r2ckp3OYrYVr3B8XhVLNRUsI56SkcxCB8fwOwtUBXX0PzzB+kvpLlqYFNQKEockRGrl8DZe24H0ybt4l1HbID/IekHcEsL8+3243t9ubr9ubb+dc31LVdvN9u/l5zlOx3fzY3nzZ59R/QsvflPNt+qwGAAA=]]
+中身が無い図形(空のgroupやpath)の場合nilを返す。
+nilの矩形を元に計算をすると算術エラーが発生するので問題。
+(~Wrong type argument: number-or-marker-p, nil~ などが発生する)
 
-次のエラーが出る。
-
-: *: Wrong type argument: number-or-marker-p, nil
+- edraw-import-from-edraw-svg
+- edraw-point-connection-aabb
+  - edraw-get-xy => connectionに関する全ての呼び出し元でnilチェックしてる
+  - edraw-shape-center
+    - edraw-update-src
+    - edraw-update
 
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
@@ -339,6 +345,15 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 
 ** TODO グループの子孫を直接編集できるようにする
 モード切替等で、#edraw-body直下よりも下の階層にあるshapeを直接選択、操作出来るようにする。
+
+** TODO 点接続/edraw-removeはshapeを削除する前に点接続を解除する
+[[*点接続/グループのREDOでエラーになる][点接続/グループのREDOでエラーになる]]の修正時に気がついた。
+
+現在は edraw-removeの末尾 → (edraw-on-shape-changed shape 'shape-remove) → edraw-update-related-point-connections → edraw-remove-all-point-connection-referrers という流れで自動的に点接続が解除される。
+
+それより、素直にedraw-removeの中からshapeを取り除く前(undo groupの最初)に edraw-remove-all-point-connection-referrers を呼び出した方が良いのではないだろうか。
+
+その方がUNDOするときに、shapeの状態が完全に復元されてから点接続を復元することになるので効率が良いはず。
 
 ** TODO 点接続/グループ化・グループ化解除すると点接続が失われてしまう
 おそらく一度取り除いてから追加しているからだと思う。
@@ -5570,3 +5585,21 @@ CLOSED: [2025-01-03 Fri 18:12]
 - (edraw-log-when COND FORMAT-STRING ...)
 - (edraw-log-unless COND FORMAT-STRING ...)
 - (edraw-assert cond msg)
+** DONE 点接続/グループのUNDOでエラーになる :BUG:
+CLOSED: [2025-01-03 Fri 18:03]
+
+[[edraw:data=H4sIACVYdmcAA7VVPW/bMBD9KwSzOGhkfdiWZcMykExFgaJFgfRrYyRKJiyRAsVESjdnKDp0aoYO3fvD6j/SIynFbhGnGVIItsnj3Xt37070or7KUVsWvI7xSqlq7rpN0wyb0VDI3A08z3PBA1uXeVswvr7P0Z/NZq45xahhqVrFOBh7GK0oy1cKNhFsrqismeAx9oc+Xi5SmtWIpTGmqSSNo7dgLYlcU/mn3QmclSgKARtGSsFTjKzbO0vle15ved4RGlMlaU3lFT2tK5qoN0QxEWMuOIVcGG3ORBtjZ+Ih/YEAZIIkzd7H2C4+mIWQjHLAJJdKYFQrKdY0xke+p5/e4HRl+xhlrCg6nuWiImqFoJiX3omHxifOCEVmMfqIkZKE15mQZYylUETRgR95xxi5y4Vry4GF1mW5kFAAak061+b7oMo75S5Iss6luNR69Vnb6m2GR1mWGbJ8P0ik17jjS4kijjVrhywYecFFRnbxkX7+KUmwy3C8yzyypQRa89aemFT+Ip1OZ6MsIqE5NWJaZZxaEQmIl7IYHB2eFFBzD7ASjCsnEZxDeTCKMPSnA+94/ursxSCZhBOapOnxyenA8a2tr1ijQAsjGJHpdBiG4fStyXuv048Q4b7yetYDkifJJAnHYfA0kvuB1XxsJQ+s5Ib3KeGj/wtvfnf4irZ3+D1cJqDNNfsEFH7YbTNSsgLCa3jnHLgWGMy+jnUIT1ZCwoEeKMvQzWQwhraouiIcJQWp6/4dMWFw2dE7r2ckp3OYrYVr3B8XhVLNRUsI56SkcxCB8fwOwtUBXX0PzzB+kvpLlqYFNQKEockRGrl8DZe24H0ybt4l1HbID/IekHcEsL8+3243t9ubr9ubb+dc31LVdvN9u/l5zlOx3fzY3nzZ59R/QsvflPNt+qwGAAA=]]
+
+次のエラーが出る。
+
+: *: Wrong type argument: number-or-marker-p, nil
+
+[[edraw:data=H4sIACvKdmcAA5VSXW+DIBT9K+T2pX1QwHVdbcRke1yy7DcwQSV1YJBV++93qTXtw5ZlIeFyvw7nHiiGU0Omz84OAtoQ+gOl4zim40PqfEMzxhjFCphLDlNn7PGnQp7nOb1kgYxGhVYA3zMgrTZNGwRkW3RO2g/GWUylHMrC6yqQSQBmzpf910ajBGjl5Zh8yOrYePdlFZAheHfUAqyzGkhtuk7Aqq5rILQsmvsmp84QQ0oGmcyxmOW1knu5e1y4LBD7uG74K87iWgLJlWZ2I7m7I8/mcTI002yQje460w/6/zd4hIoK+Gm2FfpRngp9fgWnTVn0MrT34/XO2JBUzlocDDXH131es83h/eV1vYy9AYIivOVZumOccJanjG+f8MBIFqFnsrO6fzO9Eom/pfwGHU8uhlUCAAA=]]
+
+原因は edraw-update-src が edraw-shape-center を呼んでいるが、groupにまだ中身が無い段階なので edraw-shape-aabbがnilを返すので (edraw-rect-center nil) となりエラーになる。
+
+見回してみると、edraw-shape-aabbの戻り値がnilになりうるのを考慮していない箇所が散見される。まとめて修正した方が良い。
+
+とりあえずedraw-shape-centerはaabbがnilの場合は素直にnilを返すように修正。edraw-update-srcはedraw-shape-centerがnilの場合はそれ以上のしないようにした。
+
++これとは別に、edraw-removeは削除処理をする前にpoint connectionを解除した方が良いと思う。+ とりあえず保留。別TODOへ移した: [[*点接続/edraw-removeはshapeを削除する前に点接続を解除する][点接続/edraw-removeはshapeを削除する前に点接続を解除する]]
