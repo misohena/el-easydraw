@@ -5247,7 +5247,8 @@ to down-mouse-1 and processes drag and click."
                   (error (edraw-msg "No glue target")))))
            (text (read-string (if glue-dst-shape
                                   (edraw-msg "Glued Text: ")
-                                (edraw-msg "Text: ")))))
+                                (edraw-msg "Text: "))))
+           (glue-position (when glue-dst-shape (edraw-read-glue-position))))
       (unless (string-empty-p text)
         (edraw-deselect-all-shapes editor)
         (edraw-make-undo-group editor 'text-tool-create
@@ -5260,7 +5261,7 @@ to down-mouse-1 and processes drag and click."
                         'text text)))
 
             (when glue-dst-shape
-              (edraw-glue-to shape glue-dst-shape))
+              (edraw-glue-to shape glue-dst-shape glue-position))
 
             (edraw-select-shape editor shape)))))))
 
@@ -7794,11 +7795,16 @@ match all selected shapes in the editor."
           :cmd-for-selected edraw-editor-send-selected-to-back
           :enable ,(not (edraw-back-p shape)))))
        ((edraw-msg "Glue")
-        (((edraw-msg "Glue to selected or overlapped shape") edraw-glue-to-selected-or-overlapped-shape
+        (((edraw-msg "Glue to selected or overlapped shape")
+          edraw-glue-to-selected-or-overlapped-shape-interactive
           ;; @todo :cmd-for-selected ?
           ;; @todo impl `edraw-get-point-connections' for multiple shapes
           :enable ,(and shape-p
                         (null (edraw-get-point-connections shape))))
+         ((edraw-msg "Set Glue Position...") edraw-set-glue-position-interactive
+          :enable ,(and
+                    shape-p
+                    (not (null (edraw-get-regular-point-connection shape)))))
          ((edraw-msg "Unglue All") edraw-unglue-all
           ;; @todo :cmd-for-selected ?
           ;; @todo impl `edraw-get-point-connections' for multiple shapes
@@ -7941,22 +7947,70 @@ Some classes have efficient implementations."
                      aabb))))))
       dst-shape)))
 
-(cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((shape edraw-shape))
+(cl-defmethod edraw-glue-to-selected-or-overlapped-shape ((shape edraw-shape)
+                                                          &optional props)
   (let ((dst-shape
          ;; Determine the destination shape
          (edraw-glue-destination-of-selected-or-overlapped-shape shape)))
     (unless dst-shape
       (error (edraw-msg "No glue target")))
-    (edraw-glue-to shape dst-shape)))
+    (edraw-glue-to shape dst-shape props)))
 
-(cl-defmethod edraw-glue-to ((shape edraw-shape) (dst-shape edraw-shape))
+(cl-defmethod edraw-glue-to-selected-or-overlapped-shape-interactive
+  ((shape edraw-shape))
+  (edraw-glue-to-selected-or-overlapped-shape
+   shape
+   (edraw-read-glue-position)))
+
+(defun edraw-read-glue-position--read-string ()
+  "Read a string from the minibuffer for `edraw-read-glue-position' function."
+  (read-string
+   (concat
+    (edraw-msg "Glue Position") "\n"
+    "[x-ratio [y-ratio [x-offset [y-offset [x-ratio-src [y-ratio-src]]]]]]\n"
+    "Example: 0 : Left Top, 0.5: Center, 1 : Right Bottom, 1 0.5 : Right Middle\n"
+    " 0 0 5 5 : Left Top (Shift right 5 down 5)\n"
+    " 0.5 1 0 0 0.5 0 : Glue bottom of dst and top of src\n"
+    "(default:0.5): ")))
+
+(defun edraw-read-glue-position ()
+  "Read glue position options from the minibuffer.
+Return a PLIST to pass to `edraw-glue-to' method."
+  (let* ((args
+          (mapcar #'string-to-number
+                  (string-split (edraw-read-glue-position--read-string))))
+         (x-ratio (pop args))
+         (y-ratio (pop args))
+         (x-offset (pop args))
+         (y-offset (pop args))
+         (x-ratio-src (pop args))
+         (y-ratio-src (pop args)))
+    (list
+     :x-ratio (float (or x-ratio 0.5))
+     :y-ratio (float (or y-ratio x-ratio 0.5))
+     :x-offset (float (or x-offset 0.0))
+     :y-offset (float (or y-offset x-offset 0.0))
+     :x-ratio-src (float (or x-ratio-src x-ratio 0.5))
+     :y-ratio-src (float (or y-ratio-src x-ratio-src y-ratio x-ratio 0.5)))))
+;; EXAMPLE: (edraw-read-glue-position)
+
+(cl-defmethod edraw-glue-to ((shape edraw-shape) (dst-shape edraw-shape)
+                             &optional props)
   ;; Determine the destination shape
   (edraw-make-undo-group (oref shape editor) 'glue-shape-to-shape
     (let ((conn (edraw-point-connection
                  :src (edraw-point-connection-src-aabb
-                       :shape shape :x-ratio 0.5 :y-ratio 0.5)
+                       :shape shape
+                       :x-ratio (or (plist-get props :x-ratio-src)
+                                    (plist-get props :x-ratio) 0.5)
+                       :y-ratio (or (plist-get props :y-ratio-src)
+                                    (plist-get props :y-ratio) 0.5))
                  :dst (edraw-point-connection-dst-shape
-                       :shape dst-shape))))
+                       :shape dst-shape
+                       :x-ratio (or (plist-get props :x-ratio) 0.5)
+                       :y-ratio (or (plist-get props :y-ratio) 0.5)
+                       :x-offset (or (plist-get props :x-offset) 0.0)
+                       :y-offset (or (plist-get props :y-offset) 0.0)))))
       ;; Update coordinates before adding CONN to SHAPE.
       ;;(edraw-update conn)
       ;; Add CONN to SHAPE.
@@ -7965,6 +8019,56 @@ Some classes have efficient implementations."
       ;; When undoing, CONN must be removed before undoing XY move.
       ;;(edraw-update-all-point-connections shape)
       )))
+
+(cl-defmethod edraw-get-regular-point-connection ((shape edraw-shape))
+  "Return the normally used point connection object for a SHAPE, or nil if
+there is no point connection or if there is a point connection that is
+not normally used."
+  (let ((connections (edraw-get-point-connections shape)))
+    (when (and connections (null (cdr connections))) ;; Only one
+      (let* ((conn (car connections))
+             (src (edraw-src conn))
+             (dst (edraw-dst conn)))
+        (when (and (edraw-point-connection-src-aabb-p src) ;; AABB
+                   (edraw-point-connection-dst-shape-p dst)) ;; OBJ
+          conn)))))
+
+(cl-defmethod edraw-set-glue-position-interactive ((shape edraw-shape))
+  (edraw-set-glue-position shape (edraw-read-glue-position)))
+
+(cl-defmethod edraw-set-glue-position ((shape edraw-shape) props)
+  (when-let* ((conn (edraw-get-regular-point-connection shape))
+              (old-props (edraw-get-glue-position shape)))
+    (let ((src (edraw-src conn))
+          (dst (edraw-dst conn)))
+      (edraw-make-undo-group (oref shape editor) 'set-glue-position
+        (edraw-set-xy-ratio dst
+                            (or (plist-get props :x-ratio) 0.5)
+                            (or (plist-get props :y-ratio) 0.5))
+        (edraw-set-xy-offset dst
+                             (or (plist-get props :x-offset) 0.0)
+                             (or (plist-get props :y-offset) 0.0))
+        (edraw-set-xy-ratio src
+                            (or (plist-get props :x-ratio-src)
+                                (plist-get props :x-ratio) 0.5)
+                            (or (plist-get props :y-ratio-src)
+                                (plist-get props :y-ratio) 0.5))
+        (edraw-push-undo (oref shape editor)
+                         'set-glue-position-set
+                         (list #'edraw-set-glue-position shape old-props))
+        (edraw-update-all-point-connections shape)))))
+
+(cl-defmethod edraw-get-glue-position ((shape edraw-shape))
+  (when-let* ((conn (edraw-get-regular-point-connection shape)))
+    (let ((src (edraw-src conn))
+          (dst (edraw-dst conn)))
+      (list
+       :x-ratio (edraw-x-ratio dst)
+       :y-ratio (edraw-y-ratio dst)
+       :x-offset (edraw-x-offset dst)
+       :y-offset (edraw-y-offset dst)
+       :x-ratio-src (edraw-x-ratio src)
+       :y-ratio-src (edraw-y-ratio src)))))
 
 (cl-defmethod edraw-unglue-all ((shape edraw-shape))
   (edraw-make-undo-group (oref shape editor) 'unglue-all
@@ -10682,8 +10786,13 @@ Even if a handle is valid, it may not have any effect as a
 ;;;;;; Point Connection Source AABB
 
 (defclass edraw-point-connection-src-aabb (edraw-point-connection-src)
-  ((x-ratio :type float :initarg :x-ratio)
-   (y-ratio :type float :initarg :y-ratio)))
+  ((x-ratio :type float :initarg :x-ratio :reader edraw-x-ratio)
+   (y-ratio :type float :initarg :y-ratio :reader edraw-y-ratio)))
+
+(cl-defmethod edraw-set-xy-ratio ((src edraw-point-connection-src-aabb)
+                                  x-ratio y-ratio)
+  (oset src x-ratio x-ratio)
+  (oset src y-ratio y-ratio))
 
 (cl-defmethod edraw-equal ((src1 edraw-point-connection-src-aabb)
                            (src2 edraw-point-connection-src-aabb))
@@ -10730,31 +10839,62 @@ Even if a handle is valid, it may not have any effect as a
   "A class that represents where to glue the connection source point."
   :abstruct t)
 
-(cl-defmethod edraw-shape-center ((dst edraw-point-connection-dst))
+(cl-defmethod edraw-dst-position ((dst edraw-point-connection-dst))
   (when-let* ((aabb (edraw-point-connection-aabb (oref dst shape))))
     (edraw-rect-center aabb)))
 
 ;;;;;; Point Connection Destination with Specified Shape
 
 (defclass edraw-point-connection-dst-shape (edraw-point-connection-dst)
-  ())
+  ((x-ratio :type float :initarg :x-ratio :initform 0.5 :reader edraw-x-ratio)
+   (y-ratio :type float :initarg :y-ratio :initform 0.5 :reader edraw-y-ratio)
+   (x-offset :type float :initarg :x-offset :initform 0.0 :reader edraw-x-offset)
+   (y-offset :type float :initarg :y-offset :initform 0.0 :reader edraw-y-offset)))
+
+(cl-defmethod edraw-set-xy-ratio ((dst edraw-point-connection-dst-shape)
+                                  x-ratio y-ratio)
+  (oset dst x-ratio x-ratio)
+  (oset dst y-ratio y-ratio))
+
+(cl-defmethod edraw-set-xy-offset ((dst edraw-point-connection-dst-shape)
+                                   x-offset y-offset)
+  (oset dst x-offset x-offset)
+  (oset dst y-offset y-offset))
 
 (cl-defmethod edraw-to-string ((dst edraw-point-connection-dst-shape))
-  ;; OBJ(id)
-  (format "OBJ(%s)" (edraw-internal-id (oref dst shape))))
+  (let ((x-ratio (oref dst x-ratio))
+        (y-ratio (oref dst y-ratio))
+        (x-offset (oref dst x-offset))
+        (y-offset (oref dst y-offset)))
+    ;; OBJ(id)
+    (concat
+     (format "OBJ(%s" (edraw-internal-id (oref dst shape)))
+     (when (or (/= x-ratio 0.5) (/= y-ratio 0.5)
+               (/= x-offset 0) (/= y-offset 0))
+       (format " %s %s" x-ratio y-ratio))
+     (when (or (/= x-offset 0) (/= y-offset 0))
+       (format " %s %s" x-offset y-offset))
+     ")")))
+
+(cl-defmethod edraw-dst-position ((dst edraw-point-connection-dst-shape))
+  (with-slots (shape x-ratio y-ratio x-offset y-offset) dst
+    (when-let* ((aabb (edraw-point-connection-aabb shape)))
+      (edraw-xy-add
+       (edraw-rect-xy-ratio aabb x-ratio y-ratio)
+       (edraw-xy x-offset y-offset)))))
 
 (defvar edraw-point-connection-dst-shape--updating-dst nil)
 
 (cl-defmethod edraw-update-src ((dst edraw-point-connection-dst-shape)
                                 (src edraw-point-connection-src))
-  (let ((dst-shape-center (edraw-shape-center dst))) ;; xy or nil
+  (let ((dst-pos (edraw-dst-position dst))) ;; xy or nil
     (cond
      ;; If there is a circular reference, discontinue the calculation
-     ;; and return the center point of DST (or nil).
+     ;; and return the destination position of DST (or nil).
      ((memq dst edraw-point-connection-dst-shape--updating-dst)
-      dst-shape-center)
+      dst-pos)
      ;; Cannot calculate if empty.
-     ((null dst-shape-center)
+     ((null dst-pos)
       nil)
      (t
       (let ((edraw-point-connection-dst-shape--updating-dst
@@ -10765,20 +10905,20 @@ Even if a handle is valid, it may not have any effect as a
                                      (edraw-update src-next-inside))))
           (or
            (when xy-src-next-inside
-             (let* ((dir (edraw-xy-sub xy-src-next-inside dst-shape-center))
+             (let* ((dir (edraw-xy-sub xy-src-next-inside dst-pos))
                     (dist-dstc-to-src-sq (edraw-xy-length-squared dir)))
                (when (> dist-dstc-to-src-sq 1e-6)
                  (let ((xy
                         (car (last (edraw-svg-element-and-line-intersections
                                     (edraw-element (oref dst shape))
-                                    dst-shape-center
+                                    dst-pos
                                     dir)))))
                    ;; Add gap
                    (let ((gap (edraw-gap-distance src (oref dst shape))))
                      (when (and (numberp gap) (/= gap 0))
                        (let* ((dist-dstc-to-src (sqrt dist-dstc-to-src-sq))
                               (dist-dstc-to-edge (edraw-xy-distance
-                                                  xy dst-shape-center))
+                                                  xy dst-pos))
                               (dist-src-to-edge (edraw-xy-distance
                                                  xy-src-next-inside xy))
                               (max-gap
@@ -10794,12 +10934,12 @@ Even if a handle is valid, it may not have any effect as a
                                                   (edraw-xy-nmul
                                                    (/ gap dist-dstc-to-src)
                                                    dir)))))))
-                   ;;(message "Compute dst %s to %s (dir=%s) = %s" dst-shape-center xy-src-next-inside dir xy)
+                   ;;(message "Compute dst %s to %s (dir=%s) = %s" dst-pos xy-src-next-inside dir xy)
                    (edraw-set-xy src xy)
                    xy))))
            (progn
-             (edraw-set-xy src dst-shape-center)
-             dst-shape-center))))))))
+             (edraw-set-xy src dst-pos)
+             dst-pos))))))))
 
 ;;;;;; Point Connection Destination with Specified Shape and Direction
 
@@ -10814,7 +10954,7 @@ Even if a handle is valid, it may not have any effect as a
 (cl-defmethod edraw-update-src ((dst edraw-point-connection-dst-shape-dir)
                                 (src edraw-point-connection-src))
   ;; intersection(dst.shape.center for dir, dst.shape.edge)
-  (when-let* ((dst-shape-center (edraw-shape-center dst)))
+  (when-let* ((dst-shape-center (edraw-dst-position dst)))
     (let* ((angle (degrees-to-radians (oref dst dir)))
            (dir (edraw-xy (cos angle) (sin angle)))
            (xy (car (last (edraw-svg-element-and-line-intersections
@@ -11122,8 +11262,13 @@ Even if a handle is valid, it may not have any effect as a
         (funcall constructor dst-shape args)
       (error "Invalid point connection dst name %s" name))))
 
-(defun edraw-point-connection-parse-dst-shape (dst-shape _args)
-  (edraw-point-connection-dst-shape :shape dst-shape))
+(defun edraw-point-connection-parse-dst-shape (dst-shape args)
+  (edraw-point-connection-dst-shape
+   :shape dst-shape
+   :x-ratio (float (string-to-number (or (nth 1 args) "0.5")))
+   :y-ratio (float (string-to-number (or (nth 2 args) "0.5")))
+   :x-offset (float (string-to-number (or (nth 3 args) "0")))
+   :y-offset (float (string-to-number (or (nth 4 args) "0")))))
 
 (defun edraw-point-connection-parse-dst-shape-dir (dst-shape args)
   (edraw-point-connection-dst-shape-dir

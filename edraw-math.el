@@ -607,6 +607,10 @@ PO +----+--   (PO(Point of Opposite Corner)=PC+AX+AY)
    (edraw-rect-cx rect)
    (edraw-rect-cy rect)))
 
+(defun edraw-rect-xy-ratio (rect x-ratio y-ratio)
+  "Return the position specified by the ratio (X-RATIO, Y-RATIO) in RECT."
+  (cons (+ (* (- 1 x-ratio) (caar rect)) (* x-ratio (cadr rect)))
+        (+ (* (- 1 y-ratio) (cdar rect)) (* y-ratio (cddr rect)))))
 
 (defun edraw-rect-empty-p (rect)
   (not (and rect

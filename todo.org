@@ -332,6 +332,13 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 ** TODO グループの子孫を直接編集できるようにする
 モード切替等で、#edraw-body直下よりも下の階層にあるshapeを直接選択、操作出来るようにする。
 
+** TODO 点接続/プロパティエディタで点接続情報を編集できるようにする
+markerみたいにプロパティエディタの中でpoint-connectionのリストを表示してそれぞれのsrcとdstを編集できるようにする。
+
+[[*点接続/テキスト等の接着位置を調整できるようにする][点接続/テキスト等の接着位置を調整できるようにする]]で残った課題。
+
+data-edraw-point-connections 属性に対応するプロパティを追加する。
+
 ** TODO 点接続/edraw-removeはshapeを削除する前に点接続を解除する
 [[*点接続/グループのREDOでエラーになる][点接続/グループのREDOでエラーになる]]の修正時に気がついた。
 
@@ -360,7 +367,6 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 
 [2024-06-05 Wed]edraw-path.elの書き替え後に確認したが現象が再現できない。
 
-** TODO 点接続/テキスト等の接着位置を微調整する機能を追加する
 ** TODO 点接続/形が変わらない図形の変更では点接続を更新しないようにする
 無駄なので。
 edraw-on-shape-changedに何か形が変わらない変更であることが分かるようなヒントを追加する。
@@ -5618,3 +5624,53 @@ CLOSED: [2025-01-03 Fri 22:57]
 アンカーのコンテキストメニューに「マーカー設定」を追加する。
 
 アンカーの場所によってmarker-start、marker-mid、marker-endを判別して設定する。
+** DONE 点接続/テキスト等の接着位置を調整できるようにする
+CLOSED: [2025-01-04 Sat 16:15]
+接着パラメータを変更できるようにしたい。
+
+- SRC側は問題ない: AABB(x-ratio y-ratio)
+- DST側は問題あり:
+  - 中心以外の選択肢が必要
+  - 最後にピクセル単位で微調整が必要(paddingのため)
+  OBJ(id [x-ratio y-ratio x-offset y-offset])
+
+これだけの機能があれば、テキストを矩形の好きな位置に揃えることが出来るはず。
+例えば左上に合わせるには次のように設定する。
+
+#+begin_src xml
+<text data-edraw-point-connections="AABB(0.0 0.0):OBJ(RECT-ID 0.0 0.0 8 8)" text-anchor="start" ...>Some Text</text>
+#+end_src
+
+問題はこれらをどうやって設定するか。
+
+一つの理想としては、 data-edraw-point-connections をtextのプロパティとして編集できるようにすることだろう。ただ、これは結構面倒くさい。リストが必要。SRCとDST、それぞれタイプを変更したい。 point-connection-listタイプのようなものがあれば良いのだろうか。それに対するwidgetを作る必要がある。
+
+単純に「左上」「上」「右上」「左」「中央」「右」「左下」「下」「右下」をメニューで選ばせるだけでもよい。(+ピクセル単位調整)
+
+- Glue Position   接着位置 (AABB:OBJが一つだけある場合にのみ機能する)
+  - Top Left        左上
+  - Top Center      中上
+  - Top Right       右上
+  - Middle Left     左中
+  - Middle Center   中中
+  - Middle Right    右中
+  - Bottom Left     左下
+  - Bottom Center   中下
+  - Bottom Right    右下
+  - XY-Offset...    XYオフセット...
+  - XY-Ratio(Dst)... XY比率(接着先)
+  - XY-Ratio(Src)... XY比率(接着元)
+
+さらにCtrl+クリックでテキストを追加するときにも接着位置を入力させたらどうか。
+
+: Glue Position
+: [x-ratio [y-ratio [x-offset [y-offset [x-ratio-src [y-ratio-src]]]]]]
+: (default:0.5):
+
+edraw-read-glue-position関数はこれらの指定値を読み取ってPLISTで返す。
+edraw-glue-toはこのPLISTを受け取る。
+(edraw-glue-to shape shape &optional plist)
+
+テキスト接着や任意図形接着ではedraw-read-glue-positionで接着位置を読み取って使用する。
+
+メニューも単に「接着位置設定...」だけで十分だと思う。
