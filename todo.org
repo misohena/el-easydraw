@@ -5707,3 +5707,8 @@ CLOSED: [2025-01-05 Sun 10:17]
 (edraw-glue-to shape shape-dst)はshape-dstがshapeに依存するならエラーにする。
 
 ついでにすでにpoint-connectionを持っているならエラーにする(現在はUIがdisableになっていなければ同じ接続をいくらでも追加できるようになっている)。
+** DONE 点接続/変更した接着位置が保存されない不具合を修正する
+CLOSED: [2025-01-05 Sun 11:39]
+edraw-set-glue-positionにおいて、edraw-point-connectionオブジェクトへの変更をdata属性に反映していなかった。
+なので保存してまた読み込むと接着位置情報が変更前に戻ってしまい、何か操作すると変更前の位置に移動してしまう。
+edraw-update-point-connections-attributeを呼び出すようにした。

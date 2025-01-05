@@ -8061,6 +8061,8 @@ not normally used."
                                 (plist-get props :x-ratio) 0.5)
                             (or (plist-get props :y-ratio-src)
                                 (plist-get props :y-ratio) 0.5))
+        ;; Update attribute (data-edraw-point-connections=)
+        (edraw-update-point-connections-attribute shape)
         (edraw-push-undo (oref shape editor)
                          'set-glue-position-set
                          (list #'edraw-set-glue-position shape old-props))
