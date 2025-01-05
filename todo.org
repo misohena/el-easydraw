@@ -1,20 +1,5 @@
 
 * Inbox
-** TODO 点接続/他に接着されている図形をドラッグで移動できるようにする
-接着されていないルートまで辿って、それを移動する。
-循環していたら移動しない。
-クリックは通常通りできる必要がある。
-ボタンを押し下げて、移動が始まったらルートを移動する。
-
-edraw-mouse-down-shape 関数。かなり複雑になりそう。
-
-** TODO 点接続/アンカーポイントの接着において循環接着を防止する
-必要がある？　どのように？　要調査。
-
-アンカーポイント接着の循環の例は[[*点接続/おそらくUNDOで戻らないケースがある][点接続/おそらくUNDOで戻らないケースがある]]にある。
-
-図形全体の接着(edraw-glut-to shape dst-shape)についてはすでに[[*点接続/循環接着を防止する][点接続/循環接着を防止する]]で解決した。
-
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -346,6 +331,25 @@ edrawが必要とするidはdata-edraw-idとして既に存在していて、こ
 
 ** TODO グループの子孫を直接編集できるようにする
 モード切替等で、#edraw-body直下よりも下の階層にあるshapeを直接選択、操作出来るようにする。
+
+** TODO 点接続/アンカーポイントの接着において循環接着を防止する
+図形全体の接着(edraw-glut-to shape dst-shape)についてはすでに[[*点接続/循環接着を防止する][点接続/循環接着を防止する]]で解決した。
+
+必要がある？　どのように？　要調査。
+
+アンカーポイント接着の循環の例は[[*点接続/おそらくUNDOで戻らないケースがある][点接続/おそらくUNDOで戻らないケースがある]]にある。
+
+典型的な物:
+
+[[edraw:data=H4sIACszemcAA62S3WoDIRCFX0UmN8nFquO6fyEG2stC6TNs9p9sNezabPL2NbsRQmkplCIjOHKc7xzcjeeGTF1pWwVCcCBt1TWtvR8u770eFbTWnraMTdNEp5CaoWGCc86cFMi5GsbOaAVI8S7YXvpOH7+TYZZlbL6F/W6oCksuCtyc67z/iNGVCqpyyKfgkBfHZjAfugQy2sEcKwXa6ApI3fW9glVd10DYftc8ikx5dfNOuW1Jmds8WNon02kbFEZrB+IsOKNPa77Zvj2/rMOMJxjV9QYeFbcniyjBspKpu1DwmkqayjAlGIZUYiQISk4k9zgLmgddIb8t3wi83xn4K91t1iGThTjwAn7FDnDh9nSbBQ9jTjB1hYJKgRlJY5rwJP4nPp/S73z3WL0hjxfGVCDP5vjCyOXo0sM/xccaV+5D7j8B6pvqndECAAA=]]
+
+[[edraw:data=H4sIAHYyemcAA7WVTWvUQBjHv8owXrZgJvOyyUzKZqHtRQTx5j3ZJLuh26Qksbv1ZIqIICJ6KXrypvZQ/QT9MoPUj+EzeXEX2dLWKiE7ed7y/P4zedhReTRFy4N5Vvp4VlWH27a9WCzIQpC8mNqcUmpDBm5TtpfzNNvflMg8z7ObKEaLNKpmPnZcitEsTqezysfCGEdxUaZ55mNGGB6PinhSoaWPIXLc/F5ZmEY+jqMiWFhhMNmfFvnTLMKorIp8P/ZxlmcxRkk6n/v4XpIkGNnj0XS9KI+O+35RUAVW6zYJIXW5UGGyqlfmWr38HqPm6h1Wx8hXhGpFPmylcFhAFzOmvbmvcAMRJaHE64HDPM0qa5JnGVTARsGR7Ozs7g4YoYgSurX9ePfhoCc2HgSRrTugD1fojLfsjLbwvGU/DKrZdYiDP8i27u8MLNb6ep1ACaofwZYg6SBGXeK6rkRNtxa/PcXr2Xuo21W1zT3EBNtjDiOcDRkYonuQQ+IJ4YLHI5I5ACalCZuVNKvgxHGNUzHiSaUQY5J4joQaBefAhpDqESEoqGMc1HVvlZSDSodQ7injMdphFURy3m4El2ZHzM0ab/fs3Elqs8nOHpMucZQjjAGgZpXElVR2hrryA5WxcGX4zwfj+slQKgxppCa3n4we+T9NBld/PRk92fpk9DrXJoMP6QNFnzSNbj0UVbyser19XpIDUpk+g1rmdmYSHKRzkFMGWWmVcZHCEZtaK8gms7yAQBUUVaP4t2CKxz8uzi7ff9f1B33yWtfnuv6s65e6vtD1259fXl2enzaeN7o+0/UL/fxkZJuXbsba1O6mqOYg3A1cp13n+puuP+r6k67f6frrzRjtKdzwLzf+Be/KG2YNBwAA]]
+
+** TODO 点接続/他に接着されている図形を矢印キーで移動できるようにする
+マウスドラッグによる移動は[[*点接続/他に接着されている図形をドラッグで移動できるようにする][点接続/他に接着されている図形をドラッグで移動できるようにする]]で対処した。
+他の平行移動コマンドなどはやらなくて良いと思う。
+
+正直必要かどうか疑わしい。必ず先に選択を伴うので、はじめから大本の図形を選択してから移動すれば済む話だから。
 
 ** TODO 点接続/プロパティエディタで点接続情報を編集できるようにする
 markerみたいにプロパティエディタの中でpoint-connectionのリストを表示してそれぞれのsrcとdstを編集できるようにする。
@@ -5712,3 +5716,14 @@ CLOSED: [2025-01-05 Sun 11:39]
 edraw-set-glue-positionにおいて、edraw-point-connectionオブジェクトへの変更をdata属性に反映していなかった。
 なので保存してまた読み込むと接着位置情報が変更前に戻ってしまい、何か操作すると変更前の位置に移動してしまう。
 edraw-update-point-connections-attributeを呼び出すようにした。
+** DONE 点接続/他に接着されている図形をドラッグで移動できるようにする
+CLOSED: [2025-01-05 Sun 16:12]
+接着されていないshapeまで辿って、それを移動する。
+循環していたら移動しない。
+クリックは通常通りできる必要がある。
+ボタンを押し下げて、移動が始まったらルートを移動する。
+
+edraw-mouse-down-shape 関数に手を入れる必要がある。この関数では選択図形を一度に移動するために、moving-shapesというリストがすでに存在している。このリストを接着状況に応じて調整してやればこの問題は解決する。それを行う関数 edraw-adjust-movable-shapes-for-point-connection を追加。
+
+矢印キーについては保留。=> [[*点接続/他に接着されている図形を矢印キーで移動できるようにする][点接続/他に接着されている図形を矢印キーで移動できるようにする]]
+

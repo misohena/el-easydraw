@@ -4631,7 +4631,7 @@ to down-mouse-1 and processes drag and click."
                       (remq 'shift modifiers)))
          moving-shapes)
     (when down-shape
-      ;; Select shape
+      ;; Select/unselect shape and determine the moving target shapes
       (pcase event-type
         ('C-down
          (if down-selected-p
@@ -4650,6 +4650,11 @@ to down-mouse-1 and processes drag and click."
              (setq moving-shapes (edraw-selected-shapes editor))
            (edraw-select down-shape)
            (setq moving-shapes (list down-shape)))))
+
+      ;; Do not move the glued shapes directly. Move the shape it's
+      ;; glued to instead.
+      (setq moving-shapes
+            (edraw-adjust-movable-shapes-for-point-connection moving-shapes))
 
       ;; Move selected shapes
       (if moving-shapes
@@ -10689,6 +10694,10 @@ Even if a handle is valid, it may not have any effect as a
    ;; Return the current source coordinates
    (edraw-get-xy src)))
 
+(cl-defmethod edraw-targets-entire-shape-p ((_src edraw-point-connection-src))
+  "Return non-nil if SRC targets the entire shape."
+  nil)
+
 ;;;;;; Point Connection Source Path Anchor Point
 
 (defclass edraw-point-connection-src-anchor (edraw-point-connection-src)
@@ -10777,6 +10786,11 @@ Even if a handle is valid, it may not have any effect as a
    (eq (oref src1 attr-x) (oref src2 attr-x))
    (eq (oref src1 attr-y) (oref src2 attr-y))))
 
+;; @todo impl
+;; (cl-defmethod edraw-targets-entire-shape-p ((_src edraw-point-connection-src-attrs))
+;;   "Return non-nil if SRC targets the entire shape."
+;;   nil)
+
 (cl-defmethod edraw-to-string ((src edraw-point-connection-src-attrs))
   ;;@todo Add option to output shape id?
   ;; ATTRS(attr-x attr-y)
@@ -10825,6 +10839,11 @@ Even if a handle is valid, it may not have any effect as a
    (eq (oref src1 shape) (oref src2 shape))
    (eq (oref src1 x-ratio) (oref src2 x-ratio))
    (eq (oref src1 y-ratio) (oref src2 y-ratio))))
+
+(cl-defmethod edraw-targets-entire-shape-p
+  ((_src edraw-point-connection-src-aabb))
+  "Return non-nil if SRC targets the entire shape."
+  t)
 
 (cl-defmethod edraw-to-string ((src edraw-point-connection-src-aabb))
   ;;@todo Add option to output shape id?
@@ -11340,6 +11359,55 @@ connections from SRC-SHAPE."
                        finally return nil)))
       found))))
 
+;;;;;; Movable Shapes
+
+;; Shapes that are glued to other shapes cannot be moved directly by
+;; dragging them. This is because the position of such a shape is
+;; fixed by the position of the shape it is glued to.
+
+;; Therefore, we need to use the following functions to identify
+;; movable shapes.
+
+(defun edraw-adjust-movable-shapes-for-point-connection (shapes)
+  "Convert SHAPES into a list of movable shapes, taking point connections
+into account."
+  (seq-uniq (mapcar #'edraw-movable-shape-for-point-connection shapes) #'eq))
+
+(defun edraw-movable-shape-for-point-connection (shape)
+  "Return a movable shape object obtained by following point connections
+from SHAPE.
+
+A movable shape object is a shape object that has no point connections
+whose source is `edraw-targets-entire-shape-p'.
+
+If the point connections are circular and no such shape object can be
+found, return `nil'."
+  ;; Optimize: Most SHAPEs do not have point connections.
+  (if (null (edraw-get-point-connections shape))
+      shape
+    (let ((visited-shapes nil)
+          (unresolved-shapes (list shape))
+          (found nil))
+      (while (and (not found) unresolved-shapes)
+        (let* ((src-shape (pop unresolved-shapes))
+               (dst-shapes
+                ;; There should be no circular connections, but check
+                ;; just to be sure
+                (if (memq src-shape visited-shapes)
+                    'cyclic
+                  (push src-shape visited-shapes)
+                  ;; There should only be one connection that targets
+                  ;; the entire shape, but list them all just to be
+                  ;; sure
+                  (cl-loop for conn in (edraw-get-point-connections src-shape)
+                           when (edraw-targets-entire-shape-p (edraw-src conn))
+                           collect (edraw-dst-shape (edraw-dst conn))))))
+          (cond
+           ((null dst-shapes)
+            (setq found src-shape))
+           ((consp dst-shapes)
+            (setq unresolved-shapes (nconc dst-shapes unresolved-shapes))))))
+      found)))
 
 ;;;; Multiple Shapes
 
