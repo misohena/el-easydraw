@@ -1,5 +1,20 @@
 
 * Inbox
+** TODO 点接続/他に接着されている図形をドラッグで移動できるようにする
+接着されていないルートまで辿って、それを移動する。
+循環していたら移動しない。
+クリックは通常通りできる必要がある。
+ボタンを押し下げて、移動が始まったらルートを移動する。
+
+edraw-mouse-down-shape 関数。かなり複雑になりそう。
+
+** TODO 点接続/アンカーポイントの接着において循環接着を防止する
+必要がある？　どのように？　要調査。
+
+アンカーポイント接着の循環の例は[[*点接続/おそらくUNDOで戻らないケースがある][点接続/おそらくUNDOで戻らないケースがある]]にある。
+
+図形全体の接着(edraw-glut-to shape dst-shape)についてはすでに[[*点接続/循環接着を防止する][点接続/循環接着を防止する]]で解決した。
+
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -5674,3 +5689,21 @@ edraw-glue-toはこのPLISTを受け取る。
 テキスト接着や任意図形接着ではedraw-read-glue-positionで接着位置を読み取って使用する。
 
 メニューも単に「接着位置設定...」だけで十分だと思う。
+** DONE 点接続/循環接着を防止する
+CLOSED: [2025-01-05 Sun 10:17]
+
+循環接着……circular gluingと呼んで構わないだろうか？
+
+[[edraw:data=H4sIAL8eeWcAA6VWTY/jRBD9Ky3vZTl0p6v6ezQZaeeIhPgNHsdJrMnYI8dsspyYOSGBOMAFDlyQOCIkTtz4MZEG8S947SSaYbXLwCZWutvVqXqvXpfLOV+/XohNMxuW08JZXYhl3SyWw7QwGjfbm1W7nhbLYbg9m0w2m43aGNX1iwlrrSdwLcTrul83XTstSNHB4Wy7atrrd7lRSmky7hYX531dDWI7LYDzZhzfS6OZTYt61pcbeVVW14u++6ydFWI99N11PS3arq0LMW9Wq2nxYj6fF2Jycb546tTN3hzxZuVQyr35tmvaQVZd22IDKSDR4ul+DuBnzjHZJ/Fjvh7BX5DO19EgDznwYwb+MTOy+1zHeXuYQbZerZrbdf02eIhGh2R98QzrV68uL19q5QQp/dHZp5cfvzzSFtmqYf0A/j2IMjZ6EA2Yq0w8GyoYmPbM39Y009Z8VXLJV/+f9jHhTPlDaR9lt09kj3vZ/V51t6d+Ww7LQ/h9BT0fG8l9wokEMVVWeWOj0CIojhSFVTjNJIiEr1g5Gwzy4mCCcMprm++sS0lEYaqoHAWHDRucE2wEkzIm5ZXhSgtWgayVXrnkvPAqpBAlXCsZFSe4ZDCYyKngyAonGdFOycroKMi7Kstu8BF54b0PWFAlkRAz+I0TSPjELEhLyiOcjNIO65gn8M0jaRFP0tmy8LoiAxF1kFrFaINgqwKzkRAqSlORhhAQ/TBBZKfYQzMsOWXeKULgPEqCaCFCRRWZSJIX4SR+IYhIyJ1GweRBN8rXqEjUsLKKBidNVkJfW7ksp84DVs+gz+fose9DJ4O0NApiVB4PjAzAH4+Ima2kzEJSJqUZP7LWWMlahRCSTODmvMRJUqiky3XJEsIGj5JC7RmPTatYp4ASkyZHUlpTzGja5Y4SAjHqM5FjYKMGMoaROK2AHi9JGo2wjHjSuuxuA6FqLQHUquiRf1IJTzvKmviUcwgQVoeKICqoCFQuHj+NfMVhgjDB47GDJPuCHOrt8Pi62Is879Cd1s3ngCN/uJ2XN80KbWNdtmu5rvsGb5bsK8u2Wnb9tLhpZrNVPbYW5jD2lhSLi93dd7v7r3f33/71/W8Pv/y0u/thd//V+SS7/hP8mNep4NGM2Ab97Qh+9+vDNz//+eMXD79/ubv749/A3xn0vzLKr4RDVzXJPoM+WeCL/wwXfwMJfZO9dAgAAA==]]
+
+点接続全般における参照検出器が必要。
+
+図形Aは図形Bに依存している(故に図形Bは図形Aに依存できない):
+- +(edraw-point-connection-depend-on-p shape-a shape-b)+
+- (edraw-depends-through-point-connections shape-a shape-b)
+- +(edraw-depends-on-point-connection shape-a shape-b)+
+- +(edraw-is-connected-to-p shape-a shape-b)+
+
+(edraw-glue-to shape shape-dst)はshape-dstがshapeに依存するならエラーにする。
+
+ついでにすでにpoint-connectionを持っているならエラーにする(現在はUIがdisableになっていなければ同じ接続をいくらでも追加できるようになっている)。

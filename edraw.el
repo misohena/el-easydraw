@@ -7996,6 +7996,14 @@ Return a PLIST to pass to `edraw-glue-to' method."
 
 (cl-defmethod edraw-glue-to ((shape edraw-shape) (dst-shape edraw-shape)
                              &optional props)
+  ;; Prevent circular gluing
+  (when (edraw-depends-through-point-connections dst-shape shape)
+    (error
+     (edraw-msg "Cannot glue because it would create a circular reference")))
+  ;; Prevent gluing to multiple shapes
+  (when (edraw-get-point-connections shape)
+    (error (edraw-msg "Already glued")))
+
   ;; Determine the destination shape
   (edraw-make-undo-group (oref shape editor) 'glue-shape-to-shape
     (let ((conn (edraw-point-connection
@@ -10835,7 +10843,7 @@ Even if a handle is valid, it may not have any effect as a
 ;;;;; Point Connection Destination
 
 (defclass edraw-point-connection-dst ()
-  ((shape :type edraw-shape :initarg :shape))
+  ((shape :type edraw-shape :initarg :shape :reader edraw-dst-shape))
   "A class that represents where to glue the connection source point."
   :abstruct t)
 
@@ -11011,16 +11019,26 @@ Even if a handle is valid, it may not have any effect as a
 ;;;;;; Add/Remove/Find Point Connection
 
 (cl-defmethod edraw-get-point-connections ((shape edraw-shape))
+  "Return a list of `edraw-point-connection' objects whose source is SHAPE."
   (oref shape point-connections))
 
-(cl-defmethod edraw-set-point-connections ((shape edraw-shape) conn)
-  (oset shape point-connections conn))
+(cl-defmethod edraw-set-point-connections ((shape edraw-shape) conns)
+  "Set the point connection list whose source is SHAPE.
+
+CONNS is a list of `edraw-point-connection' objects whose source is SHAPE."
+  (oset shape point-connections conns))
 
 (cl-defmethod edraw-get-point-connection-referrers ((shape edraw-shape))
+  "Return a list of `edraw-point-connection' objects whose destination is
+SHAPE."
   (oref shape point-connection-referrers))
 
-(cl-defmethod edraw-set-point-connection-referrers ((shape edraw-shape) value)
-  (oset shape point-connection-referrers value))
+(cl-defmethod edraw-set-point-connection-referrers ((shape edraw-shape) conns)
+  "Set the point connection list whose destination is SHAPE.
+
+CONNS is a list of `edraw-point-connection' objects whose destination
+is SHAPE."
+  (oset shape point-connection-referrers conns))
 
 (cl-defmethod edraw-find-point-connection ((shape edraw-shape)
                                            (src edraw-point-connection-src))
@@ -11274,6 +11292,37 @@ Even if a handle is valid, it may not have any effect as a
   (edraw-point-connection-dst-shape-dir
    :shape dst-shape
    :dir (string-to-number (nth 1 args))))
+
+;;;;;; Point Connection Dependency Check
+
+(defun edraw-depends-through-point-connections (src-shape dst-shape)
+  "Return non-nil if SRC-SHAPE depends on DST-SHAPE through point connections.
+
+Check whether it is possible to reach DST-SHAPE by following the point
+connections from SRC-SHAPE."
+  (cond
+   ((null dst-shape)
+    nil)
+   ((eq src-shape dst-shape)
+    t)
+   (t
+    (let ((visited-shapes (list src-shape))
+          (unresolved-shapes (list src-shape))
+          (found nil))
+      (while (and unresolved-shapes
+                  (not found))
+        (setq found
+              (cl-loop for conn in (edraw-get-point-connections
+                                    (pop unresolved-shapes))
+                       for dst-conn = (edraw-dst conn)
+                       for shape = (edraw-dst-shape dst-conn)
+                       when (eq shape dst-shape) return t
+                       unless (memq shape visited-shapes)
+                       do
+                       (push shape visited-shapes)
+                       (push shape unresolved-shapes)
+                       finally return nil)))
+      found))))
 
 
 ;;;; Multiple Shapes
