@@ -7962,7 +7962,7 @@ Some classes have efficient implementations."
    shape
    (edraw-read-glue-position)))
 
-(defun edraw-read-glue-position--read-string ()
+(defun edraw-read-glue-position--read-string (initial-input)
   "Read a string from the minibuffer for `edraw-read-glue-position' function."
   (read-string
    (concat
@@ -7971,14 +7971,27 @@ Some classes have efficient implementations."
     "Example: 0 : Left Top, 0.5: Center, 1 : Right Bottom, 1 0.5 : Right Middle\n"
     " 0 0 5 5 : Left Top (Shift right 5 down 5)\n"
     " 0.5 1 0 0 0.5 0 : Glue bottom of dst and top of src\n"
-    "(default:0.5): ")))
+    "(default:0.5): ")
+   initial-input))
 
-(defun edraw-read-glue-position ()
+(defun edraw-read-glue-position (&optional current-glue-position)
   "Read glue position options from the minibuffer.
 Return a PLIST to pass to `edraw-glue-to' method."
   (let* ((args
           (mapcar #'string-to-number
-                  (string-split (edraw-read-glue-position--read-string))))
+                  (string-split
+                   (edraw-read-glue-position--read-string
+                    (when current-glue-position
+                      (mapconcat
+                       #'number-to-string
+                       (list
+                        (or (plist-get current-glue-position :x-ratio) 0.5)
+                        (or (plist-get current-glue-position :y-ratio) 0.5)
+                        (or (plist-get current-glue-position :x-offset) 0)
+                        (or (plist-get current-glue-position :y-offset) 0)
+                        (or (plist-get current-glue-position :x-ratio-src) 0.5)
+                        (or (plist-get current-glue-position :y-ratio-src) 0.5))
+                       " "))))))
          (x-ratio (pop args))
          (y-ratio (pop args))
          (x-offset (pop args))
@@ -8042,7 +8055,8 @@ not normally used."
           conn)))))
 
 (cl-defmethod edraw-set-glue-position-interactive ((shape edraw-shape))
-  (edraw-set-glue-position shape (edraw-read-glue-position)))
+  (edraw-set-glue-position shape (edraw-read-glue-position
+                                  (edraw-get-glue-position shape))))
 
 (cl-defmethod edraw-set-glue-position ((shape edraw-shape) props)
   (when-let* ((conn (edraw-get-regular-point-connection shape))
