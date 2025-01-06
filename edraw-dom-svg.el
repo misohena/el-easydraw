@@ -26,6 +26,7 @@
 (require 'dom)
 (require 'seq)
 (require 'subr-x)
+(require 'facemenu)
 (require 'edraw-math)
 (require 'edraw-path)
 (require 'edraw-util)
@@ -363,6 +364,10 @@ the DOM and quickly identify the parent."
 (defun edraw-dom-append-child (node child)
   (prog1 (dom-append-child node child)
     (edraw-dom-set-parent-auto child node)))
+
+(defun edraw-dom-append-children (node children)
+  (dolist (child children)
+    (edraw-dom-append-child node child)))
 
 (defun edraw-dom-insert-first (node child)
   (prog1 (dom-add-child-before node child)
@@ -2380,7 +2385,9 @@ other purposes."
     (let ((lines (split-string text "\n")))
       (if (null (cdr lines))
           ;; single line
-          (edraw-dom-append-child element (car lines)) ;; string
+          (edraw-dom-append-children
+           element
+           (edraw-svg-text--propertized-string-to-nodes (car lines)))
         ;; multi-line
         (edraw-svg-text--set-text-multiline element lines)))))
 
@@ -2418,39 +2425,144 @@ other purposes."
                                          line-delta
                                          line-delta-unit)))
                          ;; string
-                         line)
+                         :children
+                         (edraw-svg-text--propertized-string-to-nodes
+                          line))
       (unless (string-empty-p line)
         (setq line-delta 0))
       (cl-incf line-delta line-delta-step))))
 
-(defun edraw-svg-text--element-content-to-string (element first-p)
-  (cl-loop for node in (edraw-dom-children element)
-           for curr-first = first-p
-           ;; https://www.w3.org/TR/SVG11/text.html#TextElement
-           concat
-           (cond
-            ((edraw-dom-element-p node)
-             (pcase (edraw-dom-tag node)
-               ('a
-                (setq first-p nil)
-                (edraw-svg-text--element-content-to-string node curr-first))
-               ('tspan
-                (setq first-p nil)
-                (concat
-                 (when (and (string-match-p edraw-svg-text--line-class-name-re
-                                            (or (dom-attr node 'class) ""))
-                            (not curr-first))
-                   "\n")
-                 ;; @todo Save NODE attributes and styles as text properties
-                 (edraw-svg-text--element-content-to-string node curr-first)))
-               ;; Ignore altGlyph, textPath, tref, animation elements and
-               ;; descriptive elements
-               ))
-            ((stringp node)
-             (setq first-p nil)
-             node)
-            ;; Ignore malformed node
-            )))
+(defun edraw-svg-text--propertized-string-to-nodes (string)
+  "Convert a STRING with face properties to a list of DOM nodes."
+  (let ((len (length string))
+        (pos 0)
+        result)
+    (while (< pos len)
+      (let* ((next (or (next-property-change pos string) len))
+             (subtext (substring-no-properties string pos next))
+             (face (let ((face (get-text-property pos 'face string)))
+                     (when (symbolp face)
+                       (setq face (list face))) ;; Unify to list format
+                     (unless (listp face)
+                       (setq face nil)) ;; Unknown face format
+                     face))
+             (bold-italic (memq 'bold-italic face))
+             attrs)
+        (when (memq 'underline face)
+          (push (cons 'text-decoration "underline") attrs))
+        (when (or bold-italic (memq 'italic face))
+          (push (cons 'font-style "italic") attrs))
+        (when (or bold-italic (memq 'bold face))
+          (push (cons 'font-weight "bold") attrs))
+        ;; @todo Support foreground color
+        ;;       face=( ((:foreground "blue")) ...) => fill="blue"
+        ;;       face=((:foreground "blue")) => fill="blue"
+        ;;       Note: Require conversion from Emacs color to web color.
+        (if attrs
+            ;; <tspan ATTRS>...</tspan>
+            (push (edraw-dom-element 'tspan
+                                     :attributes attrs
+                                     subtext)
+                  result)
+          ;; Text node
+          (push subtext result))
+        (setq pos next)))
+    (nreverse result)))
+
+(defun edraw-svg-text--element-content-to-string (element
+                                                  first-p
+                                                  &optional parent-face)
+  ;; @todo Save more NODE attributes and styles as text properties
+  (let (;; Calculate current element face
+        (face
+         (if (edraw-dom-tag-eq element 'tspan)
+             (let* ((weight (dom-attr element 'font-weight))
+                    (style (dom-attr element 'font-style))
+                    (text-decor (dom-attr element 'text-decoration))
+                    (face (copy-sequence parent-face)))
+               (when weight
+                 (setq face (delq 'bold face))
+                 (when (equal weight "bold")
+                   (push 'bold face)))
+               (when style
+                 (setq face (delq 'italic face))
+                 (when (equal style "italic")
+                   (push 'italic face)))
+               (when text-decor
+                 (setq face (delq 'underline face))
+                 (when (equal text-decor "underline")
+                   (push 'underline face)))
+               face)
+           parent-face)))
+    (cl-loop
+     for node in (edraw-dom-children element)
+     for curr-first = first-p
+     ;; https://www.w3.org/TR/SVG11/text.html#TextElement
+     concat
+     (cond
+      ((edraw-dom-element-p node)
+       (pcase (edraw-dom-tag node)
+         ('a
+          (setq first-p nil)
+          (edraw-svg-text--element-content-to-string node curr-first face))
+         ('tspan
+          (setq first-p nil)
+          (concat
+           (when (and (string-match-p edraw-svg-text--line-class-name-re
+                                      (or (dom-attr node 'class) ""))
+                      (not curr-first))
+             "\n")
+           (edraw-svg-text--element-content-to-string node curr-first face)))
+         ;; Ignore altGlyph, textPath, tref, animation elements and
+         ;; descriptive elements
+         ))
+      ((stringp node)
+       (setq first-p nil)
+       (if face
+           (propertize node 'face face)
+         node))
+      ;; Ignore malformed node
+      ))))
+;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan font-weight=\"bold\">BOLD</tspan></text>" nil) t) => #("BOLD" 0 4 (face (bold)))
+;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan font-weight='bold'>BOLD<tspan font-weight='normal' font-style='italic'>ITALIC</tspan>BOLD2</tspan></text>" nil) t) => #("BOLDITALICBOLD2" 0 4 (face (bold)) 4 10 (face (italic)) 10 15 (face (bold)))
+
+;; (defun edraw-svg-read-text-nodes (prompt)
+;;   "Read text from the minibuffer and return it as a DOM node list."
+;;   (edraw-svg-text--propertized-string-to-nodes
+;;    (edraw-svg-read-propertized-text prompt)))
+
+(defvar edraw-svg-read-propertized-text-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "M-o") #'facemenu-keymap)
+    km)
+  "Keymap used by `edraw-svg-read-propertized-text'")
+
+(defun edraw-svg-read-propertized-text (prompt &optional initial-input)
+  "Read a string with text properties from the minibuffer.
+
+In the minibuffer, faces can be modified using the M-o key."
+  ;; @todo Emacs 27 cannot substitute facemenu-keymap.
+  ;; Note: The Emacs27 generation librsvg may have a bug
+  ;; in tspan coordinate calculation.  Emacs27 may want to
+  ;; prohibit the formatting function altogether.
+  (when (version<= "28" emacs-version)
+    (setq prompt
+          (replace-regexp-in-string
+           "\\(\\):? *$"
+           (concat
+            " ("
+            (substitute-command-keys
+             "\\<edraw-svg-read-propertized-text-map>\\[facemenu-keymap]")
+            ":"
+            (edraw-msg "Formatting") ")")
+           prompt t t 1)))
+  (let ((minibuffer-allow-text-properties t)
+        (minibuffer-local-map (progn
+                                (set-keymap-parent
+                                 edraw-svg-read-propertized-text-map
+                                 minibuffer-local-map)
+                                edraw-svg-read-propertized-text-map)))
+    (read-string prompt initial-input)))
 
 (defun edraw-svg-text-get-text (element)
   (edraw-svg-text--element-content-to-string element t))

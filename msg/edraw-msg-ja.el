@@ -150,6 +150,7 @@
      "Fold All Sections" "全セクション折りたたみ"
      "Font Size..." "フォントサイズ..."
      "Font Size: " "フォントサイズ: "
+     "Formatting" "書式"
      "Frame" "フレーム"
      "Freehand Tool" "手書きツール"
      "Generate Shape Along Path" "パスに沿った図形を生成"

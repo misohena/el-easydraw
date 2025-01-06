@@ -5234,7 +5234,9 @@ to down-mouse-1 and processes drag and click."
                (edraw-shape-text-p down-shape))
       (edraw-select-shape editor down-shape)
       (let* ((old-text (edraw-get-property down-shape 'text))
-             (new-text (read-string (edraw-msg "Change Text: ") (or old-text ""))))
+             (new-text (edraw-svg-read-propertized-text
+                        (edraw-msg "Change Text: ")
+                        (or old-text ""))))
         (edraw-set-property down-shape 'text new-text)
         t))))
 
@@ -5250,9 +5252,10 @@ to down-mouse-1 and processes drag and click."
             (when (memq 'control (event-modifiers click-event))
               (or (car (edraw-find-shapes-by-xy editor click-xy))
                   (error (edraw-msg "No glue target")))))
-           (text (read-string (if glue-dst-shape
-                                  (edraw-msg "Glued Text: ")
-                                (edraw-msg "Text: "))))
+           (text (edraw-svg-read-propertized-text
+                  (if glue-dst-shape
+                      (edraw-msg "Glued Text: ")
+                    (edraw-msg "Text: "))))
            (glue-position (when glue-dst-shape (edraw-read-glue-position))))
       (unless (string-empty-p text)
         (edraw-deselect-all-shapes editor)
@@ -7446,8 +7449,14 @@ return it."
                (new-value (cdr prop))
                (old-value (edraw-svg-element-get-property element prop-name
                                                           deftbl
-                                                          prop-info-list)))
-          (unless (equal new-value old-value)
+                                                          prop-info-list))
+               (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
+                                                              prop-name)))
+          (unless
+              ;; @todo Add equality information to `edraw-svg-prop-info'
+              (if (eq (edraw-svg-prop-info-type prop-info) 'text)
+                  (equal-including-properties new-value old-value)
+                (equal new-value old-value))
             ;;(message "%s: %s to %s" prop-name old-value new-value)
             (push (cons prop-name old-value) old-prop-list)
             (edraw-svg-element-set-property element prop-name new-value

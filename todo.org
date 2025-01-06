@@ -1,5 +1,30 @@
 
 * Inbox
+** TODO plist-getのGV版は少なくともEmacs27には無い
+** TODO Emacs27でテキスト装飾機能に問題がある
+- M-oのキーバインドが正しく表示されない。
+  substitute-command-keysがfacemenu-keymapを検出してくれない。Emacs28からは大丈夫。
+- 入れ子になったtspanに座標が引き継がれない。おそらく古いlibrsvgのバグ。Emacs28以降やブラウザでは問題なく表示される。
+
+正直Emacs27は装飾機能を無効化しても良いかもしれない。
+
+** TODO テキストとして制御文字が入ると即SVG全体が無効になる
+C-q C-a等で制御文字を入れるとSVG画像全体が消えてしまう。
+
+基本的にXML内ではHT(9), LF(A), CR(D)以外の制御文字0～1Fは許容されていない。
+D800～DFFFもサロゲート領域なので許容されていない。
+
+** TODO テキストツールでC-クリックした時にエラーは出さない方が良いかも？
+図形が無いところでC-クリックした時に接着対象がないのでエラーが発生する。
+debug-on-errorだとバックトレースが出てしまうので少々大げさな気がする。
+その他errorを使うかどうかは色々な場所でよく迷う。
+何か基準が欲しい。
+
+** TODO edraw-svg-prop-infoに等価判定方法に関する情報を追加する
+[[*テキストの装飾(書式・下線や斜体など)を編集できないか][テキストの装飾(書式・下線や斜体など)を編集できないか]]を実装したときに、テキストプロパティも比較するかどうかで困った。
+現在はtypeがtextの時だけequal-including-propertiesを使用し、それ以外の時はequalを使用している。
+何を使って値を比較するかをプロパティ情報として持たせた方が良い。
+
 ** TODO パスに沿った繰り返しパターンを作る一般化された仕組み
 [[https://github.com/misohena/el-easydraw/issues/29][Repeated pattern along a path · Issue #29 · misohena/el-easydraw]]
 
@@ -5730,4 +5755,22 @@ edraw-mouse-down-shape 関数に手を入れる必要がある。この関数で
 CLOSED: [2025-01-06 Mon 10:09]
 plistpはEmacs29から。
 edraw-plistpに置き換える。
+** DONE テキストの書式(書式・下線や斜体など)を編集できないか
+CLOSED: [2025-01-06 Mon 00:38]
+facemenu-set-*はプロパティエディタ内で効くので、それを反映できないか。
+- facemenu-set-*は[[info:emacs#Enriched Text][emacs#Enriched Text]]で紹介されている。
+- M-oで始まるキーバインドはenrich-modeで有効になるが、facemenu-set-自体はfacemenu.elで定義されているのでenrich-mode限定というわけでは無さそう。キーマップもM-oはfacemenu-keymapで定義されている。enriched-mode-mapでは(define-key map "\M-o" #'facemenu-keymap)として組み込まれている。edraw-property-editor-mode-mapでも同様にすれば良いかもしれない(~(require 'facemenu)~ が必要)。font-lockも確実に無効にした方が良いかもしれない。
+- facemenu-set-*はfaceテキストプロパティが設定される。設定されるプロパティ値はbold, italic, bold-italic, underlineの任意の組み合わせ。(italic bold-italic)なんて状態にもなり得るので注意。foregroundやbackgroundも含めると次のようになる。
+  : (((:background "red")) ((:foreground "blue")) italic-bold italic bold underline)
 
+editable-field widgetがテキストプロパティに対応していない！　widget-field-value-getの中でbuffer-substring-no-propertiesを使っているのが原因なので、この関数の亜種を作成する。edraw--widget-field-value-get。
+
+shapeのtextプロパティ(edraw-dom-svg.el内のtextタイプ - inner-textソース)はテキストプロパティ付き文字列とDOMノードリストを相互に変換する。
+
+| bold      | font-weight="bold"          |
+| italic    | font-style="italic"         |
+| underline | text-decoration="underline" |
+
+read-stringを使っている箇所(新規でテキストを作るところとクリックで変更するところ)でもテキストプロパティを許容したい。read-stringはデフォルトではテキストプロパティを捨ててしまうが、minibuffer-allow-text-propertiesを非nilにすれば維持してくれる。ミニバッファ内でM-oを使うためにminibuffer-local-mapも指定する。promptにはM-oに関するキーアサインを表示する。
+
+edraw-set-propertiesに少々見つかりにくい問題あり。プロパティ値の変化をequalで判定しているが、equalはテキストプロパティを無視する。equal-including-propertiesは無視しないのでprop-infoのtypeがtextの時はequal-including-propertiesで比較するようにした。常にequal-including-propertiesを使って良いか分からなかったので。本来はprop-infoに等価性に関する情報を追加すべき。

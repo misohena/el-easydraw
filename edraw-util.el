@@ -928,5 +928,21 @@ Therefore, the following evaluation results will be the same:
   (when-let* ((len (proper-list-p object)))
     (= (% len 2) 0)))
 
+(defun edraw-remove-text-properties-except (string prop-name)
+  "Remove all text properties from STRING except PROP-NAME.
+
+STRING is the text from which to modify properties.
+PROP-NAME is the property to retain in the string."
+  (let ((len (length string))
+        (pos 0))
+    (while (< pos len)
+      (let* ((props (text-properties-at pos string))
+             (next (or (next-property-change pos string) len))
+             (value (plist-get props prop-name)))
+        (set-text-properties pos next (when value (list prop-name value))
+                             string)
+        (setq pos next)))
+    string))
+
 (provide 'edraw-util)
 ;;; edraw-util.el ends here

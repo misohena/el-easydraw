@@ -26,6 +26,7 @@
 
 (require 'widget)
 (require 'wid-edit)
+(require 'facemenu)
 (require 'edraw-util)
 (require 'edraw-math)
 (require 'edraw-color-picker)
@@ -447,6 +448,7 @@ editor when the selected shape changes."
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km widget-text-keymap) ;;For multiline
     (edraw-property-editor-define-field-map-keys km)
+    (define-key km (kbd "M-o") #'facemenu-keymap)
     km))
 
 (defvar edraw-property-editor-mode-map
@@ -893,7 +895,7 @@ once. widget-value-set updates the same property four times."
      ((eq prop-type 'text)
       (edraw-property-editor-create-text-field-widget
        indent target prop-name prop-value prop-info notify
-       t))
+       t t))
      (t
       (edraw-property-editor-create-text-field-widget
        indent target prop-name prop-value prop-info notify)))))
@@ -953,7 +955,8 @@ as a string."
                                                        prop-name prop-value
                                                        prop-info notify
                                                        &optional
-                                                       multiline)
+                                                       multiline
+                                                       enable-text-props)
   (let* ((disp-name (edraw-property-editor-property-display-name prop-name))
          (field-indent (make-string (+ indent (length disp-name) 2) ? ))
          (_ (widget-insert (make-string indent ? )))
@@ -965,6 +968,9 @@ as a string."
                   :format (format "%s: %%v" disp-name)
                   :value (edraw-property-editor-prop-value-to-widget-value
                           prop-value prop-info)
+                  :value-get (if enable-text-props
+                                 #'edraw--widget-field-value-get
+                               #'widget-field-value-get)
                   :edraw-indent field-indent
                   :notify notify))
          (prop-widget (edraw-property-editor-prop-widget
@@ -979,6 +985,14 @@ as a string."
       (put-text-property beg end 'wrap-prefix field-indent))
     ;; Return prop widget object
     prop-widget))
+
+(defun edraw--widget-field-value-get (widget)
+  "A variant of `widget-field-value-get' that preserves text properties."
+  (if-let* ((from (widget-field-start widget))
+            (to   (widget-field-text-end widget)))
+      (with-current-buffer (widget-field-buffer widget)
+        (edraw-remove-text-properties-except (buffer-substring from to) 'face))
+    (widget-get widget :value)))
 
 ;;;;;; Number Widget
 
