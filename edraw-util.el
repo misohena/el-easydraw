@@ -921,5 +921,12 @@ Therefore, the following evaluation results will be the same:
         (mapcar #'key-description keys)
       (key-description keys))))
 
+(defun edraw-plistp (object)
+  ;; Emacs 28 does not have `plistp'
+  ;; Emacs 29 have `plistp'
+  ;; Note: proper-list-p requires Emacs 27
+  (when-let* ((len (proper-list-p object)))
+    (= (% len 2) 0)))
+
 (provide 'edraw-util)
 ;;; edraw-util.el ends here

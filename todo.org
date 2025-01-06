@@ -5726,4 +5726,8 @@ CLOSED: [2025-01-05 Sun 16:12]
 edraw-mouse-down-shape 関数に手を入れる必要がある。この関数では選択図形を一度に移動するために、moving-shapesというリストがすでに存在している。このリストを接着状況に応じて調整してやればこの問題は解決する。それを行う関数 edraw-adjust-movable-shapes-for-point-connection を追加。
 
 矢印キーについては保留。=> [[*点接続/他に接着されている図形を矢印キーで移動できるようにする][点接続/他に接着されている図形を矢印キーで移動できるようにする]]
+** DONE plistpの使用を取り除く
+CLOSED: [2025-01-06 Mon 10:09]
+plistpはEmacs29から。
+edraw-plistpに置き換える。
 

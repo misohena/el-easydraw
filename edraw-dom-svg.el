@@ -106,7 +106,7 @@ in the rest argument."
                         when (and k (symbolp k))
                         do (push (cons (edraw-dom-element--strip-colon k) v)
                                  attr-alist)))
-              ((plistp value) ;; plist
+              ((edraw-plistp value) ;; plist
                (cl-loop for (k v) on value by #'cddr
                         when (and k (symbolp k))
                         do (push (cons (edraw-dom-element--strip-colon k) v)
