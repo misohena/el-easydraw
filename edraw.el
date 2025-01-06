@@ -5266,7 +5266,8 @@ to down-mouse-1 and processes drag and click."
                         'text
                         'x (car click-xy-snapped)
                         'y (cdr click-xy-snapped)
-                        'text text)))
+                        'text text
+                        'space "preserve")))
 
             (when glue-dst-shape
               (edraw-glue-to shape glue-dst-shape glue-position))

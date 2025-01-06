@@ -977,14 +977,7 @@ comment nodes."
     (when (and (integerp indent) (not no-indent))
       (insert (make-string indent ? )))
     (insert (format "<%s" tag))
-    (dolist (attr attrs)
-      (when (and (or (null attr-filter) (funcall attr-filter attr))
-                 (not (edraw-dom-attr-internal-p (car attr))))
-        (insert (format " %s=\"%s\""
-                        (car attr)
-                        ;;@todo add true attribute filter and add number format option on export
-                        (edraw-svg-escape-chars
-                         (edraw-svg-ensure-string-attr (cdr attr)))))))
+    (edraw-svg--print--attributes attrs attr-filter)
     (if (null children)
         ;;children is empty
         (insert " />")
@@ -992,6 +985,30 @@ comment nodes."
       (insert ">")
       (edraw-svg-print--children-and-end-tag
        tag children node-filter attr-filter indent no-indent))))
+
+(defun edraw-svg--print--attributes (attrs attr-filter)
+  (dolist (attr attrs)
+    (when (and (or (null attr-filter) (funcall attr-filter attr))
+               (not (edraw-dom-attr-internal-p (car attr))))
+      (insert " "
+              (edraw-svg-print--attribute-name-string (car attr))
+              "=\""
+              ;;@todo add true attribute filter and add number format option on export
+              (edraw-svg-escape-chars
+               (edraw-svg-ensure-string-attr (cdr attr)))
+              "\""))))
+
+;; Workaround for libxml-parse-xml-region discarding namespaces
+;; @todo Can't we do something a little more?
+(defconst edraw-svg-print--attr-ns-alist '((space . "xml")))
+
+(defun edraw-svg-print--attribute-name-string (attr-name)
+  (let ((ns (assq attr-name edraw-svg-print--attr-ns-alist)))
+    (if ns
+        (format "%s:%s" (cdr ns) attr-name)
+      (format "%s" attr-name))))
+;; TEST: (edraw-svg-print--attribute-name-string 'width) => "width"
+;; TEST: (edraw-svg-print--attribute-name-string 'space) => "xml:space"
 
 (defun edraw-svg-print--children-and-end-tag (tag
                                               children node-filter attr-filter
@@ -2236,6 +2253,12 @@ other purposes."
      (text-anchor attr (or "start" "middle" "end") (geometry))
      (writing-mode attr-update-text
                    (or "horizontal-tb" "vertical-rl" "vertical-lr") (geometry))
+     ;; librsvg(2.55) doesn't support the `white-space' property so we
+     ;; use `xml:space'.
+     ;; `libxml-parse-xml-region' discards the xml namespace so we
+     ;; simply use it as the `space' attribute and outputs `xml:space'
+     ;; when printed.
+     (space attr (or "default" "preserve") nil)
      ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/129
      ;;(baseline-shift attr number nil)
      (data-edraw-text-leading attr-update-text number (geometry))

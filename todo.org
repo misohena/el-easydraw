@@ -1,6 +1,17 @@
 
 * Inbox
+** TODO テキストのデフォルトフォントをどうするか
+現在のsans-serifは可変ピッチなので使いづらい。
+昔はこれを指定しないと日本語が表示できなかったので指定したが、今は普通に表示できるようになった。いつからだろう。
+
+** TODO テキストの空白処理によって境界矩形を調整する
+text要素のspace属性(xml:space)がpreserveのときは連続する空白を一つにまとめてから境界矩形を作成する。可能であればstyle="white-space:normal"などの場合も考慮できると良い。ただし、librsvg(2.55)はこれに対応していない。
+
 ** TODO plist-getのGV版は少なくともEmacs27には無い
+- edraw-import-svg-convert-element-attributes
+- edraw-import-svg-convert-attr-style
+- edraw-path-extra-props-set : この関数は使われていない。
+
 ** TODO Emacs27でテキスト装飾機能に問題がある
 - M-oのキーバインドが正しく表示されない。
   substitute-command-keysがfacemenu-keymapを検出してくれない。Emacs28からは大丈夫。
@@ -5774,3 +5785,23 @@ shapeのtextプロパティ(edraw-dom-svg.el内のtextタイプ - inner-textソ�
 read-stringを使っている箇所(新規でテキストを作るところとクリックで変更するところ)でもテキストプロパティを許容したい。read-stringはデフォルトではテキストプロパティを捨ててしまうが、minibuffer-allow-text-propertiesを非nilにすれば維持してくれる。ミニバッファ内でM-oを使うためにminibuffer-local-mapも指定する。promptにはM-oに関するキーアサインを表示する。
 
 edraw-set-propertiesに少々見つかりにくい問題あり。プロパティ値の変化をequalで判定しているが、equalはテキストプロパティを無視する。equal-including-propertiesは無視しないのでprop-infoのtypeがtextの時はequal-including-propertiesで比較するようにした。常にequal-including-propertiesを使って良いか分からなかったので。本来はprop-infoに等価性に関する情報を追加すべき。
+** DONE テキスト内の空白が反映されないのを何とかする
+CLOSED: [2025-01-06 Mon 12:51]
+librsvg(2.55.90時点)はstyle="white-space:pre"を認識しない。ブラウザは認識する。xml:space="preserve"はlibrsvgもブラウザも認識する。
+
+[[https://gitlab.gnome.org/GNOME/librsvg/-/issues/795][Implement SVG2 white-space behavior (#795) · イシュー · GNOME / librsvg · GitLab]]
+
+ひとまず xml:space="preserve" をtext要素に指定するのが最も簡単。
+
+しかし嫌らしいのはlibxmlがXML名前空間を捨ててしまうということ。
+
+#+begin_src elisp :results pp
+(edraw-svg-decode-xml "<text xml:space='preserve'>TEXT   DESU   </text>" nil)
+#+end_src
+
+#+RESULTS:
+: (text ((space . "preserve")) "TEXT   DESU   ")
+
+幸いSVGにはspace属性などというものは無いので、space属性を出力するときはxml:を付けるという回避策が可能。酷いけどlibxmlを使う以上酷い解決策は避けられない。以前行ったことがある回避策としては、parse前に名前空間を特殊な表記に置き換えて、parseした後に名前空間に戻すという手法。本当にバカバカしい。なのでedraw-svg-printでspace属性を出力するときはxml:spaceを出力する。
+
+後はテキストを作成するときに必ずspace属性を指定してしまう。無駄かもしれないけどしょうがない。
