@@ -709,6 +709,13 @@ Therefore, the following evaluation results will be the same:
 ;; TEST: (edraw-plist-to-alist nil) => nil
 ;; TEST: (edraw-plist-to-alist '(a 1 b 2)) => ((a . 1) (b . 2))
 
+(defun edraw-plistp (object)
+  ;; Emacs 28 does not have `plistp'
+  ;; Emacs 29 have `plistp'
+  ;; Note: proper-list-p requires Emacs 27
+  (when-let* ((len (proper-list-p object)))
+    (= (% len 2) 0)))
+
 ;;;; Association List
 
 (defun edraw-alist-append (&rest alists)
@@ -920,13 +927,6 @@ Therefore, the following evaluation results will be the same:
     (if (listp keys)
         (mapcar #'key-description keys)
       (key-description keys))))
-
-(defun edraw-plistp (object)
-  ;; Emacs 28 does not have `plistp'
-  ;; Emacs 29 have `plistp'
-  ;; Note: proper-list-p requires Emacs 27
-  (when-let* ((len (proper-list-p object)))
-    (= (% len 2) 0)))
 
 (defun edraw-remove-text-properties-except (string prop-name)
   "Remove all text properties from STRING except PROP-NAME.

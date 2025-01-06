@@ -480,7 +480,15 @@ The result value might look like this:
                                 old-transform)))
           (when new-transform
             (push (cons 'transform new-transform) new-attributes))
-          (push ref-id (plist-get (car context) :ids-ref-from-use))
+          ;; Do not use GV version of plist-get
+          ;;(push ref-id (plist-get (car context) :ids-ref-from-use))
+          (setcar context
+                  (plist-put (car context)
+                             :ids-ref-from-use
+                             (cons
+                              ref-id
+                              (plist-get (car context) :ids-ref-from-use))))
+
           (edraw-dom-element 'g
                              :attributes new-attributes
                              converted-ref-elem))))))
@@ -498,13 +506,26 @@ The result value might look like this:
   dom)
 
 (defun edraw-import-svg-convert-definition (elem context)
-  (push
-   (let ((edraw-import-svg-in-defs edraw-import-svg-keep-unsupported-defs))
-     (edraw-dom-element
-      (edraw-dom-tag elem)
-      :attributes (edraw-import-svg-convert-element-attributes elem context)
-      :children (edraw-import-svg-convert-children elem context)))
-   (plist-get (car context) :definitions))
+  ;; Do not use GV version of plist-get
+  ;; (push
+  ;;  (let ((edraw-import-svg-in-defs edraw-import-svg-keep-unsupported-defs))
+  ;;    (edraw-dom-element
+  ;;     (edraw-dom-tag elem)
+  ;;     :attributes (edraw-import-svg-convert-element-attributes elem context)
+  ;;     :children (edraw-import-svg-convert-children elem context)))
+  ;;  (plist-get (car context) :definitions))
+  (setcar
+   context
+   (plist-put
+    (car context)
+    :definitions
+    (cons
+     (let ((edraw-import-svg-in-defs edraw-import-svg-keep-unsupported-defs))
+       (edraw-dom-element
+        (edraw-dom-tag elem)
+        :attributes (edraw-import-svg-convert-element-attributes elem context)
+        :children (edraw-import-svg-convert-children elem context)))
+     (plist-get (car context) :definitions))))
   nil)
 
 (defun edraw-import-svg-convert-unsupported-element (elem context)
@@ -590,20 +611,27 @@ The result value might look like this:
 
 (defun edraw-import-svg-convert-element-attributes (elem context &optional
                                                          exclude-attrs)
-  (cl-letf (((plist-get (car context) :override-attrs) nil))
-    (let ((new-attrs
-           (edraw-import-svg-convert-attributes
-            (if exclude-attrs
-                (cl-loop for kv in (edraw-dom-attributes elem)
-                         unless (memq (car kv) exclude-attrs)
-                         collect kv)
-              (edraw-dom-attributes elem))
-            elem
-            context)))
-      ;; Override attributes
-      (cl-loop for (pname . pvalue) in (plist-get (car context) :override-attrs)
-               do (setf (alist-get pname new-attrs) pvalue))
-      new-attrs)))
+  ;; Do not use GV version of plist-get
+  ;; (cl-letf (((plist-get (car context) :override-attrs) nil))
+  (let ((old-override-attrs (plist-get (car context) :override-attrs)))
+    (setcar context (plist-put (car context) :override-attrs nil))
+    (unwind-protect
+        (let ((new-attrs
+               (edraw-import-svg-convert-attributes
+                (if exclude-attrs
+                    (cl-loop for kv in (edraw-dom-attributes elem)
+                             unless (memq (car kv) exclude-attrs)
+                             collect kv)
+                  (edraw-dom-attributes elem))
+                elem
+                context)))
+          ;; Override attributes
+          (cl-loop for (pname . pvalue) in (plist-get (car context) :override-attrs)
+                   do (setf (alist-get pname new-attrs) pvalue))
+          new-attrs)
+      (setcar context (plist-put (car context)
+                                 :override-attrs
+                                 old-override-attrs)))))
 
 (defun edraw-import-svg-convert-attributes (attributes elem context)
   (cl-loop for (k . v) in attributes
@@ -757,10 +785,17 @@ The result value might look like this:
                                       (substring value
                                                  (cadr pname-token)
                                                  (cdr pvalue-range)))))
-            (setf (plist-get (car context) :override-attrs)
-                  (append
-                   (plist-get (car context) :override-attrs)
-                   override-attrs))
+            ;; Do not use GV version of plist-get
+            ;; (setf (plist-get (car context) :override-attrs)
+            ;;       (append
+            ;;        (plist-get (car context) :override-attrs)
+            ;;        override-attrs))
+            (setcar context (plist-put
+                             (car context)
+                             :override-attrs
+                             (append
+                              (plist-get (car context) :override-attrs)
+                              override-attrs)))
             (cons attr-name new-value))
         (error
          (edraw-import-warn 'css-error

@@ -7,11 +7,6 @@
 ** TODO テキストの空白処理によって境界矩形を調整する
 text要素のspace属性(xml:space)がpreserveのときは連続する空白を一つにまとめてから境界矩形を作成する。可能であればstyle="white-space:normal"などの場合も考慮できると良い。ただし、librsvg(2.55)はこれに対応していない。
 
-** TODO plist-getのGV版は少なくともEmacs27には無い
-- edraw-import-svg-convert-element-attributes
-- edraw-import-svg-convert-attr-style
-- edraw-path-extra-props-set : この関数は使われていない。
-
 ** TODO Emacs27でテキスト装飾機能に問題がある
 - M-oのキーバインドが正しく表示されない。
   substitute-command-keysがfacemenu-keymapを検出してくれない。Emacs28からは大丈夫。
@@ -5805,3 +5800,10 @@ librsvg(2.55.90時点)はstyle="white-space:pre"を認識しない。ブラウ�
 幸いSVGにはspace属性などというものは無いので、space属性を出力するときはxml:を付けるという回避策が可能。酷いけどlibxmlを使う以上酷い解決策は避けられない。以前行ったことがある回避策としては、parse前に名前空間を特殊な表記に置き換えて、parseした後に名前空間に戻すという手法。本当にバカバカしい。なのでedraw-svg-printでspace属性を出力するときはxml:spaceを出力する。
 
 後はテキストを作成するときに必ずspace属性を指定してしまう。無駄かもしれないけどしょうがない。
+** DONE plist-getのGV版は少なくともEmacs27には無い
+CLOSED: [2025-01-06 Mon 17:14]
+- edraw-import-svg-convert-use (push)
+- edraw-import-svg-convert-definition (push)
+- edraw-import-svg-convert-element-attributes (cl-letf)
+- edraw-import-svg-convert-attr-style (setf)
+- edraw-path-extra-props-set : この関数は使われていない。

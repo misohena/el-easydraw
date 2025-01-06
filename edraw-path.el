@@ -75,7 +75,10 @@
   (plist-get (edraw-path--extra-props obj) key))
 
 (defun edraw-path-extra-props-set (obj key value)
-  (setf (plist-get (edraw-path--extra-props obj) key) value))
+  ;; Do not use GV version of plist-get
+  ;; (setf (plist-get (edraw-path--extra-props obj) key) value)
+  (setf (edraw-path--extra-props obj)
+        (plist-put (edraw-path--extra-props obj) key value)))
 
 
 ;;;;; Intrusive Doubly Linked List
