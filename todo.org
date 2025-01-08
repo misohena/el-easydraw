@@ -1,5 +1,23 @@
 
 * Inbox
+** TODO テキスト内で任意のスタイルを指定出来るようにする
+M-o sでスタイル属性を入力できるようにする。
+
+facemenu-keymapをそのまま使うのは難しいのではないか。
+独自のfacemenu-keymap相当を作るにはどうしたら良いか。
+そもそもfacemenu-keymapがどのように作られているのか。
+
+tspanに指定出来るプロパティには何があるか。
+
+プロパティを指定したことによって別途対策が必要な事項はあるか。
+- font-size : 行送りの量を調整する必要がある。
+
+設定を禁止すべきプロパティはあるか。
+
+既存の属性(font-weight, font-style, text-decoration)との兼ね合いをどうするか。
+
+read-stringで直接属性の中身を入力されるのは良くないかもしれない(もしやるならエスケープ処理をしっかり行う必要がある)。プロパティと値を個別に入力させる方が望ましい。プロパティや値にはcompleting-readを使用する。
+
 ** TODO テキストのデフォルトフォントをどうするか
 現在のsans-serifは可変ピッチなので使いづらい。
 昔はこれを指定しないと日本語が表示できなかったので指定したが、今は普通に表示できるようになった。いつからだろう。
@@ -13,12 +31,6 @@ text要素のspace属性(xml:space)がpreserveのときは連続する空白を�
 - 入れ子になったtspanに座標が引き継がれない。おそらく古いlibrsvgのバグ。Emacs28以降やブラウザでは問題なく表示される。
 
 正直Emacs27は装飾機能を無効化しても良いかもしれない。
-
-** TODO テキストとして制御文字が入ると即SVG全体が無効になる
-C-q C-a等で制御文字を入れるとSVG画像全体が消えてしまう。
-
-基本的にXML内ではHT(9), LF(A), CR(D)以外の制御文字0～1Fは許容されていない。
-D800～DFFFもサロゲート領域なので許容されていない。
 
 ** TODO テキストツールでC-クリックした時にエラーは出さない方が良いかも？
 図形が無いところでC-クリックした時に接着対象がないのでエラーが発生する。
@@ -5807,3 +5819,33 @@ CLOSED: [2025-01-06 Mon 17:14]
 - edraw-import-svg-convert-element-attributes (cl-letf)
 - edraw-import-svg-convert-attr-style (setf)
 - edraw-path-extra-props-set : この関数は使われていない。
+** DONE テキストとして制御文字が入ると即SVG画像全体が無効になる
+CLOSED: [2025-01-08 Wed 17:10]
+C-q C-a等やC-x 8 RET d800等でXMLで許容されていない文字を入れるとSVG画像全体が消えてしまう。
+
+基本的にXML内ではHT(9), LF(A), CR(D)以外の制御文字0～1Fは許容されていない。
+D800～DFFFもサロゲート領域なので許容されていない。
+
+- [[https://www.w3.org/International/questions/qa-controls][HTML, XHTML, XML and Control Codes]]
+- [[https://stackoverflow.com/questions/730133/what-are-invalid-characters-in-xml][What are invalid characters in XML - Stack Overflow]]
+- https://www.w3.org/TR/xml/#charsets
+- https://www.w3.org/TR/xml11/#charsets
+
+XML1.1では文字参照で許容されているものもあるが、基本的には取り除いた方が無難。
+
+問題はどの段階で取り除くか。
+- プロパティエディタ
+- edraw-set-properties～edraw-svg-element-set-property～edraw-svg-text-set-textあたり
+- edraw-svg-print
+
+プロパティエディタは変更検出のことを考えると早い段階で取り除いた方が良い。理想的には入力したそばから取り除いていくことだが、それができないのであればwidgetからvalueを取得するときに取り除きたいところ。
+
+もちろん edraw-svg-read-propertized-text で読み取ることもあるのだから、そちらでも対処する必要がある。
+
+edraw-svg-element-set-propert系でも取り除くべきだし、edraw-svg-printでも取り除くべきだろう。
+
+つまり文字列を他から取り入れるあらゆる所で取り除くべき。
+
+とはいえ、あえて一箇所に絞れと言われたら、edraw-svg-printだろう。つまりDOMノード上では制御文字を許容しつつ、print時に取り除くことで画像が突然消えることを防ぐ。当然セーブしてロードしたら消える。文字のescape処理(edraw-svg-escape-chars)と一緒に消してしまえば効率が良い。
+
+これだけだとDOM内に無効な文字が残るので、テキストの境界矩形と実際に表示されるテキストのサイズが合わなくなってしまう。やはりプロパティの設定時にも消した方が良いだろう。edraw-svg-remove-invalid-chars関数を追加し、これをedraw-svg-text-set-textから呼び出す。こうすることでプロパティエディタでも文字を入力したそばから消えるようになった。

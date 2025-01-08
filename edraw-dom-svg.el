@@ -1029,17 +1029,38 @@ comment nodes."
   t)
 
 (defun edraw-svg-escape-chars (str)
+  ;; https://stackoverflow.com/questions/730133/what-are-invalid-characters-in-xml
   (replace-regexp-in-string
-   "\\([\"&<\r\n]\\)"
+   "\\([\"&<\x0-\x1f\x7f-\x9f\xd800-\xdfff\xfffe\xffff]\\)"
    (lambda (str)
      (pcase (elt str 0)
        (?\" "&quot;")
        (?& "&amp;")
        (?< "&lt;")
+       (?\t "\t")
        (?\n "&#10;")
-       (?\r "&#13;")))
+       (?\r "&#13;")
+       ;; Remove 00-1F(except 09 0A 0D) 7F-9F D800-DFFF FFFE FFFF
+       ;; ((If these characters are not removed, the SVG image will disappear))
+       ;; https://www.w3.org/TR/xml/#charsets
+       ;; https://www.w3.org/TR/xml11/#charsets
+       (_ "")))
    str
    t t))
+
+(defun edraw-svg-remove-invalid-chars (str)
+  "Remove characters that are prohibited for XML documents in STR.
+
+The following characters are forbidden:
+00-1F(except 09 0A 0D) 7F-9F D800-DFFF FFFE FFFF"
+  ;; Remove 00-1F(except 09 0A 0D) 7F-9F D800-DFFF FFFE FFFF
+  ;; ((If these characters are not removed, the SVG image will disappear))
+  ;; https://www.w3.org/TR/xml/#charsets
+  ;; https://www.w3.org/TR/xml11/#charsets
+  (replace-regexp-in-string
+   "\\([\x0-\x8\xb-\xc\xe-\x1f\x7f-\x9f\xd800-\xdfff\xfffe\xffff]\\)"
+   ""
+   str t t))
 
 
 ;;;; SVG Encode / Decode
@@ -2405,7 +2426,7 @@ other purposes."
   (edraw-dom-remove-all-children element)
 
   (when (stringp text)
-    (let ((lines (split-string text "\n")))
+    (let ((lines (split-string (edraw-svg-remove-invalid-chars text) "\n")))
       (if (null (cdr lines))
           ;; single line
           (edraw-dom-append-children
