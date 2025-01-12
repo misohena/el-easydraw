@@ -315,7 +315,7 @@
             when (if-let ((visible (plist-member props :visible)))
                      (progn
                        ;; Remove :visible property
-                       (setq props (edraw-plist-remove props :visible))
+                       (setq props (edraw-plist-remove-first props :visible))
                        ;; Eval visible property
                        (eval (cadr visible)))
                    t)
@@ -651,7 +651,7 @@ returns nil."
            while (funcall pred k v)
            collect k collect v))
 
-(defun edraw-plist-remove (plist prop &optional predicate)
+(defun edraw-plist-remove-first (plist prop &optional predicate)
   "Return a property list with the property PROP removed from PLIST.
 
 The original PLIST will not be modified.
@@ -664,12 +664,14 @@ If there are multiple PROPs, the first one is removed.
 If you want to make destructive changes to the list, consider
 using `cl-remf'."
   (unless predicate (setq predicate #'eq))
-  (if-let ((head (plist-member plist prop)))
+  (if-let ((head (plist-member plist prop predicate)))
       (nconc
        (edraw-plist-take-while plist (lambda (k _)
                                        (not (funcall predicate k prop))))
        (cddr head))
     plist))
+;; TEST: (edraw-plist-remove-first '(a 1 b 2 c 3 d 4 a 10 b 20) 'a) => (b 2 c 3 d 4 a 10 b 20)
+;; TEST: (edraw-plist-remove-first '("a" 1 "b" 2 "c" 3 "d" 4 "a" 10 "b" 20) "a" #'string=) => ("b" 2 "c" 3 "d" 4 "a" 10 "b" 20)
 
 (defun edraw-plist-put (plist prop value &optional predicate)
   "Return a plist with the PROP of PLIST changed to VALUE.
@@ -678,7 +680,7 @@ This is a non-destructive version of `plist-put'."
    prop
    (cons
     value
-    (edraw-plist-remove plist prop predicate))))
+    (edraw-plist-remove-first plist prop predicate))))
 
 (defun edraw-plist-append (&rest plists)
   "Return a new plist by concatenating PLISTS and removing duplicates.

@@ -5849,3 +5849,8 @@ edraw-svg-element-set-propert系でも取り除くべきだし、edraw-svg-print
 とはいえ、あえて一箇所に絞れと言われたら、edraw-svg-printだろう。つまりDOMノード上では制御文字を許容しつつ、print時に取り除くことで画像が突然消えることを防ぐ。当然セーブしてロードしたら消える。文字のescape処理(edraw-svg-escape-chars)と一緒に消してしまえば効率が良い。
 
 これだけだとDOM内に無効な文字が残るので、テキストの境界矩形と実際に表示されるテキストのサイズが合わなくなってしまう。やはりプロパティの設定時にも消した方が良いだろう。edraw-svg-remove-invalid-chars関数を追加し、これをedraw-svg-text-set-textから呼び出す。こうすることでプロパティエディタでも文字を入力したそばから消えるようになった。
+** DONE edraw-plist-removeのミスを修正する
+CLOSED: [2025-01-12 Sun 22:50]
+edraw-plist-removeのpredicate引数をちゃんと使っていなかった。
+幸いこの引数を利用している場所は無い。
+ついでにedraw-plist-remove-firstへ改名する。
