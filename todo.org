@@ -5854,3 +5854,4 @@ CLOSED: [2025-01-12 Sun 22:50]
 edraw-plist-removeのpredicate引数をちゃんと使っていなかった。
 幸いこの引数を利用している場所は無い。
 ついでにedraw-plist-remove-firstへ改名する。
+[2025-01-14 Tue]追記:edraw-plist-remove-first-keyへ改名した。

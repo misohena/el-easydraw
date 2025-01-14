@@ -315,7 +315,8 @@
             when (if-let ((visible (plist-member props :visible)))
                      (progn
                        ;; Remove :visible property
-                       (setq props (edraw-plist-remove-first props :visible))
+                       (setq props
+                             (edraw-plist-remove-first-key props :visible))
                        ;; Eval visible property
                        (eval (cadr visible)))
                    t)
@@ -651,27 +652,27 @@ returns nil."
            while (funcall pred k v)
            collect k collect v))
 
-(defun edraw-plist-remove-first (plist prop &optional predicate)
-  "Return a property list with the property PROP removed from PLIST.
+(defun edraw-plist-remove-first-key (plist key &optional predicate)
+  "Return a property list with the property KEY removed from PLIST.
 
 The original PLIST will not be modified.
 
 The rest of the PLIST after the modified part is shared with the
 returned list.
 
-If there are multiple PROPs, the first one is removed.
-
-If you want to make destructive changes to the list, consider
-using `cl-remf'."
+If there are multiple KEYs, the first one is removed."
+  ;; @todo Using plist-get as GV doesn't work on Emacs 27! Create edraw-plist-delete-first-key
+  ;; +If you want to make destructive changes to the list, consider+
+  ;; +using `cl-remf'.+
   (unless predicate (setq predicate #'eq))
-  (if-let ((head (plist-member plist prop predicate)))
+  (if-let ((head (plist-member plist key predicate)))
       (nconc
        (edraw-plist-take-while plist (lambda (k _)
-                                       (not (funcall predicate k prop))))
+                                       (not (funcall predicate k key))))
        (cddr head))
     plist))
-;; TEST: (edraw-plist-remove-first '(a 1 b 2 c 3 d 4 a 10 b 20) 'a) => (b 2 c 3 d 4 a 10 b 20)
-;; TEST: (edraw-plist-remove-first '("a" 1 "b" 2 "c" 3 "d" 4 "a" 10 "b" 20) "a" #'string=) => ("b" 2 "c" 3 "d" 4 "a" 10 "b" 20)
+;; TEST: (edraw-plist-remove-first-key '(a 1 b 2 c 3 d 4 a 10 b 20) 'a) => (b 2 c 3 d 4 a 10 b 20)
+;; TEST: (edraw-plist-remove-first-key '("a" 1 "b" 2 "c" 3 "d" 4 "a" 10 "b" 20) "a" #'string=) => ("b" 2 "c" 3 "d" 4 "a" 10 "b" 20)
 
 (defun edraw-plist-remove-nil (plist)
   "Return a new property list from PLIST where all properties whose keys or
@@ -689,7 +690,7 @@ This is a non-destructive version of `plist-put'."
    prop
    (cons
     value
-    (edraw-plist-remove-first plist prop predicate))))
+    (edraw-plist-remove-first-key plist prop predicate))))
 
 (defun edraw-plist-append (&rest plists)
   "Return a new plist by concatenating PLISTS and removing duplicates.
