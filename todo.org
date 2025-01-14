@@ -5945,3 +5945,6 @@ read-stringで直接属性の中身を入力されるのは良くないかもし
   - SVGプロパティを入力する仕組みを整備する
 ** DONE ptキーでテキストを変更する
 CLOSED: [2025-01-14 Tue 16:46]
+** DONE plist-memberの第三引数が使えるのはEmacs29以降
+CLOSED: [2025-01-14 Tue 17:57]
+なので edraw-plist-remove-first-key と edraw-plist-put の predicate 引数は廃止する。幸い使っていない。
