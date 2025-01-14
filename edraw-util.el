@@ -673,6 +673,15 @@ using `cl-remf'."
 ;; TEST: (edraw-plist-remove-first '(a 1 b 2 c 3 d 4 a 10 b 20) 'a) => (b 2 c 3 d 4 a 10 b 20)
 ;; TEST: (edraw-plist-remove-first '("a" 1 "b" 2 "c" 3 "d" 4 "a" 10 "b" 20) "a" #'string=) => ("b" 2 "c" 3 "d" 4 "a" 10 "b" 20)
 
+(defun edraw-plist-remove-nil (plist)
+  "Return a new property list from PLIST where all properties whose keys or
+values ​​are nil have been removed."
+  (cl-loop for (k v) on plist by #'cddr
+           when (and k v)
+           collect k and collect v))
+;; TEST: (edraw-plist-remove-nil nil) => nil
+;; TEST: (edraw-plist-remove-nil '(a 1 b nil c 3 nil 4 e 5 nil nil g 7)) => (a 1 c 3 e 5 g 7)
+
 (defun edraw-plist-put (plist prop value &optional predicate)
   "Return a plist with the PROP of PLIST changed to VALUE.
 This is a non-destructive version of `plist-put'."
@@ -718,6 +727,28 @@ Therefore, the following evaluation results will be the same:
   (when-let* ((len (proper-list-p object)))
     (= (% len 2) 0)))
 
+(defun edraw-plist-mapconcat (function plist &optional separator remove-nil)
+  "Apply FUNCTION to each property of PLIST, and concat the results as strings.
+In between each pair of results, stick in SEPARATOR.  Thus, \" \" as
+SEPARATOR results in spaces between the values returned by FUNCTION.
+
+FUNCTION must be a function of two arguments (a key and a value), and
+must return a value that is a string.
+
+A non-nil REMOVE-NIL means to remove properties whose keys or values ​​are nil."
+  (let ((result "")
+        (p plist))
+    (while (and (consp p) (consp (cdr p)))
+      (let ((key (car p)) (value (cadr p)))
+        (when (or (not remove-nil) (and key value))
+          (let ((str (funcall function key value)))
+            (setq result (if (eq p plist) str (concat result separator str)))))
+        (setq p (cddr p))))
+    result))
+;; TEST: (edraw-plist-mapconcat (lambda (k v) (format "%s=%s" k v)) '(a 1) ", ") => "a=1"
+;; TEST: (edraw-plist-mapconcat (lambda (k v) (format "%s=%s" k v)) '(a 1 b 2 c 3) ", ") => "a=1, b=2, c=3"
+;; TEST: (edraw-plist-mapconcat (lambda (k v) (format "%s=%s" k v)) '(a 1 b nil c 3 nil 4 e 5 nil nil g 7) ", " t) => "a=1, c=3, e=5, g=7"
+
 ;;;; Association List
 
 (defun edraw-alist-append (&rest alists)
@@ -739,11 +770,28 @@ Therefore, the following evaluation results will be the same:
 ;; TEST: (edraw-alist-append '((a . 1) (b . 2) (c . 3)) '((a . 11) (b . 22) (d . 44))) => ((a . 1) (b . 2) (c . 3) (d . 44))
 
 (defun edraw-alist-to-plist (alist)
+  "Non-destructively convert ALIST to a plist."
   (cl-loop for (key . value) in alist
            collect key collect value))
-;; TEST (edraw-alist-to-plist nil) => nil
-;; TEST (edraw-alist-to-plist '((a . 1) (b . 2))) => (a 1 b 2)
+;; TEST: (edraw-alist-to-plist nil) => nil
+;; TEST: (edraw-alist-to-plist '((a . 1) (b . 2))) => (a 1 b 2)
 
+(defun edraw-n-alist-to-plist (alist)
+  "Destructively convert ALIST to a plist.
+
+Cons cells contained in the ALIST are reused in the returned plist."
+  (let ((pos alist))
+    (while pos
+      (let ((pair (car pos))
+            (next (cdr pos)))
+        (setcar pos (car pair))
+        (setcdr pos pair)
+        (setcar pair (cdr pair))
+        (setcdr pair next)
+        (setq pos next))))
+  alist)
+;; TEST: (edraw-n-alist-to-plist nil) => nil
+;; TEST: (edraw-n-alist-to-plist (list (cons 'a 1) (cons 'b 2))) => (a 1 b 2)
 
 ;;;; Max Image Size
 
