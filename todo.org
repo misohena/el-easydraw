@@ -1,5 +1,8 @@
 
 * Inbox
+** TODO qキーで別ウィンドウを閉じる
+同一フレームのプロパティエディタやシェイプピッカーが開いていれば閉じる。
+別フレームのまでは閉じなくて良い。
 ** TODO edraw-modeでバッファのmodifiedフラグが立たない :BUG:
 保存済みのedraw.svgファイルに対して、プロパティエディタで図形のプロパティを変更してもバッファのmodifiedフラグが立たない。
 
@@ -5940,4 +5943,5 @@ read-stringで直接属性の中身を入力されるのは良くないかもし
   - bold等の文字装飾はedraw-svg-propertiesとfaceの両方を設定する
   - M-o sでedraw-svg-propertiesを直接的に変更し、それに合わせてfaceも更新する
   - SVGプロパティを入力する仕組みを整備する
-
+** DONE ptキーでテキストを変更する
+CLOSED: [2025-01-14 Tue 16:46]

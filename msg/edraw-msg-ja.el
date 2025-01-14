@@ -321,6 +321,7 @@
      "Temporary State" "一時状態"
      "Text Tool" "テキストツール"
      "Text" "テキスト"
+     "Text..." "テキスト..."
      "Text: " "テキスト: "
      "The buffer has been killed" "バッファが既に削除されています"
      "The crop range is empty." "切り抜き範囲が空です。"

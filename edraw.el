@@ -571,6 +571,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "pf" '("Fill" . edraw-editor-edit-fill-selected))
     (define-key km "ps" '("Stroke" . edraw-editor-edit-stroke-selected))
     (define-key km "pp" '("Properties..." . edraw-editor-edit-properties-of-selected-shapes))
+    (define-key km "pt" '("Text..." . edraw-editor-edit-text-selected))
     (define-key km "p<" '("Next Start Marker" . edraw-editor-set-marker-start-next-selected))
     (define-key km "p>" '("Next End Marker" . edraw-editor-set-marker-end-next-selected))
     (define-key km "pm" (cons "Marker" (make-sparse-keymap)))
@@ -3560,6 +3561,9 @@ document size or view box."
 (edraw-editor-defcmd edraw-edit-font-size-selected ((editor edraw-editor))
   (edraw-edit-font-size (edraw-selected-multiple-shapes editor)))
 
+(edraw-editor-defcmd edraw-edit-text-selected ((editor edraw-editor))
+  (edraw-edit-text (edraw-selected-multiple-shapes editor)))
+
 (edraw-editor-defcmd edraw-set-marker-start-none-selected ((editor
                                                             edraw-editor))
   (edraw-set-marker-start-none (edraw-selected-multiple-shapes editor)))
@@ -5233,12 +5237,8 @@ to down-mouse-1 and processes drag and click."
     (when (and down-shape
                (edraw-shape-text-p down-shape))
       (edraw-select-shape editor down-shape)
-      (let* ((old-text (edraw-get-property down-shape 'text))
-             (new-text (edraw-svg-read-propertized-text
-                        (edraw-msg "Change Text: ")
-                        (or old-text ""))))
-        (edraw-set-property down-shape 'text new-text)
-        t))))
+      (edraw-edit-text down-shape)
+      t)))
 
 (cl-defmethod edraw-put-text-shape ((tool edraw-editor-tool-text) click-event
                                     snap-to-shape-center-p)
@@ -7737,6 +7737,9 @@ match all selected shapes in the editor."
          ((edraw-msg "Font Size...") edraw-edit-font-size
           :cmd-for-selected edraw-editor-edit-font-size-selected
           :visible ,(edraw-can-have-property-p shape 'font-size))
+         ((edraw-msg "Text...") edraw-edit-text
+          :cmd-for-selected edraw-editor-edit-text-selected
+          :visible ,(edraw-can-have-property-p shape 'text))
          ;; Marker
          ((edraw-msg "Start Marker")
           (((edraw-msg "None") edraw-set-marker-start-none
@@ -8576,6 +8579,14 @@ may be replaced by another mechanism."
                       (edraw-msg "Font Size: ")
                       (edraw-get-property holder 'font-size))))
       (edraw-set-property holder 'font-size font-size))))
+
+(cl-defmethod edraw-edit-text ((holder edraw-properties-holder))
+  (when (edraw-can-have-property-p holder 'text)
+    (let* ((old-text (edraw-get-property holder 'text))
+           (new-text (edraw-svg-read-propertized-text
+                      (edraw-msg "Change Text: ")
+                      (or old-text ""))))
+      (edraw-set-property holder 'text new-text))))
 
 (cl-defmethod edraw-point-connection-aabb ((shape edraw-shape-text))
   ;; Exclude descent of the last line.
