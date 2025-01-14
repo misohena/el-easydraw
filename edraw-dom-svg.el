@@ -726,7 +726,11 @@ comment nodes."
       (10
        ;; ( { [ ] } ) , : ;
        (cons (intern (substring str (car range) (cdr range))) range))
-      (11 (cons 'delim range))
+      (11
+       (let ((delim-char (aref str (car range))))
+         (when (or (= delim-char ?\") (= delim-char ?\'))
+           (error "Bad string at %s" (car range))))
+       (cons 'delim range))
       (12 (cons 'EOF range)))))
 
 (defun edraw-css-token-string (str token)
@@ -766,6 +770,9 @@ comment nodes."
 ;; TEST: (edraw-css-token-test "  hoge" 0) => (ws (0 . 1) 1 " ")
 ;; TEST: (edraw-css-token-test "/* hoge */hoge" 0) => (ident (10 . 14) 14 "hoge")
 ;; TEST: (edraw-css-token-test "'hoge\"ho\\ge\"'" 0) => (string (0 . 13) 13 "hoge\"hoge\"")
+;; TEST: (edraw-css-token-test "'hoge\"ho\\ge\"" 0) => error
+;; TEST: (edraw-css-token-test "\"hoge\nhoge\"" 0) => error
+;; TEST: (edraw-css-token-test "\'hoge\nhoge\'" 0) => error
 ;; TEST: (edraw-css-token-test "@hoge" 0) => (at-keyword (0 . 5) 5 "hoge")
 ;; TEST: (edraw-css-token-test " #hoge" 1) => (hash (1 . 6) 6 "hoge")
 ;; TEST: (edraw-css-token-test " 100px" 1) => (dimension (1 . 6) 6 "100px")
@@ -878,7 +885,6 @@ comment nodes."
             (cons (edraw-css-token-value str (car prop))
                   (substring str (cadr prop) (cddr prop))))
           (edraw-css-split-decl-list str ppos)))
-
 ;; TEST: (edraw-css-split-decl-list-as-strings "margin :0 auto  " (list 0)) => (("margin" . "0 auto  "))
 ;; TEST: (edraw-css-split-decl-list-as-strings "font-size:14px;fill:red;" (list 0)) => (("font-size" . "14px") ("fill" . "red"))
 ;; TEST: (edraw-css-split-decl-list-as-strings "font-size:14px;font-family  :  \"Helvetica Neue\", \"Arial\", sans-serif;" (list 0)) => (("font-size" . "14px") ("font-family" . "\"Helvetica Neue\", \"Arial\", sans-serif"))
