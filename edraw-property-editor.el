@@ -456,6 +456,7 @@ editor when the selected shape changes."
     (set-keymap-parent km widget-keymap)
     (define-key km (kbd "C-c C-c") 'edraw-property-editor--apply)
     (define-key km (kbd "C-c C-k") 'edraw-property-editor--close)
+    (define-key km (kbd "q") 'edraw-property-editor--close) ;; local-map property is set on field, so q can be input.
     (define-key km [drag-mouse-1] 'ignore)
     (define-key km [double-mouse-1] 'ignore)
     (define-key km [double-down-mouse-1] 'ignore)

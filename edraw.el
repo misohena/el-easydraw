@@ -502,6 +502,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km (kbd "<apps>") 'edraw-editor-popup-context-menu)
     (define-key km (kbd "<menu>") 'edraw-editor-popup-context-menu)
     (define-key km (kbd "S-<f10>") 'edraw-editor-popup-context-menu)
+    (define-key km "q" 'edraw-editor-close-related-windows)
     (define-key km "m" 'edraw-editor-popup-context-menu)
     ;;(define-key km "m" 'edraw-editor-main-menu)
     (define-key km "s" 'edraw-editor-select-tool-select)
@@ -948,6 +949,12 @@ edraw-editor initialization is now called automatically."
          (cl-defmethod ,method-symbol ,arg-list
            ,@rest
            )))))
+
+;;;;; Editor - Related Windows
+
+(edraw-editor-defcmd edraw-close-related-windows ((editor edraw-editor))
+  editor
+  (edraw-property-editor-close))
 
 ;;;;; Editor - Property Editor
 
@@ -3951,7 +3958,9 @@ document size or view box."
         ((edraw-msg "Zoom In") edraw-editor-zoom-in)
         ((edraw-msg "Zoom Out") edraw-editor-zoom-out)
         ((edraw-msg "Reset Scroll and Zoom") edraw-editor-reset-scroll-and-zoom)
-        ((edraw-msg "Scroll and Zoom") edraw-editor-interactive-scroll-and-zoom)))))
+        ((edraw-msg "Scroll and Zoom") edraw-editor-interactive-scroll-and-zoom)
+        ;; @todo Create a `Window' menu and move this there?
+        ((edraw-msg "Close Related Windows") edraw-editor-close-related-windows)))))
 
 (cl-defmethod edraw-menu-default-config ((editor edraw-editor))
   `(,(edraw-msg "Default Config")
