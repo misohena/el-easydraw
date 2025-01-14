@@ -1,22 +1,7 @@
 
 * Inbox
-** TODO テキスト内で任意のスタイルを指定出来るようにする
-M-o sでスタイル属性を入力できるようにする。
-
-facemenu-keymapをそのまま使うのは難しいのではないか。
-独自のfacemenu-keymap相当を作るにはどうしたら良いか。
-そもそもfacemenu-keymapがどのように作られているのか。
-
-tspanに指定出来るプロパティには何があるか。
-
-プロパティを指定したことによって別途対策が必要な事項はあるか。
-- font-size : 行送りの量を調整する必要がある。
-
-設定を禁止すべきプロパティはあるか。
-
-既存の属性(font-weight, font-style, text-decoration)との兼ね合いをどうするか。
-
-read-stringで直接属性の中身を入力されるのは良くないかもしれない(もしやるならエスケープ処理をしっかり行う必要がある)。プロパティと値を個別に入力させる方が望ましい。プロパティや値にはcompleting-readを使用する。
+** TODO edraw-modeでバッファのmodifiedフラグが立たない :BUG:
+保存済みのedraw.svgファイルに対して、プロパティエディタで図形のプロパティを変更してもバッファのmodifiedフラグが立たない。
 
 ** TODO テキストのデフォルトフォントをどうするか
 現在のsans-serifは可変ピッチなので使いづらい。
@@ -24,13 +9,6 @@ read-stringで直接属性の中身を入力されるのは良くないかもし
 
 ** TODO テキストの空白処理によって境界矩形を調整する
 text要素のspace属性(xml:space)がpreserveのときは連続する空白を一つにまとめてから境界矩形を作成する。可能であればstyle="white-space:normal"などの場合も考慮できると良い。ただし、librsvg(2.55)はこれに対応していない。
-
-** TODO Emacs27でテキスト装飾機能に問題がある
-- M-oのキーバインドが正しく表示されない。
-  substitute-command-keysがfacemenu-keymapを検出してくれない。Emacs28からは大丈夫。
-- 入れ子になったtspanに座標が引き継がれない。おそらく古いlibrsvgのバグ。Emacs28以降やブラウザでは問題なく表示される。
-
-正直Emacs27は装飾機能を無効化しても良いかもしれない。
 
 ** TODO テキストツールでC-クリックした時にエラーは出さない方が良いかも？
 図形が無いところでC-クリックした時に接着対象がないのでエラーが発生する。
@@ -663,6 +641,13 @@ mouse.el内のmouse-drag-lineではset-transient-mapを使っている。一時�
 - [[*パス編集/空のパスをどうするか][パス編集/空のパスをどうするか]]
 - rect、ellipse、image、generator、groupについても調べる
 
+** TODO テキスト/M-o sでスタイル設定時に色指定はカラーピッカーを使う
+fillやstrokeプロパティの設定はカラーピッカーによって行う。
+ネックはelispファイルの依存関係。edraw-svg-dom.elからカラーピッカーを正しく使うのはなかなか骨が折れる。image-scale(これはミニバッファで使う分にはあまり問題ない？)やrecent-colorsについて考える必要がある。
+
+** TODO テキスト/行送り量を行内の最大font-sizeに基づいて決定する
+leadingを設定できるようにしてしまったのが悔やまれる。
+やはりline-spaceを設定できるようにしたいが。
 ** TODO テキスト/スタイルシートを考慮する
 テキストの様々な設定はstyle属性でも設定できる。正しい境界矩形を計算するには、style属性も考慮しなければならない。
 またその際親からの継承も考慮すべき。これはstyleに限らないが。
@@ -5855,3 +5840,104 @@ edraw-plist-removeのpredicate引数をちゃんと使っていなかった。
 幸いこの引数を利用している場所は無い。
 ついでにedraw-plist-remove-firstへ改名する。
 [2025-01-14 Tue]追記:edraw-plist-remove-first-keyへ改名した。
+** CANCELLED Emacs27でテキスト装飾機能に問題がある
+CLOSED: [2025-01-12 Sun 19:52]
+- M-oのキーバインドが正しく表示されない。
+  substitute-command-keysがfacemenu-keymapを検出してくれない。Emacs28からは大丈夫。
+- 入れ子になったtspanに座標が引き継がれない。おそらく古いlibrsvgのバグ。Emacs28以降やブラウザでは問題なく表示される。
+
++正直Emacs27は装飾機能を無効化しても良いかもしれない。+
+
+Emacs27まではM-oはグローバルマップに割り当てられていた。Emacs28からは必要なモード等だけでローカルに割り当てるように変わった。
+
+Emacs27では関数定義にキーマップをバインドしたシンボルに対するsubstitute-command-keysに何かおかしな挙動がある。
+
+#+begin_src elisp
+(progn
+  (defvar my-test-keymap nil)
+  (setq my-test-keymap (let ((km (make-sparse-keymap "Test"))) (define-key km (kbd "a") 'my-test-a) km))
+  (defalias 'my-test-keymap my-test-keymap)
+  (defun my-test-a () (interactive) (message "AAAA"))
+
+  (defvar my-test-keymap2 nil)
+  (setq my-test-keymap2 (let ((km (make-sparse-keymap))) (define-key km (kbd "C-c d") 'my-test-keymap) km))
+  (substitute-command-keys
+   "\\<my-test-keymap2>\\[my-test-keymap]"))
+#+end_src
+
+#+RESULTS:
+: C-c d
+
+これがEmacs27だと結果は ~M-x my-test-keymap~ になる。
+
+おそらくEmacs28で修正されたバグではないか。facemenu-keymapをグローバルから外したときに気がついて修正したとか？
+
+次のコードだとEmacs27でもEmacs30でも正しく動作する。
+
+#+begin_src elisp
+;; nilのときは空文字列になる
+(key-description
+ ;; 割り当てが見つからなければnilを返す
+ (where-is-internal 'my-test-keymap (list my-test-keymap2) t))
+#+end_src
+
+#+RESULTS:
+: C-c d
+
+~(list my-test-keymap2)~ のところが単にmy-test-keymap2だとなぜか見つからない(Emacs30でも)。
+
+よく分からないけど [[https://github.com/emacs-mirror/emacs/commit/120ade62cd26dd502f1ae3784079e4cd88607a0b][Allow keymap to override advertised-binding in docstrings · emacs-mirror/emacs@120ade6]] かな？
+
+試しにwhere-is-internalを使う用に修正してみたが、結局古いlibrsvgの問題で装飾文字が正しい位置に表示されない。
+
+Emacs27ではM-oを表示しないようにして、できるだけ文字装飾機能の存在を隠した方が良い。
+** DONE テキスト内で任意のスタイルを指定出来るようにする
+CLOSED: [2025-01-14 Tue 14:52]
+M-o sでスタイル属性を入力できるようにする。
+
+facemenu-keymapをそのまま使うのは難しいのではないか。
+独自のfacemenu-keymap相当を作るにはどうしたら良いか。
+そもそもfacemenu-keymapがどのように作られているのか。
+
+→新しいキーマップを作る方が良い。facemenu-keymapは他の用途でカスタマイズされる可能性があるので。facemenu-keymapはシンボルの関数定義としてキーマップを指定できる仕組みを利用している。
+
+tspanに指定出来るプロパティには何があるか。
+
+→沢山ある。
+
+- [[https://developer.mozilla.org/ja/docs/Web/SVG/Element/tspan][<tspan> - SVG: スケーラブルベクターグラフィック | MDN]]
+- [[https://svgwg.org/svg2-draft/text.html#TextElement][Text — SVG 2]]
+
+テキストとして関係がありそうなもの:
+- fill, fill-opacity
+- stroke, stroke-opacity, stroke-width, ...
+- font-family
+- font-size
+- font-size-adjust
+- font-stretch
+- font-variant
+- font-weight
+- text-decoration
+- dominat-baseline
+- vertical-align
+- baseline-shift
+
+プロパティを指定したことによって別途対策が必要な事項はあるか。
+- font-size : 行送りの量を調整する必要がある。
+
+設定を禁止すべきプロパティはあるか。
+
+→分からない
+
+既存の属性(font-weight, font-style, text-decoration)との兼ね合いをどうするか。
+
+read-stringで直接属性の中身を入力されるのは良くないかもしれない(もしやるならエスケープ処理をしっかり行う必要がある)。プロパティと値を個別に入力させる方が望ましい。プロパティや値にはcompleting-readを使用する。
+
+- facemenu-keymapの代わりを作成する。
+  - edraw-svg-text-fmt-keymap。
+  - edraw-svg-propertiesというテキストプロパティにSVGプロパティをplistで入れる。
+  - edraw-svg-propertiesからfaceを割り出す
+  - bold等の文字装飾はedraw-svg-propertiesとfaceの両方を設定する
+  - M-o sでedraw-svg-propertiesを直接的に変更し、それに合わせてfaceも更新する
+  - SVGプロパティを入力する仕組みを整備する
+

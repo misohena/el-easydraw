@@ -26,7 +26,6 @@
 (require 'dom)
 (require 'seq)
 (require 'subr-x)
-(require 'facemenu)
 (require 'edraw-math)
 (require 'edraw-path)
 (require 'edraw-util)
@@ -919,6 +918,113 @@ comment nodes."
        css-value)
       (_ ;;(or 'at-keyword 'url 'delim '\( '\{ '\[ '\] '\} '\) '\, '\: '\;)
        nil))))
+
+;;;;; Convert Alist and Plist
+
+(defun edraw-css-decl-list-to-alist (str &optional ppos)
+  (unless ppos (setq ppos (list 0)))
+  (let ((alist (ignore-errors ;;@todo Recover error (Skip to next `;')
+                 (edraw-css-split-decl-list-as-strings str ppos))))
+    (dolist (prop alist)
+      (setcar prop (intern (car prop))))
+    alist))
+;; TEST: (edraw-css-decl-list-to-alist "font-size:14px;fill:red;") => ((font-size . "14px") (fill . "red"))
+
+(defun edraw-css-decl-list-to-plist (str &optional ppos)
+  (edraw-n-alist-to-plist (edraw-css-decl-list-to-alist str ppos)))
+;; TEST: (edraw-css-decl-list-to-plist "font-size:14px;fill:red;") => (font-size "14px" fill "red")
+
+;;;;; Check CSS String
+
+(defun edraw-css-component-value-list-p (str)
+  "Return non-nil if STR is a list of component values."
+  (ignore-errors
+    (let ((ppos (list 0)))
+      (edraw-css-skip-ws* str ppos)
+      (let (eov)
+        (while (progn
+                 (pcase (edraw-css-skip-component-value str ppos)
+                   ('\; (setq eov (1- (car ppos))) nil)
+                   ('EOF (setq eov (car ppos)) nil)
+                   (_ t))))
+        (= eov (length str))))))
+;; (edraw-css-component-value-list-p "") => t
+;; (edraw-css-component-value-list-p "123") => t
+;; (edraw-css-component-value-list-p "123 \"abc\" 234") => t
+;; (edraw-css-component-value-list-p "123 \"abc 234") => nil
+;; (edraw-css-component-value-list-p "value 1 2 3") => t
+;; (edraw-css-component-value-list-p "func(1,2,3)") => t
+;; (edraw-css-component-value-list-p "a(b") => nil
+;; (edraw-css-component-value-list-p "a; b") => nil
+
+;;;;; Make CSS String
+
+(defun edraw-css-make-ident (string)
+  "Create an ident-token string with the name specified by STRING.
+
+If STRING contains characters that cannot be used as an ident-token,
+they will be escaped.
+
+If STRING cannot be converted to an ident-token, an error will be
+signaled. This includes the empty string and \"-\"."
+  (cond
+   ((or (equal string "") (equal string "-"))
+    (error "Too short ident-token (%s)" string))
+   ((string-match "\\`\\(?:-?\\([^-_a-zA-Z\u0080-\U0010ffff]\\)\\)" string)
+    (let ((ep (match-beginning 1)))
+      (concat
+       (substring string 0 ep)
+       (format "\\%X " (aref string ep))
+       (replace-regexp-in-string
+        "[^-a-zA-Z0-9_\u0080-\U0010ffff]"
+        (lambda (str) (format "\\%X " (aref str 0)))
+        string t t nil (1+ ep)))))
+   (t
+    (replace-regexp-in-string
+     "[^-a-zA-Z0-9_\u0080-\U0010ffff]"
+     (lambda (str) (format "\\%X " (aref str 0)))
+     string t t))))
+;; TEST: (edraw-css-make-ident "") => error
+;; TEST: (edraw-css-make-ident "-") => error
+;; TEST: (edraw-css-make-ident "a") => "a"
+;; TEST: (edraw-css-make-ident "--") => "--"
+;; TEST: (edraw-css-make-ident "font-weight") => "font-weight"
+;; TEST: (edraw-css-make-ident "-font-weight") => "-font-weight"
+;; TEST: (edraw-css-make-ident "--font-weight") => "--font-weight"
+;; TEST: (edraw-css-make-ident "100-%") => "\\31 00-\\25 "
+;; TEST: (edraw-css-make-ident "-100-%") => "-\\31 00-\\25 "
+
+(defun edraw-css-make-decl (name value)
+  "Create a string that represents a declaration with NAME and VALUE.
+
+NAME is a string or symbol that has not yet been escaped.
+An empty string or \"-\" signals an error.
+
+VALUE is a string for which `edraw-component-value-list-p' returns
+non-nil, anything else signals an error."
+  (unless (edraw-css-component-value-list-p value)
+    (error "Invalid component value"))
+  (concat
+   (edraw-css-make-ident
+    ;; If symbol, convert to string
+    (format "%s" name))
+   ":"
+   value))
+;; TEST: (edraw-css-make-decl "a" "123") => "a:123"
+
+(defun edraw-css-make-decl-list-from-alist (alist &optional separator)
+  (mapconcat
+   #'identity
+   (mapcar (lambda (prop)
+             (ignore-errors
+               (edraw-css-make-decl (car prop) (cdr prop))))
+           alist)
+   (or separator ";")))
+;; TEST: (edraw-css-make-decl-list-from-alist '((a . "1") (b . "2"))) => "a:1;b:2"
+
+(defun edraw-css-make-decl-list-from-plist (plist &optional separator)
+  (edraw-css-make-decl-list-from-alist (edraw-plist-to-alist plist) separator))
+;; TEST: (edraw-css-make-decl-list-from-plist '(a "1" b "2")) => "a:1;b:2"
 
 
 ;;;; SVG Print
@@ -2423,7 +2529,8 @@ other purposes."
    deftbl))
 
 
-;;;; SVG Text Layout
+;;;; SVG Text
+;;;;; Text Layout
 
 (defun edraw-svg-text-update-text (element)
   (edraw-svg-text-set-text element (edraw-svg-text-get-text element)))
@@ -2490,29 +2597,13 @@ other purposes."
     (while (< pos len)
       (let* ((next (or (next-property-change pos string) len))
              (subtext (substring-no-properties string pos next))
-             (face (let ((face (get-text-property pos 'face string)))
-                     (when (symbolp face)
-                       (setq face (list face))) ;; Unify to list format
-                     (unless (listp face)
-                       (setq face nil)) ;; Unknown face format
-                     face))
-             (bold-italic (memq 'bold-italic face))
-             attrs)
-        (when (memq 'underline face)
-          (push (cons 'text-decoration "underline") attrs))
-        (when (or bold-italic (memq 'italic face))
-          (push (cons 'font-style "italic") attrs))
-        (when (or bold-italic (memq 'bold face))
-          (push (cons 'font-weight "bold") attrs))
-        ;; @todo Support foreground color
-        ;;       face=( ((:foreground "blue")) ...) => fill="blue"
-        ;;       face=((:foreground "blue")) => fill="blue"
-        ;;       Note: Require conversion from Emacs color to web color.
-        (if attrs
-            ;; <tspan ATTRS>...</tspan>
-            (push (edraw-dom-element 'tspan
-                                     :attributes attrs
-                                     subtext)
+             (svg-props (edraw-svg-text-fmt-parse-text-properties
+                         (text-properties-at pos string)))
+             (style (when svg-props
+                      (edraw-css-make-decl-list-from-plist svg-props))))
+        (if style
+            ;; <tspan style="STYLE">...</tspan>
+            (push (edraw-dom-element 'tspan :style style subtext)
                   result)
           ;; Text node
           (push subtext result))
@@ -2521,29 +2612,17 @@ other purposes."
 
 (defun edraw-svg-text--element-content-to-string (element
                                                   first-p
-                                                  &optional parent-face)
+                                                  &optional parent-props)
   ;; @todo Save more NODE attributes and styles as text properties
   (let (;; Calculate current element face
-        (face
+        (props
          (if (edraw-dom-tag-eq element 'tspan)
-             (let* ((weight (dom-attr element 'font-weight))
-                    (style (dom-attr element 'font-style))
-                    (text-decor (dom-attr element 'text-decoration))
-                    (face (copy-sequence parent-face)))
-               (when weight
-                 (setq face (delq 'bold face))
-                 (when (equal weight "bold")
-                   (push 'bold face)))
-               (when style
-                 (setq face (delq 'italic face))
-                 (when (equal style "italic")
-                   (push 'italic face)))
-               (when text-decor
-                 (setq face (delq 'underline face))
-                 (when (equal text-decor "underline")
-                   (push 'underline face)))
-               face)
-           parent-face)))
+             (edraw-plist-append
+              (edraw-css-decl-list-to-plist (dom-attr element 'style))
+              (cl-loop for (attr-name . value) in (edraw-dom-attributes element)
+                       when (edraw-svg-text-fmt-attribute-name-p attr-name)
+                       collect attr-name and collect value))
+           parent-props)))
     (cl-loop
      for node in (edraw-dom-children element)
      for curr-first = first-p
@@ -2554,7 +2633,7 @@ other purposes."
        (pcase (edraw-dom-tag node)
          ('a
           (setq first-p nil)
-          (edraw-svg-text--element-content-to-string node curr-first face))
+          (edraw-svg-text--element-content-to-string node curr-first props))
          ('tspan
           (setq first-p nil)
           (concat
@@ -2562,57 +2641,21 @@ other purposes."
                                       (or (dom-attr node 'class) ""))
                       (not curr-first))
              "\n")
-           (edraw-svg-text--element-content-to-string node curr-first face)))
+           (edraw-svg-text--element-content-to-string node curr-first props)))
          ;; Ignore altGlyph, textPath, tref, animation elements and
          ;; descriptive elements
          ))
       ((stringp node)
        (setq first-p nil)
-       (if face
-           (propertize node 'face face)
+       (if-let* ((text-props (edraw-svg-text-fmt-make-text-properties props)))
+           (apply #'propertize node text-props)
          node))
       ;; Ignore malformed node
       ))))
-;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan font-weight=\"bold\">BOLD</tspan></text>" nil) t) => #("BOLD" 0 4 (face (bold)))
-;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan font-weight='bold'>BOLD<tspan font-weight='normal' font-style='italic'>ITALIC</tspan>BOLD2</tspan></text>" nil) t) => #("BOLDITALICBOLD2" 0 4 (face (bold)) 4 10 (face (italic)) 10 15 (face (bold)))
-
-;; (defun edraw-svg-read-text-nodes (prompt)
-;;   "Read text from the minibuffer and return it as a DOM node list."
-;;   (edraw-svg-text--propertized-string-to-nodes
-;;    (edraw-svg-read-propertized-text prompt)))
-
-(defvar edraw-svg-read-propertized-text-map
-  (let ((km (make-sparse-keymap)))
-    (define-key km (kbd "M-o") #'facemenu-keymap)
-    km)
-  "Keymap used by `edraw-svg-read-propertized-text'")
-
-(defun edraw-svg-read-propertized-text (prompt &optional initial-input)
-  "Read a string with text properties from the minibuffer.
-
-In the minibuffer, faces can be modified using the M-o key."
-  ;; @todo Emacs 27 cannot substitute facemenu-keymap.
-  ;; Note: The Emacs27 generation librsvg may have a bug
-  ;; in tspan coordinate calculation.  Emacs27 may want to
-  ;; prohibit the formatting function altogether.
-  (when (version<= "28" emacs-version)
-    (setq prompt
-          (replace-regexp-in-string
-           "\\(\\):? *$"
-           (concat
-            " ("
-            (substitute-command-keys
-             "\\<edraw-svg-read-propertized-text-map>\\[facemenu-keymap]")
-            ":"
-            (edraw-msg "Formatting") ")")
-           prompt t t 1)))
-  (let ((minibuffer-allow-text-properties t)
-        (minibuffer-local-map (progn
-                                (set-keymap-parent
-                                 edraw-svg-read-propertized-text-map
-                                 minibuffer-local-map)
-                                edraw-svg-read-propertized-text-map)))
-    (read-string prompt initial-input)))
+;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan>default</tspan></text>" nil) t) => "default"
+;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan font-weight=\"bold\">BOLD</tspan></text>" nil) t) => #("BOLD" 0 4 (face (bold) edraw-svg-properties (font-weight "bold")))
+;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan font-weight='bold'>BOLD<tspan font-weight='normal' font-style='italic'>ITALIC</tspan>BOLD2</tspan></text>" nil) t) => #("BOLDITALICBOLD2" 0 4 (face (bold) edraw-svg-properties (font-weight "bold")) 4 10 (edraw-svg-properties (font-weight "normal" font-style "italic") face (edraw-svg-text-fmt-unreflected italic)) 10 15 (face (bold) edraw-svg-properties (font-weight "bold")))
+;; TEST: (edraw-svg-text--element-content-to-string (edraw-svg-decode-xml "<text><tspan style=\"font-size:14\">BIG</tspan></text>" nil) t) => #("BIG" 0 3 (face (edraw-svg-text-fmt-unreflected) edraw-svg-properties (font-size "14")))
 
 (defun edraw-svg-text-get-text (element)
   (edraw-svg-text--element-content-to-string element t))
@@ -2656,6 +2699,263 @@ In the minibuffer, faces can be modified using the M-o key."
 
       (dolist (child (edraw-dom-children element))
         (edraw-svg-text-set-coord--tspan child attr old-x0 new-x0)))))
+
+
+;;;;; Text Formatting
+
+;; Formatting text via text properties
+
+;; Previously, `facemenu-keymap' in facemenu.el was used, but now the
+;; following functions have been created to make it more specific to
+;; edraw.
+
+(defalias 'edraw-svg-text-fmt-keymap ;; Like `facemenu-keymap'
+  (let ((km (make-sparse-keymap "Set Property")))
+    (define-key km "s" '("style" . edraw-svg-text-fmt-set-style))
+    (define-key km "l" '("bold-italic" . edraw-svg-text-fmt-set-bold-italic))
+    (define-key km "u" '("underline" . edraw-svg-text-fmt-set-underline))
+    (define-key km "i" '("italic" . edraw-svg-text-fmt-set-italic))
+    (define-key km "b" '("bold" . edraw-svg-text-fmt-set-bold))
+    (define-key km "d" '("default" . edraw-svg-text-fmt-set-default))
+    km))
+
+(defvar edraw-svg-text-fmt-self-insert-data nil)
+
+(defun edraw-svg-text-fmt-set-self-insert-props (svg-props)
+  "Arrange for the next self-inserted char to have SVG-PROPS."
+  (setq edraw-svg-text-fmt-self-insert-data (cons svg-props this-command))
+  (add-hook 'post-self-insert-hook 'edraw-svg-text-fmt-post-self-insert))
+
+(defun edraw-svg-text-fmt-post-self-insert ()
+  (when (eq last-command (cdr edraw-svg-text-fmt-self-insert-data))
+    (let ((svg-props (car edraw-svg-text-fmt-self-insert-data)))
+      (put-text-property (1- (point)) (point)
+                         'edraw-svg-properties svg-props)
+      (put-text-property (1- (point)) (point)
+                         'face (edraw-svg-text-fmt-face svg-props))))
+  (setq edraw-svg-text-fmt-self-insert-data nil)
+  (remove-hook 'post-self-insert-hook 'edraw-svg-text-fmt-post-self-insert))
+
+(defface edraw-svg-text-fmt-unreflected
+  '((t :foreground "#f00" ))
+  "Face used for text with unreflected SVG properties."
+  :group 'edraw)
+
+(defun edraw-svg-text-fmt-face (svg-props)
+  "Return the face that corresponds to SVG-PROPS."
+  (let ((face)
+        reflected-props)
+    (when (equal (plist-get svg-props 'font-weight) "bold")
+      (push 'bold face)
+      (push 'font-weight reflected-props))
+    (when (equal (plist-get svg-props 'font-style) "italic")
+      (push 'italic face)
+      (push 'font-style reflected-props))
+    (when (equal (plist-get svg-props 'text-decoration) "underline")
+      (push 'underline face)
+      (push 'text-decoration reflected-props))
+    (when (cl-loop for k in svg-props by #'cddr
+                   unless (memq k reflected-props)
+                   return t) ;; there are unreflected properties
+      (push 'edraw-svg-text-fmt-unreflected face))
+    face))
+
+(defun edraw-svg-text-fmt-make-text-properties (svg-props)
+  "Return the text properties that corresponds to SVG-PROPS."
+  (let ((face (edraw-svg-text-fmt-face svg-props)))
+    (nconc
+     (when svg-props
+       (list 'edraw-svg-properties svg-props))
+     (when face
+       (list 'face face)))))
+
+(defun edraw-svg-text-fmt-parse-text-properties (text-props)
+  "Return the SVG properties that corresponds to TEXT-PROPS."
+  (or
+   ;; From edraw-svg-properties
+   (edraw-plist-remove-nil (plist-get text-props 'edraw-svg-properties))
+   ;; From face
+   (when-let* ((face (plist-get text-props 'face)))
+     (when (symbolp face)
+       (setq face (list face))) ;; Unify to list format
+     (when (listp face)
+       (let ((bold-italic (memq 'bold-italic face)))
+         (nconc
+          (when (or bold-italic (memq 'bold face))
+            (list 'font-weight "bold"))
+          (when (or bold-italic (memq 'italic face))
+            (list 'font-style "italic"))
+          (when (memq 'underline face)
+            (list 'text-decoration "underline"))))))))
+
+(defun edraw-svg-text-fmt-add (svg-props arg)
+  "Add SVG-PROPS to subsequent insertion or the active region.
+
+If there is a property in SVG-PROPS with a nil value, that property is removed.
+
+If ARG is non-nil, the active region is ignored and added to subsequent
+insertions."
+  (if-let* ((beg (and mark-active (not arg) (region-beginning)))
+            (end (and mark-active (not arg) (region-end))))
+      (while (< beg end)
+        (let ((next (or (next-property-change beg nil end) end))
+              (new-svg-props (edraw-plist-remove-nil
+                              (edraw-plist-append
+                               svg-props
+                               (get-text-property beg 'edraw-svg-properties)))))
+          (put-text-property beg next
+                             'edraw-svg-properties new-svg-props)
+          (put-text-property beg next
+                             'face (edraw-svg-text-fmt-face new-svg-props))
+          (setq beg next)))
+    (edraw-svg-text-fmt-set-self-insert-props
+     (edraw-plist-remove-nil svg-props))))
+
+(defun edraw-svg-text-fmt-set (svg-props arg)
+  "Set SVG-PROPS to subsequent insertion or the active region.
+
+If ARG is non-nil, the active region is ignored and added to subsequent
+insertions."
+  (if-let* ((beg (and mark-active (not arg) (region-beginning)))
+            (end (and mark-active (not arg) (region-end))))
+      (progn
+        (put-text-property beg end
+                           'edraw-svg-properties svg-props)
+        (put-text-property beg end
+                           'face (edraw-svg-text-fmt-face svg-props)))
+    (edraw-svg-text-fmt-set-self-insert-props
+     (edraw-plist-remove-nil svg-props))))
+
+(defun edraw-svg-text-fmt-set-bold (&optional arg)
+  "Set the `font-weight' property to \"bold\" for subsequent insertion.
+If the mark is active and ARG is nil, set the property on the region instead."
+  (interactive "P")
+  (edraw-svg-text-fmt-add '(font-weight "bold") arg))
+
+(defun edraw-svg-text-fmt-set-italic (&optional arg)
+  "Set the `font-style' property to \"italic\" for subsequent insertion.
+If the mark is active and ARG is nil, set the property on the region instead."
+  (interactive "P")
+  (edraw-svg-text-fmt-add '(font-style "italic") arg))
+
+(defun edraw-svg-text-fmt-set-bold-italic (&optional arg)
+  "Set the `font-weight' property to \"bold\" and the `font-style' property
+to \"italic\" for subsequent insertion.
+If the mark is active and ARG is nil, set the properties on the region instead."
+  (interactive "P")
+  (edraw-svg-text-fmt-add '(font-weight "bold" font-style "italic") arg))
+
+(defun edraw-svg-text-fmt-set-underline (&optional arg)
+  "Set the `text-decoration' property to \"underline\" for subsequent insertion.
+If the mark is active and ARG is nil, set the property on the region instead."
+  (interactive "P")
+  (edraw-svg-text-fmt-add '(text-decoration "underline") arg))
+
+(defun edraw-svg-text-fmt-set-default (&optional arg)
+  "Set the property to nothing on subsequent insertions.
+If the mark is active and ARG is nil, remove all properties from the
+region instead."
+  (interactive "P")
+  (edraw-svg-text-fmt-add '(font-weight nil font-style nil text-decoration nil)
+                           arg))
+
+(defun edraw-svg-text-fmt-set-style (svg-props &optional arg)
+  (interactive
+   ;; (if-let* ((beg (and mark-active (not current-prefix-arg) (region-beginning)))
+   ;;           (end (and mark-active (not current-prefix-arg) (region-end))))
+   (list
+    (edraw-svg-text-fmt-read-style
+     (get-text-property (max (point-min) (1- (point))) 'edraw-svg-properties))
+    current-prefix-arg))
+  (edraw-svg-text-fmt-set svg-props arg))
+
+(defconst edraw-svg-text-fmt-svg-props
+  '((text-decoration)
+    (font-weight)
+    (font-style)
+    (font-size)
+    (font-family)
+    (fill)
+    (fill-opacity)
+    (stroke)
+    (stroke-opacity)
+    (stroke-width)
+    ))
+
+(defun edraw-svg-text-fmt-svg-prop-names ()
+  (mapcar #'car edraw-svg-text-fmt-svg-props))
+
+(defun edraw-svg-text-fmt-attribute-name-p (name)
+  (assq name edraw-svg-text-fmt-svg-props))
+
+(defun edraw-svg-text-fmt-read-style (&optional svg-props)
+  (while (let ((pname (completing-read
+                       (concat
+                        "style="
+                        (edraw-css-make-decl-list-from-plist svg-props "; ")
+                        "\n"
+                        (edraw-msg "Property(Empty:End): "))
+                       (edraw-svg-text-fmt-svg-prop-names))))
+           (unless (string-empty-p pname)
+             (let* ((prop (intern pname))
+                    (value (edraw-svg-text-fmt-read-property prop svg-props)))
+               (if (string-empty-p value)
+                   (setq svg-props
+                         (edraw-plist-remove-first-key svg-props prop))
+                 (if (edraw-css-component-value-list-p value)
+                     (setq svg-props (plist-put svg-props prop value))
+                   (message (edraw-msg "Invalid value"))
+                   (sit-for 1)))
+               t))))
+  svg-props)
+;; EXAMPLE: (edraw-svg-text-fmt-read-style)
+
+(defun edraw-svg-text-fmt-read-property (prop svg-props)
+  (let ((current-value (plist-get svg-props prop)))
+    (read-string (format "%s: " prop) current-value)))
+
+;;;;; Read Propertized Text
+
+(defvar edraw-svg-read-propertized-text-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "M-o") #'edraw-svg-text-fmt-keymap)
+    km)
+  "Keymap used by `edraw-svg-read-propertized-text'")
+
+(defun edraw-svg-read-propertized-text (prompt &optional initial-input)
+  "Read a string with text properties from the minibuffer.
+
+In the minibuffer, faces can be modified using the M-o key."
+  ;;  Note: `substitute-command-keys' does not work properly in Emacs
+  ;;  27, and the old librsvg in the Emacs27 generation has a bug in
+  ;;  tspan coordinate calculation. Therefore, hide the existence of
+  ;;  formatting functions in Emacs27.
+  (when (version<= "28" emacs-version)
+    (setq prompt
+          (replace-regexp-in-string
+           "\\(\\):? *$"
+           (concat
+            " ("
+            (substitute-command-keys
+             (format "\\<edraw-svg-read-propertized-text-map>\\[%s]"
+                     'edraw-svg-text-fmt-keymap))
+            ":"
+            (edraw-msg "Formatting") ")")
+           prompt t t 1)))
+  (let ((enable-recursive-minibuffers t) ;; For `edraw-svg-text-fmt-set-style'
+        (minibuffer-allow-text-properties t)
+        (minibuffer-local-map
+         (progn
+           (set-keymap-parent
+            edraw-svg-read-propertized-text-map
+            minibuffer-local-map)
+           edraw-svg-read-propertized-text-map)))
+    (read-string prompt initial-input)))
+
+;; (defun edraw-svg-read-text-nodes (prompt)
+;;   "Read text from the minibuffer and return it as a DOM node list."
+;;   (edraw-svg-text--propertized-string-to-nodes
+;;    (edraw-svg-read-propertized-text prompt)))
 
 
 ;;;; SVG Defs

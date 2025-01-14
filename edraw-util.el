@@ -979,19 +979,21 @@ Cons cells contained in the ALIST are reused in the returned plist."
         (mapcar #'key-description keys)
       (key-description keys))))
 
-(defun edraw-remove-text-properties-except (string prop-name)
-  "Remove all text properties from STRING except PROP-NAME.
+(defun edraw-remove-text-properties-except (string prop-names)
+  "Remove all text properties from STRING except PROP-NAMES.
 
 STRING is the text from which to modify properties.
-PROP-NAME is the property to retain in the string."
+PROP-NAMES is a list of properties to retain in the string."
   (let ((len (length string))
         (pos 0))
     (while (< pos len)
-      (let* ((props (text-properties-at pos string))
+      (let* ((old-props (text-properties-at pos string))
              (next (or (next-property-change pos string) len))
-             (value (plist-get props prop-name)))
-        (set-text-properties pos next (when value (list prop-name value))
-                             string)
+             (new-props (cl-loop for pname in prop-names
+                                 for pvalue = (plist-get old-props pname)
+                                 when pvalue
+                                 collect pname and collect pvalue)))
+        (set-text-properties pos next new-props string)
         (setq pos next)))
     string))
 

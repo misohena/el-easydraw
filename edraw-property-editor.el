@@ -26,7 +26,6 @@
 
 (require 'widget)
 (require 'wid-edit)
-(require 'facemenu)
 (require 'edraw-util)
 (require 'edraw-math)
 (require 'edraw-color-picker)
@@ -448,7 +447,8 @@ editor when the selected shape changes."
   (let ((km (make-sparse-keymap)))
     (set-keymap-parent km widget-text-keymap) ;;For multiline
     (edraw-property-editor-define-field-map-keys km)
-    (define-key km (kbd "M-o") #'facemenu-keymap)
+    ;;(define-key km (kbd "M-o") #'facemenu-keymap)
+    (define-key km (kbd "M-o") #'edraw-svg-text-fmt-keymap)
     km))
 
 (defvar edraw-property-editor-mode-map
@@ -991,7 +991,8 @@ as a string."
   (if-let* ((from (widget-field-start widget))
             (to   (widget-field-text-end widget)))
       (with-current-buffer (widget-field-buffer widget)
-        (edraw-remove-text-properties-except (buffer-substring from to) 'face))
+        (edraw-remove-text-properties-except (buffer-substring from to)
+                                             '(face edraw-svg-properties)))
     (widget-get widget :value)))
 
 ;;;;;; Number Widget
