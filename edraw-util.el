@@ -682,6 +682,22 @@ If there are multiple KEYs, the first one is removed."
     plist))
 ;; TEST: (edraw-plist-remove-first-key '(a 1 b 2 c 3 d 4 a 10 b 20) 'a) => (b 2 c 3 d 4 a 10 b 20)
 
+(defun edraw-plist-remove-key (plist key)
+  "Return a new plist excluding all properties with KEY from PLIST."
+  (cl-loop for (k v) on plist by #'cddr
+           unless (eq k key)
+           collect k and collect v))
+;; TEST: (edraw-plist-remove-key '(a 1 b 2 c 3 d 4 a 10 b 20) 'a) => (b 2 c 3 d 4 b 20)
+;; TEST: (edraw-plist-remove-key '(a 1 b 2 c 3 d 4 nil nil) nil) => (a 1 b 2 c 3 d 4)
+
+(defun edraw-plist-remove-keys (plist keys)
+  "Return a new plist excluding all properties with KEYS from PLIST."
+  (cl-loop for (k v) on plist by #'cddr
+           unless (memq k keys)
+           collect k and collect v))
+;; TEST: (edraw-plist-remove-keys '(a 1 b 2 c 3 d 4 a 10 b 20) '(a c)) => (b 2 d 4 b 20)
+;; TEST: (edraw-plist-remove-keys '(a 1 b 2 c 3 d 4 nil nil) nil) => (a 1 b 2 c 3 d 4 nil nil)
+
 (defun edraw-plist-remove-nil (plist)
   "Return a new property list from PLIST where all properties whose keys or
 values ​​are nil have been removed."
@@ -703,6 +719,17 @@ This is a non-destructive version of `plist-put'."
     (edraw-plist-remove-first-key plist prop
                                   ;; predicate
                                   ))))
+
+(defun edraw-plist-put-default (plist prop value)
+  "Add the property PROP VALUE to PLIST if PROP is not in PLIST.
+
+Return a list with the property prepended to the PLIST or the PLIST
+itself."
+  (if (plist-member plist prop)
+      plist
+    (cons prop
+          (cons value
+                plist))))
 
 (defun edraw-plist-append (&rest plists)
   "Return a new plist by concatenating PLISTS and removing duplicates.
