@@ -661,13 +661,14 @@ Allowed values for TARGET-TYPE are:
    #'identity
    (delq nil
          (list
+          ;; Note: The first parentheses must refer to the `edraw' part.
           ;; (bracket link) [[edraw:? or ][edraw:? or ][<edraw:?
           (when (memq 'bracket edraw-org-link-image-link-formats)
-            (format "\\(?1:\\(?:[][]\\[\\|]\\[<\\)%s:[^]\n]\\)"
+            (format "\\(?:[][]\\[\\|]\\[<\\)\\(?1:%s\\):[^]\n]"
                     edraw-org-link-type))
           ;; (angle link) <edraw:?
           (when (memq 'angle edraw-org-link-image-link-formats)
-            (format "\\(?1:<%s:[^>]\\)" edraw-org-link-type))
+            (format "<\\(?1:%s\\):[^>]" edraw-org-link-type))
           ;; (plain link) edraw:
           (when (memq 'plain edraw-org-link-image-link-formats)
             ;; NG:
@@ -676,7 +677,7 @@ Allowed values for TARGET-TYPE are:
             ;; OK:
             ;;   \`edraw:?
             ;;   \=edraw:?  <= There may be [ or < before it, but it is allowed.
-            (format "\\(?:\\(?:[^[<]\\|\\`\\|\\=\\)\\<\\(?1:%s:[^ \t\n]\\)\\)"
+            (format "\\(?:\\(?:[^[<]\\|\\`\\|\\=\\)\\<\\(?1:%s\\):[^ \t\n]\\)"
                     edraw-org-link-type))))
    "\\|"))
 
@@ -705,20 +706,25 @@ Allowed values for TARGET-TYPE are:
         ;; All links up to the END.
         ;;(message "Start search from %s" (point))
         (while (re-search-forward regexp end t)
-          (goto-char (match-beginning 1))
-          ;;(message "Found candidate at %s" (point))
-          (if-let ((link-element (edraw-org-link-at-point)))
-              (let ((link-begin (org-element-property :begin link-element))
-                    (link-end (org-element-property :end link-element)))
-                (when (and (memq (org-element-property :format link-element)
-                                 edraw-org-link-image-link-formats)
-                           (edraw-org-link-image-update link-begin link-end
-                                                        link-element))
-                  ;; Remove overlays before image
-                  (edraw-org-link-image-remove-region last-end link-begin)
-                  (setq last-end link-end))
-                (goto-char link-end))
-            (goto-char (match-end 0))))
+          (let ((match-beg0 (match-beginning 0)))
+            ;; Move to beginning of edraw: part
+            (goto-char (match-beginning 1))
+            ;;(message "Found candidate at %s" (point))
+            (if-let ((link-element (edraw-org-link-at-point)))
+                (let ((link-begin (org-element-property :begin link-element))
+                      (link-end (org-element-property :end link-element)))
+                  (when (and (memq (org-element-property :format link-element)
+                                   edraw-org-link-image-link-formats)
+                             (edraw-org-link-image-update link-begin link-end
+                                                          link-element))
+                    ;; Remove overlays before image
+                    (edraw-org-link-image-remove-region last-end link-begin)
+                    (setq last-end link-end))
+                  (goto-char link-end))
+              (goto-char (match-end 0)))
+            ;; Prevent infinite loops.
+            (when (<= (point) match-beg0)
+              (forward-char))))
         ;; Remove overlays after last image
         (when (< last-end end)
           (edraw-org-link-image-remove-region last-end end))))))

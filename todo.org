@@ -1,8 +1,5 @@
 
 * Inbox
-** TODO ORG/edrawリンク書き替え中にEmacsがフリーズすることがある
-description部分にedrawリンクがある時に、末尾の]を削除してからpath部分を書き替えてpathの最後に]を入れたあたりで止まる。いや、最初から末尾を消しただけで止まることもある。何だろう。
-
 ** TODO 点接続/図形のコピー・ペースト時に点接続も復元する
 ** TODO 点接続/アンカーの接着位置をドラッグで変更できるようにする
 条件が色々難しい。
@@ -5998,3 +5995,29 @@ LaTeXと重複するコードはできるだけまとめた。
 org-{html|latex|odt}-inline-image-rules への登録はdescription部分に書かれたリンクを画像化するのに必要。
 それだけでなく、特定のリンクを画像化しないようにするのにも使われるかもしれない。
 私の改造はそれをちゃんと考慮していないので、何とかした方が良いかもしれない。
+** DONE ORG/edrawリンク書き替え中にEmacsがフリーズすることがある
+CLOSED: [2025-01-28 Tue 00:26]
+description部分にedrawリンクがある時に、末尾の]を削除してからpath部分を書き替えてpathの最後に]を入れたあたりで止まる。いや、最初から末尾を消しただけで止まることもある。何だろう。
+
+例えば次のテキストでフリーズする。
+
+[[https://example.com/][edraw:data=H4sIAEKZl2cAA3VQ2w7CIAz9FdI9Oy764Jaxf1FhQIZgAGX+vcy5zAdN0zZtz2lP2sWHQtPVushBp3RrMc4513lf+6AwI4TggoAF0k7WuPEXkDZNg99TQNmIpDnsjwSQlkbpxIGxUjxkiMY7DrSm0HdBXhKaOJTJ8x3/Eo3gIEU45d35dBlV8HcnAMUU/Cg5OO8koMFYy6EahgEQ7jv1TfLiud5bYcfZth0VJbOtjd1HCtuEULIpZIdF85ymJZWTWBUvz+pf/Ewpx1QBAAA=]
+
+原因は次の * の部分で前のhttpsを拾ってしまうところにある。
+
+: [https://example.com/*][edraw:...
+
+ ~][edraw:...~ にマッチしているのでdescription部分にedrawリンクがあるその全体を拾って欲しいのだが、末尾の]が無いので全体がリンク要素にならず、path部分とdescription部分の二つのplainリンクが出来ていて、そのpath部分を拾ってしまう。
+
+そしてそのリンクは処理対象では無いので結局画像化されないのだが、最後にリンクの末尾にジャンプしてループを終了する。つまり、マッチした先頭と全く同じ位置でループが終了するので、次の検索はまた同じ位置でマッチする。こうして無限ループになる。
+
+対策を二つ講じた。
+
+一つ目は正規表現の1番目の括弧は必ず ~edraw:~ の部分を指すことにした。これによって別のリンクを拾う可能性がほとんど無くなる。
+二つ目はループ内で必ず1文字以上先に進むようにした。何か間違いがあってもこれで無限ループは避けられるはず。
+
+様々な書き方があり得るので、全てを予期するのは案外難しい。
+
+[https://example.com/]]edraw:data=H4sIAEKZl2cAA3VQ2w7CIAz9FdI9Oy764Jaxf1FhQIZgAGX+vcy5zAdN0zZtz2lP2sWHQtPVushBp3RrMc4513lf+6AwI4TggoAF0k7WuPEXkDZNg99TQNmIpDnsjwSQlkbpxIGxUjxkiMY7DrSm0HdBXhKaOJTJ8x3/Eo3gIEU45d35dBlV8HcnAMUU/Cg5OO8koMFYy6EahgEQ7jv1TfLiud5bYcfZth0VJbOtjd1HCtuEULIpZIdF85ymJZWTWBUvz+pf/Ewpx1QBAAA=;eop=1
+
+fontify部分は簡単に応答不可能状態を生み出すので安全策は必ず用意すべきだと思った。
