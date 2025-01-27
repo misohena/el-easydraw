@@ -1,5 +1,8 @@
 
 * Inbox
+** TODO ORG/edrawリンク書き替え中にEmacsがフリーズすることがある
+description部分にedrawリンクがある時に、末尾の]を削除してからpath部分を書き替えてpathの最後に]を入れたあたりで止まる。いや、最初から末尾を消しただけで止まることもある。何だろう。
+
 ** TODO 点接続/図形のコピー・ペースト時に点接続も復元する
 ** TODO 点接続/アンカーの接着位置をドラッグで変更できるようにする
 条件が色々難しい。
@@ -889,6 +892,10 @@ rgbaはもはやrgbの別名。それにカンマでなく空白で区切って�
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO ソース/defgenericをどうするか
 defgenericは全部に必要？ どこに書くべき？
+** TODO ORG/org-{html|latex|odt}-inline-image-rulesにちゃんと対応する
+[[*ORG/org-modeでODTへのエクスポートに対応する][ORG/org-modeでODTへのエクスポートに対応する]]の実装中に気がついたのだが、org-{html|latex|odt}-inline-image-rules変数でedrawリンクの画像化を禁止したい場合に対応していない。そんなケースを許すべきなのだろうか。そんなことをしてもdata形式ならbase64がずらずら並ぶだけなのだけど。
+一応
+[[elisp-function:edraw-org-export-html-link]], [[elisp-function:edraw-org-export-latex-link]], [[elisp-function:edraw-org-export-odt-link]]の先頭に@todoコメントを入れておいた。
 ** TODO ORG/一時的に一つのリンクをインライン表示しないようにする機能
 [[*ORG/plainリンクとangleリンクをインライン表示する][ORG/plainリンクとangleリンクをインライン表示する]]を実装したときに、plainリンクをインライン画像表示するとブラケットリンクを一時的に壊して中を編集する時に非常に煩わしいことが分かった。せっかくブラケットリンクを壊してテキストを確認・編集しようとしたのに、それが画像になってしまうのだから。
 
@@ -942,7 +949,6 @@ org-modeでもそうする？(そんな使い方する人どれだけいるの?)
 
 それともedraw-editor側でそうする？(それは良くない気がする)
 
-** TODO ORG/org-modeでODTへのエクスポートに対応する
 ** TODO ORG/個別のedrawリンクにHTML属性値を指定出来るようにする
 ~[[edraw:html-attr-width=400;html-attr-alt=Title;file=example.edraw-svg]]~ のような形式？
 それともhtml-attr=で一つにまとめる？
@@ -5977,3 +5983,18 @@ OBJ(objid x-ratio y-ratio x-offset y-offset)ではアンカーと接着したと
 UIは最低限アンカーのコンテキストメニューから「接着位置設定」できるようにする。
 
 通常の図形間の接着をOBJPTにするかは迷うところ。意味的にはOBJPTにすべきだろうが、すでにOBJにしてしまった。保留。一応どちらに切り替えとも良いようにする。 edraw-point-connection-dst-shape-p を使っている場所があるので edraw-point-connection-dst-shape-pt-p も条件に加える。
+** DONE ORG/org-modeでODTへのエクスポートに対応する
+CLOSED: [2025-01-27 Mon 22:46]
+昔からあったTODOだが、LaTeXと同じ手法で出力できたという指摘([[https://github.com/misohena/el-easydraw/issues/33][ODT Export · Issue #33 · misohena/el-easydraw]])を貰ったので実装することにした。
+
+LaTeXと重複するコードはできるだけまとめた。
+
+しかし実際にテストしてみると、 ~#+CAPTION~ を指定するとエラーが発生することに気がついた。ox-odtはLINK要素がツリーの中でどこにあるかを調べてるようなので、ツリーの外に仮のリンク要素を作るやり方だと正しく判定できないのだと思う。詳しく追ってないけど。
+
+なので、LINK要素のtypeとpathを一時的に書き替える方法で対処することにした。これだと図番が正しく計算できない可能性もあるが、幸いそのようなことは無かった。
+
+ただ、テストしているとリンクのdescription部分に書いてあるedrawリンクがあるとエラーになることが分かった。ただ、これはedrawリンクに限らずどんな画像でもエラーになることも分かった。おそらくorg-modeのバグだと思う。そもそもox-odtでは(CAPTION無しでも)画像リンクが作れないようなので、あまり考慮していないのかもしれない。
+
+org-{html|latex|odt}-inline-image-rules への登録はdescription部分に書かれたリンクを画像化するのに必要。
+それだけでなく、特定のリンクを画像化しないようにするのにも使われるかもしれない。
+私の改造はそれをちゃんと考慮していないので、何とかした方が良いかもしれない。

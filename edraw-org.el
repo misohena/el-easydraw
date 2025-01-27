@@ -38,6 +38,7 @@
 (autoload 'edraw-org-link-copy-contents-at-point "edraw-org-edit" "" t)
 (autoload 'edraw-org-export-html-link "edraw-org-export-html" "" nil)
 (autoload 'edraw-org-export-latex-link "edraw-org-export-latex" "" nil)
+(autoload 'edraw-org-export-odt-link "edraw-org-export-odt" "" nil)
 
 ;;;; Setup
 
@@ -817,45 +818,123 @@ If WIDTH-P is non-nil, return width, otherwise return height."
 
 ;;;; Export
 
+(defconst edraw-org-export-backends
+  ;; backend ox-library export-fun inline-image-rules-var
+  '((html
+     ox-html edraw-org-export-html-link org-html-inline-image-rules)
+    (latex
+     ox-latex edraw-org-export-latex-link org-latex-inline-image-rules)
+    (odt
+     ox-odt edraw-org-export-odt-link org-odt-inline-image-rules)))
+(defsubst edraw-org-export-backend-name (info) (nth 0 info))
+(defsubst edraw-org-export-backend-library (info) (nth 1 info))
+(defsubst edraw-org-export-backend-export-fun (info) (nth 2 info))
+(defsubst edraw-org-export-backend-image-rules-var (info) (nth 3 info))
+
 (defun edraw-org-link-setup-exporter ()
+  ;; A hack for referencing link elements from export functions.
   (with-eval-after-load 'ox
     (advice-add 'org-export-custom-protocol-maybe :around
                 'edraw-org-export-ad-export-custom-protocol-maybe))
-  (with-eval-after-load 'ox-html
-    (edraw-org-export-html-setup))
-  (with-eval-after-load 'ox-latex
-    (edraw-org-export-latex-setup)))
+  ;; Register the edraw link type in org-<backend>-inline-image-rules
+  ;; variables to ensure inline images.
+  (dolist (backend edraw-org-export-backends)
+    ;; (with-eval-after-load <library>
+    ;;   (setf (alist-get edraw-org-link-type
+    ;;                    org-<backend>-inline-image-rules nil nil #'equal)
+    ;;         ".*"))
+    (eval-after-load (edraw-org-export-backend-library backend)
+      (when-let* ((rules-var
+                   (edraw-org-export-backend-image-rules-var backend)))
+        (lambda ()
+          (edraw-org-export-add-link-type-to-inline-image-rules rules-var))))))
 
-(defun edraw-org-export-html-setup ()
-  (defvar org-html-inline-image-rules) ;;ox-html.el
-  (with-eval-after-load 'ox-html
-    (setf (alist-get edraw-org-link-type
-                     org-html-inline-image-rules nil nil #'equal)
-          ".*")))
+(defun edraw-org-export-add-link-type-to-inline-image-rules (rules-var)
+  "Register edraw link type in the inline image rules defined by the backend.
 
-(defun edraw-org-export-latex-setup ()
-  (defvar org-latex-inline-image-rules) ;;ox-latex.el
-  (with-eval-after-load 'ox-latex
-    (setf (alist-get edraw-org-link-type
-                     org-latex-inline-image-rules nil nil #'equal)
-          ".*")))
+RULES-VAR is the symbol of the variable to register.
+
+This process is necessary to correctly export the edraw link written in
+the description part of the links.
+(e.g.[[file:test.html][edraw:data=...]])"
+  (setf (alist-get edraw-org-link-type
+                   (symbol-value rules-var) nil nil #'equal)
+        ".*"))
 
 (defvar edraw-org-export-current-link nil)
 
 (defun edraw-org-export-ad-export-custom-protocol-maybe
     (old-func link &rest args)
+  "A hack to reference the link element being exported from a function set
+in the :export property of `org-link-parameters'."
   (let ((edraw-org-export-current-link link))
     (apply old-func link args)))
 
 (autoload 'org-export-derived-backend-p "ox")
 
 (defun edraw-org-link-export (path description back-end info)
-  (let ((link edraw-org-export-current-link))
-    (cond
-     ((org-export-derived-backend-p back-end 'html)
-      (edraw-org-export-html-link path description back-end info link))
-     ((org-export-derived-backend-p back-end 'latex)
-      (edraw-org-export-latex-link path description back-end info link)))))
+  "Export an edraw link.
+Use this by setting the :export property of `org-link-parameters'."
+  (when-let* ((fun
+               ;; Find the export function for BACK-END
+               (cl-loop for backend in edraw-org-export-backends
+                        when (org-export-derived-backend-p
+                              back-end
+                              (edraw-org-export-backend-name backend))
+                        return (edraw-org-export-backend-export-fun backend))))
+    (funcall fun path description back-end info edraw-org-export-current-link)))
+
+;;;;; Utilities for Implementing Backends
+
+(defun edraw-org-export-get-file-from-edraw-path (edraw-path)
+  "Get the file name to export from the edraw link path (EDRAW-PATH).
+
+If EDRAW-PATH is of data format, create a temporary file and return its
+file name."
+  (when-let* ((link-props (edraw-org-link-props-parse edraw-path nil t)))
+    (or
+     ;; Export data=base64.
+     ;; Create temporary file.
+     (when-let* ((data (edraw-org-link-prop-data link-props)))
+       (edraw-org-export-create-temp-data-file data))
+     ;; Export file=.
+     (edraw-org-link-prop-file link-props)
+     ;; Others?
+     )))
+
+(defun edraw-org-export-create-temp-data-file (data)
+  "Create a temporary file for exporting SVG DATA."
+  (let* ((svg-str (edraw-decode-string data t))
+         (hash (sha1 svg-str))
+         (file (format "link-data-%s.edraw.svg" hash))) ;;@todo customize
+    (with-temp-file file
+      (insert svg-str)
+      (set-buffer-file-coding-system 'utf-8))
+    file))
+
+(defun edraw-org-export-link-as-file (link info file export-fun)
+  "Temporarily rewrite LINK element to a file type link and export it.
+
+FILE is the path to the file.
+
+EXPORT-FUN is a function for exporting LINK. It takes LINK and INFO as
+arguments. Such functions include `org-latex--inline-image' and
+`org-odt-link--inline-image'."
+  (let ((old-type (org-element-property :type link))
+        (old-path (org-element-property :path link))
+        (old-raw-link (org-element-property :raw-link link)))
+    (unwind-protect
+        (progn
+          (org-element-put-property link :type "file")
+          (org-element-put-property link :path file)
+          (org-element-put-property link :raw-link (concat "file:" file))
+          ;; export-fun is one of the following:
+          ;; - `org-latex--inline-image'
+          ;; - `org-odt-link--inline-image'
+          (funcall export-fun link info))
+      (org-element-put-property link :type old-type)
+      (org-element-put-property link :path old-path)
+      (org-element-put-property link :raw-link old-raw-link))))
 
 (provide 'edraw-org)
 ;;; edraw-org.el ends here

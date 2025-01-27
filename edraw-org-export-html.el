@@ -63,9 +63,14 @@ svg = Embed SVG element (<svg>...</svg>)
 ;;;; Export
 
 (defun edraw-org-export-html-link (path _description _back-end info link)
+  ;; @todo Check inline-image-rules? However, unless it is converted
+  ;; into an inline image, it will just output base64 data, so I don't
+  ;; think it is practical.
+  ;; (when (org-export-inline-image-p or org-html-inline-image-p?
+  ;;        link (plist-get info :html-inline-image-rules))
+
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]
-  (require 'edraw)
   (if-let ((link-props (edraw-org-link-props-parse path nil t)))
       (let ((html-tag (edraw-org-link-prop-html-tag link-props)))
         (if-let ((data (edraw-org-link-prop-data link-props)))

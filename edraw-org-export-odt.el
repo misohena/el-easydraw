@@ -1,6 +1,6 @@
-;;; edraw-org-export-latex.el --- Export edraw link As LaTeX in Org  -*- lexical-binding: t; -*-
+;;; edraw-org-export-odt.el --- Export edraw link As ODT in Org  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022 AKIYAMA Kouhei
+;; Copyright (C) 2025 AKIYAMA Kouhei
 
 ;; Author: AKIYAMA Kouhei <misohena@gmail.com>
 ;; Keywords: Graphics, Drawing, SVG, Editor, Orgmode
@@ -20,29 +20,29 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;;; Code:
 
-(require 'ox-latex)
+(require 'ox-odt)
 (require 'edraw-org)
 
 ;;;; Export
 
-(defun edraw-org-export-latex-link (path _description _back-end info link)
+(defun edraw-org-export-odt-link (path _description _back-end info link)
   ;; @todo Check inline-image-rules? However, unless it is converted
   ;; into an inline image, it will just output base64 data, so I don't
   ;; think it is practical.
   ;; (when (org-export-inline-image-p
-  ;;        link (plist-get info :latex-inline-image-rules))
+  ;;        link (plist-get info :odt-inline-image-rules))
   (if-let* ((file (edraw-org-export-get-file-from-edraw-path path)))
       (edraw-org-export-link-as-file
        link info file
-       ;; You may process any LaTeX specific options set in LINK
-       ;; (e.g.[[edraw:latex-some-option=??;file=...]]) here.
-       ;; (lambda (link info) .... (org-latex--inline-image link info))
-       #'org-latex--inline-image)
+       ;; You may process any ODT specific options set in LINK
+       ;; (e.g.[[edraw:odt-some-option=??;file=...]]) here.
+       ;; (lambda (link info) .... (org-odt-link--inline-image link info))
+       #'org-odt-link--inline-image)
     ""))
 
-(provide 'edraw-org-export-latex)
-;;; edraw-org-export-latex.el ends here
+(provide 'edraw-org-export-odt)
+;;; edraw-org-export-odt.el ends here

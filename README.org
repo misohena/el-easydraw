@@ -109,6 +109,10 @@ I have a minimal implementation, but I don't use LaTeX usually, so there may be 
 
 =[[edraw:data=]]= format creates a temporary file when exporting as LaTeX. Please let me know if there is a better way in LaTeX.
 
+*** As ODT
+
+As with the LaTeX export, the =[[edraw:data=]]= format creates a temporary SVG file.
+
 ** Regular File Link Support
 
 You can also edit regular file links inline.
