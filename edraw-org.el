@@ -253,6 +253,11 @@ Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
 
 ;;;;; Link Element
 
+(defun edraw-org-link-at (point)
+  (save-excursion
+    (goto-char point)
+    (edraw-org-link-at-point)))
+
 (defun edraw-org-link-at-point ()
   (when-let ((element (org-element-lineage
                        (save-match-data (org-element-context))
@@ -280,6 +285,16 @@ dummy property to the end of the path,
 
 (defun edraw-org-link-path-terminator-add (path)
   (concat path ";" edraw-org-link-path-terminator-pname "=1"))
+
+(defun edraw-org-link-replace (link-element path part)
+  (edraw-org-link-replace-at
+   (1+ (org-element-property :begin link-element))
+   path part))
+
+(defun edraw-org-link-replace-at (point path part)
+  (save-excursion
+    (goto-char point)
+    (edraw-org-link-replace-at-point path part)))
 
 (defun edraw-org-link-replace-at-point (path part)
   "Replace a PART of the link at the current point with PATH.
@@ -943,6 +958,156 @@ arguments. Such functions include `org-latex--inline-image' and
       (org-element-put-property link :type old-type)
       (org-element-put-property link :path old-path)
       (org-element-put-property link :raw-link old-raw-link))))
+
+
+;;;; Search
+
+(defun edraw-org-link-re-search (regexp &optional bound noerror count backward)
+  "Search for a data link whose content matches REGEXP.
+
+Return a list containing information about the found link or nil.
+
+Link information list format:
+  ( LINK-ELEMENT DECODED-TEXT LINK-PROPS IN-DESCRIPTION-P LINK-TYPE)
+
+Point is moved to the end of the found link.
+
+Note: The resulting match data is set for the entire link. SUBEXP 0
+represents the range of the link, and SUBEXP 1 and beyond are not
+guaranteed.
+
+Currently this function doesn't search inside edraw:file= or
+file:???.svg. Use grep to search for those."
+  (unless count (setq count 1))
+  (unless (fixnump count)
+    (signal 'wrong-type-argument (list #'fixnump count)))
+  (when (< count 0)
+    (setq backward (not backward)
+          count (- count)))
+
+  (let ((search-fun (if backward #'re-search-backward #'re-search-forward))
+        last-found-link-data)
+    (while (and
+            (> count 0)
+            (funcall search-fun org-link-any-re bound t))
+      (when-let* ((link-element (edraw-org-link-at (match-beginning 0)))
+                  (link-props-place-type
+                   (edraw-org-link-element-link-properties
+                    link-element
+                    t
+                    ;; Exclude file: type link
+                    nil))
+                  (link-props (car link-props-place-type))
+                  (data (edraw-org-link-prop-data link-props))
+                  (decoded-text (ignore-errors (edraw-decode-string data t))))
+        (when (string-match-p regexp decoded-text)
+          (setq last-found-link-data (nconc
+                                      (list link-element decoded-text)
+                                      link-props-place-type)
+                count (1- count)))))
+    (if (> count 0)
+        (if noerror nil (signal 'search-failed (list regexp)))
+      last-found-link-data)))
+
+(defun edraw-org-link-re-search-forward (regexp &optional bound noerror count)
+  "Search forward from point for a data link whose content matches REGEXP."
+  (interactive "sRE search in edraw link: ")
+  (when (edraw-org-link-re-search regexp bound noerror count nil)
+    (point)))
+
+(defun edraw-org-link-re-search-backward (regexp &optional bound noerror count)
+  "Search backward from point for a data link whose content matches REGEXP."
+  (interactive "sRE search in edraw link: ")
+  (when (edraw-org-link-re-search regexp bound noerror count t)
+    (point)))
+
+(defun edraw-org-link-isearch-fun ()
+  ;; See: `isearch-search-fun-default'
+  (lambda (string &optional bound noerror count)
+    (let (;; Beginning of copy from isearch.el
+          ;; ---------------------------------------------------------
+          ;; Evaluate this before binding `search-spaces-regexp' which
+          ;; can break all sorts of regexp searches.  In particular,
+          ;; calling `isearch-regexp-function' can trigger autoloading
+          ;; (Bug#35802).
+          (regexp
+           (cond (isearch-regexp-function
+                  (let ((lax (and (not bound) ; not lazy-highlight
+                                  (isearch--lax-regexp-function-p))))
+                    (when lax
+                      (setq isearch-adjusted 'lax))
+                    (if (functionp isearch-regexp-function)
+                        (funcall isearch-regexp-function string lax)
+                      (word-search-regexp string lax))))
+                 (isearch-regexp string)
+                 (t (regexp-quote string))))
+          ;; Use lax versions to not fail at the end of the word while
+          ;; the user adds and removes characters in the search string
+          ;; (or when using nonincremental word isearch)
+          (search-spaces-regexp (when (if isearch-regexp
+                                          isearch-regexp-lax-whitespace
+                                        isearch-lax-whitespace)
+                                  search-whitespace-regexp))
+          ;; ---------------------------------------------------------
+          ;; End of copy from isearch.el
+          )
+      (when (edraw-org-link-re-search regexp bound noerror count
+                                      (not isearch-forward))
+        (point)))))
+
+(defun edraw-org-link-isearch-forward (&optional regexp-p)
+  "Incrementally search forward for data links."
+  (interactive "P")
+  (let ((isearch-search-fun-function #'edraw-org-link-isearch-fun))
+    (isearch-mode t (not (null regexp-p)) nil t)))
+
+(defun edraw-org-link-isearch-backward (&optional regexp-p)
+  "Incrementally search backward for data links."
+  (interactive "P")
+  (let ((isearch-search-fun-function #'edraw-org-link-isearch-fun))
+    (isearch-mode nil (not (null regexp-p)) nil t)))
+
+;;;; Replace
+
+;; @todo Use replace.el?
+;; @todo Add query-replace
+
+(defun edraw-org-link-replace-regexp (regexp to-string)
+  (interactive "sReplace regexp: \nsReplace to: ")
+
+  (let ((link-count 0) (text-count 0))
+    (while
+        (when-let* ((link-info (edraw-org-link-re-search regexp nil t)))
+          (let* ((link-element (nth 0 link-info))
+                 (decoded-text (nth 1 link-info))
+                 (props (nth 2 link-info))
+                 (in-description-p (nth 3 link-info))
+                 (new-data
+                  (with-temp-buffer
+                    (insert decoded-text)
+                    (goto-char (point-min))
+                    (while (re-search-forward regexp nil t)
+                      (replace-match to-string)
+                      (cl-incf text-count))
+                    (edraw-encode-buffer t edraw-org-link-compress-data-p)
+                    (buffer-string))))
+            (setf (alist-get "data" props nil nil #'string=) new-data)
+
+            ;; Replace Link
+            (unless (edraw-org-link-replace
+                     link-element
+                     (concat edraw-org-link-type ":"
+                             (edraw-org-link-props-to-string props))
+                     (if in-description-p 'description 'path))
+              (error "Failed to replace edraw link"))
+            (cl-incf link-count))
+          t))
+
+    (message "Replaced %d text in %s links" text-count link-count)))
+
+(defun edraw-org-link-replace-string (from-string to-string)
+  (interactive "sReplace string: \nsReplace to: ")
+  (edraw-org-link-replace-regexp (regexp-quote from-string) to-string))
 
 (provide 'edraw-org)
 ;;; edraw-org.el ends here

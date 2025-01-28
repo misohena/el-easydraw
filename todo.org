@@ -1,5 +1,12 @@
 
 * Inbox
+** TODO ORG/edraw-org-link-replace-at-pointを見直す
+この関数はどのリンクを置き換えるのかが明確では無い。
+ポイントの直後のリンクは拾うのか。
+ポイントの前後にリンクが隣接していた場合にどちらを置き換えるのか。
+link要素を指定して置き換えるような関数も欲しい。
+
+** TODO ORG/リンクが隣接しているときに後ろのリンクがキーで操作できない
 ** TODO 点接続/図形のコピー・ペースト時に点接続も復元する
 ** TODO 点接続/アンカーの接着位置をドラッグで変更できるようにする
 条件が色々難しい。
@@ -889,6 +896,16 @@ rgbaはもはやrgbの別名。それにカンマでなく空白で区切って�
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO ソース/defgenericをどうするか
 defgenericは全部に必要？ どこに書くべき？
+** TODO ORG/edraw-org-link-query-replaceを作る
+置換するSVGを一時的なバッファで見せながら置換していく。
+この辺りはreplace.elのコードを使用するか迷う。replace-stringやquery-replaceと同じインタフェースにするなら使わないと自分で実装するのは厳しい。
+出来るのであれば edraw-org-link-replace-regexpやedraw-org-link-replace-stringもreplace.elを使いたい。一度使おうとしたが、edraw-org-link-re-searchでマッチするリンクを探すところで諦めた。それ自体replace.elの規則で探さないといけない気がしたので。
+
+** TODO ORG/全体的にpathとdescriptionの両方がedrawリンクの場合を考慮してない
+~[[edraw:...][edraw:...]]~ という形を考慮していない。
+まぁ、これは仕方ないと思うんだけど。path側のedrawリンクは意味が無いわけだし。
+path側がfile=リンクでそれを開けるのなら多少意味はあるか？
+
 ** TODO ORG/org-{html|latex|odt}-inline-image-rulesにちゃんと対応する
 [[*ORG/org-modeでODTへのエクスポートに対応する][ORG/org-modeでODTへのエクスポートに対応する]]の実装中に気がついたのだが、org-{html|latex|odt}-inline-image-rules変数でedrawリンクの画像化を禁止したい場合に対応していない。そんなケースを許すべきなのだろうか。そんなことをしてもdata形式ならbase64がずらずら並ぶだけなのだけど。
 一応
@@ -6028,3 +6045,34 @@ CLOSED: [2025-01-28 Tue 15:29]
 - edraw-org-link-element-path-in-description
 string-matchを使用しているのでマッチデータが破壊される。
 そのマッチデータを使っている様子は無いし、edraw-org-link-re-searchを実装するときにハマったので。
+** DONE ORG/dataリンクの中身を検索・置換する機能を追加する
+CLOSED: [2025-01-28 Tue 15:00]
+特定の画像ファイルを参照しているかを調べたかったがエンコードされているために通常のやり方では検索できなかった。
+これはBase64データ埋め込みの欠点なので、それをカバーする仕組みを用意すべき。
+
+検索:
+
+re-search-forward/backward相当とisearch-forward/backward相当を用意する。
+
+#+begin_src elisp
+(cl-loop for i from 0
+         for link-info = (edraw-org-link-re-search "hello" nil t)
+         while link-info
+         for link-element = (nth 0 link-info)
+         collect (cons (org-element-property :begin link-element)
+                       (org-element-property :end link-element)))
+#+end_src
+
+置換:
+
+とりあえずreplace-string/replace-regexp相当を用意する。
+
+#+begin_src elisp
+(edraw-org-link-replace-regexp "hello" "HELLO")
+#+end_src
+
+こんな感じで隣接している場合でも機能しなければならない。
+
+[[edraw:data=H4sIADqrmGcAA3WQ0W6EIBBFf4VMnxXdTTbRiP9CZQQiggEqbr++o9smfWhDhuRm7rkMM6Rds2N1PgkwOW8956WUutzrEDW/NU3DyQEvS38465e/jG3XdfzqAitWZSPg3jTADFptsoD2RmLHmGzwpOoWxiHilNkhgDrP6/4XtEoAqihL9S6nRcfw4RWwlGNYUIAPHoHN1jkBb/M8A+PjoH9DQT3pvYxH/rG1zXmICj5XyX5STPv4lrNcraOJkvSpShgtJZ5sJf1kQhSwWqUcXjvp0yYngreI5Nzx+sqDgo/X6KNB5wIrITrFTNB41sDPuHHgmoq2O34BDA0L5YUBAAA=]][[https://example.com/][edraw:data=H4sIAIOamGcAA72R0W6EIBBFf4VMnxV0k81qxH+xgkBEMMCK26/v6HaTfWhfGwLJZM693IEuborsi3WRg05pbSnNOZf5UvqgaM0Yo0jAE2l3a9z8G1g1TUPPLpBsRNIcLowB0dIonTjUR7HJEI13HKqygr4Lckxk54Cdx3n+KTSCgxRhyMXnMM4q+LsTQGIKfpYcnHcSyGSs5fAxTRMQ2nfqXeTFA+9Lck8vrGLHQpV3qYjmC22q6085DYuxmCgOLhZRBoOOh7YY3Kh94LAYIaw836SN6zCieA0SyU2eo1zRGOeqawa9ltZ6kn2YO3qY/GOM6vbMcXuPYcUrB1W48W/7b4nzOR8DAgAA]]
+
+query-replace/query-replace-regexp相当は保留。一時的なバッファを表示して確認を取るようなコマンドを作りたい。
