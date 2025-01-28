@@ -183,30 +183,31 @@ when editing the contents of bracket links, so by default only
 
 (defun edraw-org-link-props-parse (path &optional in-description-p noerror)
   (when path
-    ;; Remove "edraw:" at the beginning of PATH just in case.
-    ;; If the link type is not registered, edraw: may remain at the beginning.
-    (setq path (string-remove-prefix (format "%s:" edraw-org-link-type) path))
+    (save-match-data
+      ;; Remove "edraw:" at the beginning of PATH just in case.
+      ;; If the link type is not registered, edraw: may remain at the beginning.
+      (setq path (string-remove-prefix (format "%s:" edraw-org-link-type) path))
 
-    ;; Convert "A=B;C=D;..." to ((A . B) (C . D) ...)
-    (delq
-     nil
-     (mapcar
-      (lambda (prop)
-        (if (string-match "\\`\\([^=]*\\)=\\(.*\\)\\'" prop)
-            (let ((name (string-trim (match-string 1 prop)))
-                  (value (edraw-org-link-unescape
-                          (string-trim (match-string 2 prop))
-                          ;; If PATH is in the description part,
-                          ;; brackets have not yet been unescaped
-                          in-description-p)))
-              (if (string= name (edraw-org-link-path-terminator-pname))
-                  ;; Remove dummy property
-                  nil
-                (cons name value)))
-          (if noerror
-              nil
-            (error "Invalid link format: %s" path))))
-      (split-string path ";" t "[ \t\n\r]+")))))
+      ;; Convert "A=B;C=D;..." to ((A . B) (C . D) ...)
+      (delq
+       nil
+       (mapcar
+        (lambda (prop)
+          (if (string-match "\\`\\([^=]*\\)=\\(.*\\)\\'" prop)
+              (let ((name (string-trim (match-string 1 prop)))
+                    (value (edraw-org-link-unescape
+                            (string-trim (match-string 2 prop))
+                            ;; If PATH is in the description part,
+                            ;; brackets have not yet been unescaped
+                            in-description-p)))
+                (if (string= name (edraw-org-link-path-terminator-pname))
+                    ;; Remove dummy property
+                    nil
+                  (cons name value)))
+            (if noerror
+                nil
+              (error "Invalid link format: %s" path))))
+        (split-string path ";" t "[ \t\n\r]+"))))))
 
 (defun edraw-org-link-props-to-string (link-props)
   ;; Convert ((A . B) (C . D) ...) to "A=B;C=D;..."
@@ -337,17 +338,18 @@ When LINK-TYPE is nil, use `edraw-org-link-type'."
   (when-let ((c-begin (org-element-property :contents-begin link-element))
              (c-end (org-element-property :contents-end link-element)))
     (let ((desc (buffer-substring-no-properties c-begin c-end)))
-      (cond
-       ;; angle link
-       ((string-match (format "\\`<%s:\\(.*\\)>\\'"
-                              (or link-type edraw-org-link-type))
-                      desc)
-        (match-string 1 desc))
-       ;; plain link
-       ((string-match (format "\\`%s:\\(.*\\)\\'"
-                              (or link-type edraw-org-link-type))
-                      desc)
-        (match-string 1 desc))))))
+      (save-match-data
+        (cond
+         ;; angle link
+         ((string-match (format "\\`<%s:\\(.*\\)>\\'"
+                                (or link-type edraw-org-link-type))
+                        desc)
+          (match-string 1 desc))
+         ;; plain link
+         ((string-match (format "\\`%s:\\(.*\\)\\'"
+                                (or link-type edraw-org-link-type))
+                        desc)
+          (match-string 1 desc)))))))
 
 (defun edraw-org-link-element-link-properties (link-element noerror &optional use-normal-file-link-p)
   "Return the property alist of LINK-ELEMENT.

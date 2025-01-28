@@ -6021,3 +6021,10 @@ description部分にedrawリンクがある時に、末尾の]を削除してか
 [https://example.com/]]edraw:data=H4sIAEKZl2cAA3VQ2w7CIAz9FdI9Oy764Jaxf1FhQIZgAGX+vcy5zAdN0zZtz2lP2sWHQtPVushBp3RrMc4513lf+6AwI4TggoAF0k7WuPEXkDZNg99TQNmIpDnsjwSQlkbpxIGxUjxkiMY7DrSm0HdBXhKaOJTJ8x3/Eo3gIEU45d35dBlV8HcnAMUU/Cg5OO8koMFYy6EahgEQ7jv1TfLiud5bYcfZth0VJbOtjd1HCtuEULIpZIdF85ymJZWTWBUvz+pf/Ewpx1QBAAA=;eop=1
 
 fontify部分は簡単に応答不可能状態を生み出すので安全策は必ず用意すべきだと思った。
+** DONE ORG/マッチデータを壊している関数を修正する。
+CLOSED: [2025-01-28 Tue 15:29]
+次の関数でマッチデータが変更されないようにする。
+- edraw-org-link-props-parse
+- edraw-org-link-element-path-in-description
+string-matchを使用しているのでマッチデータが破壊される。
+そのマッチデータを使っている様子は無いし、edraw-org-link-re-searchを実装するときにハマったので。
