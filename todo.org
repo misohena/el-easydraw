@@ -1,12 +1,5 @@
 
 * Inbox
-** TODO ORG/リンクが隣接しているときに右のリンクを操作できないのを直す
-
-- 後のリンクがキーで操作できない
-- そもそも画像化された二つのedrawリンク間にポイントを移動できない
-
-[[edraw:data=H4sIAOO9mGcAA3WQWw6DIBBFt0Km3wraHzXiXqw8o4UGqejui6/YjzYTIDwO92TqcZIoaOYVhSwngBTXUvljMz8HM1JQ3r8qjEMIabin1kmcE0JwRAFN3I3amgik2QFU86BN/wvLyrLE2y00teOdRzOFmLNs818NzShw5tqQPNqul86+DQM0emd7TsFYwwEJPQwUbkIIQLip5Tdk2XLmnc+Kta4/bhlZ6zxIDpX8EikuwWI33hq0LzEQyzhiR5oPXXar4FIBAAA=]][[edraw:data=H4sIAPS9mGcAA3WQXQ7CIBCEr0LWZwvUmLRN6V20UEqKYACl3t5tU38eNBvYDMswX2jjXZNsZBoFHBgDMiqjxySgLFHMF+uigDGla0NpzrnIh8IHTUvGGEUrkLsK0XgngBd8MzSzNW76ZeN1XdN1Cl0bVJ/ILABzHuv+F8NIAUqGU96fT/2kg785CSSm4CclwHmngAzGWgG7YRiA0K7V3yYvH5inrDXXqN43q6U+z+w4W+p1sN9oSiAB8Y44CAhbYe9R10tHzRc+zKMaF35I9wSK8vqyUQEAAA==]]
-
 ** TODO 点接続/図形のコピー・ペースト時に点接続も復元する
 ** TODO 点接続/アンカーの接着位置をドラッグで変更できるようにする
 条件が色々難しい。
@@ -6154,3 +6147,61 @@ org-in-regexpを使う必要は無い。リンクの先頭位置が分かって�
 3. edraw-org-link-replace-elementを使うように変更する。その際この関数は引き渡した link-element が無効になる点に注意。置換するとリンクの長さが変わって:endが指す位置が無意味になる可能性があるので(たまたま長さが変わらない置換で無い限り)。
 
 これによってリンクが隣接したときに後ろのリンクをマウスで編集・編集終了したときに前のリンクが書き換わってしまうというバグは直った。
+** DONE ORG/リンクが隣接しているときに右のリンクを操作できないのを直す
+CLOSED: [2025-01-30 Thu 23:41]
+
+- 後のリンクがキーで操作できない
+- そもそも画像化された二つのedrawリンク間にポイントを移動できない
+
+後はそもそもリンク間にポイントが置けない問題。
+
+[[edraw:data=H4sIAMJQm2cAA3WQyw6DIBBFf4WMawWsi2rEf7GCSLTQIBX9++IrdtFmAoTH4Z5MOU4SecVdx4BmBFAnlOzcsZmfgx4ZdM69Coy994m/JcZKnBJCcEABTcKOyugAJPQAinlQuv+F0TzP8XYLVWlF49DMIOQs2/xXQ3EGgtvax4+66aU1b80Bjc6aXjDQRgtArRoGBlHbtoBwVcpvyPDlzDuf3de6/ogoWes8iA+V9BLJLsFsN94atC8hEMswQkeqD0GS7qJSAQAA]][[edraw:data=H4sIAP+Jm2cAA5VRwZLCIAz9FSaeLaAeWqf0X9xCKVMEB1jBvzdtp+ph9+BkIJPkvSQP2njXpFytiwLGlG5nSnPOVT5WPmh6YIxRRMAKORdr3PQXkDdNQ5cqkGxkGgUgF8iojB6TAF5jcFchGu8wqjh0bVB9IkUAVh7L/S/RSAFKhkve/1z6SQf/6ySQmIKflADnnQIyGGsF7IZhAEK7Vn+SvHzgPGWtuUX1QtazvdvsOJttS+y3bYAEXO+IhVBW32PMZ2SPiYYt8xYxX3feVJ7e6uv1OQ7oyuqwO9V48B+6JyX7B5avAQAA]]
+
+これは考えてみると結構不思議な問題。通常、オーバーレイなりテキストプロパティなりで画像作成し、それを二つ並べてもちゃんと独立してポイントを置ける。なんで置けないんだろう。ひょっとしてorg-modeがすでにリンクとしてfontifyしていることが何か関係ある？
+
+あー、 ~]][[~ の部分は全部invisibleだからポイントを置けないのか。見える所にしか置けない。実際普通のリンクを二つ並べてみれば ([[file:aaa]][[file:bbb]] ) ]]と[[の間にポイントを置けないことが分かる。C-c C-x C-nで移動して切り取ると一つ目のリンクのパス部分の末尾からしか切り取れないや。
+
+というかこれインライン画像も同じだよね。当たり前だけど。
+
+#+ATTR_ORG: :width 100
+[[file:screenshot/color-picker-minibuffer.png]][[file:screenshot/color-picker-minibuffer.png]]
+
+M-x org-toggle-link-display でリンクの一部を隠さないようにすればちゃんと個別に操作できる。
+
+overlayにinvisibleプロパティを指定してキャンセルしたらうまく行くだろうか。そのとき気になるのは折りたたみによってちゃんと消えるのだろうか。ちょっと前のorg-modeはテキストプロパティによる折りたたみが導入されていたような記憶があるけど。(See: [[elisp-variable:org-fold-core-style]])
+
+たとえば次のコードを評価するとリンクの隠れた部分が現れる。
+
+#+begin_src elisp
+(progn
+  (re-search-forward "\\[\\[file:README.org]]")
+  (let ((ov (make-overlay (match-beginning 0) (match-end 0))))
+    (overlay-put ov 'evaporate t)
+    (overlay-put ov 'invisible 'dummy)
+    ;;(overlay-put ov 'display "<<OVERLAYHERE>>")
+    ))
+#+end_src
+
+[[file:README.org]]
+
+しかしorg-fold-core-styleを'text-propertiesにしてから開き直して再度試すと全体を折りたたんだときでもリンクが表示されてしまうことが分かる。
+
+#+begin_src elisp
+(setq org-fold-core-style 'text-properties)
+;; (setq org-fold-core-style 'overlays)
+#+end_src
+
+やはりテキストプロパティよりオーバーレイが優先されてしまうので、折りたためなくなってしまう。
+
+それよりもリンク自体のinvisibleを解除してしまった方が早くないだろうか。
+うーん、でもそれ自体org-foldが書き替えてしまう可能性があるのでは無いか。
+
+この辺りは下手にいじるとorg-foldと干渉する可能性があるので難しい。
+
+(そもそも隣接した二つのリンクの間にポイントを置けないのはOrg-modeの問題のような気がするが……)
+
+[[elisp-variable:org-activate-links]]のコードを読んでみると、 org-link-parametersに:displayというプロパティがある。これを使ってedrawリンクは(少なくともedraw-org-link-image-modeのときは)フルオープンにしてしまってはどうか。fullではなくbuffer-invisibility-specにedraw-org-linkなんてものを追加して……、いや、それだと画像化されていないリンクの一部を隠せないか。
+
+画像化するときに一緒にinvisibleテキストプロパティを消してしまうのが一番手っ取り早そう。どうせ[[elisp-variable:org-activate-links]]の後に画像化してるんだし。
+
+画像化されていないリンクの間にポイントを置けないのはそれこそorg-modeの問題だ。

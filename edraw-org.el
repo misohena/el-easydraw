@@ -809,19 +809,24 @@ Allowed values for TARGET-TYPE are:
 
       ;; Add or Remove a link image
       (if image
-          (if ov
-              (progn
-                (move-overlay ov link-begin link-end)
-                (overlay-put ov 'display (if visible image))
-                (overlay-put ov 'edraw-org-link-image image))
-            (setq ov (make-overlay link-begin link-end nil t nil))
-            (overlay-put ov 'display (if visible image))
-            (overlay-put ov 'keymap (if visible edraw-org-link-image-map))
-            (overlay-put ov 'face 'default)
-            (overlay-put ov 'edraw-org-link-image-p t)
-            (overlay-put ov 'edraw-org-link-image image)
-            (overlay-put ov 'edraw-org-link-image-visible t)
-            (overlay-put ov 'evaporate t))
+          (progn
+            (if ov
+                (progn
+                  (move-overlay ov link-begin link-end)
+                  (overlay-put ov 'display (if visible image))
+                  (overlay-put ov 'edraw-org-link-image image))
+              (setq ov (make-overlay link-begin link-end nil t nil))
+              (overlay-put ov 'display (if visible image))
+              (overlay-put ov 'keymap (if visible edraw-org-link-image-map))
+              (overlay-put ov 'face 'default)
+              (overlay-put ov 'edraw-org-link-image-p t)
+              (overlay-put ov 'edraw-org-link-image image)
+              (overlay-put ov 'edraw-org-link-image-visible t)
+              (overlay-put ov 'evaporate t))
+            ;; Remove `invisible' text property of the imaged link to
+            ;; be able to place point between adjacent images.
+            (edraw-org-link-image-remove-invisible-text-property
+             link-begin link-end))
         (if ov
             (delete-overlay ov))))
     ;; Processed
@@ -878,6 +883,19 @@ If WIDTH-P is non-nil, return width, otherwise return height."
                  (if visible-p edraw-org-link-image-map))
     (overlay-put ov 'face
                  (if visible-p 'default))))
+
+(defun edraw-org-link-image-remove-invisible-text-property (link-begin link-end)
+  "Remove the `invisible' text property between LINK-BEGIN and LINK-END.
+
+By removing this property, the cursor can be placed between two adjacent
+links.  For example, in the text [[edraw:...]][[edraw:...]], the region
+]][[ normally has the `invisible' property set to `org-link', making it
+invisible. As a result, the cursor cannot be placed between the two
+links (between ]] and [[). This is an issue with Org mode's link
+display, but for inline image links, it can be avoided by setting the
+`invisible' property to nil.
+This adjustment allows precise keyboard navigation of individual images."
+  (remove-text-properties link-begin link-end '(invisible nil)))
 
 
 ;;;; Export
