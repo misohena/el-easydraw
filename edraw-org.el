@@ -157,9 +157,9 @@ when editing the contents of bracket links, so by default only
     (with-current-buffer object
       (save-excursion
         (goto-char pos)
-        (when-let ((link-element (edraw-org-link-at-point))
-                   (link-props (car (edraw-org-link-element-link-properties
-                                     link-element t))))
+        (when-let ((link-object (edraw-org-link-at-point))
+                   (link-props (car (edraw-org-link-object-link-properties
+                                     link-object t))))
           (if-let ((file (edraw-org-link-prop-file link-props)))
               (format "edraw:file=%s" file)
             (if-let ((data (edraw-org-link-prop-data link-props)))
@@ -251,7 +251,7 @@ Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
     (if-let ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file) (cons (expand-file-name file) nil)))))
 
-;;;;; Link Element
+;;;;; Link Object
 
 (defun edraw-org-link-at (point)
   (save-excursion
@@ -259,15 +259,15 @@ Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
     (edraw-org-link-at-point)))
 
 (defun edraw-org-link-at-point ()
-  (when-let ((element (org-element-lineage
-                       (save-match-data (org-element-context))
-                       '(link) t))
+  (when-let ((link-object (org-element-lineage
+                           (save-match-data (org-element-context))
+                           '(link) t))
              (end (save-excursion
                     (goto-char
-                     (org-element-property :end element))
+                     (org-element-property :end link-object))
                     (skip-chars-backward " \t")
                     (point))))
-    (org-element-put-property element :end end)))
+    (org-element-put-property link-object :end end)))
 
 (defconst edraw-org-link-path-terminator-pname "eop"
   "Property name to append to the end of path to match `org-link-plain-re'.
@@ -286,9 +286,9 @@ dummy property to the end of the path,
 (defun edraw-org-link-path-terminator-add (path)
   (concat path ";" edraw-org-link-path-terminator-pname "=1"))
 
-(defun edraw-org-link-replace (link-element path part)
+(defun edraw-org-link-replace (link-object path part)
   (edraw-org-link-replace-at
-   (1+ (org-element-property :begin link-element))
+   (1+ (org-element-property :begin link-object))
    path part))
 
 (defun edraw-org-link-replace-at (point path part)
@@ -345,13 +345,13 @@ so check the org element before using this function."
      t t)
     t)))
 
-(defun edraw-org-link-element-path-in-description (link-element
-                                                   &optional link-type)
-  "Return the string after \"<LINK-TYPE>:\" in the description of LINK-ELEMENT.
+(defun edraw-org-link-object-path-in-description (link-object
+                                                  &optional link-type)
+  "Return the string after \"<LINK-TYPE>:\" in the description of LINK-OBJECT.
 
 When LINK-TYPE is nil, use `edraw-org-link-type'."
-  (when-let ((c-begin (org-element-property :contents-begin link-element))
-             (c-end (org-element-property :contents-end link-element)))
+  (when-let ((c-begin (org-element-property :contents-begin link-object))
+             (c-end (org-element-property :contents-end link-object)))
     (let ((desc (buffer-substring-no-properties c-begin c-end)))
       (save-match-data
         (cond
@@ -366,8 +366,8 @@ When LINK-TYPE is nil, use `edraw-org-link-type'."
                         desc)
           (match-string 1 desc)))))))
 
-(defun edraw-org-link-element-link-properties (link-element noerror &optional use-normal-file-link-p)
-  "Return the property alist of LINK-ELEMENT.
+(defun edraw-org-link-object-link-properties (link-object noerror &optional use-normal-file-link-p)
+  "Return the property alist of LINK-OBJECT.
 
 Return a list (LINK-PROPS IN-DESCRIPTION-P LINK-TYPE).
 
@@ -377,13 +377,13 @@ If NOERROR is nil, signals an error."
   ;; edraw: link type
   (cond
    ;; from description part
-   ((when-let ((desc (edraw-org-link-element-path-in-description link-element)))
+   ((when-let ((desc (edraw-org-link-object-path-in-description link-object)))
       (list (edraw-org-link-props-parse desc t noerror)
             t
             edraw-org-link-type)))
    ;; from path part
-   ((equal (org-element-property :type link-element) edraw-org-link-type)
-    (let ((path (org-element-property :path link-element)))
+   ((equal (org-element-property :type link-object) edraw-org-link-type)
+    (let ((path (org-element-property :path link-object)))
       (list (edraw-org-link-props-parse path nil noerror)
             nil
             edraw-org-link-type)))
@@ -391,14 +391,14 @@ If NOERROR is nil, signals an error."
    (use-normal-file-link-p
     (cond
      ;; from description part
-     ((when-let ((desc (edraw-org-link-element-path-in-description
-                        link-element "file")))
+     ((when-let ((desc (edraw-org-link-object-path-in-description
+                        link-object "file")))
         (list (list (cons "file" desc))
               t
               "file")))
      ;; from path part
-     ((equal (org-element-property :type link-element) "file")
-      (let ((path (org-element-property :path link-element)))
+     ((equal (org-element-property :type link-object) "file")
+      (let ((path (org-element-property :path link-object)))
         (list (list (cons "file" path))
               nil
               edraw-org-link-type)))))))
@@ -488,9 +488,9 @@ the time `edraw-org-link-recover-mouse-face' is called."
      )))
 
 (defun edraw-org-link-at-description-link-p ()
-  (let ((link-element (edraw-org-link-at-point)))
-    (and link-element
-         (not (null (edraw-org-link-element-path-in-description link-element))))))
+  (let ((link-object (edraw-org-link-at-point)))
+    (and link-object
+         (not (null (edraw-org-link-object-path-in-description link-object))))))
 
 ;; Tools
 
@@ -506,9 +506,9 @@ the time `edraw-org-link-recover-mouse-face' is called."
 
 (defun edraw-org-link-load-svg-text-at-point (src-buffer dst-buffer)
   (with-current-buffer src-buffer
-    (let* ((link-element (or (edraw-org-link-at-point)
+    (let* ((link-object (or (edraw-org-link-at-point)
                              (error (edraw-msg "No link at point"))))
-           (props (car (edraw-org-link-element-link-properties link-element nil t)))
+           (props (car (edraw-org-link-object-link-properties link-object nil t)))
            (data (edraw-org-link-prop-data props))
            (file (edraw-org-link-prop-file props)))
       (unless (or data file)
@@ -578,10 +578,10 @@ Allowed values for TARGET-TYPE are:
   edraw-data: [[edraw:data=]]
   edraw-file: [[edraw:file=]]
         file: [[file:]]"
-  (let* ((link-element (or (edraw-org-link-at-point)
+  (let* ((link-object (or (edraw-org-link-at-point)
                            (error (edraw-msg "No link at point"))))
          (props-place-type
-          (or (edraw-org-link-element-link-properties link-element t t)
+          (or (edraw-org-link-object-link-properties link-object t t)
               (error "Invalid link type")))
          (props (nth 0 props-place-type))
          (in-description-p (nth 1 props-place-type))
@@ -707,16 +707,16 @@ Allowed values for TARGET-TYPE are:
 
         ;;(message "Fontify beg:%s end:%s" beg end)
         ;; When start from the middle of a link
-        (when-let ((link-element (edraw-org-link-at-point)))
-          (let ((link-begin (org-element-property :begin link-element))
-                (link-end (org-element-property :end link-element)))
-            ;;(message "Link at start %s-%s format:%s" link-begin link-end (org-element-property :format link-element))
+        (when-let ((link-object (edraw-org-link-at-point)))
+          (let ((link-begin (org-element-property :begin link-object))
+                (link-end (org-element-property :end link-object)))
+            ;;(message "Link at start %s-%s format:%s" link-begin link-end (org-element-property :format link-object))
             (when (< link-begin beg link-end)
               ;;(message "Fontify from the middle of a link!")
-              (when (and (memq (org-element-property :format link-element)
+              (when (and (memq (org-element-property :format link-object)
                                edraw-org-link-image-link-formats)
                          (edraw-org-link-image-update link-begin link-end
-                                                      link-element))
+                                                      link-object))
                 (setq last-end link-end))
               (goto-char link-end))))
 
@@ -727,13 +727,13 @@ Allowed values for TARGET-TYPE are:
             ;; Move to beginning of edraw: part
             (goto-char (match-beginning 1))
             ;;(message "Found candidate at %s" (point))
-            (if-let ((link-element (edraw-org-link-at-point)))
-                (let ((link-begin (org-element-property :begin link-element))
-                      (link-end (org-element-property :end link-element)))
-                  (when (and (memq (org-element-property :format link-element)
+            (if-let ((link-object (edraw-org-link-at-point)))
+                (let ((link-begin (org-element-property :begin link-object))
+                      (link-end (org-element-property :end link-object)))
+                  (when (and (memq (org-element-property :format link-object)
                                    edraw-org-link-image-link-formats)
                              (edraw-org-link-image-update link-begin link-end
-                                                          link-element))
+                                                          link-object))
                     ;; Remove overlays before image
                     (edraw-org-link-image-remove-region last-end link-begin)
                     (setq last-end link-end))
@@ -751,9 +751,9 @@ Allowed values for TARGET-TYPE are:
   ;;(remove-overlays beg end 'edraw-org-link-image-p t) ;;move the endpoints? split?
   (mapc #'delete-overlay (edraw-org-link-image-overlays-in beg end)))
 
-(defun edraw-org-link-image-update (link-begin link-end link-element)
+(defun edraw-org-link-image-update (link-begin link-end link-object)
   (when-let (link-props (car
-                         (edraw-org-link-element-link-properties link-element t)))
+                         (edraw-org-link-object-link-properties link-object t)))
     (let* ((ovs (edraw-org-link-image-overlays-in link-begin link-end))
            (ov (progn
                  ;; Remove redundant overlays
@@ -855,7 +855,7 @@ If WIDTH-P is non-nil, return width, otherwise return height."
 (defsubst edraw-org-export-backend-image-rules-var (info) (nth 3 info))
 
 (defun edraw-org-link-setup-exporter ()
-  ;; A hack for referencing link elements from export functions.
+  ;; A hack for referencing link objects from export functions.
   (with-eval-after-load 'ox
     (advice-add 'org-export-custom-protocol-maybe :around
                 'edraw-org-export-ad-export-custom-protocol-maybe))
@@ -888,7 +888,7 @@ the description part of the links.
 
 (defun edraw-org-export-ad-export-custom-protocol-maybe
     (old-func link &rest args)
-  "A hack to reference the link element being exported from a function set
+  "A hack to reference the link object being exported from a function set
 in the :export property of `org-link-parameters'."
   (let ((edraw-org-export-current-link link))
     (apply old-func link args)))
@@ -936,7 +936,7 @@ file name."
     file))
 
 (defun edraw-org-export-link-as-file (link info file export-fun)
-  "Temporarily rewrite LINK element to a file type link and export it.
+  "Temporarily rewrite LINK object to a file type link and export it.
 
 FILE is the path to the file.
 
@@ -968,7 +968,7 @@ arguments. Such functions include `org-latex--inline-image' and
 Return a list containing information about the found link or nil.
 
 Link information list format:
-  ( LINK-ELEMENT DECODED-TEXT LINK-PROPS IN-DESCRIPTION-P LINK-TYPE)
+  ( LINK-OBJECT DECODED-TEXT LINK-PROPS IN-DESCRIPTION-P LINK-TYPE)
 
 Point is moved to the end of the found link.
 
@@ -990,10 +990,10 @@ file:???.svg. Use grep to search for those."
     (while (and
             (> count 0)
             (funcall search-fun org-link-any-re bound t))
-      (when-let* ((link-element (edraw-org-link-at (match-beginning 0)))
+      (when-let* ((link-object (edraw-org-link-at (match-beginning 0)))
                   (link-props-place-type
-                   (edraw-org-link-element-link-properties
-                    link-element
+                   (edraw-org-link-object-link-properties
+                    link-object
                     t
                     ;; Exclude file: type link
                     nil))
@@ -1002,7 +1002,7 @@ file:???.svg. Use grep to search for those."
                   (decoded-text (ignore-errors (edraw-decode-string data t))))
         (when (string-match-p regexp decoded-text)
           (setq last-found-link-data (nconc
-                                      (list link-element decoded-text)
+                                      (list link-object decoded-text)
                                       link-props-place-type)
                 count (1- count)))))
     (if (> count 0)
@@ -1078,7 +1078,7 @@ file:???.svg. Use grep to search for those."
   (let ((link-count 0) (text-count 0))
     (while
         (when-let* ((link-info (edraw-org-link-re-search regexp nil t)))
-          (let* ((link-element (nth 0 link-info))
+          (let* ((link-object (nth 0 link-info))
                  (decoded-text (nth 1 link-info))
                  (props (nth 2 link-info))
                  (in-description-p (nth 3 link-info))
@@ -1095,7 +1095,7 @@ file:???.svg. Use grep to search for those."
 
             ;; Replace Link
             (unless (edraw-org-link-replace
-                     link-element
+                     link-object
                      (concat edraw-org-link-type ":"
                              (edraw-org-link-props-to-string props))
                      (if in-description-p 'description 'path))

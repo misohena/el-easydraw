@@ -47,13 +47,13 @@ its own."
 
   (require 'edraw)
 
-  ;; Get link element & link properties
-  (when-let ((link-element (edraw-org-link-at-point))
-             (link-props-place-type (edraw-org-link-element-link-properties
-                                     link-element nil)))
+  ;; Get link object & link properties
+  (when-let ((link-object (edraw-org-link-at-point))
+             (link-props-place-type (edraw-org-link-object-link-properties
+                                     link-object nil)))
 
-    (let* ((link-begin (org-element-property :begin link-element))
-           (link-end (org-element-property :end link-element))
+    (let* ((link-begin (org-element-property :begin link-object))
+           (link-end (org-element-property :end link-object))
            (link-props (nth 0 link-props-place-type)))
       ;; Make sure the editor overlay doesn't exist yet
       (when (edraw-editor-overlays-in link-begin link-end)
@@ -109,14 +109,14 @@ its own."
     (with-current-buffer buffer
       (save-excursion
         (goto-char (overlay-start editor-overlay))
-        ;; Get link element & parse properties
-        (let* ((link-element
+        ;; Get link object & parse properties
+        (let* ((link-object
                 (or (edraw-org-link-at-point)
                     (error "The edraw link currently being edited has been lost")))
-               (link-begin (org-element-property :begin link-element))
-               (link-end (org-element-property :end link-element))
+               (link-begin (org-element-property :begin link-object))
+               (link-end (org-element-property :end link-object))
                (link-props-place-type
-                (or (edraw-org-link-element-link-properties link-element t)
+                (or (edraw-org-link-object-link-properties link-object t)
                     (error "The type of the editing link is not `edraw:'")))
                (link-props (nth 0 link-props-place-type))
                (in-description-p (nth 1 link-props-place-type)))
@@ -126,7 +126,7 @@ its own."
                 (edraw-svg-write-to-file svg file-path file-gzip-p) ;;signal an error
                 ;; Update inline image
                 (image-flush (edraw-org-link-image-create link-props)) ;;update image if overlay already exists
-                (edraw-org-link-image-update link-begin link-end link-element) ;;create a new overlay if not exists
+                (edraw-org-link-image-update link-begin link-end link-object) ;;create a new overlay if not exists
                 t)
             ;;data
             (setf (alist-get "data" link-props nil nil #'string=)
@@ -254,10 +254,10 @@ use `edraw:' link type and want to use the regular `file:' link type
 Copies all shapes inside the data to the clipboard. Copied shapes
 can be pasted in the editor or in the shape picker (custom shape list)."
   (interactive)
-  (let* ((link-element (edraw-org-link-at-point))
-         (props (car (edraw-org-link-element-link-properties link-element nil t)))
+  (let* ((link-object (edraw-org-link-at-point))
+         (props (car (edraw-org-link-object-link-properties link-object nil t)))
          (svg (edraw-org-link-load-svg props t)))
-    (unless link-element
+    (unless link-object
       (error (edraw-msg "No link at point")))
     (unless svg
       (error (edraw-msg "Link at point does not contain valid data")))
