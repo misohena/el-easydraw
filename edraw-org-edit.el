@@ -132,7 +132,8 @@ its own."
             (setf (alist-get "data" link-props nil nil #'string=)
                   (edraw-svg-encode svg t data-gzip-p))
             (let ((edraw-org-enable-modification t)) ;; call modification hooks(inhibit-modification-hooks=nil) but allow modification. If inhibit-modification-hooks is t, inline images not updated.
-              (unless (edraw-org-link-replace-at-point
+              (unless (edraw-org-link-replace-object
+                       link-object ;; LINK-OBJECT is invalid after the call
                        (concat edraw-org-link-type ":"
                                (edraw-org-link-props-to-string link-props))
                        (if in-description-p 'description 'path))

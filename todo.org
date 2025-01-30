@@ -1,12 +1,12 @@
 
 * Inbox
-** TODO ORG/edraw-org-link-replace-at-pointを見直す
-この関数はどのリンクを置き換えるのかが明確では無い。
-ポイントの直後のリンクは拾うのか。
-ポイントの前後にリンクが隣接していた場合にどちらを置き換えるのか。
-link要素を指定して置き換えるような関数も欲しい。
+** TODO ORG/リンクが隣接しているときに右のリンクを操作できないのを直す
 
-** TODO ORG/リンクが隣接しているときに後ろのリンクがキーで操作できない
+- 後のリンクがキーで操作できない
+- そもそも画像化された二つのedrawリンク間にポイントを移動できない
+
+[[edraw:data=H4sIAOO9mGcAA3WQWw6DIBBFt0Km3wraHzXiXqw8o4UGqejui6/YjzYTIDwO92TqcZIoaOYVhSwngBTXUvljMz8HM1JQ3r8qjEMIabin1kmcE0JwRAFN3I3amgik2QFU86BN/wvLyrLE2y00teOdRzOFmLNs818NzShw5tqQPNqul86+DQM0emd7TsFYwwEJPQwUbkIIQLip5Tdk2XLmnc+Kta4/bhlZ6zxIDpX8EikuwWI33hq0LzEQyzhiR5oPXXar4FIBAAA=]][[edraw:data=H4sIAPS9mGcAA3WQXQ7CIBCEr0LWZwvUmLRN6V20UEqKYACl3t5tU38eNBvYDMswX2jjXZNsZBoFHBgDMiqjxySgLFHMF+uigDGla0NpzrnIh8IHTUvGGEUrkLsK0XgngBd8MzSzNW76ZeN1XdN1Cl0bVJ/ILABzHuv+F8NIAUqGU96fT/2kg785CSSm4CclwHmngAzGWgG7YRiA0K7V3yYvH5inrDXXqN43q6U+z+w4W+p1sN9oSiAB8Y44CAhbYe9R10tHzRc+zKMaF35I9wSK8vqyUQEAAA==]]
+
 ** TODO 点接続/図形のコピー・ペースト時に点接続も復元する
 ** TODO 点接続/アンカーの接着位置をドラッグで変更できるようにする
 条件が色々難しい。
@@ -905,6 +905,8 @@ defgenericは全部に必要？ どこに書くべき？
 ~[[edraw:...][edraw:...]]~ という形を考慮していない。
 まぁ、これは仕方ないと思うんだけど。path側のedrawリンクは意味が無いわけだし。
 path側がfile=リンクでそれを開けるのなら多少意味はあるか？
+
+~[[file:original.edraw.svg][file:small.edraw.svg]]~ みたいなのは考慮する必要があるのでは？　現状ではoriginal.edraw.svgが開く。
 
 ** TODO ORG/org-{html|latex|odt}-inline-image-rulesにちゃんと対応する
 [[*ORG/org-modeでODTへのエクスポートに対応する][ORG/org-modeでODTへのエクスポートに対応する]]の実装中に気がついたのだが、org-{html|latex|odt}-inline-image-rules変数でedrawリンクの画像化を禁止したい場合に対応していない。そんなケースを許すべきなのだろうか。そんなことをしてもdata形式ならbase64がずらずら並ぶだけなのだけど。
@@ -6097,3 +6099,58 @@ edraw-org-link-at-pointはorg-element-contextを使っているが、org-element
 [[edraw:data=H4sIAOO9mGcAA3WQWw6DIBBFt0Km3wraHzXiXqw8o4UGqejui6/YjzYTIDwO92TqcZIoaOYVhSwngBTXUvljMz8HM1JQ3r8qjEMIabin1kmcE0JwRAFN3I3amgik2QFU86BN/wvLyrLE2y00teOdRzOFmLNs818NzShw5tqQPNqul86+DQM0emd7TsFYwwEJPQwUbkIIQLip5Tdk2XLmnc+Kta4/bhlZ6zxIDpX8EikuwWI33hq0LzEQyzhiR5oPXXar4FIBAAA=]][[edraw:data=H4sIAPS9mGcAA3WQXQ7CIBCEr0LWZwvUmLRN6V20UEqKYACl3t5tU38eNBvYDMswX2jjXZNsZBoFHBgDMiqjxySgLFHMF+uigDGla0NpzrnIh8IHTUvGGEUrkLsK0XgngBd8MzSzNW76ZeN1XdN1Cl0bVJ/ILABzHuv+F8NIAUqGU96fT/2kg785CSSm4CclwHmngAzGWgG7YRiA0K7V3yYvH5inrDXXqN43q6U+z+w4W+p1sN9oSiAB8Y44CAhbYe9R10tHzRc+zKMaF35I9wSK8vqyUQEAAA==]]
 
 その辺りをdocstringに書く。
+** DONE ORG/edraw-org-link-replace-at-pointを見直す
+CLOSED: [2025-01-30 Thu 18:57]
+この関数はどのリンクを置き換えるのかが明確では無い。
+ポイントの直前のリンクは拾うのか(→現状では拾う)。
+ポイントの前後に別々のリンクが隣接していた場合にどちらを置き換えるのか(→現状では前のリンクを拾う！)。
+
+このような問題に悩まされないように、link要素を指定して置き換えるような関数が欲しい。
+
+org-in-regexpが末尾を含むのがくせ者。それも前から検索して最初に見つけた物を返すので、ポイントの直前にあるリンクが直後にあるリンクよりも優先されてしまう。ドキュメントには次のように書いてある。
+
+#+begin_quote
+Normally only the current line is checked, but you can include
+NLINES extra lines around point into the search.  If VISUALLY is
+set, require that the cursor is not after the match but really
+on, so that the block visually is on the match.
+#+end_quote
+
+#+begin_quote
+通常は現在の行のみがチェックされますが、ポイントの周囲の NLINES 行も検索に含めることができます。
+
+VISUALLY が設定されている場合、カーソルが一致の後ではなく実際に一致の上にあることを要求し、ブロックが視覚的に一致の上にあるようにします。
+#+end_quote
+
+実装を読んでみてもvisuallyがnilのときはマッチする範囲の末尾がpointと同じならその範囲を採用するようになっている。後ろにマッチする範囲があったとしても。非nilの時は厳密な半開区間チェックになっている。
+
+visuallyを非nilにすれば問題を回避できる。
+
+org-in-regexpに依存している関数:
+
+- org-in-regexp
+  - edraw-org-link-replace-at-point
+    - edraw-org-link-replace-at
+      - edraw-org-link-replace
+        - edraw-org-link-replace-regexp
+          - edraw-org-link-replace-string
+    - edraw-org-link-convert-at-point
+      - edraw-org-link-convert-to-edraw-data-link-at-point
+      - edraw-org-link-convert-to-edraw-file-link-at-point
+      - edraw-org-link-convert-to-normal-file-link-at-point
+    - edraw-org-link-save-svg
+      - edraw-org-link-make-writer
+        - edraw-org-edit-link
+
+基本的にはこの関数がリンクの後ろにpointがあるときに反応は無くなってもそれほど困ることは無さそう。edraw-org-link-convert-at-point系の関数は使い勝手が悪くなるかもしれないけど。
+
+- pointが末尾と一致するリンクを選ぶとしても、pointが先頭と一致するリンクの方が優先されるべき。
+- そもそもorg-elementでリンクの範囲を正確に特定しているケースでorg-in-regexpで再度検索するのはおかしい。
+
+org-in-regexpを使う必要は無い。リンクの先頭位置が分かっているならlooking-atで十分(ちなみにorg-elementのリンク要素は:beginと:endくらいしかめぼしい位置情報を持たないので、部分を置き換えるには何らかの正規表現マッチングは必須)。
+
+1. (edraw-org-link-replace-beginning-at begin new-text part)を作成する。これは厳密にリンクの開始位置を要求する関数。
+2. そしてこれを使ったlink-elementを要求する(edraw-org-link-replace-element link-element new-text part)を作成する。基本的にどの用途においてもまず最初にedraw-org-link-at-pointでlink-elementを特定しているのだから、これだけで十分だ。replaceするのにreplaceする対象のことをよく知らず何となくpointだけ指定したいなどという状況がそもそもあり得ない。
+3. edraw-org-link-replace-elementを使うように変更する。その際この関数は引き渡した link-element が無効になる点に注意。置換するとリンクの長さが変わって:endが指す位置が無意味になる可能性があるので(たまたま長さが変わらない置換で無い限り)。
+
+これによってリンクが隣接したときに後ろのリンクをマウスで編集・編集終了したときに前のリンクが書き換わってしまうというバグは直った。

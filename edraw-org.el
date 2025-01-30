@@ -302,40 +302,64 @@ dummy property to the end of the path,
 (defun edraw-org-link-path-terminator-add (path)
   (concat path ";" edraw-org-link-path-terminator-pname "=1"))
 
-(defun edraw-org-link-replace (link-object path part)
-  (edraw-org-link-replace-at
-   (1+ (org-element-property :begin link-object))
-   path part))
+(defun edraw-org-link-replace-object (link-object new-text part)
+  "Replace a specific PART of LINK-OBJECT with NEW-TEXT.
 
-(defun edraw-org-link-replace-at (point path part)
-  (save-excursion
-    (goto-char point)
-    (edraw-org-link-replace-at-point path part)))
+After calling this function, the :end property of LINK-OBJECT
+becomes invalid, as the end position of the link changes due to
+the text replacement.
 
-(defun edraw-org-link-replace-at-point (path part)
-  "Replace a PART of the link at the current point with PATH.
+NEW-TEXT is the text to replace the given PART with.
 
-This function will replace the link even if it is in the comment,
-so check the org element before using this function."
+PART determines which part of the link to replace and should be
+one of the following symbols:
+
+  - `path' : Replace the path part of the link.
+  - `description' : Replace the description part of the link.
+  - `link' : Replace the entire link.
+
+If PART is nil, it defaults to `link'."
+  (when link-object
+    (save-excursion
+      (goto-char (org-element-property :begin link-object))
+      (edraw-org-link-replace-beginning-at-point new-text part))))
+
+(defun edraw-org-link-replace-beginning-at-point (new-text part)
+  "Replace a specific PART of an Org mode link beginning at point
+with NEW-TEXT.
+
+This function replaces a specific PART of the link starting at
+the current point.
+
+NEW-TEXT is the text to replace the given PART with.
+
+PART determines which part of the link to replace and should be
+one of the following symbols:
+
+  - `path' : Replace the path part of the link.
+  - `description' : Replace the description part of the link.
+  - `link' : Replace the entire link.
+
+If PART is nil, it defaults to `link'."
   (cond
    ;; bracket link
-   ((org-in-regexp org-link-bracket-re 1)
+   ((looking-at org-link-bracket-re)
     (replace-match
      (cond
-      ((string-empty-p path)
-       path)
+      ((string-empty-p new-text)
+       new-text)
       ;; [[   ][<edraw:data=aaaaaaaaa==>]]
       ((and (eq part 'description)
             (eq (char-after (match-beginning 2)) ?<)
             (eq (char-before (match-end 2)) ?>))
-       (concat "<" path ">"))
+       (concat "<" new-text ">"))
       ;; [[   ][edraw:data=aaaaaaaaa==;eop=1]]
       ((and (eq part 'description)
-            (edraw-org-link-path-terminator-required-p path))
-       (edraw-org-link-path-terminator-add path))
+            (edraw-org-link-path-terminator-required-p new-text))
+       (edraw-org-link-path-terminator-add new-text))
       ;; [[   ][edraw:data=aaaaaaaaaAA]] or [[   ][edraw:file=hoge.edraw.svg]]
       (t
-       path))
+       new-text))
      t t nil
      (pcase part
        ;;('link 0)
@@ -343,21 +367,21 @@ so check the org element before using this function."
        ('description 2)))
     t)
    ;; angle link (Check before plain link)
-   ((org-in-regexp org-link-angle-re 1)
-    (replace-match (concat "<" path ">") t t)
+   ((looking-at org-link-angle-re)
+    (replace-match (concat "<" new-text ">") t t)
     t)
    ;; plain link
-   ((org-in-regexp org-link-plain-re 1)
+   ((looking-at org-link-plain-re)
     (replace-match
      (cond
-      ((string-empty-p path)
-       path)
+      ((string-empty-p new-text)
+       new-text)
       ;; edraw:data=aaaaaaaaa==;eop=1
-      ((edraw-org-link-path-terminator-required-p path)
-       (edraw-org-link-path-terminator-add path))
+      ((edraw-org-link-path-terminator-required-p new-text)
+       (edraw-org-link-path-terminator-add new-text))
       ;; edraw:data=aaaaaaaaaAA or edraw:file=hoge.edraw.svg
       (t
-       path))
+       new-text))
      t t)
     t)))
 
@@ -648,7 +672,8 @@ Allowed values for TARGET-TYPE are:
        (error "Unknown target type %s" target-type)))
 
     ;; Replace Link
-    (unless (edraw-org-link-replace-at-point
+    (unless (edraw-org-link-replace-object
+             link-object ;; LINK-OBJECT is invalid after the call
              (if (eq target-type 'file)
                  (concat "file:" file)
                (concat edraw-org-link-type ":"
@@ -1110,8 +1135,8 @@ file:???.svg. Use grep to search for those."
             (setf (alist-get "data" props nil nil #'string=) new-data)
 
             ;; Replace Link
-            (unless (edraw-org-link-replace
-                     link-object
+            (unless (edraw-org-link-replace-object
+                     link-object ;; LINK-OBJECT is invalid after the call
                      (concat edraw-org-link-type ":"
                              (edraw-org-link-props-to-string props))
                      (if in-description-p 'description 'path))
