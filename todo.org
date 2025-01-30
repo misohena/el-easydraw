@@ -6082,3 +6082,18 @@ org-modeの用語では、linkはelementではなくobjectだと思う。
 ただ、構文木ノードの事を単にelementと呼ぶことはあるので必ずしも間違いとは言えなさそう。org-element-ast.elの冒頭コメント参照。
 とは言えorg-modeのソースコードの中でもlink-elementは無いがlink-objectは使われている。
 置き換えた方が後々迷わずに済む。
+** DONE ORG/edraw-org-link-at-pointの意味を明確にする
+CLOSED: [2025-01-30 Thu 18:46]
+隣接したリンクの間にpointがあるときedraw-org-link-at-pointはどちらに反応するのか。
+
+#+begin_src elisp
+(progn
+  (re-search-forward org-link-any-re)
+  (org-element-property :begin (edraw-org-link-at-point)))
+#+end_src
+
+edraw-org-link-at-pointはorg-element-contextを使っているが、org-element-contextはpointが二つの要素の間にあるとき、後(右)の要素を返す。後に何もない場合は前(左)の要素を返す。org-element-contextの説明には「As a special case, if point is right after an object and not at the beginning of any other object, return that object.」と書かれているのでこれは意図的な動作。[[file:example]]@@html:FOO@@ のようにリンクでは無い要素と隣接しているとedraw-org-link-at-pointはnilを返すことになる。
+
+[[edraw:data=H4sIAOO9mGcAA3WQWw6DIBBFt0Km3wraHzXiXqw8o4UGqejui6/YjzYTIDwO92TqcZIoaOYVhSwngBTXUvljMz8HM1JQ3r8qjEMIabin1kmcE0JwRAFN3I3amgik2QFU86BN/wvLyrLE2y00teOdRzOFmLNs818NzShw5tqQPNqul86+DQM0emd7TsFYwwEJPQwUbkIIQLip5Tdk2XLmnc+Kta4/bhlZ6zxIDpX8EikuwWI33hq0LzEQyzhiR5oPXXar4FIBAAA=]][[edraw:data=H4sIAPS9mGcAA3WQXQ7CIBCEr0LWZwvUmLRN6V20UEqKYACl3t5tU38eNBvYDMswX2jjXZNsZBoFHBgDMiqjxySgLFHMF+uigDGla0NpzrnIh8IHTUvGGEUrkLsK0XgngBd8MzSzNW76ZeN1XdN1Cl0bVJ/ILABzHuv+F8NIAUqGU96fT/2kg785CSSm4CclwHmngAzGWgG7YRiA0K7V3yYvH5inrDXXqN43q6U+z+w4W+p1sN9oSiAB8Y44CAhbYe9R10tHzRc+zKMaF35I9wSK8vqyUQEAAA==]]
+
+その辺りをdocstringに書く。

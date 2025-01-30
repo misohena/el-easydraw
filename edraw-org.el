@@ -253,12 +253,28 @@ Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
 
 ;;;;; Link Object
 
-(defun edraw-org-link-at (point)
+(defun edraw-org-link-at (pos)
+  "Return the link object at POS.
+See `edraw-org-link-at-point'."
   (save-excursion
-    (goto-char point)
+    (goto-char pos)
     (edraw-org-link-at-point)))
 
 (defun edraw-org-link-at-point ()
+  "Return the link object adjacent to point.
+
+If a link object exists immediately after point, return it.
+If a non-link org-mode element or object exists immediately after
+point, return nil.
+If there is nothing immediately after point but a link object
+exists immediately before it, return that link object.
+
+Note that the returned link is not limited to the \"edraw:\" type
+(`edraw-org-link-type'). edraw-org must also handle cases where an
+\"edraw:\" link is written in the description section or where an svg
+file is specified in the path of a \"file:\" link.
+(e.g. [[file:example.org][edraw:...]], [[file:example.edraw.svg]],
+[[file:example1.edraw.svg][file:example2.edraw.svg]])"
   (when-let ((link-object (org-element-lineage
                            (save-match-data (org-element-context))
                            '(link) t))
