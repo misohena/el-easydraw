@@ -114,7 +114,7 @@
   :group 'edraw-color-picker
   :type 'boolean)
 
-(defcustom edraw-color-picker-near-point-scale 0.75
+(defcustom edraw-color-picker-near-point-scale 1.0
   "A scaling factor when displaying the color picker near the point."
   :group 'edraw-color-picker
   :type 'float)
