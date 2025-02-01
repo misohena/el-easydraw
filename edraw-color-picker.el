@@ -1005,6 +1005,7 @@
    (options :initarg :options :reader edraw-options)
    (display :initarg :display :reader edraw-get-display)
    (hooks :initform (list
+                     (cons 'closed (edraw-hook-make))
                      (cons 'color-change (edraw-hook-make))
                      (cons 'ok (edraw-hook-make))
                      (cons 'cancel (edraw-hook-make))
@@ -1105,7 +1106,9 @@
 (cl-defmethod edraw-close ((picker edraw-color-picker))
   (with-slots (display) picker
     (when display
-      (edraw-close display))))
+      (unless (edraw-closed-p display)
+        (edraw-close display)
+        (edraw-hook-call (alist-get 'closed (oref picker hooks)) picker)))))
 
 (cl-defmethod edraw-update ((picker edraw-color-picker))
   (with-slots (display) picker
@@ -1786,15 +1789,25 @@ OVERLAY uses the display property to display the color PICKER."
   t)
 
 (defun edraw-color-picker--set-transient-map (picker)
-  (set-transient-map
-   (let ((km (make-sparse-keymap)))
-     (define-key km (kbd "C-c C-c")
-                 (lambda () (interactive) (edraw-click-area picker "ok")))
-     km)
-   ;;@todo Pass actual keymap of picker to keep-pred
-   #'edraw-color-picker--transient-map-keep-pred
-   (lambda ()
-     (edraw-close picker)))
+  (let ((exit-transient-map-fun
+         (set-transient-map
+          ;; Keymap
+          (let ((km (make-sparse-keymap)))
+            (define-key km (kbd "C-c C-c")
+                        (lambda () (interactive) (edraw-click-area picker "ok")))
+            km)
+          ;;@todo Pass actual keymap of picker to keep-pred
+          (lambda ()
+            (and (not (edraw-closed-p picker))
+                 (edraw-color-picker--transient-map-keep-pred)))
+          (lambda ()
+            ;; (message "Exit transient-map")
+            (edraw-close picker)))))
+
+    ;; When PICKER is closed by mouse action, exit the transient-map.
+    ;; @todo Add `close' event to simplify finalize
+    (edraw-add-hook picker 'closed
+                    (lambda (&rest _) (funcall exit-transient-map-fun))))
   (message "C-c C-c: OK, C-g: Cancel"))
 
 (defun edraw-color-picker--transient-map-keep-pred ()
