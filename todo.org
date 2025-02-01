@@ -6213,3 +6213,7 @@ set-transient-mapを利用している一部のコマンド(バッファテキ�
 set-transient-mapは一時マップを終了させるための関数を返すので、それをOKやCancelの時は呼び出す。
 
 okやcancelフックで行うのは場当たり的なので、closedフックを追加する。
+** DONE カラーピッカーがEmacs28でエラーが出る
+CLOSED: [2025-02-01 Sat 22:39]
+imagepはEmacs29からじゃないと使えない。Emacs28以前にもimage.c内に存在するが、GLYPH_DEBUGが非0でないとコンパイルされない。
+なぜedraw-color-picker.elだけimagepを使っているのかよく分からない。とりあえずconspと念のためignore-errorsで囲む二段構えの対策を打った。
