@@ -1324,7 +1324,8 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
   ((overlay :initarg :overlay)
    (target-property :initarg :target-property)
    (keymap :initarg :keymap)
-   (picker)))
+   (picker)
+   (target-frame :initform nil :writer edraw-set-target-frame)))
 
 (cl-defmethod edraw-overlay ((display edraw-color-picker-display-overlay))
   (oref display overlay))
@@ -1375,18 +1376,18 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
                      'pointer 'arrow))))))
 
 (cl-defmethod edraw-flush-image ((display edraw-color-picker-display-overlay))
-  (with-slots (overlay target-property keymap picker) display
+  (with-slots (overlay target-property keymap picker target-frame) display
     (pcase target-property
       ('display
        (let ((spec (overlay-get overlay 'display)))
          (when (consp spec) ;; imagep
-           (ignore-errors (image-flush spec)))))
+           (ignore-errors (image-flush spec target-frame)))))
       ((or 'before-string 'after-string)
        (let ((text (overlay-get overlay target-property)))
          (when (and text (not (string-empty-p text)))
            (let ((spec (get-text-property 0 'display text)))
              (when (consp spec) ;; imagep
-               (ignore-errors (image-flush spec))))))))))
+               (ignore-errors (image-flush spec target-frame))))))))))
 
 (defun edraw-color-picker-make-overlay (overlay-or-args-props)
   "If OVERLAY-OR-ARGS-PROPS is an overlay, return it as is.
@@ -1605,6 +1606,10 @@ OVERLAY uses the display property to display the color PICKER."
             frame))
          ;; Get Window
          (window (frame-root-window frame)))
+
+    ;; Set the frame where the overlay will be displayed.
+    ;; Required for `image-flush'.
+    (edraw-set-target-frame overlay-display frame)
 
     ;; Initialize Window
     (let ((old-buffer (window-buffer window)))
