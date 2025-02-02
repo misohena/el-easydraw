@@ -1036,5 +1036,9 @@ PROP-NAMES is a list of properties to retain in the string."
         (setq pos next)))
     string))
 
+(defun edraw-echo (format &rest args)
+  (let ((message-log-max nil))
+    (apply #'message format args)))
+
 (provide 'edraw-util)
 ;;; edraw-util.el ends here

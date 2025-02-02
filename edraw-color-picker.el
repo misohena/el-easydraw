@@ -1255,6 +1255,21 @@
       ;; or `edraw-color-picker-recent-colors'
       (setq edraw-color-picker-recent-colors new-container))))
 
+(defun edraw-color-picker-make-history-list (options initial-color)
+  "Create a color history list for `read-from-minibuffer'."
+  (let ((hist (mapcar #'edraw-color-picker-normalize-color-string
+                      (edraw-color-picker-get-recent-colors options))))
+    (when (or
+           ;; Use car of HIST as initial-color
+           (null initial-color)
+           ;; Same color
+           (and
+            hist
+            (equal (edraw-color-picker-normalize-color-string initial-color)
+                   (car hist))))
+      (pop hist))
+    hist))
+
 (cl-defmethod edraw-select-recent-color ((picker edraw-color-picker) index)
   (with-slots (options) picker
     (when-let* ((color-str (nth
@@ -1807,6 +1822,8 @@ OVERLAY uses the display property to display the color PICKER."
 (defvar edraw-color-picker--transient-keymap
   (let ((km (make-sparse-keymap)))
     (define-key km (kbd "C-c C-c") #'edraw-color-picker--transient-map-click-ok)
+    (define-key km (kbd "M-p") #'edraw-color-picker--transient-map-previous-history-color)
+    (define-key km (kbd "M-n") #'edraw-color-picker--transient-map-next-history-color)
     (edraw-color-picker-define-keys-for-recent-colors km)
     km))
 
@@ -1835,39 +1852,50 @@ exits.")
 variable. Ensure that `edraw-color-picker-at' can find the color
 picker. Make `edraw-color-picker-select-recent-color' work
 correctly."
-  (car (edraw-color-picker--transient-map-info-current)))
+  (let ((picker (car (edraw-color-picker--transient-map-info-current))))
+    (when (and picker (not (edraw-closed-p picker)))
+      picker)))
 
-(defun edraw-color-picker--set-transient-map (picker keymap)
+(defconst edraw-color-picker--transient-map-help
+  "\\[keyboard-quit]:Cancel\
+ \\<edraw-color-picker--transient-keymap>\
+ \\[edraw-color-picker--transient-map-click-ok]:OK\
+  \\[edraw-color-picker--transient-map-previous-history-color]\
+/\\[edraw-color-picker--transient-map-next-history-color]:Recent Color")
+
+(defun edraw-color-picker--set-transient-map (picker
+                                              keymap options initial-color)
   (setq-local edraw-color-picker-finder
               #'edraw-color-picker--transient-map-current-picker)
-  (let ((exit-transient-map-fun
-         (set-transient-map
-          keymap
-          (lambda () ;; keep-pred:
-            (and (not (edraw-closed-p picker))
-                 (edraw-color-picker--transient-map-keep-pred
-                  ;; Pass the actual keymap to keep-pred
-                  keymap)))
-          (lambda () ;; on-exit:
-            ;; (message "Exit transient-map")
-            (edraw-close picker)
-            ;; Remove the current picker object
-            (edraw-color-picker--transient-map-info-pop picker)))))
+  (let* ((help (substitute-command-keys edraw-color-picker--transient-map-help))
+         (exit-transient-map-fun
+          (set-transient-map
+           keymap
+           (lambda () ;; keep-pred:
+             (and (not (edraw-closed-p picker))
+                  (edraw-color-picker--transient-map-keep-pred
+                   ;; Pass the actual keymap to keep-pred
+                   keymap)
+                  (progn (edraw-echo "%s" help) t)))
+           (lambda () ;; on-exit:
+             ;; (message "Exit transient-map")
+             (edraw-close picker)
+             ;; Remove the current picker object
+             (edraw-color-picker--transient-map-info-pop picker)
+
+             (edraw-echo "")))))
 
     ;; When PICKER is closed by mouse action, exit the transient-map.
     (edraw-add-hook picker 'closed
                     (lambda (&rest _) (funcall exit-transient-map-fun)))
 
     ;; Add the current picker object
-    (edraw-color-picker--transient-map-info-push picker)
+    (edraw-color-picker--transient-map-info-push
+     picker
+     :hist-list (edraw-color-picker-make-history-list options initial-color)
+     :hist-pos 0)
 
-    (message "C-c C-c: OK, C-g: Cancel")))
-
-(defun edraw-color-picker--transient-map-click-ok ()
-  (interactive)
-  (when-let* ((picker (edraw-color-picker--transient-map-current-picker)))
-    (unless (edraw-closed-p picker)
-      (edraw-click-area picker "ok"))))
+    (edraw-echo "%s" help)))
 
 (defun edraw-color-picker--transient-map-keep-pred (keymap)
   (or
@@ -1886,6 +1914,48 @@ correctly."
        (setq mc (or (and (symbolp mc) (command-remapping mc)) mc))
        (eq this-command mc)))))
 
+(defun edraw-color-picker--transient-map-click-ok ()
+  (interactive)
+  (when-let* ((picker (edraw-color-picker--transient-map-current-picker)))
+    (edraw-click-area picker "ok")))
+
+(defun edraw-color-picker--goto-history-color (index)
+  (let* ((info (edraw-color-picker--transient-map-info-current))
+         (picker (car info)))
+    (when (and info picker (not (edraw-closed-p picker)))
+      (when (= (plist-get (cdr info) :hist-pos) 0)
+        (setcdr info (plist-put (cdr info) :hist-current
+                                (edraw-color-picker-normalize-color-string
+                                 (edraw-get-current-color picker)))))
+
+      (let ((color-str
+             (cond
+              ((zerop index)
+               (plist-get (cdr info) :hist-current))
+              ((>= index 1)
+               (nth (1- index) (plist-get (cdr info) :hist-list))))))
+        (when color-str
+          (edraw-set-current-color picker
+                                   (edraw-color-from-string color-str))
+          (setcdr info (plist-put (cdr info) :hist-pos index)))))))
+
+(defun edraw-color-picker--transient-map-previous-history-color (n)
+  (interactive "p")
+  (unless (zerop n)
+    (when-let* ((info (edraw-color-picker--transient-map-info-current))
+                (hist-list (plist-get (cdr info) :hist-list))
+                (hist-pos (plist-get (cdr info) :hist-pos)))
+      (edraw-color-picker--goto-history-color
+       (min (+ hist-pos n) (1- (length hist-list)))))))
+
+(defun edraw-color-picker--transient-map-next-history-color (n)
+  (interactive "p")
+  (unless (zerop n)
+    (when-let* ((info (edraw-color-picker--transient-map-info-current))
+                (hist-pos (plist-get (cdr info) :hist-pos)))
+      (edraw-color-picker--goto-history-color
+       (max (- hist-pos n) 0)))))
+
 (defun edraw-color-picker-open-with-transient-map (&optional
                                                    initial-color options)
   "Open a color picker near the point and start the transient-map.
@@ -1903,7 +1973,8 @@ The default keymap is `edraw-color-picker--transient-keymap'"
     ;; Start transient-map
     (edraw-color-picker--set-transient-map
      picker
-     (symbol-value (alist-get :transient-keymap-var options)))
+     (symbol-value (alist-get :transient-keymap-var options))
+     options initial-color)
     ;; Return picker
     picker))
 
@@ -2048,6 +2119,8 @@ The default keymap is `edraw-color-picker--transient-keymap'"
 
 ;;;;; Read Color from Minibuffer
 
+(defvar edraw-color-picker-read-color--history nil)
+
 ;;;###autoload
 (defun edraw-color-picker-read-color (&optional
                                       prompt initial-color
@@ -2068,7 +2141,9 @@ The default keymap is `edraw-color-picker--transient-keymap'"
           (lambda ()
             (edraw-color-picker-minibuffer--on-minibuffer-setup picker)))
          (minibuffer-setup-hook (cons on-minibuffer-setup
-                                      minibuffer-setup-hook)))
+                                      minibuffer-setup-hook))
+         (edraw-color-picker-read-color--history
+          (edraw-color-picker-make-history-list options initial-color)))
 
     ;; Add hooks to picker
     (edraw-add-hook picker 'ok #'edraw-color-picker-minibuffer--on-ok)
@@ -2095,7 +2170,8 @@ The default keymap is `edraw-color-picker--transient-keymap'"
           (while (null result)
             (let ((input (read-string (edraw-color-picker-minibuffer--prompt
                                        prompt allow-strings options)
-                                      initial-input)))
+                                      initial-input
+                                      'edraw-color-picker-read-color--history)))
               (when (or (member input allow-strings)
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
