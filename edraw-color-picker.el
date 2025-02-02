@@ -1657,21 +1657,43 @@ OVERLAY uses the display property to display the color PICKER."
       ))))
 
 (defun edraw-color-picker-frame-position-near-point (width height)
-  (let* ((point-pos (pos-visible-in-window-p (point) nil t))
-         (point-x (or (car point-pos) 0))
-         (point-y (or (cadr point-pos) 0))
-         (window-edges (window-inside-pixel-edges))
+  (let* ((window-edges (window-inside-pixel-edges))
          (window-left (nth 0 window-edges))
          (window-top (nth 1 window-edges))
-         (window-w (- (nth 2 window-edges) window-left))
-         ;;(window-h (window-pixel-height))
-         (x (min (- window-w width) (max 0 (- point-x (/ width 2)))))
-         (y (- point-y height)))
+         (window-right (nth 2 window-edges))
+         (window-bottom (nth 3 window-edges))
+         (point-pos (pos-visible-in-window-p (point) nil t))
+         (point-left (+ window-left (or (car point-pos) 0)))
+         (point-top (+ window-top (or (cadr point-pos) 0)))
+         (point-bottom (+ point-top (default-line-height)))
+         (x (max window-left
+                 (min (- window-right width)
+                      (- point-left (/ width 2)))))
+         (y (- point-top height)))
 
-    (when (< y 0)
-      (setq y (+ point-y (default-line-height))))
+    (when (< y window-top)
+      (setq y point-bottom))
 
-    (cons (+ window-left x) (+ window-top y))))
+    ;; Adjustments to the frame
+    (let* ((frame-edges (frame-edges))
+           (frame-left 0)
+           (frame-top 0)
+           (frame-right (- (nth 2 frame-edges) (nth 0 frame-edges)))
+           (frame-bottom (- (nth 3 frame-edges) (nth 1 frame-edges))))
+      ;; If it doesn't fit above or below the point in the window
+      (when (> (+ y height) window-bottom)
+        ;; Choose a wider direction within the frame
+        (let ((space-height-above (- point-top frame-top))
+              (space-height-below (- frame-bottom point-bottom)))
+          (setq y (if (>= space-height-above space-height-below)
+                      (- point-top height)
+                    point-bottom))))
+
+      ;; Fit inside the frame (top left priority)
+      (setq x (max frame-left (min (- frame-right width) x)))
+      (setq y (max frame-top (min (- frame-bottom height) y))))
+
+    (cons x y)))
 
 ;;;;; Recycle Frame
 
