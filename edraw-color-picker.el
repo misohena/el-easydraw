@@ -85,6 +85,12 @@
 ;; :scale-direct
 ;;    float : scaling factor for color picker image
 ;;            (rate from pixel size)
+;; :transient-keymap-var
+;;    symbol : A variable that holds the keymap used to determine the
+;;             key bindings to display in the tooltip.
+;;             The keymap set by `set-transient-map' (
+;;             `overriding-terminal-local-map') is ignored when converting
+;;             command names to key bindings, so use this in that case.
 
 (require 'image)
 (require 'eieio)
@@ -829,11 +835,19 @@
                           'hot-spot
                           (list 'pointer 'arrow
                                 'help-echo
-                                (concat
-                                 (edraw-to-string color)
-                                 (let ((command (edraw-color-picker-select-recent-color-fname i)))
-                                   (when (commandp command)
-                                     (format "(\\[%s])" command))))))))))))))
+                                (edraw-color-picker-areas-create--help-echo
+                                 i color options)))))))))))
+
+(defun edraw-color-picker-areas-create--help-echo (i color options)
+  (concat
+   (edraw-to-string color)
+   (let ((command (edraw-color-picker-select-recent-color-fname i)))
+     (when (commandp command)
+       (let ((keymap-var (alist-get :transient-keymap-var options)))
+         (if keymap-var
+             (substitute-command-keys (format "\\<%s>(\\[%s])"
+                                              keymap-var command))
+           (format "(\\[%s])" command)))))))
 
 (defun edraw-color-picker-areas-layout (spec-list)
   (let* ((left 0)
@@ -1761,6 +1775,112 @@ OVERLAY uses the display property to display the color PICKER."
     (edraw-add-hook picker 'cancel on-cancel)
     picker))
 
+;;;;; Display with Transient Map
+
+(defvar edraw-color-picker--transient-keymap
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "C-c C-c") #'edraw-color-picker--transient-map-click-ok)
+    (edraw-color-picker-define-keys-for-recent-colors km)
+    km))
+
+(defvar edraw-color-picker--transient-map-info nil
+  "A list of information about color pickers currently being controlled by
+the transient-map.
+Each element of the list is in the format (COLOR-PICKER . PLIST).
+The information from the most recently started transient-map is added to
+the top of the list. It is removed from the list when the transient-map
+exits.")
+
+(defun edraw-color-picker--transient-map-info-push (picker &rest props)
+  (push (cons picker props)
+        edraw-color-picker--transient-map-info))
+
+(defun edraw-color-picker--transient-map-info-pop (picker)
+  (setq edraw-color-picker--transient-map-info
+        (seq-remove (lambda (x) (eq (car x) picker))
+                    edraw-color-picker--transient-map-info)))
+
+(defun edraw-color-picker--transient-map-info-current ()
+  (car edraw-color-picker--transient-map-info))
+
+(defun edraw-color-picker--transient-map-current-picker (&rest _args)
+  "A function that is set to the `edraw-color-picker-finder'
+variable. Ensure that `edraw-color-picker-at' can find the color
+picker. Make `edraw-color-picker-select-recent-color' work
+correctly."
+  (car (edraw-color-picker--transient-map-info-current)))
+
+(defun edraw-color-picker--set-transient-map (picker keymap)
+  (setq-local edraw-color-picker-finder
+              #'edraw-color-picker--transient-map-current-picker)
+  (let ((exit-transient-map-fun
+         (set-transient-map
+          keymap
+          (lambda () ;; keep-pred:
+            (and (not (edraw-closed-p picker))
+                 (edraw-color-picker--transient-map-keep-pred
+                  ;; Pass the actual keymap to keep-pred
+                  keymap)))
+          (lambda () ;; on-exit:
+            ;; (message "Exit transient-map")
+            (edraw-close picker)
+            ;; Remove the current picker object
+            (edraw-color-picker--transient-map-info-pop picker)))))
+
+    ;; When PICKER is closed by mouse action, exit the transient-map.
+    (edraw-add-hook picker 'closed
+                    (lambda (&rest _) (funcall exit-transient-map-fun)))
+
+    ;; Add the current picker object
+    (edraw-color-picker--transient-map-info-push picker)
+
+    (message "C-c C-c: OK, C-g: Cancel")))
+
+(defun edraw-color-picker--transient-map-click-ok ()
+  (interactive)
+  (when-let* ((picker (edraw-color-picker--transient-map-current-picker)))
+    (unless (edraw-closed-p picker)
+      (edraw-click-area picker "ok"))))
+
+(defun edraw-color-picker--transient-map-keep-pred (keymap)
+  (or
+   (memq this-command
+         '(;; Allow switching frames
+           handle-switch-frame
+           edraw-color-picker-on-down-mouse-1
+           ignore))
+   ;; Check this-command is in KEYMAP
+   ;; See `set-transient-map' function
+   (let ((mc (lookup-key
+              keymap ;;edraw-color-picker-map
+              (this-command-keys-vector))))
+     (when mc
+       ;; Consider remapping
+       (setq mc (or (and (symbolp mc) (command-remapping mc)) mc))
+       (eq this-command mc)))))
+
+(defun edraw-color-picker-open-with-transient-map (&optional
+                                                   initial-color options)
+  "Open a color picker near the point and start the transient-map.
+
+Open a color picker with `edraw-color-picker-open-near-point'.
+
+Use the keymap set in the variable specified by the
+:transient-keymap-var option in OPTIONS as the transient-map.
+The default keymap is `edraw-color-picker--transient-keymap'"
+  (unless (assq :transient-keymap-var options)
+    (setf (alist-get :transient-keymap-var options)
+          'edraw-color-picker--transient-keymap))
+
+  (let ((picker (edraw-color-picker-open-near-point initial-color options)))
+    ;; Start transient-map
+    (edraw-color-picker--set-transient-map
+     picker
+     (symbol-value (alist-get :transient-keymap-var options)))
+    ;; Return picker
+    picker))
+
+
 ;;;;; Insert Color
 
 (defvar edraw-color-picker-insert-default-color-scheme 'web)
@@ -1774,7 +1894,8 @@ OVERLAY uses the display property to display the color PICKER."
     (setf (alist-get :color-name-scheme options)
           edraw-color-picker-insert-default-color-scheme))
 
-  (let ((picker (edraw-color-picker-open-near-point initial-color options)))
+  (let ((picker (edraw-color-picker-open-with-transient-map
+                 initial-color options)))
     (edraw-add-hook
      picker 'ok
      (lambda (&rest _)
@@ -1783,48 +1904,8 @@ OVERLAY uses the display property to display the color PICKER."
        ;; Insert
        (insert (edraw-color-picker-color-to-string
                 (edraw-get-current-color picker)
-                options))))
-
-    (edraw-color-picker--set-transient-map picker))
+                options)))))
   t)
-
-(defun edraw-color-picker--set-transient-map (picker)
-  (let ((exit-transient-map-fun
-         (set-transient-map
-          ;; Keymap
-          (let ((km (make-sparse-keymap)))
-            (define-key km (kbd "C-c C-c")
-                        (lambda () (interactive) (edraw-click-area picker "ok")))
-            km)
-          ;;@todo Pass actual keymap of picker to keep-pred
-          (lambda ()
-            (and (not (edraw-closed-p picker))
-                 (edraw-color-picker--transient-map-keep-pred)))
-          (lambda ()
-            ;; (message "Exit transient-map")
-            (edraw-close picker)))))
-
-    ;; When PICKER is closed by mouse action, exit the transient-map.
-    ;; @todo Add `close' event to simplify finalize
-    (edraw-add-hook picker 'closed
-                    (lambda (&rest _) (funcall exit-transient-map-fun))))
-  (message "C-c C-c: OK, C-g: Cancel"))
-
-(defun edraw-color-picker--transient-map-keep-pred ()
-  (or
-   (memq this-command
-         '(;; Allow switching frames
-           handle-switch-frame
-           edraw-color-picker-on-down-mouse-1
-           ignore))
-   ;; Check this-command is in color picker's keymap
-   ;; See `set-transient-map' function
-   (let ((mc (lookup-key edraw-color-picker-map
-                         (this-command-keys-vector))))
-     (when mc
-       ;; Consider remapping
-       (setq mc (or (and (symbolp mc) (command-remapping mc)) mc))
-       (eq this-command mc)))))
 
 ;;;;; Replace Color
 
@@ -1859,7 +1940,8 @@ OVERLAY uses the display property to display the color PICKER."
     ;; Open color picker near the point
     (let* ((str (buffer-substring-no-properties beg end))
            (initial-color (edraw-color-picker-color-from-string str options))
-           (picker (edraw-color-picker-open-near-point initial-color options)))
+           (picker (edraw-color-picker-open-with-transient-map
+                    initial-color options)))
       ;; OK
       (edraw-add-hook
        picker 'ok
@@ -1873,9 +1955,7 @@ OVERLAY uses the display property to display the color PICKER."
            (delete-region beg end)
            (insert
             (edraw-color-picker-lookup-color-to-string
-             (edraw-get-current-color picker) format-index options)))))
-
-      (edraw-color-picker--set-transient-map picker))
+             (edraw-get-current-color picker) format-index options))))))
     t))
 
 ;;;;; Color Name Lookup From Buffer
