@@ -2359,9 +2359,9 @@ The default keymap is `edraw-color-picker--transient-keymap'"
          (g (edraw-color-g c)) (g8 (round (* g 255)))
          (b (edraw-color-b c)) (b8 (round (* b 255)))
          (a (edraw-color-a c)) (a8 (round (* a 255)))
-         (h (edraw-hue c))
-         (s (edraw-saturation c))
-         (b (edraw-brightness c))
+         (hue (edraw-hue c))
+         (sat (edraw-saturation c))
+         (bri (edraw-brightness c))
          (rl (edraw-relative-luminance c)))
     (edraw-echo-format
      "\
@@ -2372,9 +2372,9 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
      (* g 100) g8 g8
      (* b 100) b8 b8
      (* a 100) a8 a8
-     h
-     (* s 100)
-     (* b 100)
+     hue
+     (* sat 100)
+     (* bri 100)
      (* rl 100))))
 
 ;;;;; Replace Color
