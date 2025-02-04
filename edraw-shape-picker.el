@@ -757,22 +757,24 @@
 (defun edraw-shape-picker-read-prop-value-cover (curr-val)
   ;; see: `edraw-svg-shape-thumbnail-cover'
   (defvar edraw-editor-image-scaling-factor) ;;edraw.el
-  (let* ((options-for-read-color
+  (let* ((ui-state
+          ;; @todo Is it possible for ui-state to be nil?
+          (if edraw-shape-picker-ui-state
+              edraw-shape-picker-ui-state
+            (edraw-ui-state-object-default)))
+         (options-for-read-color
           `((:color-name-scheme . web)
             (:no-color . "none")
             ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                          edraw-editor-image-scaling-factor)
                 (list
                  (cons :scale-direct edraw-editor-image-scaling-factor)))
-            ,@(when (fboundp 'edraw-editor-recent-colors)
+            ,@(when (fboundp 'edraw-get-palette-colors)
                 (list
-                 (cons :recent-colors
-                       (edraw-editor-recent-colors
-                        :ui-state
-                        ;; @todo Is it possible for ui-state to be nil?
-                        (if edraw-shape-picker-ui-state
-                            edraw-shape-picker-ui-state
-                          (edraw-ui-state-object-default))))))))
+                 (cons :palette-colors (edraw-get-palette-colors ui-state))))
+            ,@(when (fboundp 'edraw-get-recent-colors)
+                (list
+                 (cons :recent-colors (edraw-get-recent-colors ui-state))))))
          (fill (edraw-color-picker-read-color
                 "Fill Color: "
                 (alist-get 'fill (cdr curr-val) "")

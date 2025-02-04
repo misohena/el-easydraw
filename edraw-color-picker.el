@@ -62,12 +62,16 @@
 ;;    string : a string indicating no color (e.g. "none")
 ;; :enable-opacity
 ;;    boolean
+;; :enable-palette-colors
+;;    boolean
 ;; :enable-recent-colors
 ;;    boolean
+;; :palette-colors
+;;    edraw-list : a list of palette color strings
 ;; :recent-colors
-;;    edraw-list : String list of recently used colors
+;;    edraw-list : a list of recently used color strings
 ;; :color-float-format (default: 4)
-;;    integer : Number of digits after the decimal point
+;;    integer : number of digits after the decimal point
 ;;    string : format string (e.g. "%s")
 ;;    function : format function (funcall f value)
 ;; :color-format
@@ -125,6 +129,386 @@
   :group 'edraw-color-picker
   :type 'float)
 
+
+;;;; Model
+
+;;;;; Observable
+
+(defclass edraw-color-picker-observable ()
+  ((change-hook :initform (edraw-hook-make))))
+
+(cl-defmethod edraw-notify-change ((observable edraw-color-picker-observable))
+  (edraw-hook-call (oref observable change-hook)))
+
+(cl-defmethod edraw-add-change-hook ((observable edraw-color-picker-observable)
+                                     fun &rest args)
+  (apply 'edraw-hook-add (oref observable change-hook) fun args))
+
+;;;;; Observable Value
+
+(defclass edraw-color-picker-observable-value (edraw-color-picker-observable)
+  ((value :initarg :value)))
+
+(cl-defmethod edraw-get-value ((value-obj edraw-color-picker-observable-value))
+  (oref value-obj value))
+
+(cl-defmethod edraw-set-value ((value-obj edraw-color-picker-observable-value)
+                               new-value)
+  (oset value-obj value new-value)
+  (edraw-notify-change value-obj))
+
+;;;;; Color Picker Model
+
+(defclass edraw-color-picker-model (edraw-color-picker-observable)
+  ((color-z)
+   (color-xy)
+   (opacity)
+   (color-1)
+   (color-2)
+   (color-result)
+   (color1d-v-colors)
+   (color2d-hv-colors)
+   (opacity-v-colors)
+   (color-rgba-setter)))
+
+(cl-defmethod edraw-get-current-color ((model edraw-color-picker-model))
+  (with-slots (color-result) model
+    (edraw-get-value color-result)))
+
+(cl-defmethod edraw-set-current-color ((model edraw-color-picker-model) color)
+  (with-slots (color-rgba-setter color-result) model
+    (when (and (cl-typep color 'edraw-color)
+               (not (edraw-color-equal-p color (edraw-get-value color-result))))
+      (edraw-set-value color-rgba-setter color))))
+
+(defun edraw-color-picker-model-create (initial-color)
+  (let ((model (edraw-color-picker-model)))
+    (with-slots (color-z
+                 color-xy
+                 opacity
+                 color-1
+                 color-2
+                 color-result
+                 color1d-v-colors
+                 color2d-hv-colors
+                 opacity-v-colors
+                 color-rgba-setter)
+        model
+      ;; Initialize slots
+      (setq
+       color-z (edraw-color-picker-observable-value
+                :value (/ (edraw-hue initial-color) 360.0))
+       color-xy (edraw-color-picker-observable-value
+                 :value (cons (edraw-saturation initial-color)
+                              (edraw-brightness initial-color)))
+       opacity (edraw-color-picker-observable-value
+                :value (oref initial-color a))
+
+       color-1 (edraw-color-f 1 0 0) ;;from color-z color1d-v-colors
+       color-2 (edraw-color-f 1 0 0) ;;from color-xy color2d-(h|v)-colors
+       color-result (edraw-color-picker-observable-value
+                     :value (edraw-color-f 1 0 0)) ;;from color-2 opacity
+
+       color1d-v-colors (edraw-color-picker-observable-value
+                         :value
+                         (list (edraw-color-f 1 0 0)
+                               (edraw-color-f 1 1 0)
+                               (edraw-color-f 0 1 0)
+                               (edraw-color-f 0 1 1)
+                               (edraw-color-f 0 0 1)
+                               (edraw-color-f 1 0 1)
+                               (edraw-color-f 1 0 0)))
+       color2d-hv-colors (edraw-color-picker-observable-value
+                          :value
+                          (cons
+                           (list (edraw-color-f 1 1 1)
+                                 color-1)
+                           (list (edraw-color-f 0 0 0 1)
+                                 (edraw-color-f 0 0 0 0))))
+       opacity-v-colors (edraw-color-picker-observable-value
+                         :value
+                         (list (edraw-change-a color-2 0)
+                               (edraw-change-a color-2 1))))
+
+      ;; Update model from color-z, color-xy, opacity
+      (edraw-update-colors model)
+      (let ((update-colors (lambda () (edraw-update-colors model))))
+        (edraw-add-change-hook color-z update-colors)
+        (edraw-add-change-hook color-xy update-colors)
+        (edraw-add-change-hook opacity update-colors))
+
+      ;; Update model from color-rgba-setter
+      (setq color-rgba-setter
+            (edraw-color-picker-observable-value
+             :value (edraw-color-f 0 0 0 0)))
+      (let ((update-from-color-rgba-setter
+             (lambda ()
+               (let ((edraw-color-picker-model-suppress-change-hook t))
+                 (let ((color (edraw-get-value color-rgba-setter)))
+                   (edraw-set-value color-z (/ (edraw-hue color) 360.0))
+                   (edraw-set-value color-xy (cons
+                                              (edraw-saturation color)
+                                              (edraw-brightness color)))
+                   (edraw-set-value opacity (oref color a))))
+               (edraw-notify-change model))))
+        (edraw-add-change-hook color-rgba-setter
+                               update-from-color-rgba-setter)))
+    model))
+
+(cl-defmethod edraw-update-colors ((model edraw-color-picker-model))
+  (with-slots (color-z
+               color-xy
+               opacity
+               color-1
+               color-2
+               color-result
+               color1d-v-colors
+               color2d-hv-colors
+               opacity-v-colors)
+      model
+
+    (setq color-1 (edraw-color-from-1d-gradient
+                   (edraw-get-value color-z)
+                   (edraw-get-value color1d-v-colors)))
+
+    (setf (elt (car (edraw-get-value color2d-hv-colors)) 1) color-1)
+    (edraw-notify-change color2d-hv-colors)
+
+    (setq color-2 (edraw-color-from-2d-gradient
+                   (car (edraw-get-value color-xy))
+                   (cdr (edraw-get-value color-xy))
+                   (car (edraw-get-value color2d-hv-colors))
+                   (cdr (edraw-get-value color2d-hv-colors))))
+
+    (setf (elt (edraw-get-value opacity-v-colors) 0)
+          (edraw-change-a color-2 0.0))
+    (setf (elt (edraw-get-value opacity-v-colors) 1)
+          (edraw-change-a color-2 1.0))
+    (edraw-notify-change opacity-v-colors)
+
+    (edraw-set-value color-result
+                     (edraw-change-a color-2 (edraw-get-value opacity)))
+
+    ;; (let ((message-log-max nil))
+    ;;   (message "%s" (edraw-to-string (edraw-get-value color-result))))
+    (unless edraw-color-picker-model-suppress-change-hook
+      (edraw-notify-change model))))
+
+;;;;; Palette Model
+
+(defun edraw-color-picker-normalize-color-string (color)
+  "Return normalized COLOR string."
+  ;;@todo validate more
+  (edraw-to-string
+   (if (stringp color)
+       (edraw-color-from-string color)
+     color)))
+
+(defclass edraw-color-picker-palette-model (edraw-color-picker-observable)
+  ((options :initarg :options)
+   (option-key :initarg :option-key)
+   (colors-var :initarg :colors-var)
+   (colors-default-var :initarg :colors-default-var)))
+
+(cl-defmethod edraw-as-container ((palette edraw-color-picker-palette-model))
+  (with-slots (options option-key colors-var) palette
+    (if-let* ((option-cell (assq option-key options)))
+        (cdr option-cell)
+      (symbol-value colors-var))))
+
+(cl-defmethod edraw-to-new-list ((palette edraw-color-picker-palette-model))
+  (edraw-to-new-list
+   (edraw-as-container palette)))
+
+(cl-defmethod edraw-as-list ((palette edraw-color-picker-palette-model))
+  (edraw-as-list
+   (edraw-as-container palette)))
+
+(cl-defmethod edraw-empty-p ((palette edraw-color-picker-palette-model))
+  (edraw-empty-p (edraw-as-list palette)))
+
+(cl-defmethod edraw-assign ((palette edraw-color-picker-palette-model)
+                            colors)
+  (setq colors
+        (mapcar #'edraw-color-picker-normalize-color-string colors))
+  (with-slots (options option-key colors-var) palette
+    (if-let* ((option-cell (assq option-key options)))
+        ;; Write back to the OPTIONS alist
+        (setcdr option-cell (edraw-assign (cdr option-cell) colors))
+      ;; or `edraw-color-picker-???-colors' variable.
+      (set colors-var (edraw-assign (symbol-value colors-var) colors))))
+  ;; Update Areas (SVG Elements)
+  (edraw-notify-change palette)
+  palette)
+
+(cl-defmethod edraw-set-nth ((palette edraw-color-picker-palette-model)
+                             n
+                             color)
+  (edraw-assign
+   palette
+   ;; @todo Expand size?
+   (edraw-set-nth (edraw-to-new-list palette) n
+                  (edraw-color-picker-normalize-color-string color))))
+
+(cl-defmethod edraw-push-front-limit ((palette edraw-color-picker-palette-model)
+                                      color max-size)
+  (let ((color-str (edraw-color-picker-normalize-color-string color)))
+    (edraw-assign
+     palette
+     (seq-take ;; Limit number of colors
+      (cons color-str ;; Push the color to front
+            ;; Remove same color
+            (seq-remove (lambda (c)
+                          (string=
+                           (edraw-color-picker-normalize-color-string c)
+                           color-str))
+                        (edraw-as-list palette)))
+      max-size))))
+
+(cl-defmethod edraw-nth-color ((palette edraw-color-picker-palette-model) n)
+  (when-let* ((color-str (nth n (edraw-as-list palette))))
+    (edraw-color-from-string color-str)))
+
+(cl-defmethod edraw-reset-to-default
+  ((palette edraw-color-picker-palette-model))
+  (edraw-assign palette (symbol-value (oref palette colors-default-var))))
+
+(cl-defmethod edraw-write-to-file ((palette edraw-color-picker-palette-model)
+                                   file)
+  (with-temp-file file
+    (insert "# edraw-colors\n")
+    (dolist (color (edraw-as-list palette))
+      (insert (edraw-color-picker-normalize-color-string color) "\n"))))
+
+(cl-defmethod edraw-read-from-file ((palette edraw-color-picker-palette-model)
+                                    file)
+  (let (colors)
+    (with-temp-buffer
+      (insert-file-contents file)
+      (goto-char (point-min))
+      (unless (looking-at-p "# edraw-colors")
+        (error "Not in edraw-colors format")) ;; @todo This error is barely visible
+      (forward-line)
+      (while (not (eobp))
+        (when (looking-at
+               (concat " *\\(" edraw-color-string-patterns-re "\\)"))
+          (when-let* ((color (edraw-color-from-string (match-string 1))))
+            (push color colors)))
+        (forward-line)))
+    ;; Ensure at least the same length as the default color list
+    (cl-loop repeat (- (length (symbol-value (oref palette colors-default-var)))
+                       (length colors))
+             do (push (edraw-color-rgb 0 0 0) colors))
+    (setq colors (nreverse colors))
+    (edraw-assign palette colors)))
+
+(cl-defmethod edraw-save-interactive ((palette
+                                       edraw-color-picker-palette-model))
+  (let ((file (read-file-name (edraw-msg "Save colors to file: ")
+                              nil nil nil "palette.edraw-colors")))
+    (when (or (not (file-exists-p file))
+              (y-or-n-p (edraw-msg "Do you want to overwrite?")))
+      (edraw-write-to-file palette file))))
+
+(cl-defmethod edraw-load-interactive ((palette
+                                       edraw-color-picker-palette-model))
+  (let ((file (read-file-name (edraw-msg "Load colors from file: ") nil nil t)))
+    (edraw-read-from-file palette file)))
+
+;;;;;; Palette Colors
+
+(defconst edraw-color-picker-palette-colors-default
+  '("#000000ff"
+    "#000000ff"
+    ;; Pale Colors
+    "#b7d4f2ff"
+    "#b4e8bdff"
+    "#f7b4b4ff"
+    "#f1e09eff"
+    "#d5bdd4ff"
+    ;;"#a8e3ecff"
+    ;; Vibrant Colors
+    "#7baee6ff"
+    "#71e584ff"
+    "#f57171ff"
+    "#e8c94eff"
+    "#ac87aaff"
+    ;;"#5bcddeff"
+    ;; Gray
+    "#101010ff"
+    "#404040ff"
+    "#c0c0c0ff"
+    "#f8f8f8ff"
+))
+
+(defvar edraw-color-picker-palette-colors
+  (edraw-list edraw-color-picker-palette-colors-default))
+
+(defun edraw-color-picker-get-palette-colors-model (options)
+  (edraw-color-picker-palette-model
+   :options options
+   :option-key :palette-colors
+   :colors-var 'edraw-color-picker-palette-colors
+   :colors-default-var 'edraw-color-picker-palette-colors-default))
+
+;;;;;; Recent Colors
+
+(defvar edraw-color-picker-recent-colors-max-size 32)
+
+(defconst edraw-color-picker-recent-colors-default
+  '("#000000ff"
+    "#0000ffff"
+    "#00ff00ff"
+    "#00ffffff"
+    "#ff0000ff"
+    "#ff00ffff"
+    "#ffff00ff"
+    "#ffffffff"
+    "#00000080"
+    "#0000ff80"
+    "#00ff0080"
+    "#00ffff80"
+    "#ff000080"
+    "#ff00ff80"
+    "#ffff0080"
+    "#ffffff80"))
+
+(defvar edraw-color-picker-recent-colors
+  (edraw-list edraw-color-picker-recent-colors-default))
+
+(defun edraw-color-picker-get-recent-colors-model (options)
+  (edraw-color-picker-palette-model
+   :options options
+   :option-key :recent-colors
+   :colors-var 'edraw-color-picker-recent-colors
+   :colors-default-var 'edraw-color-picker-recent-colors-default))
+
+(defun edraw-color-picker-get-recent-colors (options)
+  (edraw-as-list
+   (edraw-color-picker-get-recent-colors-model options)))
+
+(defun edraw-color-picker-add-recent-color (options color)
+  (edraw-push-front-limit
+   (edraw-color-picker-get-recent-colors-model options)
+   color
+   edraw-color-picker-recent-colors-max-size))
+
+(defun edraw-color-picker-make-history-list (options initial-color)
+  "Create a color history list for `read-from-minibuffer'."
+  (let ((hist (mapcar #'edraw-color-picker-normalize-color-string
+                      (edraw-color-picker-get-recent-colors options))))
+    (when (or
+           ;; Use car of HIST as initial-color
+           (null initial-color)
+           ;; Same color
+           (and
+            hist
+            (equal (edraw-color-picker-normalize-color-string initial-color)
+                   (car hist))))
+      (pop hist))
+    hist))
+
+
 ;;;; SVG Common
 
 (defun edraw-color-picker-rect (x y w h fill &optional stroke &rest attrs)
@@ -170,7 +554,6 @@
 
 ;;;; Area
 
-
 (defclass edraw-color-picker-area ()
   ((name :initarg :name)
    (spacing :initarg :spacing :initform 0)
@@ -181,7 +564,9 @@
    (create-element :initarg :create-element :initform nil)
    (on-mouse :initarg :on-mouse :initform nil)
    (on-click :initarg :on-click :initform nil)
+   (on-r-click :initarg :on-r-click :initform nil)
    (image-map-id-props :initarg :image-map-id-props :initform nil)
+   (areas-info :initarg :areas-info :initform nil)
    ))
 
 (defun edraw-color-picker-area-or-derived-p (obj)
@@ -208,10 +593,21 @@
     (when on-click
       (funcall on-click area))))
 
+(cl-defmethod edraw-dispatch-r-click ((area edraw-color-picker-area))
+  (with-slots (on-r-click) area
+    (when on-r-click
+      (funcall on-r-click area))))
+
 (cl-defmethod edraw-create-element ((area edraw-color-picker-area))
   (with-slots (create-element) area
     (when create-element
       (funcall create-element area))))
+
+(cl-defmethod edraw-invalidate-image-map ((area edraw-color-picker-area))
+  "Mark that the image-map needs to be recreated."
+  (with-slots (areas-info) area
+    (when areas-info
+      (edraw-plist-set! areas-info :invalid-image-map t))))
 
 ;;;;; Area - Button
 
@@ -285,7 +681,7 @@
 (cl-defmethod edraw-link-value ((area edraw-color-picker-area-colored))
   (with-slots (target-value on-value-change) area
     (when (and target-value on-value-change)
-      (edraw-add-hook
+      (edraw-add-change-hook
        target-value
        (lambda ()
          (funcall on-value-change area))))))
@@ -304,7 +700,7 @@
 (cl-defmethod edraw-link-gradient-colors ((area edraw-color-picker-area-colored))
   (with-slots (gradient-colors update-gradient) area
     (when (and gradient-colors update-gradient)
-      (edraw-add-hook
+      (edraw-add-change-hook
        gradient-colors
        (lambda ()
          (edraw-update-gradient area))))))
@@ -355,41 +751,6 @@
         gradient-element
         'fill
         (edraw-to-string (edraw-get-current-color this)))))
-   args))
-
-;;;;; Area - Palette Entry
-
-(defun edraw-color-picker-area-palette (name &rest args)
-  (apply
-   'edraw-color-picker-area-colored
-   :name name
-   ;;:width 40
-   ;;:height 30
-   :create-element
-   (lambda (this)
-     (edraw-link-value this)
-     (with-slots (left top width height) this
-       (dom-node
-        'g nil
-        (edraw-color-picker-rect
-         left top width height "#ffffff")
-        (edraw-color-picker-rect
-         left top width height
-         "url(#edraw-cp-transparent-bg)")
-        (edraw-color-picker-rect
-         (+ 0.5 left)
-         (+ 0.5 top)
-         width height
-         (edraw-to-string (edraw-get-current-color this))
-         "#000000"))))
-   :get-current-color
-   (lambda (this)
-     ;;@todo remove bad gradient-colors usage
-     (with-slots (gradient-colors) this
-       (car gradient-colors)))
-   :on-mouse
-   (lambda (this _xy)
-     (edraw-set-value this (edraw-get-current-color this)))
    args))
 
 ;;;;; Area - 2D Area
@@ -566,288 +927,269 @@
      (format "translate(%s %s)"
              x (+ y (* h (- 1 value)))))))
 
+;;;;; Area - Palette Entry
 
-;;;; Observable
+(defclass edraw-color-picker-area-palette-entry
+  (edraw-color-picker-area-colored)
+  ((palette-index :initarg :palette-index)
+   (palette-model :initarg :palette-model)
+   (keymap-var :initarg :keymap-var)
+   (select-cmd-name-fun :initarg :select-cmd-name-fun)
+   (picker-model :initarg :picker-model)
+   (label-format :initarg :label-format)))
 
+(cl-defmethod initialize-instance :after
+  ((area edraw-color-picker-area-palette-entry) &rest _args)
+  (oset area image-map-id-props
+        (list 'hot-spot (list 'pointer 'arrow)))
+  (oset area on-mouse
+        (lambda (this _xy)
+          (edraw-set-value this (edraw-get-current-color this))))
+  (oset area on-r-click
+        (lambda (area &rest _)
+          (edraw-on-r-click area)))
+  (edraw-update-help-echo area))
 
-(defclass edraw-color-picker-observable ()
-  ((value :initarg :value)
-   (hooks :initform nil)))
+(cl-defmethod edraw-create-element ((area
+                                     edraw-color-picker-area-palette-entry))
+  (edraw-link-value area)
+  (with-slots (left top width height gradient-element) area
+    (dom-node
+     'g nil
+     (edraw-color-picker-rect
+      left top width height "#ffffff")
+     (edraw-color-picker-rect
+      left top width height
+      "url(#edraw-cp-transparent-bg)")
+     (setq gradient-element
+           (edraw-color-picker-rect
+            (+ 0.5 left)
+            (+ 0.5 top)
+            width height
+            (edraw-to-string (edraw-get-current-color area))
+            "#383838")))))
 
-(cl-defmethod edraw-get-value ((value-obj edraw-color-picker-observable))
-  (oref value-obj value))
+(cl-defmethod edraw-get-current-color ((area
+                                        edraw-color-picker-area-palette-entry))
+  ;;@todo remove bad gradient-colors usage
+  (car (oref area gradient-colors)))
 
-(cl-defmethod edraw-set-value ((value-obj edraw-color-picker-observable)
-                               new-value)
-  (oset value-obj value new-value)
-  (edraw-notify-change value-obj))
+(cl-defmethod edraw-set-current-color ((area
+                                        edraw-color-picker-area-palette-entry)
+                                       color)
+  (with-slots (gradient-colors) area
+    (when (cl-typep color 'edraw-color)
+      (setcar gradient-colors color)
+      (edraw-update-gradient area)
+      (edraw-update-help-echo area))))
 
-(cl-defmethod edraw-notify-change ((value-obj edraw-color-picker-observable))
-  (dolist (fun (oref value-obj hooks))
-    (funcall fun)))
+(cl-defmethod edraw-update-gradient ((area
+                                      edraw-color-picker-area-palette-entry))
+  (dom-set-attribute
+   (oref area gradient-element)
+   'fill
+   (edraw-to-string (edraw-get-current-color area))))
 
-(cl-defmethod edraw-add-hook ((value-obj edraw-color-picker-observable) fun)
-  (with-slots (hooks) value-obj
-    (setq hooks (cons fun hooks))))
+(cl-defmethod edraw-update-help-echo ((area
+                                       edraw-color-picker-area-palette-entry))
+  (with-slots (image-map-id-props)
+      area
+    (unless image-map-id-props
+      (setf image-map-id-props (list 'hot-spot nil)))
+    (edraw-plist-set (cadr image-map-id-props)
+                     'help-echo
+                     (edraw-make-help-echo area))
+    (edraw-invalidate-image-map area)))
 
+(cl-defmethod edraw-make-help-echo ((area
+                                     edraw-color-picker-area-palette-entry))
+  (with-slots (palette-index keymap-var select-cmd-name-fun) area
+    (concat
+     ;; Color
+     (edraw-to-string (edraw-get-current-color area))
+     ;; Key
+     (when select-cmd-name-fun
+       (let ((command (funcall select-cmd-name-fun palette-index)))
+         (when (and (commandp command)
+                    keymap-var
+                    (where-is-internal command (symbol-value keymap-var)))
+           (substitute-command-keys (format " \\<%s>(\\[%s])"
+                                            keymap-var command)))
+         ;; ((where-is-internal command)
+         ;;  (substitute-command-keys (format " (\\[%s])" command)))
+         )))))
 
-;;;; Model
+(cl-defmethod edraw-on-r-click ((area edraw-color-picker-area-palette-entry))
+  ;;(message "Click %s" (oref area palette-index))
+  (with-slots (picker-model palette-model palette-index label-format) area
+    (when-let* ((current-color (edraw-get-current-color picker-model)))
+      (edraw-popup-menu
+       (format label-format (1+ palette-index))
+       `(((edraw-msg "Change to Current Color")
+          ,(lambda ()
+             (edraw-set-nth palette-model palette-index current-color)
+             (edraw-set-current-color area current-color)))
+         ((edraw-msg "Palette")
+          (((edraw-msg "Save...")
+            ,(lambda ()
+               (edraw-save-interactive palette-model)))
+           ((edraw-msg "Load...")
+            ,(lambda ()
+               (edraw-load-interactive palette-model)))
+           ((edraw-msg "Reset to Default")
+            ,(lambda ()
+               (when (y-or-n-p (edraw-msg "Do you want to restore the palette to its initial state?"))
+                 (edraw-reset-to-default palette-model)))))))))))
 
-
-(defclass edraw-color-picker-model ()
-  ((color-z)
-   (color-xy)
-   (opacity)
-   (color-1)
-   (color-2)
-   (color-result)
-   (color1d-v-colors)
-   (color2d-hv-colors)
-   (opacity-v-colors)
-   (color-rgba-setter)
-   (hooks :initform (edraw-hook-make))))
-
-(cl-defmethod edraw-get-current-color ((model edraw-color-picker-model))
-  (with-slots (color-result) model
-    (edraw-get-value color-result)))
-
-(cl-defmethod edraw-set-current-color ((model edraw-color-picker-model) color)
-  (with-slots (color-rgba-setter color-result) model
-    (when (and (cl-typep color 'edraw-color)
-               (not (edraw-color-equal-p color (edraw-get-value color-result))))
-      (edraw-set-value color-rgba-setter color))))
-
-(defun edraw-color-picker-model-create (initial-color)
-  (let ((model (edraw-color-picker-model)))
-    (with-slots (color-z
-                 color-xy
-                 opacity
-                 color-1
-                 color-2
-                 color-result
-                 color1d-v-colors
-                 color2d-hv-colors
-                 opacity-v-colors
-                 color-rgba-setter)
-        model
-      ;; Initialize slots
-      (setq
-       color-z (edraw-color-picker-observable
-                :value (/ (edraw-hue initial-color) 360.0))
-       color-xy (edraw-color-picker-observable
-                 :value (cons (edraw-saturation initial-color)
-                              (edraw-brightness initial-color)))
-       opacity (edraw-color-picker-observable
-                :value (oref initial-color a))
-
-       color-1 (edraw-color-f 1 0 0) ;;from color-z color1d-v-colors
-       color-2 (edraw-color-f 1 0 0) ;;from color-xy color2d-(h|v)-colors
-       color-result (edraw-color-picker-observable
-                     :value (edraw-color-f 1 0 0)) ;;from color-2 opacity
-
-       color1d-v-colors (edraw-color-picker-observable
-                         :value
-                         (list (edraw-color-f 1 0 0)
-                               (edraw-color-f 1 1 0)
-                               (edraw-color-f 0 1 0)
-                               (edraw-color-f 0 1 1)
-                               (edraw-color-f 0 0 1)
-                               (edraw-color-f 1 0 1)
-                               (edraw-color-f 1 0 0)))
-       color2d-hv-colors (edraw-color-picker-observable
-                          :value
-                          (cons
-                           (list (edraw-color-f 1 1 1)
-                                 color-1)
-                           (list (edraw-color-f 0 0 0 1)
-                                 (edraw-color-f 0 0 0 0))))
-       opacity-v-colors (edraw-color-picker-observable
-                         :value
-                         (list (edraw-change-a color-2 0)
-                               (edraw-change-a color-2 1))))
-
-      ;; Update model from color-z, color-xy, opacity
-      (edraw-update-colors model)
-      (let ((update-colors (lambda () (edraw-update-colors model))))
-        (edraw-add-hook color-z update-colors)
-        (edraw-add-hook color-xy update-colors)
-        (edraw-add-hook opacity update-colors))
-
-      ;; Update model from color-rgba-setter
-      (setq color-rgba-setter
-            (edraw-color-picker-observable
-             :value (edraw-color-f 0 0 0 0)))
-      (let ((update-from-color-rgba-setter
-             (lambda ()
-               (let ((edraw-color-picker-model-suppress-change-hook t))
-                 (let ((color (edraw-get-value color-rgba-setter)))
-                   (edraw-set-value color-z (/ (edraw-hue color) 360.0))
-                   (edraw-set-value color-xy (cons
-                                              (edraw-saturation color)
-                                              (edraw-brightness color)))
-                   (edraw-set-value opacity (oref color a))))
-               (edraw-call-hooks model))))
-        (edraw-add-hook color-rgba-setter update-from-color-rgba-setter)))
-    model))
-
-(cl-defmethod edraw-update-colors ((model edraw-color-picker-model))
-  (with-slots (color-z
-               color-xy
-               opacity
-               color-1
-               color-2
-               color-result
-               color1d-v-colors
-               color2d-hv-colors
-               opacity-v-colors)
-      model
-
-    (setq color-1 (edraw-color-from-1d-gradient
-                   (edraw-get-value color-z)
-                   (edraw-get-value color1d-v-colors)))
-
-    (setf (elt (car (edraw-get-value color2d-hv-colors)) 1) color-1)
-    (edraw-notify-change color2d-hv-colors)
-
-    (setq color-2 (edraw-color-from-2d-gradient
-                   (car (edraw-get-value color-xy))
-                   (cdr (edraw-get-value color-xy))
-                   (car (edraw-get-value color2d-hv-colors))
-                   (cdr (edraw-get-value color2d-hv-colors))))
-
-    (setf (elt (edraw-get-value opacity-v-colors) 0)
-          (edraw-change-a color-2 0.0))
-    (setf (elt (edraw-get-value opacity-v-colors) 1)
-          (edraw-change-a color-2 1.0))
-    (edraw-notify-change opacity-v-colors)
-
-    (edraw-set-value color-result
-                     (edraw-change-a color-2 (edraw-get-value opacity)))
-
-    ;; (let ((message-log-max nil))
-    ;;   (message "%s" (edraw-to-string (edraw-get-value color-result))))
-    (unless edraw-color-picker-model-suppress-change-hook
-      (edraw-call-hooks model))))
-
-(cl-defmethod edraw-call-hooks ((model edraw-color-picker-model))
-  (with-slots (hooks) model
-    (edraw-hook-call hooks)))
-
-(cl-defmethod edraw-add-hook ((model edraw-color-picker-model) function &rest args)
-  (with-slots (hooks) model
-    (apply 'edraw-hook-add hooks function args)))
+(defun edraw-color-picker-palette-areas-update (palette all-areas)
+  (cl-loop
+   for area in all-areas
+   for colors = (edraw-as-list palette) then (cdr colors)
+   for color = (edraw-color-from-string (or (car colors) "#000000"))
+   do (edraw-set-current-color area color)))
 
 
 ;;;; Areas (Layout)
 
 
-(defun edraw-color-picker-areas-create (model padding-left padding-top options)
-  (list
-   `(move-dx ,padding-left)
-   `(move-dy ,padding-top)
+(defun edraw-color-picker-areas-create (model padding-left padding-top options
+                                              areas-info)
+  `(
+    (move-dx ,padding-left)
+    (move-dy ,padding-top)
 
-   ;; Main Line
-   (edraw-color-picker-area-2d
-    "color2d"
-    :spacing 0
-    :target-value (oref model color-xy)
-    :gradient-colors (oref model color2d-hv-colors))
-   (edraw-color-picker-area-1d
-    "color1d"
-    :spacing 8
-    :target-value (oref model color-z)
-    :gradient-colors (oref model color1d-v-colors))
+    ;; Main Line
+    (flow-dir right)
+    ,(edraw-color-picker-area-2d
+      "color2d"
+      :spacing 0
+      :target-value (oref model color-xy)
+      :gradient-colors (oref model color2d-hv-colors))
+    ,(edraw-color-picker-area-1d
+      "color1d"
+      :spacing 8
+      :target-value (oref model color-z)
+      :gradient-colors (oref model color1d-v-colors))
 
-   (when (alist-get :enable-opacity options t)
-     (edraw-color-picker-area-1d
-      "opacity"
-      :spacing 4
-      :target-value (oref model opacity)
-      :gradient-colors (oref model opacity-v-colors)))
+    ,(when (alist-get :enable-opacity options t)
+       (edraw-color-picker-area-1d
+        "opacity"
+        :spacing 4
+        :target-value (oref model opacity)
+        :gradient-colors (oref model opacity-v-colors)))
 
-   ;; Right Bar
-   '(move-dx 12)
-   '(flow-dir down)
+    ;; Right Bar
+    (move-dx 12)
+    (flow-dir down)
 
-   (edraw-color-picker-area-preview
-    "Preview"
-    :target-value (oref model color-result))
+    ,(edraw-color-picker-area-preview
+      "Preview"
+      :target-value (oref model color-result))
 
-   (edraw-color-picker-area-button
-    :name "ok"
-    :spacing 8
-    :width (* 4 edraw-color-picker-font-size)
-    :height 24
-    :text "OK")
-   (edraw-color-picker-area-button
-    :name "cancel"
-    :spacing 8
-    :width (* 4 edraw-color-picker-font-size)
-    :height 24
-    :text "Cancel")
-   (when (alist-get :no-color options)
-     (edraw-color-picker-area-no-color
-      :name "no-color"
-      :spacing 32
+    ,(edraw-color-picker-area-button
+      :name "ok"
+      :spacing 8
       :width (* 4 edraw-color-picker-font-size)
-      :height 24))
-   '(flow-dir right)
+      :height 24
+      :text "OK")
+    ,(edraw-color-picker-area-button
+      :name "cancel"
+      :spacing 8
+      :width (* 4 edraw-color-picker-font-size)
+      :height 24
+      :text "Cancel")
+    ,(when (alist-get :no-color options)
+       (edraw-color-picker-area-no-color
+        :name "no-color"
+        :spacing 32
+        :width (* 4 edraw-color-picker-font-size)
+        :height 24))
 
-   ;; Recent Colors
-   'move-to-left
-   'move-to-top
-   `(move-dx ,padding-left)
-   `(move-dy ,padding-top)
-   '(move-dy 256)
-   '(move-dy 14)
-   (when (and (alist-get :enable-recent-colors options t)
-              (edraw-color-picker-get-recent-colors options))
-     (list 'element
-           (lambda (x y _left _top _right _bottom)
-             (dom-node 'text
-                       `((x . ,x)
-                         (y . ,(- y 3))
-                         (font-family . edraw-color-picker-font-family)
-                         (font-size . 10)
-                         (fill . "#ccc")
-                         (stroke . "none"))
-                       "Recent Colors"))))
-   (when (alist-get :enable-recent-colors options t)
-     (list 'generate
-           (lambda (x _y _left _top right _bottom)
-             (let* ((spacing 2)
-                    (w 24)
-                    (h 20)
-                    (num-entries (floor (/ (- right x) (+ w spacing)))))
-               (cl-loop for color in (edraw-color-picker-get-recent-colors options)
-                        for i from 0 to (1- num-entries)
-                        collect
-                        (edraw-color-picker-area-palette
-                         (format "Recent%s" i)
-                         :spacing spacing
-                         :width w
-                         :height h
-                         ;;@todo remove bad gradient-colors usage
-                         :gradient-colors (list (edraw-color-from-string color))
-                         :target-value (oref model color-rgba-setter)
-                         :image-map-id-props
-                         (list
-                          'hot-spot
-                          (list 'pointer 'arrow
-                                'help-echo
-                                (edraw-color-picker-areas-create--help-echo
-                                 i color options)))))))))))
+    ;; Palette
+    ,@(when (alist-get :enable-palette options t)
+        (let ((palette (edraw-color-picker-get-palette-colors-model options)))
+          (unless (edraw-empty-p palette)
+            `((flow-dir right)
+              move-to-left
+              move-to-bottom
+              (move-dx ,padding-left)
+              (move-dy 8)
+              (generate
+               ,(lambda (x _y _left _top right _bottom)
+                  (edraw-color-picker-generate-palette-areas
+                   x right palette
+                   "Palette%s"
+                   (edraw-msg "Palette Color #%d")
+                   model
+                   options
+                   #'edraw-color-picker-select-palette-color-fname
+                   areas-info)))))))
 
-(defun edraw-color-picker-areas-create--help-echo (i color options)
-  (concat
-   (edraw-to-string color)
-   (let ((command (edraw-color-picker-select-recent-color-fname i)))
-     (when (commandp command)
-       (let ((keymap-var (alist-get :transient-keymap-var options)))
-         (if keymap-var
-             (substitute-command-keys (format "\\<%s>(\\[%s])"
-                                              keymap-var command))
-           (format "(\\[%s])" command)))))))
+    ;; Recent Colors
+    ,@(when (alist-get :enable-recent-colors options t)
+        (let ((palette (edraw-color-picker-get-recent-colors-model options)))
+          (unless (edraw-empty-p palette)
+            `((flow-dir right)
+              move-to-left
+              move-to-bottom
+              (move-dx ,padding-left)
+              (move-dy 14)
+              (element
+               ,(lambda (x y _left _top _right _bottom)
+                  (dom-node 'text
+                            `((x . ,x)
+                              (y . ,(- y 3))
+                              (font-family . edraw-color-picker-font-family)
+                              (font-size . 9)
+                              (fill . "#888")
+                              (stroke . "none"))
+                            "Recent Colors")))
+              (generate
+               ,(lambda (x _y _left _top right _bottom)
+                  (edraw-color-picker-generate-palette-areas
+                   x right palette
+                   "Recent%s"
+                   (edraw-msg "Recent Color #%d")
+                   model
+                   options
+                   #'edraw-color-picker-select-recent-color-fname
+                   areas-info)))))))))
+
+(defun edraw-color-picker-generate-palette-areas
+    (x right palette name-format label-format model options select-cmd-name-fun
+       areas-info)
+  (let* ((spacing 1)
+         (w 25)
+         (h 20)
+         (max-entries (floor (/ (+ (- right x) spacing)
+                                (+ w spacing))))
+         (areas
+          (cl-loop for i from 0 below max-entries
+                   for colors = (edraw-as-list palette) then (cdr colors)
+                   for color = (or (car colors) (edraw-color-rgb 0 0 0))
+                   collect
+                   (edraw-color-picker-area-palette-entry
+                    :areas-info areas-info
+                    :name (format name-format i)
+                    :spacing (if (zerop i) 0 spacing)
+                    :width w
+                    :height h
+                    ;;@todo remove bad gradient-colors usage
+                    :gradient-colors (list (edraw-color-from-string color))
+                    :target-value (oref model color-rgba-setter)
+                    :keymap-var (alist-get :transient-keymap-var options)
+                    :select-cmd-name-fun select-cmd-name-fun
+                    :palette-model palette
+                    :palette-index i
+                    :picker-model model
+                    :label-format label-format))))
+
+    (edraw-add-change-hook
+     palette
+     (lambda ()
+       (edraw-color-picker-palette-areas-update palette areas)))
+
+    areas))
 
 (defun edraw-color-picker-areas-layout (spec-list)
   (let* ((left 0)
@@ -865,7 +1207,9 @@
           ('return (setq x left)
                    (setq y bottom))
           ('move-to-left (setq x left))
+          ('move-to-right (setq x right))
           ('move-to-top (setq y top))
+          ('move-to-bottom (setq y bottom))
           (`(move-dx ,dx) (setq x (+ x dx)))
           (`(move-dy ,dy) (setq y (+ y dy)))
           (`(flow-dir ,dir) (setq flow-dir dir))
@@ -944,16 +1288,20 @@
   (when-let ((area (edraw-color-picker-areas-find-by-name areas name)))
     (edraw-dispatch-click area)))
 
-(defun edraw-color-picker-areas-on-down-mouse-1 (areas down-event image-scale updator)
-  (when-let ((down-xy (edraw-color-picker-mouse-to-xy
-                       down-event image-scale down-event))
-             (area (edraw-color-picker-areas-find-by-xy areas down-xy)))
-    (edraw-dispatch-mouse-xy area down-xy)
-    (funcall updator)
-
+(defun edraw-color-picker-areas-on-down-mouse (areas down-event image-scale
+                                                     updator)
+  (when-let* ((down-xy (edraw-color-picker-mouse-to-xy
+                        down-event image-scale down-event))
+              (area (edraw-color-picker-areas-find-by-xy areas down-xy)))
     (let* ((inside-p t)
            ;; Generate detailed movement events even on fringes and scrollbars
-           (mouse-fine-grained-tracking t))
+           (mouse-fine-grained-tracking t)
+           (basic-type (event-basic-type down-event)))
+
+      (when (eq basic-type 'mouse-1)
+        (edraw-dispatch-mouse-xy area down-xy)
+        (funcall updator))
+
       (edraw-track-dragging
        down-event
        (lambda (move-event)
@@ -961,13 +1309,20 @@
                          move-event image-scale down-event)))
            (unless (edraw-contains-point-p area move-xy)
              (setq inside-p nil))
-           (edraw-dispatch-mouse-xy area move-xy)
-           (funcall updator)))
+           (when (eq basic-type 'mouse-1)
+             (edraw-dispatch-mouse-xy area move-xy)
+             (funcall updator))))
        nil nil nil nil
        ;; Allow out of image
        t)
       (when inside-p
-        (edraw-dispatch-click area)))))
+        (pcase basic-type
+          ('mouse-1
+           (edraw-dispatch-click area)
+           (funcall updator))
+          ('mouse-3
+           (edraw-dispatch-r-click area)
+           (funcall updator)))))))
 
 
 ;;;; Mouse Event
@@ -1012,6 +1367,7 @@
    (model)
    (svg)
    (areas)
+   (areas-info)
    (image-width :reader edraw-image-width)
    (image-height :reader edraw-image-height)
    (image-scale)
@@ -1032,12 +1388,13 @@
                          (oref picker initial-color)
                          options))
          (model (edraw-color-picker-model-create initial-color))
-         (padding 16)
-         (padding-top 16)
+         (padding 12)
+         (padding-top 12)
          (padding-bottom 12)
          ;; Controls
+         (areas-info (list :invalid-image-map t))
          (layout-spec (edraw-color-picker-areas-create
-                       model padding padding-top options))
+                       model padding padding-top options areas-info))
 
          ;; Layout
          (areas-right-bottom (edraw-color-picker-areas-layout layout-spec))
@@ -1070,6 +1427,7 @@
     (oset picker model model)
     (oset picker svg svg)
     (oset picker areas areas)
+    (oset picker areas-info areas-info)
     (oset picker image-width image-width)
     (oset picker image-height image-height)
     (oset picker image-scale image-scale)
@@ -1101,7 +1459,7 @@
             (lambda (_area)
               ;; Callback
               (edraw-hook-call (alist-get 'no-color (oref picker hooks)) picker))))
-    (edraw-add-hook
+    (edraw-add-change-hook
      model
      (lambda ()
        (edraw-hook-call (alist-get 'color-change (oref picker hooks)) picker)))))
@@ -1137,13 +1495,20 @@
   (edraw-update picker))
 
 (cl-defmethod edraw-get-image ((picker edraw-color-picker))
-  (svg-image (oref picker svg)
-             :scale 1.0 ;;Cancel image-scale effect
-             :map (oref picker image-map)))
+  (with-slots (areas-info image-map areas image-scale svg) picker
+    ;; Update image-map if invalid
+    (when (plist-get areas-info :invalid-image-map)
+      (setq image-map
+            (edraw-color-picker-areas-create-image-map areas image-scale))
+      (edraw-plist-set! areas-info :invalid-image-map nil))
+    ;; Create image
+    (svg-image svg
+               :scale 1.0 ;;Cancel image-scale effect
+               :map image-map)))
 
-(cl-defmethod edraw-on-down-mouse-1 ((picker edraw-color-picker) down-event)
+(cl-defmethod edraw-on-down-mouse ((picker edraw-color-picker) down-event)
   (with-slots (areas image-scale) picker
-    (edraw-color-picker-areas-on-down-mouse-1
+    (edraw-color-picker-areas-on-down-mouse
      areas down-event image-scale
      (lambda () (edraw-update picker)))))
 
@@ -1153,6 +1518,67 @@
 
 (cl-defmethod edraw-buffer ((picker edraw-color-picker))
   (edraw-buffer (oref picker display)))
+
+;;;;; Palette
+
+;;;;;; Palette
+
+(cl-defmethod edraw-select-palette-color ((picker edraw-color-picker) index)
+  (when-let* ((color (edraw-nth-color
+                      (edraw-color-picker-get-palette-colors-model
+                       (oref picker options))
+                      index)))
+    (edraw-set-current-color picker color)))
+
+(defun edraw-color-picker-select-palette-color (index)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-select-palette-color picker index)))
+
+(defun edraw-color-picker-select-palette-color-fname (i)
+  (intern (format "edraw-color-picker-select-palette-color-%d" i)))
+
+;; Define select-palette-color-<n> commands
+(dotimes (i 10)
+  (defalias (edraw-color-picker-select-palette-color-fname i)
+    (lambda ()
+      (interactive)
+      (edraw-color-picker-select-palette-color i))))
+
+(defun edraw-color-picker-define-keys-for-palette-colors (keymap)
+  (dotimes (i 10)
+    (define-key keymap (kbd (format "C-%d" (% (1+ i) 10)))
+      (edraw-color-picker-select-palette-color-fname i))))
+
+;;;;;; Recent Colors
+
+(cl-defmethod edraw-select-recent-color ((picker edraw-color-picker) index)
+  (when-let* ((color (edraw-nth-color
+                      (edraw-color-picker-get-recent-colors-model
+                       (oref picker options))
+                      index)))
+    (edraw-set-current-color picker color)))
+
+(defun edraw-color-picker-select-recent-color (index)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-select-recent-color picker index)))
+
+(defun edraw-color-picker-select-recent-color-fname (i)
+  (intern (format "edraw-color-picker-select-recent-color-%d" i)))
+
+;; Define select-recent-color-<n> commands
+(dotimes (i 10)
+  (defalias (edraw-color-picker-select-recent-color-fname i)
+    (lambda ()
+      (interactive)
+      (edraw-color-picker-select-recent-color i))))
+
+(defun edraw-color-picker-define-keys-for-recent-colors (keymap)
+  (dotimes (i 10)
+    (define-key keymap (kbd (format "C-%d" (% (1+ i) 10)))
+      (edraw-color-picker-select-recent-color-fname i))))
+
 
 ;;;; Color Picker Search
 
@@ -1181,138 +1607,32 @@
       ;;@todo search text property?
       ))
 
-;;;; Recent Colors
-
-(defvar edraw-color-picker-recent-colors-max-size 32)
-
-(defconst edraw-color-picker-recent-colors-default
-  '("#000000ff"
-    "#0000ffff"
-    "#00ff00ff"
-    "#00ffffff"
-    "#ff0000ff"
-    "#ff00ffff"
-    "#ffff00ff"
-    "#ffffffff"
-    "#00000080"
-    "#0000ff80"
-    "#00ff0080"
-    "#00ffff80"
-    "#ff000080"
-    "#ff00ff80"
-    "#ffff0080"
-    "#ffffff80"))
-
-(defvar edraw-color-picker-recent-colors
-  (edraw-list edraw-color-picker-recent-colors-default))
-
-(defun edraw-color-picker-normalize-color-string (color)
-  "Return normalized COLOR string."
-  ;;@todo validate more
-  (edraw-to-string
-   (if (stringp color)
-       (edraw-color-from-string color)
-     color)))
-
-(cl-defmethod edraw-get-recent-colors ((list edraw-list))
-  (edraw-list-data list))
-
-(cl-defmethod edraw-set-recent-colors ((list edraw-list) (colors list))
-  (edraw-assign list colors)
-  list)
-
-(cl-defmethod edraw-get-recent-colors ((list list))
-  list)
-
-(cl-defmethod edraw-set-recent-colors ((_list list) (colors list))
-  colors)
-
-(defun edraw-color-picker-get-recent-colors (options)
-  (edraw-get-recent-colors
-   (alist-get :recent-colors options edraw-color-picker-recent-colors)))
-
-(defun edraw-color-picker-add-recent-color (options color)
-  (let* ((color-str (edraw-color-picker-normalize-color-string color))
-         (options-cell (assq :recent-colors options))
-         (container (if options-cell
-                        (cdr options-cell) ;;NOTE: nil means empty list
-                      edraw-color-picker-recent-colors))
-         (new-container
-          (edraw-set-recent-colors ;; Modify the CONTAINER if possible
-           container
-           (seq-take ;; Limit number of colors
-            (cons color-str ;; Push the color to front
-                  ;; Remove same color
-                  (seq-remove (lambda (c)
-                                (string=
-                                 (edraw-color-picker-normalize-color-string c)
-                                 color-str))
-                              (edraw-get-recent-colors container)))
-            edraw-color-picker-recent-colors-max-size))))
-    ;; Write back to the OPTIONS alist
-    (if options-cell
-        (setcdr options-cell new-container)
-      ;; or `edraw-color-picker-recent-colors'
-      (setq edraw-color-picker-recent-colors new-container))))
-
-(defun edraw-color-picker-make-history-list (options initial-color)
-  "Create a color history list for `read-from-minibuffer'."
-  (let ((hist (mapcar #'edraw-color-picker-normalize-color-string
-                      (edraw-color-picker-get-recent-colors options))))
-    (when (or
-           ;; Use car of HIST as initial-color
-           (null initial-color)
-           ;; Same color
-           (and
-            hist
-            (equal (edraw-color-picker-normalize-color-string initial-color)
-                   (car hist))))
-      (pop hist))
-    hist))
-
-(cl-defmethod edraw-select-recent-color ((picker edraw-color-picker) index)
-  (with-slots (options) picker
-    (when-let* ((color-str (nth
-                            index
-                            (edraw-color-picker-get-recent-colors options)))
-                (color (edraw-color-from-string color-str)))
-      (edraw-set-current-color picker color))))
-
-(defun edraw-color-picker-select-recent-color (index)
-  (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
-    (edraw-select-recent-color picker index)))
-
-(defun edraw-color-picker-select-recent-color-fname (i)
-  (intern (format "edraw-color-picker-select-recent-color-%d" i)))
-
-;; Define select-recent-color-<n> commands
-(dotimes (i 10)
-  (defalias (edraw-color-picker-select-recent-color-fname i)
-    (lambda ()
-      (interactive)
-      (edraw-color-picker-select-recent-color i))))
-
-(defun edraw-color-picker-define-keys-for-recent-colors (keymap)
-  (dotimes (i 10)
-    (define-key keymap (kbd (format "C-%d" (% (1+ i) 10)))
-      (edraw-color-picker-select-recent-color-fname i))))
 
 ;;;; Overlay Display
 
 (defvar edraw-color-picker-map
   (let ((km (make-sparse-keymap)))
-    (define-key km [down-mouse-1] #'edraw-color-picker-on-down-mouse-1)
-    (define-key km [hot-spot down-mouse-1] #'edraw-color-picker-on-down-mouse-1)
+    (define-key km [down-mouse-1] #'edraw-color-picker-on-down-mouse)
+    (define-key km [down-mouse-3] #'edraw-color-picker-on-down-mouse)
+    (define-key km [hot-spot down-mouse-1] #'edraw-color-picker-on-down-mouse)
+    (define-key km [hot-spot down-mouse-3] #'edraw-color-picker-on-down-mouse)
     (define-key km [drag-mouse-1] 'ignore)
+    (define-key km [drag-mouse-3] 'ignore)
     (define-key km [mouse-1] 'ignore)
+    (define-key km [mouse-3] 'ignore)
     (define-key km [double-down-mouse-1] 'ignore)
+    (define-key km [double-down-mouse-3] 'ignore)
     (define-key km [double-drag-mouse-1] 'ignore)
+    (define-key km [double-drag-mouse-3] 'ignore)
     (define-key km [double-mouse-1] 'ignore)
+    (define-key km [double-mouse-3] 'ignore)
     (define-key km [triple-down-mouse-1] 'ignore)
+    (define-key km [triple-down-mouse-3] 'ignore)
     (define-key km [triple-drag-mouse-1] 'ignore)
+    (define-key km [triple-drag-mouse-3] 'ignore)
     (define-key km [triple-mouse-1] 'ignore)
-    (edraw-color-picker-define-keys-for-recent-colors km)
+    (define-key km [triple-mouse-3] 'ignore)
+    (edraw-color-picker-define-keys-for-palette-colors km)
     km))
 
 (defun edraw-color-picker-overlay
@@ -1457,10 +1777,10 @@ OVERLAY uses the display property to display the color PICKER."
   (seq-some (lambda (ov) (overlay-get ov 'edraw-color-picker))
             (overlays-at pos)))
 
-(defun edraw-color-picker-on-down-mouse-1 (down-event)
+(defun edraw-color-picker-on-down-mouse (down-event)
   (interactive "e")
   (when-let ((picker (edraw-color-picker-at-input down-event)))
-    (edraw-on-down-mouse-1 picker down-event)))
+    (edraw-on-down-mouse picker down-event)))
 
 ;;;; Frame Display
 
@@ -1824,7 +2144,7 @@ OVERLAY uses the display property to display the color PICKER."
     (define-key km (kbd "C-c C-c") #'edraw-color-picker--transient-map-click-ok)
     (define-key km (kbd "M-p") #'edraw-color-picker--transient-map-previous-history-color)
     (define-key km (kbd "M-n") #'edraw-color-picker--transient-map-next-history-color)
-    (edraw-color-picker-define-keys-for-recent-colors km)
+    (edraw-color-picker-define-keys-for-palette-colors km)
     km))
 
 (defvar edraw-color-picker--transient-map-info nil
@@ -1902,7 +2222,7 @@ correctly."
    (memq this-command
          '(;; Allow switching frames
            handle-switch-frame
-           edraw-color-picker-on-down-mouse-1
+           edraw-color-picker-on-down-mouse
            ignore))
    ;; Check this-command is in KEYMAP
    ;; See `set-transient-map' function
@@ -1924,10 +2244,10 @@ correctly."
          (picker (car info)))
     (when (and info picker (not (edraw-closed-p picker)))
       (when (= (plist-get (cdr info) :hist-pos) 0)
-        (setcdr info (plist-put (cdr info) :hist-current
-                                (edraw-color-picker-normalize-color-string
-                                 (edraw-get-current-color picker)))))
-
+        (edraw-plist-set (cdr info)
+                         :hist-current
+                         (edraw-color-picker-normalize-color-string
+                          (edraw-get-current-color picker))))
       (let ((color-str
              (cond
               ((zerop index)
@@ -1937,7 +2257,7 @@ correctly."
         (when color-str
           (edraw-set-current-color picker
                                    (edraw-color-from-string color-str))
-          (setcdr info (plist-put (cdr info) :hist-pos index)))))))
+          (edraw-plist-set (cdr info) :hist-pos index))))))
 
 (defun edraw-color-picker--transient-map-previous-history-color (n)
   (interactive "p")
@@ -2136,7 +2456,11 @@ The default keymap is `edraw-color-picker--transient-keymap'"
                     (overlay-put ov 'after-string "\n")
                     ov))
          (picker (edraw-color-picker-overlay
-                  overlay 'before-string initial-color options))
+                  overlay 'before-string initial-color
+                  (cons
+                   '(:transient-keymap-var
+                     . edraw-color-picker-minibuffer-mode-map)
+                   options)))
          (on-minibuffer-setup
           (lambda ()
             (edraw-color-picker-minibuffer--on-minibuffer-setup picker)))
@@ -2207,7 +2531,7 @@ The default keymap is `edraw-color-picker--transient-keymap'"
 (define-minor-mode edraw-color-picker-minibuffer-mode
   "Defines keybindings for the color picker in the minibuffer."
   :keymap (let ((km (make-sparse-keymap)))
-            (edraw-color-picker-define-keys-for-recent-colors km)
+            (edraw-color-picker-define-keys-for-palette-colors km)
             km))
 
 (defun edraw-color-picker-minibuffer--on-minibuffer-setup (picker)

@@ -640,23 +640,6 @@ buffer.
 
 line-prefix and wrap-prefix are used in org-indent.")
 
-;;;;; Editor - Color
-
-(defclass edraw-editor-recent-colors ()
-  ((ui-state :initarg :ui-state)))
-
-(cl-defmethod edraw-get-recent-colors ((obj edraw-editor-recent-colors))
-  (with-slots (ui-state) obj
-    (edraw-ui-state-get ui-state 'color-picker 'recent-colors
-                        edraw-color-picker-recent-colors-default)))
-
-(cl-defmethod edraw-set-recent-colors ((obj edraw-editor-recent-colors)
-                                       (colors list))
-  (with-slots (ui-state) obj
-    (edraw-ui-state-set ui-state 'color-picker 'recent-colors colors)
-    (edraw-ui-state-save ui-state)
-    obj))
-
 ;;;;; Editor - Constructor
 
 (defun edraw-editor-create (overlay-spec &optional svg)
@@ -795,6 +778,55 @@ edraw-editor initialization is now called automatically."
       (edraw-flush-image editor)
       (edraw-flush-toolbar-image editor)
       (delete-overlay overlay))))
+
+;;;;; Editor - UI State
+;;;;;; Color
+
+(defclass edraw-editor-ui-state-list ()
+  ((ui-state :initarg :ui-state)
+   (domain :initarg :domain)
+   (key :initarg :key)
+   (default :initarg :default)))
+
+(cl-defmethod edraw-as-list ((list edraw-editor-ui-state-list))
+  (edraw-ui-state-get
+   (oref list ui-state)
+   (oref list domain)
+   (oref list key)
+   (oref list default)))
+
+(cl-defmethod edraw-to-new-list ((list edraw-editor-ui-state-list))
+  (mapcar #'identity (edraw-as-list list)))
+
+(cl-defmethod edraw-assign ((list edraw-editor-ui-state-list) sequence)
+  (edraw-ui-state-set
+   (oref list ui-state)
+   (oref list domain)
+   (oref list key)
+   (mapcar #'identity sequence))
+  (edraw-ui-state-save (oref list ui-state))
+  list)
+
+
+(cl-defmethod edraw-get-palette-colors ((ui-state edraw-ui-state))
+  (edraw-editor-ui-state-list
+   :ui-state ui-state
+   :domain 'color-picker
+   :key 'palette-colors
+   :default edraw-color-picker-palette-colors-default))
+
+(cl-defmethod edraw-get-palette-colors ((editor edraw-editor))
+  (edraw-get-palette-colors (oref editor ui-state)))
+
+(cl-defmethod edraw-get-recent-colors ((ui-state edraw-ui-state))
+  (edraw-editor-ui-state-list
+   :ui-state ui-state
+   :domain 'color-picker
+   :key 'recent-colors
+   :default edraw-color-picker-recent-colors-default))
+
+(cl-defmethod edraw-get-recent-colors ((editor edraw-editor))
+  (edraw-get-recent-colors (oref editor ui-state)))
 
 ;;;;; Editor - User Settings
 
@@ -962,8 +994,8 @@ edraw-editor initialization is now called automatically."
   (edraw-property-editor-open
    target
    `((image-scale . ,edraw-editor-image-scaling-factor)
-     (recent-colors . ,(edraw-editor-recent-colors
-                        :ui-state (oref editor ui-state)))
+     (palette-colors . ,(edraw-get-palette-colors editor))
+     (recent-colors . ,(edraw-get-recent-colors editor))
      (marker-defaults . ,(oref editor default-marker-properties))
      (ui-state . ,(oref editor ui-state))
      )))
@@ -1706,8 +1738,8 @@ document size or view box."
                             ;;@todo suppress notification?
                             (edraw-set-background editor string))))
                     (:scale-direct . ,(oref editor image-scale))
-                    (:recent-colors . ,(edraw-editor-recent-colors
-                                        :ui-state (oref editor ui-state)))))
+                    (:palette-colors . ,(edraw-get-palette-colors editor))
+                    (:recent-colors . ,(edraw-get-recent-colors editor))))
                (edraw-set-background editor current-value)))))
      (list editor new-value)))
 
@@ -4511,8 +4543,8 @@ position where the EVENT occurred."
                       `((:color-name-scheme . web)
                         (:no-color . "none")
                         (:scale-direct . ,(oref editor image-scale))
-                        (:recent-colors . ,(edraw-editor-recent-colors
-                                            :ui-state (oref editor ui-state)))))))
+                        (:palette-colors . ,(edraw-get-palette-colors editor))
+                        (:recent-colors . ,(edraw-get-recent-colors editor))))))
       (edraw-set-selected-tool-default-shape-property
        editor prop-name new-value)
       (edraw-update-toolbar editor))))
@@ -6565,8 +6597,8 @@ This function is destructive: the list POINTS is modified."
                              (edraw-undo-all editor)
                              (edraw-set-property holder prop-name string))))
                      (:scale-direct . ,(oref editor image-scale))
-                     (:recent-colors . ,(edraw-editor-recent-colors
-                                         :ui-state (oref editor ui-state)))))
+                     (:palette-colors . ,(edraw-get-palette-colors editor))
+                     (:recent-colors . ,(edraw-get-recent-colors editor))))
                 ;; Restore value directly for HOLDER that don't support UNDO.
                 ;; edraw-property-proxy-shape does not support UNDO.
                 (edraw-undo-all editor)

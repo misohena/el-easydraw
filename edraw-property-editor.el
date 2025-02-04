@@ -1243,6 +1243,9 @@ as a string."
        ,@(when-let ((image-scale (alist-get 'image-scale options)))
            (list
             (cons :scale-direct image-scale)))
+       ,@(when-let ((palette-colors (alist-get 'palette-colors options)))
+           (list
+            (cons :palette-colors palette-colors)))
        ,@(when-let ((recent-colors (alist-get 'recent-colors options)))
            (list
             (cons :recent-colors recent-colors)))))))
@@ -1273,6 +1276,9 @@ as a string."
            ,@(when-let ((image-scale (alist-get 'image-scale options)))
                (list
                 (cons :scale-direct image-scale)))
+           ,@(when-let ((palette-colors (alist-get 'palette-colors options)))
+               (list
+                (cons :palette-colors palette-colors)))
            ,@(when-let ((recent-colors (alist-get 'recent-colors options)))
                (list
                 (cons :recent-colors recent-colors)))))

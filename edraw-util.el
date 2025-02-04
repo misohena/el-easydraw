@@ -593,6 +593,12 @@ returns nil."
 (defun edraw-list (&optional list)
   (edraw-list-construct :data (mapcar #'identity list)))
 
+(cl-defmethod edraw-as-list ((list edraw-list))
+  (edraw-list-data list))
+
+(cl-defmethod edraw-to-new-list ((list edraw-list))
+  (copy-sequence (edraw-list-data list)))
+
 (cl-defmethod edraw-assign ((list edraw-list) sequence)
   (setf (edraw-list-data list) (mapcar #'identity sequence))
   list)
@@ -609,10 +615,11 @@ returns nil."
 
 (cl-defmethod edraw-push-front ((list edraw-list) element)
   (push element (edraw-list-data list))
-  element)
+  list)
 
 (cl-defmethod edraw-pop-front ((list edraw-list))
-  (pop (edraw-list-data list)))
+  (pop (edraw-list-data list))
+  list)
 
 (cl-defmethod edraw-front ((list edraw-list))
   (car (edraw-list-data list)))
@@ -643,9 +650,163 @@ returns nil."
 (cl-defmethod edraw-nth ((list edraw-list) n)
   (nth n (edraw-list-data list)))
 
+(cl-defmethod edraw-set-nth ((list edraw-list) n value)
+  (setf (nth n (edraw-list-data list)) value)
+  list)
+
+
+;;;; List Wrapper
+
+(cl-defmethod edraw-assign ((_list list) sequence)
+  (mapcar #'identity sequence))
+
+(cl-defmethod edraw-as-list ((list list))
+  list)
+
+(cl-defmethod edraw-to-new-list ((list list))
+  (copy-sequence list))
+
+(cl-defmethod edraw-empty-p ((list list))
+  (null list))
+
+(cl-defmethod edraw-length ((list list))
+  (length list))
+
+(cl-defmethod edraw-nth ((list list) n)
+  (nth n list))
+
+(cl-defmethod edraw-front ((list list))
+  (car list))
+
+(cl-defmethod edraw-push-front ((list list) element)
+  (cons element list))
+
+(cl-defmethod edraw-set-nth ((list list) n value)
+  (setf (nth n list) value)
+  list)
 
 
 ;;;; Property List
+
+(defun edraw-plist-member (plist key &optional testfn)
+  "Scan every second element of PLIST and return the list after the element
+that matches KEY.
+Use TESTFN to match KEY and elements. If TESTFN is nil, use `eq'.
+
+This is an alternative to `plist-member' that accepts matching functions
+in Emacs27.
+Note: The PREDICATE argument of `plist-member' requires Emacs 29 or later."
+  (if (or (null testfn) (eq testfn #'eq))
+      (plist-member plist key)
+    (while (and plist
+                (not (funcall testfn (car plist) key)))
+      (setq plist (cddr plist)))
+    plist))
+
+(defun edraw-plist-get (plist key &optional testfn)
+  "Scan every second element of PLIST and return the element following the
+one that matches KEY.
+Use TESTFN to match KEY and elements. If TESTFN is nil, use `eq'.
+
+This is an alternative to `plist-get' that accepts matching functions in
+Emacs27.
+Note: The PREDICATE argument of `plist-get' requires Emacs 29 or later.
+
+`edraw-plist-get' is also a generalized variable."
+  (if (or (null testfn) (eq testfn #'eq))
+      (plist-get plist key)
+    (while (and plist
+                (not (funcall testfn (car plist) key)))
+      (setq plist (cddr plist)))
+    (cadr plist)))
+
+(gv-define-expander edraw-plist-get
+  (lambda (do plist prop &optional predicate)
+    (macroexp-let2 macroexp-copyable-p key prop
+      (gv-letplace (getter setter) plist
+        (macroexp-let2 nil p `(cdr (edraw-plist-member ,getter ,key ,predicate))
+          (funcall do
+                   `(car ,p)
+                   (lambda (val)
+                     `(if ,p
+                          (setcar ,p ,val)
+                        ,(funcall setter
+                                  `(cons ,key (cons ,val ,getter)))))))))))
+
+(defun edraw-plist-set! (plist key value &optional testfn)
+  "Set a property with KEY and VALUE in non-nil PLIST and return VALUE.
+If KEY already exists in PLIST, rewrite its value. If not, add a new
+property to the end of the PLIST.
+If PLIST is nil, signal an error.
+
+Use TESTFN to compare KEY. If TESTFN is nil, use `eq'.
+
+This function has the same effect as `plist-put' for non-nil plists in
+Emacs 29 or later, or `map-put!'.
+
+This function is used to indicate the intention to modify an
+existing (non-nil) plist while preserving the head of the plist."
+  (unless plist
+    (error "Cannot append property to nil"))
+  (if (or (null testfn) (eq testfn #'eq))
+      (plist-put plist key value)
+    (let ((p plist))
+      (while (cond
+              ((funcall testfn (car p) key)
+               (setcar (cdr p) value)
+               nil)
+              ((null (cddr p))
+               (setcdr (cdr p) (list key value))
+               nil)
+              (t
+               (setq p (cddr p)))))))
+  value)
+
+(defmacro edraw-plist-set (plist key value &optional testfn)
+  "Set a property with KEY and VALUE in PLIST and return VALUE.
+If KEY already exists in PLIST, rewrite its value. If not, add a new
+property to the beginning of the PLIST.
+
+Use TESTFN to compare KEY. If TESTFN is nil, use `eq'.
+
+PLIST is a generalized variable.
+This macro is equivalent to the following.
+  (setf (edraw-plist-get PLIST KEY TESTFN) VALUE)"
+  `(setf (edraw-plist-get ,plist ,key ,testfn) ,value))
+
+(defun edraw-plist--delete (plist key testfn)
+  "Used from `edraw-plist-delete'."
+  (if (or (null testfn) (eq testfn #'eq))
+      (progn
+        (while (and plist (eq (car plist) key))
+          (setq plist (cddr plist)))
+        (when plist
+          (let ((p (cdr plist)))
+            (while (cdr p)
+              (if (eq (cadr p) key)
+                  (setcdr p (cdddr p))
+                (setq p (cddr p)))))))
+    (progn
+      (while (and plist (funcall testfn (car plist) key))
+        (setq plist (cddr plist)))
+      (when plist
+        (let ((p (cdr plist)))
+          (while (cdr p)
+            (if (funcall testfn (cadr p) key)
+                (setcdr p (cdddr p))
+              (setq p (cddr p))))))))
+  plist)
+
+(defmacro edraw-plist-delete (plist key &optional testfn)
+  "Delete all properties named KEY from PLIST.
+Use TESTFN to compare KEY. If TESTFN is nil, use `eq'.
+PLIST is a generalized variable.
+
+The differences from `cl-remf' are:
+- Delete all matching properties.
+- TESTFN can be specified."
+  (gv-letplace (getter setter) plist
+    (funcall setter `(edraw-plist--delete ,getter ,key ,testfn))))
 
 (defun edraw-plist-take-while (plist pred)
   (cl-loop for (k v) on plist by #'cddr
@@ -790,6 +951,12 @@ A non-nil REMOVE-NIL means to remove properties whose keys or values ​​are n
 ;; TEST: (edraw-plist-mapconcat (lambda (k v) (format "%s=%s" k v)) '(a 1 b nil c 3 nil 4 e 5 nil nil g 7) ", " t) => "a=1, c=3, e=5, g=7"
 
 ;;;; Association List
+
+(defmacro edraw-alist-set (alist key value &optional testfn)
+  `(setf (alist-get ,key ,alist nil nil ,testfn) ,value))
+
+(defmacro edraw-alist-delete (alist key &optional testfn)
+  `(setf (alist-get ,key ,alist nil t ,testfn) nil))
 
 (defun edraw-alist-append (&rest alists)
   "Return a new alist by concatenating ALISTS and removing duplicates.
