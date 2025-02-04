@@ -2266,7 +2266,7 @@ correctly."
                 (hist-list (plist-get (cdr info) :hist-list))
                 (hist-pos (plist-get (cdr info) :hist-pos)))
       (edraw-color-picker--goto-history-color
-       (min (+ hist-pos n) (1- (length hist-list)))))))
+       (min (+ hist-pos n) (length hist-list))))))
 
 (defun edraw-color-picker--transient-map-next-history-color (n)
   (interactive "p")
