@@ -354,7 +354,8 @@
 (defun edraw-track-dragging (down-event on-move
                                         &optional on-up on-leave target
                                         allow-pointer-shape-change-p
-                                        allow-out-of-target-p)
+                                        allow-out-of-target-p
+                                        keep-echo-area)
   (if (not (memq 'down (event-modifiers down-event)))
       (error "down-event is not down event. %s" (event-modifiers down-event)))
   (let* ((down-basic-type (event-basic-type down-event))
@@ -365,10 +366,15 @@
         (setq track-mouse 'dragging))
       (let (result)
         (while (null result)
-          (let ((event (let (;; Suppress display of events
-                             ;; (e.g. down-mouse-1-) in echo area
-                             (echo-keystrokes 0))
-                         (read-event))))
+          (let ((event
+                 ;; Suppress display of events
+                 ;; (e.g. down-mouse-1-) in echo area
+                 (let ((echo-keystrokes 0))
+                   (if keep-echo-area
+                       (let ((old-message (current-message)))
+                         (prog1 (read-event)
+                           (edraw-echo old-message)))
+                     (read-event)))))
             (cond
              ;; Ignore switch-frame event
              ;; (For Ubuntu 22/Emacs 27.1, To allow dragging in child frames)
