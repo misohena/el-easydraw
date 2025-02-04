@@ -1316,6 +1316,8 @@
              (funcall updator))))
        nil nil nil nil
        ;; Allow out of image
+       t
+       ;; Keep echo area
        t)
       (when inside-p
         (pcase basic-type
@@ -2316,6 +2318,7 @@ The default keymap is `edraw-color-picker--transient-keymap'"
 
   (let ((picker (edraw-color-picker-open-with-transient-map
                  initial-color options)))
+    ;; OK
     (edraw-add-hook
      picker 'ok
      (lambda (&rest _)
@@ -2324,8 +2327,36 @@ The default keymap is `edraw-color-picker--transient-keymap'"
        ;; Insert
        (insert (edraw-color-picker-color-to-string
                 (edraw-get-current-color picker)
-                options)))))
+                options))))
+    ;; Echo current color
+    (edraw-add-hook picker 'color-change
+                    #'edraw-color-picker-echo-current-color))
   t)
+
+(defun edraw-color-picker-echo-current-color (picker)
+  ;; (edraw-color-picker-color-to-string c (edraw-options picker))
+  (let* ((c (edraw-get-current-color picker))
+         (r (edraw-color-r c)) (r8 (round (* r 255)))
+         (g (edraw-color-g c)) (g8 (round (* g 255)))
+         (b (edraw-color-b c)) (b8 (round (* b 255)))
+         (a (edraw-color-a c)) (a8 (round (* a 255)))
+         (h (edraw-hue c))
+         (s (edraw-saturation c))
+         (b (edraw-brightness c))
+         (rl (edraw-relative-luminance c)))
+    (edraw-echo-format
+     "\
+R:%5.1f%%(%3d,%02X), G:%5.1f%%(%3d,%02X), \
+B:%5.1f%%(%3d,%02X), A:%5.1f%%(%3d,%02X)
+H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
+     (* r 100) r8 r8
+     (* g 100) g8 g8
+     (* b 100) b8 b8
+     (* a 100) a8 a8
+     h
+     (* s 100)
+     (* b 100)
+     (* rl 100))))
 
 ;;;;; Replace Color
 
@@ -2375,7 +2406,10 @@ The default keymap is `edraw-color-picker--transient-keymap'"
            (delete-region beg end)
            (insert
             (edraw-color-picker-lookup-color-to-string
-             (edraw-get-current-color picker) format-index options))))))
+             (edraw-get-current-color picker) format-index options)))))
+      ;; Echo current color
+      (edraw-add-hook picker 'color-change
+                      #'edraw-color-picker-echo-current-color))
     t))
 
 ;;;;; Color Name Lookup From Buffer
