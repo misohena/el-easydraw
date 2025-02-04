@@ -786,7 +786,9 @@
                        (edraw-color-picker-2d-cursor
                         name
                         left top width height (car value) (cdr value)
-                        (> (edraw-luminance (edraw-get-current-color this)) 0.7)))))))
+                        (> (edraw-relative-luminance
+                            (edraw-get-current-color this))
+                           0.7)))))))
          (edraw-update-gradient this)
          node)))
    :get-current-color
@@ -826,7 +828,7 @@
        (let ((value (edraw-get-value this)))
          (edraw-color-picker-2d-cursor-move
           cursor left top width height (car value) (cdr value)
-          (> (edraw-luminance (edraw-get-current-color this)) 0.7)))))
+          (> (edraw-relative-luminance (edraw-get-current-color this)) 0.7)))))
    args))
 
 (defun edraw-color-picker-2d-cursor (name x y w h value-x value-y black-p)

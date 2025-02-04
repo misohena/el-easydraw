@@ -6262,7 +6262,8 @@ CLOSED: [2025-02-02 Sun 11:04]
 ** DONE 色/M-pやM-nで最近使った色にアクセスしたい
 CLOSED: [2025-02-02 Sun 14:28]
 ミニバッファと一時マップの場合を分けて考える必要がある。
-** TODO 色/カラーピッカーに固定のカラーパレットが欲しいかも？
+** DONE 色/カラーピッカーに固定のカラーパレットが欲しいかも？
+CLOSED: [2025-02-04 Tue 16:04]
 特定の色集合を保持し続けられるようなやつ。
 
 ファイルとの読み書きも出来ると良い。
@@ -6287,3 +6288,6 @@ CLOSED: [2025-02-02 Sun 14:28]
   - palette-modelとcolor-picker-modelはobservableにする
   - observableの中身のhooksをedraw-hookへ変更
   - observableのedraw-add-hookはedraw-add-change-hookへ変更
+** DONE edraw-luminanceをedraw-relative-luminanceへ改名する
+CLOSED: [2025-02-04 Tue 16:05]
+紛らわしいので。

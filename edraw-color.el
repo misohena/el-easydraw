@@ -121,7 +121,9 @@
   (with-slots (r g b) color
     (max r g b)))
 
-(cl-defmethod edraw-luminance ((color edraw-color))
+(cl-defmethod edraw-relative-luminance ((color edraw-color))
+  "Return the relative luminance of COLOR.
+See https://en.wikipedia.org/wiki/Relative_luminance"
   (with-slots (r g b) color
     (+ (* 0.2126 r) (* 0.7152 g) (* 0.0722 b))))
 
