@@ -2198,7 +2198,7 @@ correctly."
                   (edraw-color-picker--transient-map-keep-pred
                    ;; Pass the actual keymap to keep-pred
                    keymap)
-                  (progn (edraw-echo "%s" help) t)))
+                  (progn (edraw-echo help) t)))
            (lambda () ;; on-exit:
              ;; (message "Exit transient-map")
              (edraw-close picker)
@@ -2217,7 +2217,7 @@ correctly."
      :hist-list (edraw-color-picker-make-history-list options initial-color)
      :hist-pos 0)
 
-    (edraw-echo "%s" help)))
+    (edraw-echo help)))
 
 (defun edraw-color-picker--transient-map-keep-pred (keymap)
   (or
