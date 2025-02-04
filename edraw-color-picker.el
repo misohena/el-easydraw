@@ -159,6 +159,19 @@
 
 ;;;;; Color Picker Model
 
+;; Used to determine the hue when initial-color is achromatic.
+;; If it is calculated from the recent colors, it will not be recorded
+;; when canceled, so the hue last selected by the slider is recorded
+;; globally.
+(defvar edraw-color-picker--last-hue 0.0)
+
+(defun edraw-color-picker--color-hue (color)
+  (if (= (edraw-saturation color) 0)
+      ;; If saturation is 0, use the last used hue
+      edraw-color-picker--last-hue
+    (setq edraw-color-picker--last-hue ;; Update last used hue
+          (edraw-hue color))))
+
 (defclass edraw-color-picker-model (edraw-color-picker-observable)
   ((color-z)
    (color-xy)
@@ -197,7 +210,7 @@
       ;; Initialize slots
       (setq
        color-z (edraw-color-picker-observable-value
-                :value (/ (edraw-hue initial-color) 360.0))
+                :value (/ (edraw-color-picker--color-hue initial-color) 360.0))
        color-xy (edraw-color-picker-observable-value
                  :value (cons (edraw-saturation initial-color)
                               (edraw-brightness initial-color)))
@@ -232,7 +245,11 @@
 
       ;; Update model from color-z, color-xy, opacity
       (edraw-update-colors model)
-      (let ((update-colors (lambda () (edraw-update-colors model))))
+      (let ((update-colors
+             (lambda ()
+               (edraw-update-colors model)
+               (setq edraw-color-picker--last-hue
+                     (* 360.0 (edraw-get-value color-z))))))
         (edraw-add-change-hook color-z update-colors)
         (edraw-add-change-hook color-xy update-colors)
         (edraw-add-change-hook opacity update-colors))
@@ -245,7 +262,9 @@
              (lambda ()
                (let ((edraw-color-picker-model-suppress-change-hook t))
                  (let ((color (edraw-get-value color-rgba-setter)))
-                   (edraw-set-value color-z (/ (edraw-hue color) 360.0))
+                   (edraw-set-value color-z
+                                    (/ (edraw-color-picker--color-hue color)
+                                       360.0))
                    (edraw-set-value color-xy (cons
                                               (edraw-saturation color)
                                               (edraw-brightness color)))
