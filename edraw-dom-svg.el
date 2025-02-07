@@ -1263,7 +1263,7 @@ This function may change attributes for compatibility."
 (defun edraw-svg-read-from-file (path &optional accepts-top-level-comments-p)
   (edraw-svg-decode-svg
    (with-temp-buffer
-     (insert-file-contents path)
+     (edraw-insert-xml-file-contents path)
      (buffer-substring-no-properties (point-min) (point-max)))
    nil
    accepts-top-level-comments-p))

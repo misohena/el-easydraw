@@ -147,6 +147,24 @@
 (defun edraw-clipboard-data ()
   (cdr edraw-clipboard-type-data))
 
+;;;; File Coding Systems
+
+(defun edraw-insert-xml-file-contents (path)
+  "Insert the contents of the XML file into the buffer.
+
+PATH is the path to the XML file.
+
+UTF-8 is the preferred character encoding for the file.
+
+The encoding specified in the XML declaration is also taken into account
+by the `auto-coding-functions'."
+  ;; The default value of `auto-coding-functions' includes
+  ;; `sgml-xml-auto-coding-function', but set it just to be safe.
+  (let ((auto-coding-functions '(sgml-xml-auto-coding-function)))
+    ;; Prefer UTF-8 over the `coding-system-priority-list' setting.
+    (with-coding-priority '(utf-8)
+      (insert-file-contents path))))
+
 ;;;; gzip
 
 (defconst edraw-detect-coding-system-p nil)
@@ -867,7 +885,7 @@ If there are multiple KEYs, the first one is removed."
 
 (defun edraw-plist-remove-nil (plist)
   "Return a new property list from PLIST where all properties whose keys or
-values ​​are nil have been removed."
+values are nil have been removed."
   (cl-loop for (k v) on plist by #'cddr
            when (and k v)
            collect k and collect v))
@@ -942,7 +960,7 @@ SEPARATOR results in spaces between the values returned by FUNCTION.
 FUNCTION must be a function of two arguments (a key and a value), and
 must return a value that is a string.
 
-A non-nil REMOVE-NIL means to remove properties whose keys or values ​​are nil."
+A non-nil REMOVE-NIL means to remove properties whose keys or values are nil."
   (let ((result "")
         (p plist))
     (while (and (consp p) (consp (cdr p)))

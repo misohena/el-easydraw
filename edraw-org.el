@@ -564,7 +564,7 @@ the time `edraw-org-link-recover-mouse-face' is called."
         (insert data)
         (edraw-decode-buffer t))
        (file
-        (insert-file-contents file))))))
+        (edraw-insert-xml-file-contents file))))))
 
 (defun edraw-org-link-show-svg-at-point ()
   "Display the SVG data of the link at point."
@@ -641,7 +641,7 @@ Allowed values for TARGET-TYPE are:
          (error (edraw-msg "No need to convert")))
        (let ((new-data
               (with-temp-buffer
-                (insert-file-contents file)
+                (edraw-insert-xml-file-contents file)
                 (edraw-encode-buffer t edraw-org-link-compress-data-p)
                 (buffer-string))))
          (setf (alist-get "file" props nil t #'string=) nil)

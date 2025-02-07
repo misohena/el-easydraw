@@ -92,7 +92,7 @@
             (pop-to-buffer outbuf)
             (error "Error: %s" dvisvgm-cmd))
           (with-temp-buffer
-            (insert-file-contents svg-file)
+            (edraw-insert-xml-file-contents svg-file)
             (buffer-string)))
       (delete-file svg-file)
       (delete-file aux-file)

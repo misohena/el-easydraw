@@ -163,7 +163,7 @@ presentation attributes."
        (keyboard-quit))
      (edraw-import-svg-dom
       (with-temp-buffer
-        (insert-file-contents file)
+        (edraw-insert-xml-file-contents file)
         (edraw-import-svg-decode-buffer))))))
 
 (defun edraw-import-svg-decode-buffer ()
