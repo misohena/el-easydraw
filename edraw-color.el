@@ -59,29 +59,79 @@
    :b (float b)
    :a (float (or a 1.0))))
 
-(defun edraw-color-hsl (h-deg s l &optional a)
-  ;; https://drafts.csswg.org/css-color/#hsl-to-rgb
-  (let* ((h6 (mod (/ h-deg 60.0) 6.0))
-         (t2 (if (<= l 0.5)
-                 (* l (+ s 1))
-               (+ l s (- (* l s)))))
-         (t1 (- (* l 2) t2)))
-    (edraw-color
-     :r (float (edraw-color-hue6-to-rgb-level t1 t2 (+ h6 2)))
-     :g (float (edraw-color-hue6-to-rgb-level t1 t2 h6))
-     :b (float (edraw-color-hue6-to-rgb-level t1 t2 (- h6 2)))
-     :a (float (or a 1.0)))))
+(defun edraw-color-from-hsl (h s l &optional a)
+  "Create an edraw-color object from HSL color components.
 
-(defun edraw-color-hue6-to-rgb-level (t1 t2 hue)
-  ;; https://drafts.csswg.org/css-color/#hsl-to-rgb
-  (when (< hue 0) (setq hue (+ hue 6)))
-  (when (>= hue 6) (setq hue (- hue 6)))
+  H : Hue (degrees)
+  S : Saturation (0.0 to 1.0)
+  L : Lightness (0.0 to 1.0)
+  A : Opacity (0.0 to 1.0 : default 1.0)"
+  ;; Same as (color-hsl-to-rgb (/ h 360.0) s l)
+  (setq h (mod h 360.0)) ;; 0 <= h < 360
+  (let* ((c (- 1.0 (abs (* 2 (- l 0.5)))))
+         (sc (* s c))
+         (m (- l (* 0.5 sc))))
+    (edraw-color-f
+     (+ m (* sc (edraw-color-hue-red-level--no-mod h)))
+     (+ m (* sc (edraw-color-hue-red-level--no-mod (- h 120.0))))
+     (+ m (* sc (edraw-color-hue-red-level--no-mod (+ h 120.0))))
+     a)))
 
+(defun edraw-color-from-hsv (h s v &optional a)
+  "Create an edraw-color object from HSV (HSB) color components.
+
+  H : Hue (degrees)
+  S : Saturation (0.0 to 1.0)
+  V : Value/Brightness (0.0 to 1.0)
+  A : Opacity (0.0 to 1.0 : default 1.0)"
+  (setq h (mod h 360.0)) ;; 0 <= h < 360
+  (let* ((is (- 1.0 s))
+         (vis (* v is))
+         (vs (* v s)))
+    ;; v * ((1-s)*[1,1,1] + s*edraw-color-from-hue(h))
+    (edraw-color-f
+     (+ vis (* vs (edraw-color-hue-red-level--no-mod h)))
+     (+ vis (* vs (edraw-color-hue-red-level--no-mod (- h 120.0))))
+     (+ vis (* vs (edraw-color-hue-red-level--no-mod (+ h 120.0))))
+     a)))
+;; (edraw-to-string (edraw-color-from-hsv 0 0 0)) => "#000000"
+;; (edraw-to-string (edraw-color-from-hsv 0 1 1)) => "#ff0000"
+
+(defun edraw-color-from-hue (hue)
+  "Return the color corresponding to HUE (degrees)."
+  (setq hue (mod hue 360.0)) ;; 0 <= h < 360
+  (edraw-color-f
+   (edraw-color-hue-red-level--no-mod hue)
+   (edraw-color-hue-red-level--no-mod (- hue 120.0))
+   (edraw-color-hue-red-level--no-mod (+ hue 120.0))))
+;; TEST: (edraw-to-string (edraw-color-from-hue -60)) => "#ff00ff"
+;; TEST: (edraw-to-string (edraw-color-from-hue -30)) => "#ff0080"
+;; TEST: (edraw-to-string (edraw-color-from-hue 0)) => "#ff0000"
+;; TEST: (edraw-to-string (edraw-color-from-hue 30)) => "#ff8000"
+;; TEST: (edraw-to-string (edraw-color-from-hue 60)) => "#ffff00"
+;; TEST: (edraw-to-string (edraw-color-from-hue 120)) => "#00ff00"
+;; TEST: (edraw-to-string (edraw-color-from-hue 180)) => "#00ffff"
+;; TEST: (edraw-to-string (edraw-color-from-hue 240)) => "#0000ff"
+;; TEST: (edraw-to-string (edraw-color-from-hue 300)) => "#ff00ff"
+;; TEST: (edraw-to-string (edraw-color-from-hue 360)) => "#ff0000"
+
+(defun edraw-color-hue-red-level (hue)
+  "Return the intensity of red corresponding to HUE (degrees), between
+0.0 and 1.0."
+  (edraw-color-hue-red-level--no-mod (mod hue 360.0)))
+
+(defun edraw-color-hue-red-level--no-mod (hue)
+  "Return the intensity of red corresponding to HUE (degrees), between
+0.0 and 1.0.
+HUE must be between -180.0 and 540.0."
+  ;; -180+0 <= hue <= 360+180 to -180 <= hue <= 180
+  (when (> hue 180.0) (setq hue (- hue 360.0)))
+  (when (< hue 0.0) (setq hue (- hue))) ;; abs(hue)
+  ;; 0 <= hue <= 180
   (cond
-   ((< hue 1) (+ (* (- t2 t1) hue) t1))
-   ((< hue 3) t2)
-   ((< hue 4) (+ (* (- t2 t1) (- 4 hue)) t1))
-   (t t1)))
+   ((<= hue 60.0) 1.0)
+   ((< hue 120.0) (/ (- 120.0 hue) 60.0))
+   (t 0.0)))
 
 (defun edraw-color-equal-p (a b)
   (equal a b))

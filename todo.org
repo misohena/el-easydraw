@@ -6304,3 +6304,6 @@ with-coding-priorityという便利なマクロがあるので、これでUTF-8�
 XML宣言でencodingが指定されている場合は、auto-coding-functionsに設定されたsgml-xml-auto-coding-functionによってエンコーディングが解決される。念のためこれも強制する。
 
 edraw-insert-xml-file-contentsという関数を追加して、SVGファイルをバッファへ挿入するときは必ずこれを使うようにする。
+** DONE HSV(HSB)とHSLからRGBへ変換する関数を追加する
+CLOSED: [2025-02-07 Fri 22:12]
+HSLは今でもあるが、HSVからの変換と合わせて作り直す。
