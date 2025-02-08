@@ -136,6 +136,27 @@ HUE must be between -180.0 and 540.0."
 (defun edraw-color-equal-p (a b)
   (equal a b))
 
+(cl-defmethod edraw-change-r ((color edraw-color) r)
+  (edraw-color
+   :r (float r)
+   :g (oref color g)
+   :b (oref color b)
+   :a (oref color a)))
+
+(cl-defmethod edraw-change-g ((color edraw-color) g)
+  (edraw-color
+   :r (oref color r)
+   :g (float g)
+   :b (oref color b)
+   :a (oref color a)))
+
+(cl-defmethod edraw-change-b ((color edraw-color) b)
+  (edraw-color
+   :r (oref color r)
+   :g (oref color g)
+   :b (float b)
+   :a (oref color a)))
+
 (cl-defmethod edraw-change-a ((color edraw-color) a)
   (edraw-color
    :r (oref color r)

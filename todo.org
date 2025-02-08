@@ -884,6 +884,10 @@ rgbaはもはやrgbの別名。それにカンマでなく空白で区切って�
 形式を認識する関数が必要。
 
 ** TODO 色/HSL等の別の表色系に対応する
+** TODO 色/ミニバッファ入力時にキー割り当てヘルプが欲しい
+今のままだと機能に気がつけないので。
+
+[[*色/カラーピッカーをキーボードで操作したい][色/カラーピッカーをキーボードで操作したい]]
 ** TODO オブジェクトを一覧から選んで選択できるようにする
 ** TODO オブジェクトを一覧から選んでプロパティエディタを開けるようにする
 ** TODO ソース/defgenericをどうするか
@@ -6307,3 +6311,33 @@ edraw-insert-xml-file-contentsという関数を追加して、SVGファイル�
 ** DONE HSV(HSB)とHSLからRGBへ変換する関数を追加する
 CLOSED: [2025-02-07 Fri 22:12]
 HSLは今でもあるが、HSVからの変換と合わせて作り直す。
+** DONE 色/カラーピッカーをキーボードで操作したい
+CLOSED: [2025-02-08 Sat 14:41]
+- 矢印キーでXY平面(彩度・明るさ)の変更 (Shift+で大きく移動)
+  - edraw-color-picker-increment-x-1 (-2)
+  - edraw-color-picker-decrement-x-1 (-2)
+  - edraw-color-picker-increment-y-1 (-2)
+  - edraw-color-picker-decrement-y-1 (-2)
+- Ctrl+矢印キーでZ(色相)の変更 (Shift+で大きく移動)
+  - edraw-color-picker-increment-z-1 (-2)
+  - edraw-color-picker-decrement-z-1 (-2)
+- Meta+矢印キーで不透明度の変更 (Shift+で大きく移動)
+  - edraw-color-picker-increment-opacity-1 (-2)
+  - edraw-color-picker-decrement-opacity-1 (-2)
+- 値を入力して設定
+  - (C-c C-s) h : edraw-color-picker-set-color-hue
+  - (C-c C-s) s : edraw-color-picker-set-color-saturation
+  - (C-c C-s) v : edraw-color-picker-set-color-brightness
+  - (C-c C-s) r : edraw-color-picker-set-color-red
+  - (C-c C-s) g : edraw-color-picker-set-color-green
+  - (C-c C-s) b : edraw-color-picker-set-color-blue
+  - (C-c C-s) a : edraw-color-picker-set-opacity
+  - +(C-c C-s) L : edraw-color-picker-set-relative-luminunce+
+
+変化量はShift+は小さくして、通常は大きくすることも可能。
+
+ミニバッファから打つ場合は C-c C-s を付ける。本当は大文字のHでhueとかでも良いのかもしれない。色指定で大文字を打つことは無いだろうから。
+
+set-transient-map作動中にミニバッファから入力するのは無理なのでedraw-transient-mapを作ってそれを使うようにした。
+
+ミニバッファでカラーピッカーを出しているときにさらにミニバッファから値を入力するのも若干工夫が必要だった。

@@ -1044,6 +1044,113 @@ Cons cells contained in the ALIST are reused in the returned plist."
      ((floatp size) (round (* size (frame-pixel-height))))
      (t 1024))))
 
+;;;; Transient Map
+
+;; Example:
+;; (edraw-transient-map
+;;  (let ((km (make-sparse-keymap)))
+;;    (define-key km "a" (lambda () (interactive) (message "AAA")))
+;;    (define-key km "b" (lambda () (interactive) (message "BBB")))
+;;    (define-key km "c" (lambda ()
+;;                         (interactive)
+;;                         (message "%s" (read-string "Your Message: "))))
+;;    km)
+;;  t
+;;  (lambda () (message "Exit")))
+
+(defun edraw-transient-map (map &optional keep-pred on-exit message)
+  "This is an alternative to `set-transient-map'.
+
+Compared to set-transient-map, it has the following differences:
+
+- Buffer local
+- Minibuffer support (read-string, etc. can be used)
+- Provide `edraw-transient-map--this-command-in-map-p' for help
+  implement KEEP-PRED
+- Restrictions
+  - TIMEOUT argument not supported
+  - MESSAGE argument formatting method simplified"
+  ;; Derived from `set-transient-map' (Emacs 30.0.93)
+  (let* ((tr-map (let ((km (make-sparse-keymap)))
+                   (set-keymap-parent km map)
+                   km))
+         (target-buffer (current-buffer))
+         (target-mb-depth (minibuffer-depth))
+         (suspended nil)
+         (exited nil)
+         exitfun
+         (suspend-override
+          (lambda ()
+            (unless suspended
+              (set-keymap-parent tr-map (make-sparse-keymap))
+              (setq suspended t))))
+         (resume-override
+          (lambda ()
+            (when suspended
+              (set-keymap-parent tr-map map)
+              (setq suspended nil))))
+         (on-pre-command
+          (lambda ()
+            (with-demoted-errors "edraw-transient-map pre-command: %S"
+              (unless suspended
+                (if (edraw-transient-map--keep-p keep-pred map)
+                    (progn
+                      (funcall suspend-override)
+                      ;; Repeat the message for the next command.
+                      (when message (message "%s" message)))
+                  (funcall exitfun))))))
+         (on-post-command
+          (lambda ()
+            (with-demoted-errors "edraw-transient-map post-command: %S"
+              (when (and suspended
+                         ;; Same buffer
+                         (eq (current-buffer) target-buffer)
+                         ;; Not in minibuffer
+                         (<= (minibuffer-depth) target-mb-depth))
+                (funcall resume-override)))))
+         (setup
+          (lambda ()
+            (add-hook 'pre-command-hook on-pre-command)
+            (add-hook 'post-command-hook on-post-command)
+            (internal-push-keymap tr-map 'overriding-terminal-local-map)
+            (when message (message "%s" message))))
+         (teardown
+          (lambda ()
+            (unless exited
+              (internal-pop-keymap tr-map 'overriding-terminal-local-map)
+              (remove-hook 'post-command-hook on-post-command)
+              (remove-hook 'pre-command-hook on-pre-command)
+              (when message (message ""))
+              (setq exited t)
+              (when on-exit
+                (funcall on-exit))))))
+    (setq exitfun teardown)
+    (funcall setup)
+    ;; Return a function to exit the transient map
+    exitfun))
+
+(defun edraw-transient-map--keep-p (keep-pred transient-map)
+  (cond
+   ((null keep-pred) nil)
+   ((and (not (eq transient-map (cadr overriding-terminal-local-map)))
+         (memq transient-map (cddr overriding-terminal-local-map)))
+    t)
+   ((eq t keep-pred)
+    (edraw-transient-map--this-command-in-map-p transient-map))
+   (t (funcall keep-pred))))
+
+(defun edraw-transient-map--this-command-in-map-p (map)
+  ;; Derived from `set-transient-map' (Emacs 30.0.93)
+  (let ((mc (lookup-key map (this-command-keys-vector))))
+    ;; We may have a remapped command, so chase
+    ;; down that.
+    (when (and mc (symbolp mc))
+      (setq mc (or (command-remapping mc) mc)))
+    ;; If the key is unbound `this-command` is
+    ;; nil and so is `mc`.
+    (and mc (eq this-command mc))))
+
+
 ;;;; Misc
 
 (defun edraw-alist-get-as-number (key alist default)

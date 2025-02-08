@@ -194,6 +194,53 @@
                (not (edraw-color-equal-p color (edraw-get-value color-result))))
       (edraw-set-value color-rgba-setter color))))
 
+(cl-defmethod edraw-get-color-xy ((model edraw-color-picker-model))
+  (edraw-get-value (oref model color-xy)))
+
+(cl-defmethod edraw-set-color-xy ((model edraw-color-picker-model) xy)
+  (edraw-set-value (oref model color-xy)
+                   (cons
+                    (max 0.0 (min 1.0 (car xy)))
+                    (max 0.0 (min 1.0 (cdr xy))))))
+
+(cl-defmethod edraw-increase-color-xy ((model edraw-color-picker-model)
+                                       delta-xy)
+  (with-slots (color-xy) model
+    (let ((xy (edraw-get-value color-xy)))
+      (edraw-set-value (oref model color-xy)
+                       (cons
+                        (max 0.0 (min 1.0 (+ (car xy) (car delta-xy))))
+                        (max 0.0 (min 1.0 (+ (cdr xy) (cdr delta-xy)))))))))
+
+(cl-defmethod edraw-get-color-z ((model edraw-color-picker-model))
+  (edraw-get-value (oref model color-z)))
+
+(cl-defmethod edraw-set-color-z ((model edraw-color-picker-model) z)
+  (edraw-set-value (oref model color-z)
+                   (max 0.0 (min 1.0 z))))
+
+(cl-defmethod edraw-increase-color-z ((model edraw-color-picker-model)
+                                      delta-z)
+  (edraw-set-value
+   (oref model color-z)
+   (max 0.0 (min 1.0 (+ (edraw-get-value (oref model color-z))
+                        delta-z)))))
+
+(cl-defmethod edraw-get-opacity ((model edraw-color-picker-model))
+  (edraw-get-value (oref model opacity)))
+
+(cl-defmethod edraw-set-opacity ((model edraw-color-picker-model) opacity)
+  (edraw-set-value (oref model opacity)
+                   (max 0.0 (min 1.0 opacity))))
+
+(cl-defmethod edraw-increase-opacity ((model edraw-color-picker-model)
+                                      delta-opacity)
+  (edraw-set-value
+   (oref model opacity)
+   (max 0.0 (min 1.0 (+ (edraw-get-value (oref model opacity))
+                        delta-opacity)))))
+
+
 (defun edraw-color-picker-model-create (initial-color)
   (let ((model (edraw-color-picker-model)))
     (with-slots (color-z
@@ -1542,6 +1589,318 @@
 (cl-defmethod edraw-buffer ((picker edraw-color-picker))
   (edraw-buffer (oref picker display)))
 
+;;;;; Increase/Decrease Color Components
+
+(cl-defmethod edraw-increase-color-xy ((picker edraw-color-picker) xy)
+  (edraw-increase-color-xy (oref picker model) xy)
+  (edraw-update picker))
+
+(cl-defmethod edraw-increase-color-x ((picker edraw-color-picker) n)
+  (edraw-increase-color-xy (oref picker model) (cons n 0))
+  (edraw-update picker))
+
+(cl-defmethod edraw-increase-color-y ((picker edraw-color-picker) n)
+  (edraw-increase-color-xy (oref picker model) (cons 0 n))
+  (edraw-update picker))
+
+(cl-defmethod edraw-increase-color-z ((picker edraw-color-picker) n)
+  (edraw-increase-color-z (oref picker model) n)
+  (edraw-update picker))
+
+(cl-defmethod edraw-increase-opacity ((picker edraw-color-picker) n)
+  (edraw-increase-opacity (oref picker model) n)
+  (edraw-update picker))
+
+(defcustom edraw-color-picker-increase-color-amount-1 1
+  "The amount of change for the edraw-color-picker-increase-*-1 command.
+
+Normally *-1 is set to a small value and *-2 is set to a large value,
+but the reverse can also be done."
+  :group 'edraw-color-picker
+  :type 'number)
+
+(defcustom edraw-color-picker-increase-color-amount-2 16
+  "The amount of change for the edraw-color-picker-increase-*-2 command.
+
+Normally *-1 is set to a small value and *-2 is set to a large value,
+but the reverse can also be done."
+  :group 'edraw-color-picker
+  :type 'number)
+
+(defun edraw-color-picker-increase-color-x (n)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-increase-color-xy picker (cons (/ n 256.0) 0))))
+(defun edraw-color-picker-decrease-color-x (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-x (- n)))
+(defun edraw-color-picker-increase-color-x-1 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-x
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-decrease-color-x-1 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-color-x
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-increase-color-x-2 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-x
+   (* n edraw-color-picker-increase-color-amount-2)))
+(defun edraw-color-picker-decrease-color-x-2 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-color-x
+   (* n edraw-color-picker-increase-color-amount-2)))
+
+(defun edraw-color-picker-increase-color-y (n)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-increase-color-xy picker (cons 0 (/ n 256.0)))))
+(defun edraw-color-picker-decrease-color-y (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-y (- n)))
+(defun edraw-color-picker-increase-color-y-1 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-y
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-decrease-color-y-1 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-color-y
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-increase-color-y-2 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-y
+   (* n edraw-color-picker-increase-color-amount-2)))
+(defun edraw-color-picker-decrease-color-y-2 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-color-y
+   (* n edraw-color-picker-increase-color-amount-2)))
+
+(defun edraw-color-picker-increase-color-z (n)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-increase-color-z picker (/ n 256.0))))
+(defun edraw-color-picker-decrease-color-z (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-z (- n)))
+(defun edraw-color-picker-increase-color-z-1 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-z
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-decrease-color-z-1 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-color-z
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-increase-color-z-2 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-color-z
+   (* n edraw-color-picker-increase-color-amount-2)))
+(defun edraw-color-picker-decrease-color-z-2 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-color-z
+   (* n edraw-color-picker-increase-color-amount-2)))
+
+(defun edraw-color-picker-increase-opacity (n)
+  (interactive "p")
+  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+    (edraw-increase-opacity picker (/ n 256.0))))
+(defun edraw-color-picker-decrease-opacity (n)
+  (interactive "p")
+  (edraw-color-picker-increase-opacity (- n)))
+(defun edraw-color-picker-increase-opacity-1 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-opacity
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-decrease-opacity-1 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-opacity
+   (* n edraw-color-picker-increase-color-amount-1)))
+(defun edraw-color-picker-increase-opacity-2 (n)
+  (interactive "p")
+  (edraw-color-picker-increase-opacity
+   (* n edraw-color-picker-increase-color-amount-2)))
+(defun edraw-color-picker-decrease-opacity-2 (n)
+  (interactive "p")
+  (edraw-color-picker-decrease-opacity
+   (* n edraw-color-picker-increase-color-amount-2)))
+
+(defun edraw-color-picker-define-keys-for-color-move (km)
+  (define-key km [right] #'edraw-color-picker-increase-color-x-1)
+  (define-key km [left] #'edraw-color-picker-decrease-color-x-1)
+  (define-key km [up] #'edraw-color-picker-increase-color-y-1)
+  (define-key km [down] #'edraw-color-picker-decrease-color-y-1)
+  (define-key km [C-right] #'ignore)
+  (define-key km [C-left] #'ignore)
+  (define-key km [C-up] #'edraw-color-picker-increase-color-z-1)
+  (define-key km [C-down] #'edraw-color-picker-decrease-color-z-1)
+  (define-key km [M-right] #'ignore)
+  (define-key km [M-left] #'ignore)
+  (define-key km [M-up] #'edraw-color-picker-increase-opacity-1)
+  (define-key km [M-down] #'edraw-color-picker-decrease-opacity-1)
+  (define-key km [S-right] #'edraw-color-picker-increase-color-x-2)
+  (define-key km [S-left] #'edraw-color-picker-decrease-color-x-2)
+  (define-key km [S-up] #'edraw-color-picker-increase-color-y-2)
+  (define-key km [S-down] #'edraw-color-picker-decrease-color-y-2)
+  (define-key km [S-C-right] #'ignore)
+  (define-key km [S-C-left] #'ignore)
+  (define-key km [S-C-up] #'edraw-color-picker-increase-color-z-2)
+  (define-key km [S-C-down] #'edraw-color-picker-decrease-color-z-2)
+  (define-key km [S-M-right] #'ignore)
+  (define-key km [S-M-left] #'ignore)
+  (define-key km [S-M-up] #'edraw-color-picker-increase-opacity-2)
+  (define-key km [S-M-down] #'edraw-color-picker-decrease-opacity-2))
+
+;;;;; Set/Get Color Component
+
+(cl-defmethod edraw-get-color-xy ((picker edraw-color-picker))
+  (edraw-get-color-xy (oref picker model)))
+
+(cl-defmethod edraw-get-color-z ((picker edraw-color-picker))
+  (edraw-get-color-z (oref picker model)))
+
+(cl-defmethod edraw-get-opacity ((picker edraw-color-picker))
+  (edraw-get-opacity (oref picker model)))
+
+
+(cl-defmethod edraw-set-color-xy ((picker edraw-color-picker) xy)
+  (edraw-set-color-xy (oref picker model) xy)
+  (edraw-update picker))
+
+(cl-defmethod edraw-set-color-z ((picker edraw-color-picker) z)
+  (edraw-set-color-z (oref picker model) z)
+  (edraw-update picker))
+
+(cl-defmethod edraw-set-opacity ((picker edraw-color-picker) opacity)
+  (edraw-set-opacity (oref picker model) opacity)
+  (edraw-update picker))
+
+
+(cl-defmethod edraw-get-color-hue ((picker edraw-color-picker))
+  (* (edraw-get-color-z picker) 360.0))
+
+(cl-defmethod edraw-get-color-saturation ((picker edraw-color-picker))
+  (car (edraw-get-color-xy picker)))
+
+(cl-defmethod edraw-get-color-brightness ((picker edraw-color-picker))
+  (cdr (edraw-get-color-xy picker)))
+
+
+(cl-defmethod edraw-set-color-hue ((picker edraw-color-picker) hue)
+  (edraw-set-color-z picker (/ (mod hue 360.0) 360.0)))
+
+(cl-defmethod edraw-set-color-saturation ((picker edraw-color-picker)
+                                          saturation)
+  (let ((xy (edraw-get-color-xy picker)))
+    (edraw-set-color-xy picker (cons saturation (cdr xy)))))
+
+(cl-defmethod edraw-set-color-brightness ((picker edraw-color-picker)
+                                          brightness)
+  (let ((xy (edraw-get-color-xy picker)))
+    (edraw-set-color-xy picker (cons (car xy) brightness))))
+
+
+(defun edraw-color-picker-set-color-hue (picker hue)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (hue (edraw-get-color-hue picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Hue[deg]: ") hue)))))
+  (edraw-set-color-hue picker hue))
+
+(defun edraw-color-picker-set-color-saturation (picker saturation)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (saturation (edraw-get-color-saturation picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Saturation[0.0~1.0]: ") saturation)))))
+  (edraw-set-color-saturation picker saturation))
+
+(defun edraw-color-picker-set-color-brightness (picker brightness)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (brightness (edraw-get-color-brightness picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Brightness[0.0~1.0]: ") brightness)))))
+  (edraw-set-color-brightness picker brightness))
+
+(defun edraw-color-picker-set-opacity (picker opacity)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (opacity (edraw-get-opacity picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Opacity[0.0~1.0]: ") opacity)))))
+  (edraw-set-opacity picker opacity))
+
+(defun edraw-color-picker-set-color-red (picker value)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (color (edraw-get-current-color picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Red[0~255|0.0~1.0]: ")
+                     (edraw-color-r color))))))
+  (edraw-set-current-color
+   picker
+   (edraw-change-r (edraw-get-current-color picker)
+                   (if (integerp value)
+                       (/ value 255.0)
+                     value))))
+
+(defun edraw-color-picker-set-color-green (picker value)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (color (edraw-get-current-color picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Green[0~255|0.0~1.0]: ")
+                     (edraw-color-g color))))))
+  (edraw-set-current-color
+   picker
+   (edraw-change-g (edraw-get-current-color picker)
+                   (if (integerp value)
+                       (/ value 255.0)
+                     value))))
+
+(defun edraw-color-picker-set-color-blue (picker value)
+  (interactive
+   (let* ((picker (edraw-color-picker-at-input-or-error last-command-event))
+          (color (edraw-get-current-color picker)))
+     (list
+      picker
+      (let ((enable-recursive-minibuffers t))
+        (read-number (edraw-msg "Blue[0~255|0.0~1.0]: ")
+                     (edraw-color-b color))))))
+  (edraw-set-current-color
+   picker
+   (edraw-change-b (edraw-get-current-color picker)
+                   (if (integerp value)
+                       (/ value 255.0)
+                     value))))
+
+
+(defun edraw-color-picker-define-keys-for-color-set (km &optional prefix)
+  (when prefix
+    (let ((prefix-km (make-sparse-keymap)))
+      (define-key km (kbd prefix) (cons "Set Color Component" prefix-km))
+      (setq km prefix-km)))
+  (define-key km (kbd "h") '("Hue" . edraw-color-picker-set-color-hue))
+  (define-key km (kbd "s") '("Saturation" . edraw-color-picker-set-color-saturation))
+  (define-key km (kbd "v") '("Value(Brightness)" . edraw-color-picker-set-color-brightness))
+  (define-key km (kbd "r") '("Red" . edraw-color-picker-set-color-red))
+  (define-key km (kbd "g") '("Green" . edraw-color-picker-set-color-green))
+  (define-key km (kbd "b") '("Blue" . edraw-color-picker-set-color-blue))
+  (define-key km (kbd "a") '("Opacity" . edraw-color-picker-set-opacity))
+  (define-key km (kbd "o") '("Opacity" . edraw-color-picker-set-opacity)))
+
 ;;;;; Palette
 
 ;;;;;; Palette
@@ -1605,6 +1964,10 @@
 
 ;;;; Color Picker Search
 
+(defun edraw-color-picker-at-input-or-error (event)
+  (or (edraw-color-picker-at-input event)
+      (error "No color picker detected")))
+
 (defun edraw-color-picker-at-input (event)
   (if (or (mouse-event-p event)
           (memq (event-basic-type event)
@@ -1627,6 +1990,8 @@
            (funcall edraw-color-picker-finder pos))
       ;; for overlay display
       (edraw-color-picker-overlaid-at pos)
+      (and (> pos (point-min))
+           (edraw-color-picker-overlaid-at (1- pos)))
       ;;@todo search text property?
       ))
 
@@ -1656,6 +2021,8 @@
     (define-key km [triple-mouse-1] 'ignore)
     (define-key km [triple-mouse-3] 'ignore)
     (edraw-color-picker-define-keys-for-palette-colors km)
+    (edraw-color-picker-define-keys-for-color-move km)
+    (edraw-color-picker-define-keys-for-color-set km)
     km))
 
 (defun edraw-color-picker-overlay
@@ -2168,6 +2535,8 @@ OVERLAY uses the display property to display the color PICKER."
     (define-key km (kbd "M-p") #'edraw-color-picker--transient-map-previous-history-color)
     (define-key km (kbd "M-n") #'edraw-color-picker--transient-map-next-history-color)
     (edraw-color-picker-define-keys-for-palette-colors km)
+    (edraw-color-picker-define-keys-for-color-move km)
+    (edraw-color-picker-define-keys-for-color-set km)
     km))
 
 (defvar edraw-color-picker--transient-map-info nil
@@ -2204,7 +2573,18 @@ correctly."
  \\<edraw-color-picker--transient-keymap>\
  \\[edraw-color-picker--transient-map-click-ok]:OK\
   \\[edraw-color-picker--transient-map-previous-history-color]\
-/\\[edraw-color-picker--transient-map-next-history-color]:Recent Color")
+/\\[edraw-color-picker--transient-map-next-history-color]:Recent Color
+\\[edraw-color-picker-set-color-hue]:Hue\
+ \\[edraw-color-picker-set-color-saturation]:Saturation\
+ \\[edraw-color-picker-set-color-brightness]:Value\
+ \\[edraw-color-picker-set-color-red]:R\
+ \\[edraw-color-picker-set-color-green]:G\
+ \\[edraw-color-picker-set-color-blue]:B\
+ \\[edraw-color-picker-set-opacity]:A
+\\[edraw-color-picker-increase-color-x-1]:X\
+ \\[edraw-color-picker-increase-color-y-1]:Y\
+ \\[edraw-color-picker-increase-color-z-1]:Z\
+ \\[edraw-color-picker-increase-opacity-1]:A")
 
 (defun edraw-color-picker--set-transient-map (picker
                                               keymap options initial-color)
@@ -2212,7 +2592,7 @@ correctly."
               #'edraw-color-picker--transient-map-current-picker)
   (let* ((help (substitute-command-keys edraw-color-picker--transient-map-help))
          (exit-transient-map-fun
-          (set-transient-map
+          (edraw-transient-map
            keymap
            (lambda () ;; keep-pred:
              (and (not (edraw-closed-p picker))
@@ -2247,15 +2627,7 @@ correctly."
            handle-switch-frame
            edraw-color-picker-on-down-mouse
            ignore))
-   ;; Check this-command is in KEYMAP
-   ;; See `set-transient-map' function
-   (let ((mc (lookup-key
-              keymap ;;edraw-color-picker-map
-              (this-command-keys-vector))))
-     (when mc
-       ;; Consider remapping
-       (setq mc (or (and (symbolp mc) (command-remapping mc)) mc))
-       (eq this-command mc)))))
+   (edraw-transient-map--this-command-in-map-p keymap)))
 
 (defun edraw-color-picker--transient-map-click-ok ()
   (interactive)
@@ -2359,9 +2731,9 @@ The default keymap is `edraw-color-picker--transient-keymap'"
          (g (edraw-color-g c)) (g8 (round (* g 255)))
          (b (edraw-color-b c)) (b8 (round (* b 255)))
          (a (edraw-color-a c)) (a8 (round (* a 255)))
-         (hue (edraw-hue c))
-         (sat (edraw-saturation c))
-         (bri (edraw-brightness c))
+         (hue (edraw-get-color-hue picker))
+         (sat (edraw-get-color-saturation picker))
+         (bri (edraw-get-color-brightness picker))
          (rl (edraw-relative-luminance c)))
     (edraw-echo-format
      "\
@@ -2516,9 +2888,12 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                    '(:transient-keymap-var
                      . edraw-color-picker-minibuffer-mode-map)
                    options)))
+         (setup-p nil)
          (on-minibuffer-setup
           (lambda ()
-            (edraw-color-picker-minibuffer--on-minibuffer-setup picker)))
+            (unless setup-p
+              (setq setup-p t)
+              (edraw-color-picker-minibuffer--on-minibuffer-setup picker))))
          (minibuffer-setup-hook (cons on-minibuffer-setup
                                       minibuffer-setup-hook))
          (edraw-color-picker-read-color--history
@@ -2587,6 +2962,8 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
   "Defines keybindings for the color picker in the minibuffer."
   :keymap (let ((km (make-sparse-keymap)))
             (edraw-color-picker-define-keys-for-palette-colors km)
+            (edraw-color-picker-define-keys-for-color-move km)
+            (edraw-color-picker-define-keys-for-color-set km "C-c C-s")
             km))
 
 (defun edraw-color-picker-minibuffer--on-minibuffer-setup (picker)
