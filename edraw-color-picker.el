@@ -2694,7 +2694,24 @@ The default keymap is `edraw-color-picker--transient-keymap'"
     picker))
 
 
-;;;;; Insert Color
+;;;;; Insert / Replace Color
+
+(defcustom edraw-color-picker-replace-immediately t
+  "Non-nil means that color changes are reflected in the buffer immediately."
+  :group 'edraw-color-picker
+  :type 'boolean)
+
+(defcustom edraw-color-picker-replace-control-undo t
+  "Non-nil means that color replacement commands are allowed to rewrite the
+undo list."
+  :group 'edraw-color-picker
+  :type 'boolean)
+
+(defface edraw-color-picker-field
+  '((t :underline t))
+  "The face applied to the currently edited region."
+  :group 'edraw-color-picker
+  :group 'edraw-faces)
 
 (defvar edraw-color-picker-insert-default-color-scheme 'web)
 
@@ -2707,49 +2724,11 @@ The default keymap is `edraw-color-picker--transient-keymap'"
     (setf (alist-get :color-name-scheme options)
           edraw-color-picker-insert-default-color-scheme))
 
-  (let ((picker (edraw-color-picker-open-with-transient-map
-                 initial-color options)))
-    ;; OK
-    (edraw-add-hook
-     picker 'ok
-     (lambda (&rest _)
-       ;; Close first
-       (edraw-close picker)
-       ;; Insert
-       (insert (edraw-color-picker-color-to-string
-                (edraw-get-current-color picker)
-                options))))
-    ;; Echo current color
-    (edraw-add-hook picker 'color-change
-                    #'edraw-color-picker-echo-current-color))
+  (edraw-color-picker-replace-color-region (point) (point)
+                                           initial-color
+                                           options
+                                           nil)
   t)
-
-(defun edraw-color-picker-echo-current-color (picker)
-  ;; (edraw-color-picker-color-to-string c (edraw-options picker))
-  (let* ((c (edraw-get-current-color picker))
-         (r (edraw-color-r c)) (r8 (round (* r 255)))
-         (g (edraw-color-g c)) (g8 (round (* g 255)))
-         (b (edraw-color-b c)) (b8 (round (* b 255)))
-         (a (edraw-color-a c)) (a8 (round (* a 255)))
-         (hue (edraw-get-color-hue picker))
-         (sat (edraw-get-color-saturation picker))
-         (bri (edraw-get-color-brightness picker))
-         (rl (edraw-relative-luminance c)))
-    (edraw-echo-format
-     "\
-R:%5.1f%%(%3d,%02X), G:%5.1f%%(%3d,%02X), \
-B:%5.1f%%(%3d,%02X), A:%5.1f%%(%3d,%02X)
-H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
-     (* r 100) r8 r8
-     (* g 100) g8 g8
-     (* b 100) b8 b8
-     (* a 100) a8 a8
-     hue
-     (* sat 100)
-     (* bri 100)
-     (* rl 100))))
-
-;;;;; Replace Color
 
 ;;;###autoload
 (defun edraw-color-picker-replace-or-insert-color-at-point (&optional options)
@@ -2779,29 +2758,172 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
              (end (nth 1 match-result))
              ;; Index of `edraw-color-string-patterns'
              (format-index (nth 2 match-result)))
-    ;; Open color picker near the point
     (let* ((str (buffer-substring-no-properties beg end))
-           (initial-color (edraw-color-picker-color-from-string str options))
-           (picker (edraw-color-picker-open-with-transient-map
-                    initial-color options)))
-      ;; OK
-      (edraw-add-hook
-       picker 'ok
-       (lambda (&rest _)
-         ;; Close first
-         (edraw-close picker)
-         ;; Replace color string as same format
-         (save-excursion
-           ;;@todo Use marker?
-           (goto-char beg)
-           (delete-region beg end)
-           (insert
-            (edraw-color-picker-lookup-color-to-string
-             (edraw-get-current-color picker) format-index options)))))
-      ;; Echo current color
-      (edraw-add-hook picker 'color-change
-                      #'edraw-color-picker-echo-current-color))
+           (initial-color (edraw-color-picker-color-from-string str options)))
+      (edraw-color-picker-replace-color-region beg end
+                                               initial-color
+                                               options
+                                               format-index))
     t))
+
+(defun edraw-color-picker-replace-color-region (beg
+                                                end
+                                                initial-color
+                                                options
+                                                format-index)
+  ;; Open color picker near the point
+  (let ((picker (edraw-color-picker-open-with-transient-map
+                 initial-color options))
+        (initial-text (buffer-substring-no-properties beg end))
+        (overlay (make-overlay beg end nil nil t))
+        (last-undo-list-head buffer-undo-list))
+    (overlay-put overlay 'field 'edraw-color-picker-field)
+    (overlay-put overlay 'face 'edraw-color-picker-field)
+    ;; On OK
+    (edraw-add-hook
+     picker 'ok
+     (lambda (&rest _)
+       ;; Close first
+       (edraw-close picker)
+       ;; Replace color string as same format
+       (setq last-undo-list-head
+             (edraw-color-picker--replace-overlay-with-color
+              overlay picker format-index options
+              last-undo-list-head))))
+    ;; On Closed
+    (edraw-add-hook
+     picker 'closed
+     (lambda (&rest _)
+       (delete-overlay overlay)))
+    ;; Echo current color
+    (edraw-add-hook picker 'color-change
+                    #'edraw-color-picker-echo-current-color)
+    ;; Immediate replacement
+    (when edraw-color-picker-replace-immediately
+      ;; Preview
+      (edraw-add-hook
+       picker
+       'color-change
+       (lambda (picker)
+         (setq last-undo-list-head
+               (edraw-color-picker--replace-overlay-with-color
+                overlay picker format-index options
+                last-undo-list-head))))
+      ;; Revert
+      (edraw-add-hook
+       picker 'cancel
+       (lambda (&rest _)
+         (setq last-undo-list-head
+               (edraw-color-picker--replace-overlay-with-text
+                overlay initial-text
+                last-undo-list-head)))))))
+
+(defun edraw-color-picker--replace-overlay-with-color (overlay
+                                                       picker
+                                                       format-index options
+                                                       last-undo-list-head)
+  (edraw-color-picker--replace-overlay-with-text
+   overlay
+   (edraw-color-picker-lookup-color-to-string
+    (edraw-get-current-color picker) format-index options)
+   last-undo-list-head))
+
+(defun edraw-color-picker--replace-overlay-with-text (overlay
+                                                      text
+                                                      last-undo-list-head)
+  (setq last-undo-list-head
+        (edraw-color-picker--undo-if-possible last-undo-list-head overlay))
+  (when (overlay-buffer overlay)
+    (with-current-buffer (overlay-buffer overlay)
+      (let ((beg (overlay-start overlay))
+            (end (overlay-end overlay)))
+        (unless (equal (buffer-substring-no-properties beg end)
+                       text)
+          (save-excursion
+            (goto-char beg)
+            (delete-region beg end)
+            (insert text))))))
+  last-undo-list-head)
+
+(defun edraw-color-picker--undo-if-possible (last-undo-list-head overlay)
+  (when (and edraw-color-picker-replace-control-undo
+             (overlay-buffer overlay))
+    ;; Ensure current buffer is target buffer, not picker buffer
+    (with-current-buffer (overlay-buffer overlay)
+      (let ((beg (overlay-start overlay))
+            (end (overlay-end overlay))
+            (p buffer-undo-list)
+            (count 0))
+        ;; Count to LAST-UNDO-LIST-HEAD
+        (while (and p
+                    (not (eq p last-undo-list-head))
+                    (let ((elt (car p)))
+                      (or
+                       ;; Boundary
+                       (null elt)
+                       ;; Move
+                       (integerp elt)
+                       ;; (BEG . END)
+                       (and (consp elt)
+                            (eql (car elt) beg)
+                            (eql (cdr elt) end))
+                       ;; (text . BEG)
+                       (and (consp elt)
+                            (stringp (car elt))
+                            (eql (abs (cdr elt)) beg))
+                       ;; (marker . adjustment)
+                       (and (consp elt)
+                            (markerp (car elt)))
+                       ;; (nil property value beg . end)
+                       (and (consp elt)
+                            (null (car elt))
+                            (symbolp (car-safe (cdr elt))))
+                       ;; (t . time-flag)
+                       (and (consp elt)
+                            (eq (car elt) t)))))
+          (setq p (cdr p)
+                count (1+ count)))
+        ;;(message "Count=%s eq=%s reachend=%s lastelt=%s" count (eq p last-undo-list-head) (null p) (car p))
+        ;; If unreachable, count is 0
+        (unless (eq p last-undo-list-head)
+          (setq count 0))
+        ;; Undo
+        (when (> count 0)
+          (save-restriction
+	    (widen)
+            (save-excursion
+              (let* ((buffer-undo-list (seq-take buffer-undo-list count))
+                     (pending-undo-list buffer-undo-list))
+                (undo-more count))))
+          (setq buffer-undo-list last-undo-list-head)))
+      ;; Return next last-undo-list-head (target buffer's undo-list)
+      buffer-undo-list)))
+
+
+(defun edraw-color-picker-echo-current-color (picker)
+  ;; (edraw-color-picker-color-to-string c (edraw-options picker))
+  (let* ((c (edraw-get-current-color picker))
+         (r (edraw-color-r c)) (r8 (round (* r 255)))
+         (g (edraw-color-g c)) (g8 (round (* g 255)))
+         (b (edraw-color-b c)) (b8 (round (* b 255)))
+         (a (edraw-color-a c)) (a8 (round (* a 255)))
+         (hue (edraw-get-color-hue picker))
+         (sat (edraw-get-color-saturation picker))
+         (bri (edraw-get-color-brightness picker))
+         (rl (edraw-relative-luminance c)))
+    (edraw-echo-format
+     "\
+R:%5.1f%%(%3d,%02X), G:%5.1f%%(%3d,%02X), \
+B:%5.1f%%(%3d,%02X), A:%5.1f%%(%3d,%02X)
+H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
+     (* r 100) r8 r8
+     (* g 100) g8 g8
+     (* b 100) b8 b8
+     (* a 100) a8 a8
+     hue
+     (* sat 100)
+     (* bri 100)
+     (* rl 100))))
 
 ;;;;; Color Name Lookup From Buffer
 
@@ -2849,7 +2971,8 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
 (defun edraw-color-picker-lookup-color-to-string (color format-index options)
   (or
    ;; last index
-   (when (= format-index (length edraw-color-string-patterns))
+   (when (or (null format-index)
+             (= format-index (length edraw-color-string-patterns)))
      (or
       (pcase (alist-get :color-name-scheme options)
         ('web (edraw-to-string-web-keyword color))
