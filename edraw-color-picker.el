@@ -294,8 +294,8 @@
                                  (edraw-color-f 0 0 0 0))))
        opacity-v-colors (edraw-color-picker-observable-value
                          :value
-                         (list (edraw-change-a color-2 0)
-                               (edraw-change-a color-2 1))))
+                         (list (edraw-replace-a color-2 0)
+                               (edraw-replace-a color-2 1))))
 
       ;; Update model from color-z, color-xy, opacity
       (edraw-update-colors model)
@@ -354,13 +354,13 @@
                    (cdr (edraw-get-value color2d-hv-colors))))
 
     (setf (elt (edraw-get-value opacity-v-colors) 0)
-          (edraw-change-a color-2 0.0))
+          (edraw-replace-a color-2 0.0))
     (setf (elt (edraw-get-value opacity-v-colors) 1)
-          (edraw-change-a color-2 1.0))
+          (edraw-replace-a color-2 1.0))
     (edraw-notify-change opacity-v-colors)
 
     (edraw-set-value color-result
-                     (edraw-change-a color-2 (edraw-get-value opacity)))
+                     (edraw-replace-a color-2 (edraw-get-value opacity)))
 
     ;; (let ((message-log-max nil))
     ;;   (message "%s" (edraw-to-string (edraw-get-value color-result))))
@@ -619,7 +619,7 @@
    (seq-map-indexed
     (lambda (color index)
       (dom-node 'stop
-                `((stop-color . ,(edraw-to-string (edraw-change-a color 1.0)))
+                `((stop-color . ,(edraw-to-string (edraw-replace-a color 1.0)))
                   (stop-opacity . ,(edraw-color-a color))
                   (offset . ,(/ (float index) (1- (length colors)))))))
     colors)))
@@ -1856,10 +1856,10 @@ but the reverse can also be done."
                      (edraw-color-r color))))))
   (edraw-set-current-color
    picker
-   (edraw-change-r (edraw-get-current-color picker)
-                   (if (integerp value)
-                       (/ value 255.0)
-                     value))))
+   (edraw-replace-r (edraw-get-current-color picker)
+                    (if (integerp value)
+                        (/ value 255.0)
+                      value))))
 
 (defun edraw-color-picker-set-color-green (picker value)
   (interactive
@@ -1872,10 +1872,10 @@ but the reverse can also be done."
                      (edraw-color-g color))))))
   (edraw-set-current-color
    picker
-   (edraw-change-g (edraw-get-current-color picker)
-                   (if (integerp value)
-                       (/ value 255.0)
-                     value))))
+   (edraw-replace-g (edraw-get-current-color picker)
+                    (if (integerp value)
+                        (/ value 255.0)
+                      value))))
 
 (defun edraw-color-picker-set-color-blue (picker value)
   (interactive
@@ -1888,10 +1888,10 @@ but the reverse can also be done."
                      (edraw-color-b color))))))
   (edraw-set-current-color
    picker
-   (edraw-change-b (edraw-get-current-color picker)
-                   (if (integerp value)
-                       (/ value 255.0)
-                     value))))
+   (edraw-replace-b (edraw-get-current-color picker)
+                    (if (integerp value)
+                        (/ value 255.0)
+                      value))))
 
 
 (defun edraw-color-picker-define-keys-for-color-set (km &optional prefix)
@@ -3207,7 +3207,7 @@ Valid OPTIONS are:
          (alist-get :color-float-format options 4))
         (color (if (alist-get :enable-opacity options t)
                    color
-                 (edraw-change-a color 1.0))))
+                 (edraw-replace-a color 1.0))))
     (pcase (alist-get :color-format options)
       ('nil
        (edraw-to-string color))

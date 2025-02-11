@@ -1201,7 +1201,7 @@ as a string."
                    (list
                     (cons 'background-color
                           ;; @todo Show transparency. Use SVG?
-                          (edraw-to-string-hex (edraw-change-a color 1.0))))
+                          (edraw-to-string-hex (edraw-replace-a color 1.0))))
                  'default)))
            ))
     ;; Maybe it's better to add the button here rather than using :value-create?

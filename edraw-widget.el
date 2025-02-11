@@ -79,7 +79,7 @@
                  (error (widget-get widget :value)))))
     (if color
         ;;@todo Use SVG image for sample
-        (list (cons 'background-color (edraw-to-string-hex (edraw-change-a color 1.0)))) ;;Force a=1.0
+        (list (cons 'background-color (edraw-to-string-hex (edraw-replace-a color 1.0)))) ;;Force a=1.0
       'default)))
 
 (defun edraw-widget-web-color-action (widget &optional event)

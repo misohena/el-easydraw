@@ -17,7 +17,6 @@ customize-variableからのedraw関連の設定などは特にCustom-modeバッ�
 ** TODO 色/新しい色テキスト処理をミニバッファ入力方式にも適用する
 今のままだとedraw-editorからhslやらが使えない。
 
-** TODO 色/edraw-change-はedraw-replace-に変える
 ** TODO 色/edraw-color-syntax-serializeのoptionsを改善する
 様々な形式を指定出来るようにする。もしくは元々の表記をより反映する。
 - 細かい書式の改善
@@ -6442,3 +6441,5 @@ Color Syntax(色構文処理機能)による構文解析は、正規表現の作
   - :color-name-schemeの廃止
   - edraw-widget.el や edraw-property-editor.el への影響を調べる。 edraw-color-string-patterns-re なんかを使っている箇所があるんだけど。
   - edraw-color.elのFrom StringとTo Stringはどうしよう。新しい仕組みと機能が重複するんだけど。できれば消したいけど、とにかく形式は何でもいいから文字列化・復帰できれば良い場合や効率重視の場合に利用価値があるかもしれない。その方向で整理すべき。
+** DONE 色/edraw-change-はedraw-replace-に変える
+CLOSED: [2025-02-11 Tue 23:20]

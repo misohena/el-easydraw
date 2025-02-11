@@ -64,7 +64,7 @@
    :b (float b)
    :a (float (or a 1.0))))
 
-(cl-defmethod edraw-change-r ((color edraw-color) r)
+(cl-defmethod edraw-replace-r ((color edraw-color) r)
   "Create a new `edraw-color' object by replacing the r of COLOR with R."
   (edraw-color
    :r (float r)
@@ -72,7 +72,7 @@
    :b (oref color b)
    :a (oref color a)))
 
-(cl-defmethod edraw-change-g ((color edraw-color) g)
+(cl-defmethod edraw-replace-g ((color edraw-color) g)
   "Create a new `edraw-color' object by replacing the g of COLOR with G."
   (edraw-color
    :r (oref color r)
@@ -80,7 +80,7 @@
    :b (oref color b)
    :a (oref color a)))
 
-(cl-defmethod edraw-change-b ((color edraw-color) b)
+(cl-defmethod edraw-replace-b ((color edraw-color) b)
   "Create a new `edraw-color' object by replacing the b of COLOR with B."
   (edraw-color
    :r (oref color r)
@@ -88,7 +88,7 @@
    :b (float b)
    :a (oref color a)))
 
-(cl-defmethod edraw-change-a ((color edraw-color) a)
+(cl-defmethod edraw-replace-a ((color edraw-color) a)
   "Create a new `edraw-color' object by replacing the a of COLOR with A."
   (edraw-color
    :r (oref color r)
