@@ -1,5 +1,34 @@
 
 * Inbox
+** TODO 色/新しい構文解析・文字列化機構に合わせて既存の文字列処理を修正
+新しい仕組みと古い仕組みで機能が被っている。
+
+- :color-name-schemeは廃止したい。色名だけに留まらない。
+
+- edraw-widget.el や edraw-property-editor.el への影響を調べる。 edraw-color-string-patterns-re なんかを使っている箇所があるんだけど。これだとhsl等に対応できないので、新しい仕組みを使うように変更すべき。
+
+- edraw-color.elのFrom StringとTo Stringはどうしよう。新しい仕組みと機能が重複するんだけど。できれば消したいけど、とにかく形式は何でもいいから文字列化・復帰できれば良い場合や効率重視の場合に利用価値があるかもしれない。その方向で整理すべき。color-name-schemeの仕組みは廃止してシンプル化したい。8-bit精度のRGBAが保持できれば良い。
+
+** TODO 色/color-syntax-systemのフォールバック機構
+Custom-mode内からCSSの色をカラーピッカーで指定したい場合もあるのではないか。
+customize-variableからのedraw関連の設定などは特にCustom-modeバッファ内でCSSの色を指定する機会があるはず(まぁ、専用のwidgetを使えば良いんだけど)。
+そうなると、フォールバック的に他のsyntax-systemも試すような仕組みが必要ではないだろうか。
+
+** TODO 色/新しい色テキスト処理をミニバッファ入力方式にも適用する
+今のままだとedraw-editorからhslやらが使えない。
+
+** TODO 色/edraw-change-はedraw-replace-に変える
+** TODO 色/edraw-color-syntax-serializeのoptionsを改善する
+様々な形式を指定出来るようにする。もしくは元々の表記をより反映する。
+- 細かい書式の改善
+  - 既存の関数名をできるだけ維持するオプション
+  - 桁数のカスタマイズ => これは完全にやるのは案外大変
+  - すでに書いてある数字の桁数を真似るべきだろうか。hexではやっている。
+  - hexの大文字小文字維持
+  - 関数名の大文字小文字維持
+  - ファイル毎の自動デフォルト形式判定(どの書き方が一番多いか)
+  - 設定方法の改善
+
 ** TODO 選択ツールで選択図形の色をツールバーから変更できるようにする
 選択ツールでは、現在選択中の図形のstrokeとfill色をツールバーに表示する。
 それをクリックしたらカラーピッカーが出て、色を指定したら選択中の図形のstrokeやfillが変わるようにする。
@@ -873,14 +902,32 @@ edrawリンクのdata-file相互変換機能があれば十分かも？　data�
 
 edraw-svg-printの意味がちょっと曖昧になっている。svg要素をprintする関数なのか、汎用的なSVG仕様定義要素をprintする関数なのか。現在は再帰で呼び出しているのだから後者と考えざるを得ない。でも後者ならtopを特別扱いするのは良くない。
 
-** TODO 色/edraw-color-picker-replace-color-atは可能な限り元の記法を尊重する
-元の記法を認識して、極力それに合わせるようにする。
-rgbaはもはやrgbの別名。それにカンマでなく空白で区切っても良い。
-[[https://developer.mozilla.org/ja/docs/Web/CSS/color_value/rgb][rgb() - CSS: カスケーディングスタイルシート | MDN]]
-カンマの後のスペースまで認識するかは悩み所。
-形式を認識する関数が必要。
+** TODO 色/カラーピッカーを簡単に使えるようにするマイナーモードを追加する
+edraw-color-picker-global-modeとedraw-color-picker-mode。
+- キーによる起動
+- クリックによる起動 (できれば開いてる後のクリックは閉じるだけにしたい)
+- コンテキストメニュー
+- Embark
+- 使用するモードの設定
 
-** TODO 色/HSL等の別の表色系に対応する
+** TODO 色/カラーピッカーから出力する形式を変更できるようにする
+HEX, rgb, hsl, hwb, lab, lch, oklab, oklchから選びたい。
+カラーピッカー上に全てのボタンにするのはつらいので、どうしたらよいのだろう。
+カラーピッカーにメニューボタンが必要なのではないか。
+
+** TODO 色/カラーピッカーのZ軸を切り替えられるようにする
+現在はZ軸が色相だが、彩度、明度、赤、緑、青に切り替えられるようにする。X-Y平面もそれに合わせて残りが割り当てられる。
+** TODO 色/別の表色系のカラーピッカーを追加する
+HSL、HWBのカラーピッカーに切り替えられるようにする。
+** TODO 色/CSSのcolor()色関数に対応する
+[[elisp-variable:edraw-color-css-functions]]の未実装部分を埋める。
+これによってcss-mode等で当該関数表記をカラーピッカーで置換できるようになる。
+
+変換方法は https://www.w3.org/TR/css-color-4/#color-conversion-code にコードが載っている。
+color.elにも使えそうな関数がある。
+
+場合によってはこれまでに実装した部分にも手を入れる必要があるかもしれない。argsの取扱部分について。color()はパッと見で引数がこれまでと違うみたいなので(?)。
+
 ** TODO 色/ミニバッファ入力時にキー割り当てヘルプが欲しい
 今のままだと機能に気がつけないので。
 
@@ -6349,3 +6396,49 @@ UNDOを制御するのが難しい。
 実際にはUNDOをまとめなくてもそれほど酷いことにはならなかった。
 
 注意: カスタマイズバッファはUNDO情報がおかしい。手動で変更するときも、最初の変更がUNDO情報として記録されない。UNDOをまとめる機能は一応カスタマイズ変数で無効に出来るようにする。
+** DONE 色/edraw-color-picker-replace-color-atは可能な限り元の記法を尊重する
+CLOSED: [2025-02-11 Tue 21:19]
+元の記法を認識して、極力それに合わせるようにする。
+rgbaはもはやrgbの別名。それにカンマでなく空白で区切っても良い。
+[[https://developer.mozilla.org/ja/docs/Web/CSS/color_value/rgb][rgb() - CSS: カスケーディングスタイルシート | MDN]]
+カンマの後のスペースまで認識するかは悩み所。
+形式を認識する関数が必要。
+
+edraw-color.elに新しい色テキスト構文処理機能を追加。
+
+- Color Syntax
+  - Common
+    - Hex Color
+  - Emacs Syntax
+    - Color Names
+    - Parse
+    - Serialize
+  - CSS Syntax ([[https://www.w3.org/TR/css-color-4/][CSS Color Module Level 4]])
+    - Color Names
+    - Parse
+    - Serialize
+  - LaTeX Syntax (将来的に)
+  - Syntaxタイプ管理 (EmacsやCSSのSyntaxを切り替える仕組み)
+  - Syntaxタイプ判定 (バッファローカル変数やメジャーモードから推測)
+  - Search (バッファや文字列内にある色テキストを解析する関数)
+
+で、カラーピッカーは置き換えコマンドにおいてこれを使うようにする。
+
+Color Syntax(色構文処理機能)による構文解析は、正規表現の作成(edraw-color-<type>-regexp)とマッチデータの解析(edraw-color-<type>-matched-color-info)の二つの関数によって構成される。これは作成される正規表現はre-search-forwardやlooking-at、string-matchに渡して使う。その正規表現は多少ラフにマッチする場合がある点に注意。それらがマッチしたらマッチデータの解析関数によって色テキストの書き方に関する詳細情報を得る。結果は (color . props) の形。carはedraw-colorオブジェクト。cdrはそれを得るに至るまでに解析された様々な情報が入る。この情報は置き換え先の色テキストを作成するときに利用される。この情報にはマッチテキストの範囲のみならず、使用されている構文の種類やカンマの前後のスペースに至るまで様々な情報が格納されているので、置き換え先のテキストを元のテキストの形式に極力合わせることができる。
+
+残りの課題:
+- [X] hslシリアライズ関数の追加。
+- [X] 単位の維持 (%が失われる)
+- [X] hwb対応。
+- [X] その他の色関数の対応 +…は諦めてる。+ はcolor()以外実装した。
+- [X] radとかの桁数
+- +シリアライズオプションを指定する方法を追加+
+- [X] シリアライズオプションを含め色置き換えコマンドのオプションを指定するカスタマイズ変数(edraw-color-picker-replace-color-command-options)を追加する。コマンドとして呼び出したときにinteractive指定を通じて適用される。
+
+- => [[*色/edraw-color-syntax-serializeのoptionsを改善する][色/edraw-color-syntax-serializeのoptionsを改善する]]
+- ミニバッファ入力からもこの仕組みを使いたい。現在はミニバッファからはhslが使えない。 => [[*色/新しい色テキスト処理をミニバッファ入力方式にも適用する][色/新しい色テキスト処理をミニバッファ入力方式にも適用する]]
+- Custom-mode内からCSSの色をカラーピッカーで指定したい場合もあるのではないか。 => [[*色/color-syntax-systemのフォールバック機構][色/color-syntax-systemのフォールバック機構]]
+- => [[*色/新しい構文解析・文字列化機構に合わせて既存の文字列処理を修正][色/新しい構文解析・文字列化機構に合わせて既存の文字列処理を修正]]
+  - :color-name-schemeの廃止
+  - edraw-widget.el や edraw-property-editor.el への影響を調べる。 edraw-color-string-patterns-re なんかを使っている箇所があるんだけど。
+  - edraw-color.elのFrom StringとTo Stringはどうしよう。新しい仕組みと機能が重複するんだけど。できれば消したいけど、とにかく形式は何でもいいから文字列化・復帰できれば良い場合や効率重視の場合に利用価値があるかもしれない。その方向で整理すべき。

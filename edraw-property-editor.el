@@ -1175,7 +1175,7 @@ as a string."
            :keymap edraw-property-editor-field-map
            :value (edraw-property-editor-prop-value-to-widget-value
                    prop-value prop-info)
-           :completions (mapcar #'car edraw-color-web-keywords)
+           :completions (mapcar #'car edraw-color-css-color-names)
            :size 24
            :format "%v %{      %}"
            ;; See: (widget-color-value-create)

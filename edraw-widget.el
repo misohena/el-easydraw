@@ -42,7 +42,7 @@
   :tag "Color"
   :value-create 'edraw-widget-web-color-value-create
   :size 26 ;; Can contain "rgba(255,255,255,1.2345)"
-  :completions (cons "none" (mapcar #'car edraw-color-web-keywords))
+  :completions (cons "none" (mapcar #'car edraw-color-css-color-names))
   :sample-face-get 'edraw-widget-web-color-sample-face-get
   :notify 'edraw-widget-web-color-notify
   :match #'edraw-widget-web-color-match
@@ -102,7 +102,7 @@
   (and (stringp value)
        (or (string= value "")
            (string= value "none")
-           (assoc value edraw-color-web-keywords)
+           (assoc value edraw-color-css-color-names)
            (string-match edraw-color-string-patterns-re value))))
 
 (defun edraw-widget-web-color-validate (widget)

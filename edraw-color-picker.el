@@ -103,6 +103,13 @@
 (require 'edraw-util)
 (require 'delsel)
 
+(make-obsolete-variable
+ 'edraw-color-picker-insert-default-color-scheme
+ "Use `edraw-color-picker-replace-color-command-options' or
+`edraw-color-syntax-system-of-buffer' or
+`edraw-color-syntax-systems-by-major-mode'."
+ "2025-02-10")
+
 ;;; Code:
 
 (defconst edraw-color-picker-font-family "Arial")
@@ -2713,70 +2720,83 @@ undo list."
   :group 'edraw-color-picker
   :group 'edraw-faces)
 
-(defvar edraw-color-picker-insert-default-color-scheme 'web)
+(defcustom edraw-color-picker-replace-color-command-options nil
+  "An alist holding options passed to commands that replace color text in a
+buffer using a color picker.
+
+Such commands include:
+- `edraw-color-picker-replace-or-insert-color-at-point'
+- `edraw-color-picker-replace-color-at-point'
+- `edraw-color-picker-insert-color'
+
+The following options can be specified:
+
+  `:color-serializer-options'
+    : A plist passed as the options argument to the
+      `edraw-color-syntax-serialize' function. Controls the format of
+      the generated color text.
+
+  `:color-syntax-system'
+    : One of the symbols stored in the `edraw-color-syntax-systems'
+      variable. Specifies the language used to represent colors.
+
+Other options passed to the color picker object."
+  :group 'edraw-color-picker
+  :type '(alist :key-type symbol :value-type sexp))
 
 ;;;###autoload
 (defun edraw-color-picker-insert-color (&optional initial-color options)
   "Insert a color selected by color picker."
-  (interactive)
+  (interactive
+   (list nil edraw-color-picker-replace-color-command-options))
 
-  (unless (assq :color-name-scheme options)
-    (setf (alist-get :color-name-scheme options)
-          edraw-color-picker-insert-default-color-scheme))
-
-  (edraw-color-picker-replace-color-region (point) (point)
-                                           initial-color
-                                           options
-                                           nil)
+  (edraw-color-picker-replace-color-region
+   (list
+    initial-color
+    :begin (point)
+    :end (point)
+    :syntax-system (edraw-color-picker-syntax-system options nil))
+   options)
   t)
 
 ;;;###autoload
 (defun edraw-color-picker-replace-or-insert-color-at-point (&optional options)
-  (interactive)
+  (interactive
+   (list edraw-color-picker-replace-color-command-options))
   (or (edraw-color-picker-replace-color-at (point) options)
       (edraw-color-picker-insert-color nil options)))
 
 ;;;###autoload
 (defun edraw-color-picker-replace-color-at-point (&optional options)
   "Replace the color at the point with the color selected by color picker."
-  (interactive)
+  (interactive
+   (list edraw-color-picker-replace-color-command-options))
   (edraw-color-picker-replace-color-at (point) options))
 
 ;;;###autoload
 (defun edraw-color-picker-replace-color-at (position &optional options)
   "Replace the color at POSITION with the color selected by color picker."
-  (interactive "d")
+  (interactive
+   (list (point)
+         edraw-color-picker-replace-color-command-options))
 
-  (unless (assq :color-name-scheme options)
-    (setf (alist-get :color-name-scheme options)
-          edraw-color-picker-insert-default-color-scheme))
-
-  (when-let ((match-result (edraw-color-picker-lookup-color-at
-                            position
-                            (alist-get :color-name-scheme options)))
-             (beg (nth 0 match-result))
-             (end (nth 1 match-result))
-             ;; Index of `edraw-color-string-patterns'
-             (format-index (nth 2 match-result)))
-    (let* ((str (buffer-substring-no-properties beg end))
-           (initial-color (edraw-color-picker-color-from-string str options)))
-      (edraw-color-picker-replace-color-region beg end
-                                               initial-color
-                                               options
-                                               format-index))
+  (when-let* ((color-info
+               (edraw-color-info-at
+                position
+                (edraw-color-picker-syntax-system options nil)
+                t)))
+    (edraw-color-picker-replace-color-region color-info options)
     t))
 
-(defun edraw-color-picker-replace-color-region (beg
-                                                end
-                                                initial-color
-                                                options
-                                                format-index)
+(defun edraw-color-picker-replace-color-region (color-info options)
   ;; Open color picker near the point
-  (let ((picker (edraw-color-picker-open-with-transient-map
-                 initial-color options))
-        (initial-text (buffer-substring-no-properties beg end))
-        (overlay (make-overlay beg end nil nil t))
-        (last-undo-list-head buffer-undo-list))
+  (let* ((picker (edraw-color-picker-open-with-transient-map
+                  (edraw-color-info-color color-info) options))
+         (beg (plist-get (edraw-color-info-props color-info) :begin))
+         (end (plist-get (edraw-color-info-props color-info) :end))
+         (initial-text (buffer-substring-no-properties beg end))
+         (overlay (make-overlay beg end nil nil t))
+         (last-undo-list-head buffer-undo-list))
     (overlay-put overlay 'field 'edraw-color-picker-field)
     (overlay-put overlay 'face 'edraw-color-picker-field)
     ;; On OK
@@ -2788,7 +2808,7 @@ undo list."
        ;; Replace color string as same format
        (setq last-undo-list-head
              (edraw-color-picker--replace-overlay-with-color
-              overlay picker format-index options
+              overlay picker color-info options
               last-undo-list-head))))
     ;; On Closed
     (edraw-add-hook
@@ -2807,7 +2827,7 @@ undo list."
        (lambda (picker)
          (setq last-undo-list-head
                (edraw-color-picker--replace-overlay-with-color
-                overlay picker format-index options
+                overlay picker color-info options
                 last-undo-list-head))))
       ;; Revert
       (edraw-add-hook
@@ -2820,13 +2840,22 @@ undo list."
 
 (defun edraw-color-picker--replace-overlay-with-color (overlay
                                                        picker
-                                                       format-index options
+                                                       color-info
+                                                       options
                                                        last-undo-list-head)
   (edraw-color-picker--replace-overlay-with-text
    overlay
-   (edraw-color-picker-lookup-color-to-string
-    (edraw-get-current-color picker) format-index options)
+   (edraw-color-picker--serialize-color
+    (edraw-get-current-color picker) color-info options)
    last-undo-list-head))
+
+(defun edraw-color-picker--serialize-color (color color-info options)
+  (edraw-color-syntax-serialize
+   color
+   (append
+    (alist-get :color-serializer-options options)
+    (edraw-color-info-props color-info))
+   (plist-get (edraw-color-info-props color-info) :syntax-system)))
 
 (defun edraw-color-picker--replace-overlay-with-text (overlay
                                                       text
@@ -2925,67 +2954,17 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
      (* bri 100)
      (* rl 100))))
 
-;;;;; Color Name Lookup From Buffer
+;;;; Color Syntax System
 
-(defvar edraw-color-picker-lookup-color-name-regexp-alist nil)
-
-(defun edraw-color-picker-lookup-color-name-regexp (name-scheme)
+(defun edraw-color-picker-syntax-system (options default-syntax-system)
   (or
-   (alist-get name-scheme edraw-color-picker-lookup-color-name-regexp-alist)
-
-   (let ((regexp
-          (pcase name-scheme
-            ('web (regexp-opt (mapcar #'car edraw-color-web-keywords)))
-            ('emacs (regexp-opt (defined-colors))))))
-     (when regexp
-       (push (cons name-scheme regexp)
-             edraw-color-picker-lookup-color-name-regexp-alist)
-       regexp))))
-
-(defun edraw-color-picker-lookup-color-regexp (name-scheme)
-  (concat "\\(?:" edraw-color-string-patterns-re "\\|"
-          ;; last index
-          "\\(" (edraw-color-picker-lookup-color-name-regexp name-scheme) "\\)"
-          "\\)"))
-
-(defun edraw-color-picker-lookup-color-at (position name-scheme)
-  (save-excursion
-    (goto-char position)
-    (goto-char (line-beginning-position))
-    (let ((line-end (line-end-position))
-          (result nil)
-          (regexp (edraw-color-picker-lookup-color-regexp name-scheme)))
-      (while (and (null result)
-                  (re-search-forward regexp line-end t))
-        (let ((beg (match-beginning 0))
-              (end (match-end 0)))
-          (when (and (<= beg position) (< position end))
-            (setq result
-                  (list beg
-                        end
-                        ;; Index of `edraw-color-string-patterns'
-                        (/ (cl-position-if-not #'null (cddr (match-data)))
-                           2))))))
-      result)))
-
-(defun edraw-color-picker-lookup-color-to-string (color format-index options)
-  (or
-   ;; last index
-   (when (or (null format-index)
-             (= format-index (length edraw-color-string-patterns)))
-     (or
-      (pcase (alist-get :color-name-scheme options)
-        ('web (edraw-to-string-web-keyword color))
-        ('emacs (edraw-to-string-emacs-color-name color)))
-      (edraw-color-picker-color-to-string color options)))
-   ;; Use edraw-color-string-patterns
-   (edraw-color-picker-color-to-string
-    color
-    (cons
-     (cons :color-format
-           ;; hex or rgb
-           (cadr (nth format-index edraw-color-string-patterns)))
-     options))))
+   (alist-get :color-syntax-system options)
+   (pcase (alist-get :color-name-scheme options)
+     ('web 'css)
+     ('css 'css)
+     ('emacs 'emacs)
+     (_ (edraw-color-syntax-system-default
+         (or default-syntax-system 'emacs))))))
 
 ;;;;; Read Color from Minibuffer
 
