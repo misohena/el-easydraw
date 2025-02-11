@@ -277,12 +277,6 @@ Settings for using them while editing CSS or HTML:
 Settings for use with Customize:
 
 #+begin_src elisp
-(defun my-edraw-color-picker-enable-for-custom-mode ()
-  ;; Use emacs color name
-  (setq-local edraw-color-picker-insert-default-color-scheme 'emacs))
-
-(add-hook 'Custom-mode-hook 'my-edraw-color-picker-enable-for-custom-mode)
-
 (with-eval-after-load "cus-edit"
   ;; Add keys to the field key map
   (my-edraw-color-picker-add-keys custom-field-keymap))
