@@ -157,12 +157,12 @@ when editing the contents of bracket links, so by default only
     (with-current-buffer object
       (save-excursion
         (goto-char pos)
-        (when-let ((link-object (edraw-org-link-at-point))
-                   (link-props (car (edraw-org-link-object-link-properties
-                                     link-object t))))
-          (if-let ((file (edraw-org-link-prop-file link-props)))
+        (when-let* ((link-object (edraw-org-link-at-point))
+                    (link-props (car (edraw-org-link-object-link-properties
+                                      link-object t))))
+          (if-let* ((file (edraw-org-link-prop-file link-props)))
               (format "edraw:file=%s" file)
-            (if-let ((data (edraw-org-link-prop-data link-props)))
+            (if-let* ((data (edraw-org-link-prop-data link-props)))
                 (format "edraw:data=(%s chars)" (length data)))))))))
 
 (defun edraw-org-link-activate-func (link-beg link-end _path _has-brackets-p
@@ -224,14 +224,14 @@ when editing the contents of bracket links, so by default only
   (alist-get key-str link-props nil nil #'string=))
 
 (defun edraw-org-link-prop-html-tag (link-props)
-  (when-let ((str (edraw-org-link-prop-get "html-tag" link-props)))
+  (when-let* ((str (edraw-org-link-prop-get "html-tag" link-props)))
     (intern str)))
 
 (defun edraw-org-link-prop-data (link-props)
   (edraw-org-link-prop-get "data" link-props))
 
 (defun edraw-org-link-prop-file (link-props)
-  (when-let ((file-spec (edraw-org-link-prop-get "file" link-props)))
+  (when-let* ((file-spec (edraw-org-link-prop-get "file" link-props)))
     (edraw-org-link-filter-file-path file-spec)))
 
 (defun edraw-org-link-filter-file-path (path)
@@ -241,14 +241,14 @@ when editing the contents of bracket links, so by default only
   "Create arguments to pass to `create-image' from LINK-PROPS.
 
 Return a cons cell of the form (FILE-OR-DATA . DATA-P)."
-  (if-let ((data (edraw-org-link-prop-data link-props)))
+  (if-let* ((data (edraw-org-link-prop-data link-props)))
       (ignore-errors (cons
                       ;; see: https://github.com/misohena/el-easydraw/issues/5
                       (if edraw-org-link-image-gunzip-p
                           (edraw-decode-string data t)
                         (base64-decode-string data))
                       t))
-    (if-let ((file (edraw-org-link-prop-file link-props)))
+    (if-let* ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file) (cons (expand-file-name file) nil)))))
 
 ;;;;; Link Object
@@ -275,14 +275,14 @@ Note that the returned link is not limited to the \"edraw:\" type
 file is specified in the path of a \"file:\" link.
 (e.g. [[file:example.org][edraw:...]], [[file:example.edraw.svg]],
 [[file:example1.edraw.svg][file:example2.edraw.svg]])"
-  (when-let ((link-object (org-element-lineage
-                           (save-match-data (org-element-context))
-                           '(link) t))
-             (end (save-excursion
-                    (goto-char
-                     (org-element-property :end link-object))
-                    (skip-chars-backward " \t")
-                    (point))))
+  (when-let* ((link-object (org-element-lineage
+                            (save-match-data (org-element-context))
+                            '(link) t))
+              (end (save-excursion
+                     (goto-char
+                      (org-element-property :end link-object))
+                     (skip-chars-backward " \t")
+                     (point))))
     (org-element-put-property link-object :end end)))
 
 (defconst edraw-org-link-path-terminator-pname "eop"
@@ -390,8 +390,8 @@ If PART is nil, it defaults to `link'."
   "Return the string after \"<LINK-TYPE>:\" in the description of LINK-OBJECT.
 
 When LINK-TYPE is nil, use `edraw-org-link-type'."
-  (when-let ((c-begin (org-element-property :contents-begin link-object))
-             (c-end (org-element-property :contents-end link-object)))
+  (when-let* ((c-begin (org-element-property :contents-begin link-object))
+              (c-end (org-element-property :contents-end link-object)))
     (let ((desc (buffer-substring-no-properties c-begin c-end)))
       (save-match-data
         (cond
@@ -417,7 +417,7 @@ If NOERROR is nil, signals an error."
   ;; edraw: link type
   (cond
    ;; from description part
-   ((when-let ((desc (edraw-org-link-object-path-in-description link-object)))
+   ((when-let* ((desc (edraw-org-link-object-path-in-description link-object)))
       (list (edraw-org-link-props-parse desc t noerror)
             t
             edraw-org-link-type)))
@@ -431,8 +431,8 @@ If NOERROR is nil, signals an error."
    (use-normal-file-link-p
     (cond
      ;; from description part
-     ((when-let ((desc (edraw-org-link-object-path-in-description
-                        link-object "file")))
+     ((when-let* ((desc (edraw-org-link-object-path-in-description
+                         link-object "file")))
         (list (list (cons "file" desc))
               t
               "file")))
@@ -468,14 +468,14 @@ shape will be displayed for a moment even if the arrow is
 specified for the overlay property pointer. This may be an Emacs
 bug. I started to worry about flickering after Emacs 29 (on
 Windows)"
-  (when-let ((mouse-face (get-text-property beg 'mouse-face)))
+  (when-let* ((mouse-face (get-text-property beg 'mouse-face)))
     (with-silent-modifications
       (remove-text-properties beg end '(mouse-face nil))
       (put-text-property beg end 'edraw-org-mouse-face-backup mouse-face))))
 
 (defun edraw-org-link-recover-mouse-face (beg end)
   "Recover mouse-face property."
-  (when-let ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
+  (when-let* ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
     (with-silent-modifications
       (put-text-property beg end 'mouse-face mouse-face)
       (remove-text-properties beg end '(edraw-org-mouse-face-backup nil)))))
@@ -484,7 +484,7 @@ Windows)"
   "Keeps a state where the mouse-face property is not present
 between the time `edraw-org-link-remove-mouse-face' is called and
 the time `edraw-org-link-recover-mouse-face' is called."
-  (when-let ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
+  (when-let* ((mouse-face (get-text-property beg 'edraw-org-mouse-face-backup)))
     (with-silent-modifications
       (remove-text-properties beg end '(mouse-face nil)))))
 
@@ -748,7 +748,7 @@ Allowed values for TARGET-TYPE are:
 
         ;;(message "Fontify beg:%s end:%s" beg end)
         ;; When start from the middle of a link
-        (when-let ((link-object (edraw-org-link-at-point)))
+        (when-let* ((link-object (edraw-org-link-at-point)))
           (let ((link-begin (org-element-property :begin link-object))
                 (link-end (org-element-property :end link-object)))
             ;;(message "Link at start %s-%s format:%s" link-begin link-end (org-element-property :format link-object))
@@ -768,7 +768,7 @@ Allowed values for TARGET-TYPE are:
             ;; Move to beginning of edraw: part
             (goto-char (match-beginning 1))
             ;;(message "Found candidate at %s" (point))
-            (if-let ((link-object (edraw-org-link-at-point)))
+            (if-let* ((link-object (edraw-org-link-at-point)))
                 (let ((link-begin (org-element-property :begin link-object))
                       (link-end (org-element-property :end link-object)))
                   (when (and (memq (org-element-property :format link-object)
@@ -793,8 +793,8 @@ Allowed values for TARGET-TYPE are:
   (mapc #'delete-overlay (edraw-org-link-image-overlays-in beg end)))
 
 (defun edraw-org-link-image-update (link-begin link-end link-object)
-  (when-let (link-props (car
-                         (edraw-org-link-object-link-properties link-object t)))
+  (when-let* ((link-props
+               (car (edraw-org-link-object-link-properties link-object t))))
     (let* ((ovs (edraw-org-link-image-overlays-in link-begin link-end))
            (ov (progn
                  ;; Remove redundant overlays
@@ -845,9 +845,9 @@ Allowed values for TARGET-TYPE are:
   (let ((file-or-data (edraw-org-link-props-image-data-or-file link-props)))
     (when file-or-data
       (let (image-props)
-        (when-let ((max-width (edraw-org-link-image-max-size t)))
+        (when-let* ((max-width (edraw-org-link-image-max-size t)))
           (setq image-props `(:max-width ,max-width ,@image-props)))
-        (when-let ((max-height (edraw-org-link-image-max-size nil)))
+        (when-let* ((max-height (edraw-org-link-image-max-size nil)))
           (setq image-props `(:max-height ,max-height ,@image-props)))
         (apply #'create-image
                (car file-or-data) ;; FILE-OR-DATA

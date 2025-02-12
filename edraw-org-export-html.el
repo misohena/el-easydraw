@@ -71,9 +71,9 @@ svg = Embed SVG element (<svg>...</svg>)
 
   ;; path is unescaped : \[ \] => [ ]
   ;; description is not unescaped : \[ \] => \[ \]
-  (if-let ((link-props (edraw-org-link-props-parse path nil t)))
+  (if-let* ((link-props (edraw-org-link-props-parse path nil t)))
       (let ((html-tag (edraw-org-link-prop-html-tag link-props)))
-        (if-let ((data (edraw-org-link-prop-data link-props)))
+        (if-let* ((data (edraw-org-link-prop-data link-props)))
             (pcase (or html-tag edraw-org-export-html-data-tag)
               ('svg (edraw-org-link-html-link-to-svg link-props link info))
               ('img (edraw-org-link-data-to-img data link info))
@@ -81,7 +81,7 @@ svg = Embed SVG element (<svg>...</svg>)
                     func)
                (funcall func data))
               (_ (edraw-org-link-html-link-to-svg link-props link info)))
-          (if-let ((file (edraw-org-link-prop-file link-props)))
+          (if-let* ((file (edraw-org-link-prop-file link-props)))
               (pcase (or html-tag edraw-org-export-html-file-tag)
                 ('svg (edraw-org-link-html-link-to-svg link-props link info))
                 ('img (edraw-org-link-file-to-img file link info))
@@ -211,8 +211,8 @@ exported HTML. Add a random string to id."
          (delq nil
                (mapcar
                 (lambda (element)
-                  (when-let ((old-id (dom-attr element 'id))
-                             (new-id (funcall id-converter old-id)))
+                  (when-let* ((old-id (dom-attr element 'id))
+                              (new-id (funcall id-converter old-id)))
                     (dom-set-attribute element 'id new-id)
                     (cons old-id new-id)))
                 ;; The target elements are:
@@ -233,8 +233,8 @@ exported HTML. Add a random string to id."
         ;;@todo should be limited to url data type attributes such as marker-start, marker-mid, marker-end
         (when (and (stringp value)
                    (string-match "\\` *url *( *#\\([^ )]+\\) *) *\\'" value))
-          (when-let ((old-id (match-string 1 value))
-                     (new-id (alist-get old-id id-map nil nil #'equal)))
+          (when-let* ((old-id (match-string 1 value))
+                      (new-id (alist-get old-id id-map nil nil #'equal)))
             (dom-set-attribute element
                                key
                                (format "url(#%s)" new-id))))))

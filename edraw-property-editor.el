@@ -500,7 +500,7 @@ editor when the selected shape changes."
   (get-buffer edraw-property-editor-buffer-name))
 
 (defun edraw-property-editor-close ()
-  (when-let ((buffer (edraw-property-editor-buffer)))
+  (when-let* ((buffer (edraw-property-editor-buffer)))
     (with-current-buffer buffer
       (when edraw-property-editor--pedit
         (edraw-close edraw-property-editor--pedit)))))
@@ -510,8 +510,8 @@ editor when the selected shape changes."
          (ui-state (or (alist-get 'ui-state options)
                        (edraw-ui-state-object-default)))
          ;; Get property editor object
-         (pedit (if-let ((pedit (with-current-buffer buffer
-                                  edraw-property-editor--pedit)))
+         (pedit (if-let* ((pedit (with-current-buffer buffer
+                                   edraw-property-editor--pedit)))
                     (progn
                       ;; Update options
                       (oset pedit options options)
@@ -662,7 +662,7 @@ editor when the selected shape changes."
     ))
 
 (defun edraw-property-editor-insert-action-bar (target)
-  (when-let ((widgets (edraw-property-editor-actions target)))
+  (when-let* ((widgets (edraw-property-editor-actions target)))
     (widget-insert " ")
     (dolist (widget-args widgets)
       (widget-insert " ")
@@ -834,7 +834,7 @@ once. widget-value-set updates the same property four times."
 
 (cl-defmethod edraw-set-target-property-value ((pedit edraw-property-editor)
                                                prop-name prop-value)
-  (when-let ((target (oref pedit target)))
+  (when-let* ((target (oref pedit target)))
     (let ((undo-before-change (edraw-last-undo-data target)))
       ;; Consecutive change to the same target and same property?
       (when (and (eq undo-before-change (edraw-last-edit-undo-data pedit))
@@ -1095,7 +1095,7 @@ as a string."
 (defun edraw-property-editor-number-dragging (down-event)
   (interactive "e")
   (edraw-property-editor--with-event-buffer
-   (when-let ((field (edraw-property-editor-field-at down-event)))
+   (when-let* ((field (edraw-property-editor-field-at down-event)))
      (with-slots (buffer min-value max-value divisor) field
        (let* ((window (posn-window (event-start down-event)))
               (down-x (car (posn-x-y (event-start down-event))))
@@ -1240,13 +1240,13 @@ as a string."
      '("" "none")
      `((:color-name-scheme . web)
        (:no-color . "none")
-       ,@(when-let ((image-scale (alist-get 'image-scale options)))
+       ,@(when-let* ((image-scale (alist-get 'image-scale options)))
            (list
             (cons :scale-direct image-scale)))
-       ,@(when-let ((palette-colors (alist-get 'palette-colors options)))
+       ,@(when-let* ((palette-colors (alist-get 'palette-colors options)))
            (list
             (cons :palette-colors palette-colors)))
-       ,@(when-let ((recent-colors (alist-get 'recent-colors options)))
+       ,@(when-let* ((recent-colors (alist-get 'recent-colors options)))
            (list
             (cons :recent-colors recent-colors)))))))
 
@@ -1273,13 +1273,13 @@ as a string."
                    (edraw-undo-all target)
                    ;;@todo suppress modified flag change and notification
                    (edraw-set-property target prop-name string)))))
-           ,@(when-let ((image-scale (alist-get 'image-scale options)))
+           ,@(when-let* ((image-scale (alist-get 'image-scale options)))
                (list
                 (cons :scale-direct image-scale)))
-           ,@(when-let ((palette-colors (alist-get 'palette-colors options)))
+           ,@(when-let* ((palette-colors (alist-get 'palette-colors options)))
                (list
                 (cons :palette-colors palette-colors)))
-           ,@(when-let ((recent-colors (alist-get 'recent-colors options)))
+           ,@(when-let* ((recent-colors (alist-get 'recent-colors options)))
                (list
                 (cons :recent-colors recent-colors)))))
       ;; Restore value for no undo support target
@@ -1688,7 +1688,7 @@ as a string."
 (defun edraw-property-editor-field-wheel-increase (n event)
   (interactive "p\ne")
   (edraw-property-editor--with-event-buffer
-   (when-let ((field (edraw-property-editor-field-at event)))
+   (when-let* ((field (edraw-property-editor-field-at event)))
      (edraw-increase field n))))
 
 (defun edraw-property-editor-field-wheel-decrease (n event)
@@ -1802,22 +1802,22 @@ as a string."
    (edraw-apply-properties edraw-property-editor--pedit)))
 
 (defun edraw-property-editor--shape-index ()
-  (when-let ((pedit edraw-property-editor--pedit))
+  (when-let* ((pedit edraw-property-editor--pedit))
     (with-slots (target) pedit
       (when (edraw-property-editor-target-shape-p target)
         (edraw-node-position target)))))
 
 (defun edraw-property-editor--num-shapes ()
-  (when-let ((pedit edraw-property-editor--pedit))
+  (when-let* ((pedit edraw-property-editor--pedit))
     (with-slots (target) pedit
       (when (edraw-property-editor-target-shape-p target)
         (edraw-node-siblings-count target)))))
 
 (defun edraw-property-editor--prevnext (prev-or-next-func)
-  (when-let ((pedit edraw-property-editor--pedit))
+  (when-let* ((pedit edraw-property-editor--pedit))
     (with-slots (target options) pedit
       (when (edraw-property-editor-target-shape-p target)
-        (when-let ((new-target (funcall prev-or-next-func target)))
+        (when-let* ((new-target (funcall prev-or-next-func target)))
           (if edraw-property-editor-tracking-selected-shape
               (edraw-select new-target)
             ;; destroy PEDIT and open NEW-TARGET
@@ -1955,7 +1955,7 @@ as a string."
         `((,(format (edraw-msg "Save as Initial %s Shape Default")
                     (edraw-msg (capitalize (symbol-name preset-subtype))))
            edraw-property-editor--save-preset-as-initial-shape-default))
-        (when-let ((preset-tool-type (edraw-preset-tool-type target)))
+        (when-let* ((preset-tool-type (edraw-preset-tool-type target)))
           `((,(format (edraw-msg "Save as Initial %s Default")
                       ;; Capitalized and Localized name
                       (edraw-name preset-tool-type))
@@ -2039,7 +2039,7 @@ menu is pressed."
   (edraw-property-editor--with-event-buffer
    (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
-       (when-let ((preset-type (edraw-preset-type target)))
+       (when-let* ((preset-type (edraw-preset-type target)))
          (let ((name (read-string (edraw-msg "Save preset named: ")))
                (data (edraw-preset-data target)))
            (when (and name data (not (string-empty-p name)))
@@ -2077,12 +2077,12 @@ menu is pressed."
   (edraw-property-editor--with-event-buffer
    (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
-       (when-let ((preset-type (edraw-preset-type target))
-                  (name (edraw-property-editor--select-preset-name
-                         ui-state
-                         preset-type
-                         (edraw-msg "Overwrite Preset")))
-                  (data (edraw-preset-data target)))
+       (when-let* ((preset-type (edraw-preset-type target))
+                   (name (edraw-property-editor--select-preset-name
+                          ui-state
+                          preset-type
+                          (edraw-msg "Overwrite Preset")))
+                   (data (edraw-preset-data target)))
          (when (and name data (not (string-empty-p name)))
            (edraw-preset-save ui-state preset-type name data)))))))
 
@@ -2092,13 +2092,13 @@ menu is pressed."
   (edraw-property-editor--with-event-buffer
    (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
-       (when-let ((preset-type (edraw-preset-type target))
-                  (preset-name (edraw-property-editor--select-preset-name
-                                ui-state
-                                preset-type
-                                (edraw-msg "Load Preset")))
-                  (preset-data (edraw-preset-load
-                                ui-state preset-type preset-name)))
+       (when-let* ((preset-type (edraw-preset-type target))
+                   (preset-name (edraw-property-editor--select-preset-name
+                                 ui-state
+                                 preset-type
+                                 (edraw-msg "Load Preset")))
+                   (preset-data (edraw-preset-load
+                                 ui-state preset-type preset-name)))
          (when preset-data
            (edraw-preset-apply target preset-data
                                ;;@todo customize condition
@@ -2113,11 +2113,11 @@ menu is pressed."
   (edraw-property-editor--with-event-buffer
    (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
-       (when-let ((preset-type (edraw-preset-type target))
-                  (preset-name (edraw-property-editor--select-preset-name
-                                ui-state
-                                preset-type
-                                (edraw-msg "Delete Preset"))))
+       (when-let* ((preset-type (edraw-preset-type target))
+                   (preset-name (edraw-property-editor--select-preset-name
+                                 ui-state
+                                 preset-type
+                                 (edraw-msg "Delete Preset"))))
          (edraw-preset-delete ui-state preset-type preset-name))))))
 
 (defun edraw-property-editor--rename-preset (&rest _ignore)
@@ -2140,7 +2140,7 @@ menu is pressed."
   (edraw-property-editor--with-event-buffer
    (with-slots (target ui-state) edraw-property-editor--pedit
      (when target
-       (when-let ((preset-type (edraw-preset-type target)))
+       (when-let* ((preset-type (edraw-preset-type target)))
          (when (edraw-y-or-n-p (edraw-msg "Do you want to delete all presets?"))
            (edraw-preset-clear ui-state preset-type)))))))
 

@@ -462,7 +462,7 @@ The following properties have special meanings for this widget:
   (widget-put
    widget
    :args (edraw-widget-properties-args
-          (or (when-let ((svg-tag (widget-get widget :svg-tag)))
+          (or (when-let* ((svg-tag (widget-get widget :svg-tag)))
                 (edraw-svg-tag-get-property-info-list svg-tag))
               (widget-get widget :prop-info-list)
               (car (widget-get widget :args)))))

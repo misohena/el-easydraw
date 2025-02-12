@@ -55,7 +55,7 @@
          (not (edraw-import-svg-comfirm)))
     (keyboard-quit))
 
-  (when-let ((svg (edraw-import-svg-buffer buffer)))
+  (when-let* ((svg (edraw-import-svg-buffer buffer)))
     (with-current-buffer output
       (erase-buffer)
       (edraw-svg-print svg nil nil))))
@@ -254,7 +254,7 @@ presentation attributes."
   (let (new-children)
     (dolist (node (dom-children parent))
       (if (edraw-dom-element-p node)
-          (if-let ((new-node (edraw-import-svg-convert-element node context)))
+          (if-let* ((new-node (edraw-import-svg-convert-element node context)))
               (if (and (consp new-node)
                        (consp (car new-node)))
                   ;; List of node
@@ -387,7 +387,7 @@ The result value might look like this:
 
 (defun edraw-import-svg-convert-element (elem context)
   (let ((tag (edraw-dom-tag elem)))
-    (if-let ((fun (alist-get tag edraw-import-svg-convert-element-alist)))
+    (if-let* ((fun (alist-get tag edraw-import-svg-convert-element-alist)))
         (funcall fun elem context)
       (if (or (and edraw-import-svg-in-defs
                    (not (edraw-import-svg-unknown-ns-name-p tag)))
@@ -819,11 +819,11 @@ The result value might look like this:
 
     ;; Check unsupported path command
     ;;@todo Call `edraw-path-cmdlist-from-d'?
-    (when-let ((c (seq-find (lambda (cmd)
-                              (not (memq
-                                    (car cmd)
-                                    '(M m Z z L l H h V v C c S s Q q T t))))
-                            cmds)))
+    (when-let* ((c (seq-find (lambda (cmd)
+                               (not (memq
+                                     (car cmd)
+                                     '(M m Z z L l H h V v C c S s Q q T t))))
+                             cmds)))
       ;; As of 2024-03-11, if there is an unsupported command, an
       ;; error will occur during editing, so discard it.
       (unless (eq edraw-import-svg-level 'loose)

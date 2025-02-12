@@ -338,7 +338,7 @@ the DOM and quickly identify the parent."
   node)
 
 (defun edraw-dom-remove-by-id (dom id)
-  (when-let ((node (edraw-dom-get-by-id dom id)))
+  (when-let* ((node (edraw-dom-get-by-id dom id)))
     (edraw-dom-remove-node dom node)))
 
 (defun edraw-dom-remove-attr (node attr)
@@ -392,7 +392,7 @@ the DOM and quickly identify the parent."
   (car (last (dom-children node))))
 
 (defun edraw-dom-next-sibling (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
+  (when-let* ((parent (edraw-dom-parent dom node)))
     (let ((siblings (dom-children parent)))
       (while (and siblings
                   (not (eq (car siblings) node)))
@@ -400,7 +400,7 @@ the DOM and quickly identify the parent."
       (cadr siblings))))
 
 (defun edraw-dom-previous-sibling (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
+  (when-let* ((parent (edraw-dom-parent dom node)))
     (let ((siblings (dom-children parent)))
       (if (eq (car siblings) node)
           nil
@@ -412,17 +412,17 @@ the DOM and quickly identify the parent."
 ;;;; DOM Ordering
 
 (defun edraw-dom-first-node-p (dom node)
-  (if-let ((parent (edraw-dom-parent dom node)))
+  (if-let* ((parent (edraw-dom-parent dom node)))
       (eq (car (dom-children parent)) node)
     t))
 
 (defun edraw-dom-last-node-p (dom node)
-  (if-let ((parent (edraw-dom-parent dom node)))
+  (if-let* ((parent (edraw-dom-parent dom node)))
       (eq (car (last (dom-children parent))) node)
     t))
 
 (defun edraw-dom-reorder-prev (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
+  (when-let* ((parent (edraw-dom-parent dom node)))
     (let ((index (seq-position (dom-children parent) node #'eq)))
       (when (> index 0)
         (let* ((prev-cell (nthcdr (1- index) (dom-children parent)))
@@ -433,7 +433,7 @@ the DOM and quickly identify the parent."
         t))))
 
 (defun edraw-dom-reorder-next (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
+  (when-let* ((parent (edraw-dom-parent dom node)))
     (let* ((index (seq-position (dom-children parent) node #'eq))
            (curr-cell (nthcdr index (dom-children parent)))
            (next-cell (cdr curr-cell))
@@ -445,7 +445,7 @@ the DOM and quickly identify the parent."
         t))))
 
 (defun edraw-dom-reorder-first (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
+  (when-let* ((parent (edraw-dom-parent dom node)))
     (when (not (eq (car (dom-children parent)) node))
       ;; The parent of NODE does not change.
       (dom-remove-node parent node)
@@ -453,7 +453,7 @@ the DOM and quickly identify the parent."
       t)))
 
 (defun edraw-dom-reorder-last (dom node)
-  (when-let ((parent (edraw-dom-parent dom node)))
+  (when-let* ((parent (edraw-dom-parent dom node)))
     (when (not (eq (car (last (dom-children parent))) node))
       ;; The parent of NODE does not change.
       (dom-remove-node parent node)
@@ -1355,10 +1355,10 @@ However, SVG2's transform attribute does not allow trailing dots.")
   (/ (edraw-svg-attr-length-em element) 2.0))
 
 (defun edraw-svg-attr-length-viewport-size (element)
-  (if-let ((svg (if (eq (dom-tag element) 'svg)
-                    element
-                  (edraw-dom-get-ancestor-by-tag element 'svg))))
-      (if-let ((vbox (dom-attr svg 'viewBox)))
+  (if-let* ((svg (if (eq (dom-tag element) 'svg)
+                     element
+                   (edraw-dom-get-ancestor-by-tag element 'svg))))
+      (if-let* ((vbox (dom-attr svg 'viewBox)))
           ;; viewBox="<min-x> <min-y> <width> <height>"
           (let* ((vbox-vals
                   (save-match-data
@@ -1771,7 +1771,7 @@ are set as strings."
   (edraw-matrix-mul-mat-mat
    ;;nil means identity matrix
    matrix
-   (when-let ((transform-str (dom-attr element 'transform)))
+   (when-let* ((transform-str (dom-attr element 'transform)))
      (ignore-errors
        (edraw-svg-transform-to-matrix transform-str)))))
 
@@ -2436,11 +2436,11 @@ other purposes."
 
 (defun edraw-svg-element-get-property (element prop-name deftbl
                                                &optional prop-info-list)
-  (when-let ((prop-info-list
-              (or prop-info-list
-                  (edraw-svg-element-get-property-info-list element)))
-             (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
-                                                            prop-name)))
+  (when-let* ((prop-info-list
+               (or prop-info-list
+                   (edraw-svg-element-get-property-info-list element)))
+              (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
+                                                             prop-name)))
     (let* ((source (edraw-svg-prop-info-source prop-info))
            (getter (intern
                     (concat "edraw-svg-element-get-" (symbol-name source)))))
@@ -2448,11 +2448,11 @@ other purposes."
 
 (defun edraw-svg-element-set-property (element prop-name value deftbl
                                                &optional prop-info-list)
-  (when-let ((prop-info-list
-              (or prop-info-list
-                  (edraw-svg-element-get-property-info-list element)))
-             (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
-                                                            prop-name)))
+  (when-let* ((prop-info-list
+               (or prop-info-list
+                   (edraw-svg-element-get-property-info-list element)))
+              (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
+                                                             prop-name)))
     (let* ((source (edraw-svg-prop-info-source prop-info))
            (setter (intern
                     (concat "edraw-svg-element-set-" (symbol-name source)))))
@@ -3073,9 +3073,9 @@ DEFTBL records that REFERRER-ELEMENT refers to DEF-ELEMENT.
 The string converted from ADDITIONAL-INFO is concatenated to the
 end of the id attribute of DEF-ELEMENT.
 See `edraw-svg-def-element-id' and `edraw-svg-def-element-url'."
-  (if-let ((defref (assoc def-element
-                          (edraw-svg-deftbl-defrefs deftbl)
-                          #'edraw-svg-def-element-equal-p)))
+  (if-let* ((defref (assoc def-element
+                           (edraw-svg-deftbl-defrefs deftbl)
+                           #'edraw-svg-def-element-equal-p)))
       (progn
         (edraw-svg-defref-add-referrer defref referrer-element)
         (edraw-svg-def-element-url defref additional-info))
@@ -3112,15 +3112,15 @@ See `edraw-svg-def-element-id' and `edraw-svg-def-element-url'."
             (edraw-svg-deftbl-defrefs deftbl)))
 
 (defun edraw-svg-deftbl-add-ref-by-idnum (deftbl idnum referrer-element)
-  (when-let ((defref (edraw-svg-deftbl-get-defref-by-idnum deftbl idnum)))
+  (when-let* ((defref (edraw-svg-deftbl-get-defref-by-idnum deftbl idnum)))
     (edraw-svg-defref-add-referrer defref referrer-element)))
 
 (defun edraw-svg-deftbl-remove-ref-by-url (deftbl url element)
-  (when-let ((idnum (edraw-svg-def-element-url-to-idnum url)))
+  (when-let* ((idnum (edraw-svg-def-element-url-to-idnum url)))
     (edraw-svg-deftbl-remove-ref-by-idnum deftbl idnum element)))
 
 (defun edraw-svg-deftbl-get-defref-by-url (deftbl url)
-  (when-let ((idnum (edraw-svg-def-element-url-to-idnum url)))
+  (when-let* ((idnum (edraw-svg-def-element-url-to-idnum url)))
     (edraw-svg-deftbl-get-defref-by-idnum deftbl idnum)))
 
 (defun edraw-svg-deftbl-from-dom (defs-element body-node)
@@ -3139,7 +3139,7 @@ specified by the `edraw-svg-deftbl-target-attributes' constant."
         defref-list)
     ;; Collect definitions
     (dolist (def (dom-children defs-element))
-      (when-let ((idnum (edraw-svg-def-element-id-to-idnum (dom-attr def 'id))))
+      (when-let* ((idnum (edraw-svg-def-element-id-to-idnum (dom-attr def 'id))))
         (push (edraw-svg-defref def idnum) defref-list)))
     ;; Sort and assign
     (setcdr (edraw-svg-deftbl-defrefs--head deftbl)
@@ -3165,7 +3165,7 @@ attributes that are not limited to markers.")
     ;; Collect from attributes
     (dolist (attr (dom-attributes dom))
       (when (member (car attr) edraw-svg-deftbl-target-attributes)
-        (when-let ((idnum (edraw-svg-def-element-url-to-idnum (cdr attr))))
+        (when-let* ((idnum (edraw-svg-def-element-url-to-idnum (cdr attr))))
           (edraw-svg-deftbl-add-ref-by-idnum deftbl idnum dom))))
     ;; Collect from children
     (dolist (child (dom-children dom))
@@ -3193,9 +3193,9 @@ definition element (under SRC-DEFTBL) and set it again (under DEFTBL).
 
 If SRC-DEFTBL is specified, the referenced defs element (deftbl)
 can be changed."
-  (when-let ((value (edraw-svg-element-get-property element
-                                                    prop-name
-                                                    (or src-deftbl deftbl))))
+  (when-let* ((value (edraw-svg-element-get-property element
+                                                     prop-name
+                                                     (or src-deftbl deftbl))))
     ;; Remove reference to SRC-DEFTBL
     (when (and src-deftbl (not (eq src-deftbl deftbl)))
       (edraw-svg-element-set-property element prop-name nil src-deftbl))
@@ -3563,8 +3563,8 @@ PROPS is an alist of properties defined by the MARKER-TYPE."
 
 (defun edraw-svg-update-marker-property (element prop-name deftbl
                                                  &optional src-deftbl)
-  (when-let ((marker (edraw-svg-marker-from-element element prop-name
-                                                    (or src-deftbl deftbl))))
+  (when-let* ((marker (edraw-svg-marker-from-element element prop-name
+                                                     (or src-deftbl deftbl))))
     (edraw-svg-set-marker-property element prop-name marker deftbl)))
 
 (defun edraw-svg-update-marker-properties (element deftbl
@@ -3735,7 +3735,7 @@ This function does not consider the effect of the transform attribute."
                                 (cdr xy))))
 
 (defun edraw-svg-path-translate-contents (element xy)
-  (when-let ((d (dom-attr element 'd)))
+  (when-let* ((d (dom-attr element 'd)))
     (edraw-svg-set-attr-string element 'd (edraw-path-d-translate d xy))))
 
 (defun edraw-svg-group-translate-contents (element xy)
@@ -4182,7 +4182,7 @@ This function does not consider the effect of the transform attribute."
 (defun edraw-svg-element-contains-point-p (element xy pick-radius stroke-forced)
   (let ((transform (edraw-svg-element-transform-get element)))
     (unless (edraw-matrix-identity-p transform)
-      (when-let ((inv (edraw-matrix-inverse transform)))
+      (when-let* ((inv (edraw-matrix-inverse transform)))
         (setq xy (edraw-matrix-mul-mat-xy inv xy))
         (setq pick-radius (edraw-svg-element-contains-point--pick-radius-scale
                            pick-radius inv)))))

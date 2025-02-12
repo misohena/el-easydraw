@@ -1333,7 +1333,7 @@
         (mapcar
          (lambda (area)
            (when (edraw-color-picker-area-or-derived-p area)
-             (when-let ((image-map-id-props (oref area image-map-id-props)))
+             (when-let* ((image-map-id-props (oref area image-map-id-props)))
                (let* ((x0 (oref area left))
                       (y0 (oref area top))
                       (x1 (+ x0 (oref area width)))
@@ -1360,7 +1360,7 @@
             areas))
 
 (defun edraw-color-picker-areas-click-by-name (areas name)
-  (when-let ((area (edraw-color-picker-areas-find-by-name areas name)))
+  (when-let* ((area (edraw-color-picker-areas-find-by-name areas name)))
     (edraw-dispatch-click area)))
 
 (defun edraw-color-picker-areas-on-down-mouse (areas down-event image-scale
@@ -1512,7 +1512,7 @@
           (edraw-color-picker-areas-create-image-map areas image-scale))
 
     ;; Setup event routing
-    (when-let ((button (edraw-color-picker-areas-find-by-name areas "ok")))
+    (when-let* ((button (edraw-color-picker-areas-find-by-name areas "ok")))
       (oset button on-click
             (lambda (_area)
               ;; Add color to recent-colors
@@ -1521,17 +1521,17 @@
                  options
                  (edraw-get-current-color picker)))
               ;; Callback
-              (when-let ((fun (alist-get :ok options)))
+              (when-let* ((fun (alist-get :ok options)))
                 (funcall fun picker))
               (edraw-hook-call (alist-get 'ok (oref picker hooks)) picker))))
-    (when-let ((button (edraw-color-picker-areas-find-by-name areas "cancel")))
+    (when-let* ((button (edraw-color-picker-areas-find-by-name areas "cancel")))
       (oset button on-click
             (lambda (_area)
               ;; Callback
-              (when-let ((fun (alist-get :cancel options)))
+              (when-let* ((fun (alist-get :cancel options)))
                 (funcall fun picker))
               (edraw-hook-call (alist-get 'cancel (oref picker hooks)) picker))))
-    (when-let ((button (edraw-color-picker-areas-find-by-name areas "no-color")))
+    (when-let* ((button (edraw-color-picker-areas-find-by-name areas "no-color")))
       (oset button on-click
             (lambda (_area)
               ;; Callback
@@ -1544,7 +1544,7 @@
 (cl-defmethod edraw-add-hook ((picker edraw-color-picker) hook-type
                               function &rest args)
   (with-slots (hooks) picker
-    (when-let ((hook (alist-get hook-type hooks)))
+    (when-let* ((hook (alist-get hook-type hooks)))
       (apply 'edraw-hook-add hook function args))))
 
 (cl-defmethod edraw-closed-p ((picker edraw-color-picker))
@@ -1636,7 +1636,7 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-increase-color-x (n)
   (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+  (when-let* ((picker (edraw-color-picker-at-input last-command-event)))
     (edraw-increase-color-xy picker (cons (/ n 256.0) 0))))
 (defun edraw-color-picker-decrease-color-x (n)
   (interactive "p")
@@ -1660,7 +1660,7 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-increase-color-y (n)
   (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+  (when-let* ((picker (edraw-color-picker-at-input last-command-event)))
     (edraw-increase-color-xy picker (cons 0 (/ n 256.0)))))
 (defun edraw-color-picker-decrease-color-y (n)
   (interactive "p")
@@ -1684,7 +1684,7 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-increase-color-z (n)
   (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+  (when-let* ((picker (edraw-color-picker-at-input last-command-event)))
     (edraw-increase-color-z picker (/ n 256.0))))
 (defun edraw-color-picker-decrease-color-z (n)
   (interactive "p")
@@ -1708,7 +1708,7 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-increase-opacity (n)
   (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+  (when-let* ((picker (edraw-color-picker-at-input last-command-event)))
     (edraw-increase-opacity picker (/ n 256.0))))
 (defun edraw-color-picker-decrease-opacity (n)
   (interactive "p")
@@ -1921,7 +1921,7 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-select-palette-color (index)
   (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+  (when-let* ((picker (edraw-color-picker-at-input last-command-event)))
     (edraw-select-palette-color picker index)))
 
 (defun edraw-color-picker-select-palette-color-fname (i)
@@ -1950,7 +1950,7 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-select-recent-color (index)
   (interactive "p")
-  (when-let ((picker (edraw-color-picker-at-input last-command-event)))
+  (when-let* ((picker (edraw-color-picker-at-input last-command-event)))
     (edraw-select-recent-color picker index)))
 
 (defun edraw-color-picker-select-recent-color-fname (i)
@@ -2140,7 +2140,7 @@ make-overlay. The rest is a plist to pass to overlay-put."
   "Move OVERLAY above or below the current point.
 
 OVERLAY uses the display property to display the color PICKER."
-  (when-let ((pos-in-win (pos-visible-in-window-p nil nil t)))
+  (when-let* ((pos-in-win (pos-visible-in-window-p nil nil t)))
     (when (or (< (point-min) (line-beginning-position))
               (< (line-end-position) (point-max)))
       (let* (;; y
@@ -2176,7 +2176,7 @@ OVERLAY uses the display property to display the color PICKER."
 
 (defun edraw-color-picker-on-down-mouse (down-event)
   (interactive "e")
-  (when-let ((picker (edraw-color-picker-at-input down-event)))
+  (when-let* ((picker (edraw-color-picker-at-input down-event)))
     (edraw-on-down-mouse picker down-event)))
 
 ;;;; Frame Display
@@ -3031,8 +3031,8 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
               (when (or (member input allow-strings)
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
-          (when-let ((result-color
-                      (edraw-color-picker-color-from-string result options)))
+          (when-let* ((result-color
+                       (edraw-color-picker-color-from-string result options)))
             ;; Avoid color name
             (edraw-color-picker-add-recent-color options result-color))
           result)
@@ -3132,9 +3132,9 @@ of input changes."
   ;; assert current-buffer is minibuffer
   (unless (equal string edraw-color-picker-minibuffer--buffer-contents)
     (setq edraw-color-picker-minibuffer--buffer-contents string)
-    (when-let ((picker edraw-color-picker-minibuffer--picker)
-               (options (edraw-options picker))
-               (callback (alist-get :on-input-change options)))
+    (when-let* ((picker edraw-color-picker-minibuffer--picker)
+                (options (edraw-options picker))
+                (callback (alist-get :on-input-change options)))
       (funcall callback string color))))
 
 (defun edraw-color-picker-minibuffer--on-color-change (picker)

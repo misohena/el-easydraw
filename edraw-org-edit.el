@@ -48,9 +48,9 @@ its own."
   (require 'edraw)
 
   ;; Get link object & link properties
-  (when-let ((link-object (edraw-org-link-at-point))
-             (link-props-place-type (edraw-org-link-object-link-properties
-                                     link-object nil)))
+  (when-let* ((link-object (edraw-org-link-at-point))
+              (link-props-place-type (edraw-org-link-object-link-properties
+                                      link-object nil)))
 
     (let* ((link-begin (org-element-property :begin link-object))
            (link-end (org-element-property :end link-object))
@@ -60,7 +60,7 @@ its own."
         (error "Editor already exists"))
 
       ;; Hide inline link image if it exists
-      (when-let ((image-overlay (edraw-org-link-image-overlay-at link-begin)))
+      (when-let* ((image-overlay (edraw-org-link-image-overlay-at link-begin)))
         (edraw-org-link-image-set-visible image-overlay nil))
 
       ;; Remove mouse-face text property
@@ -91,9 +91,9 @@ its own."
 
 (defun edraw-org-link-load-svg (link-props
                                 &optional accepts-top-level-comments-p)
-  (if-let ((data (edraw-org-link-prop-data link-props)))
+  (if-let* ((data (edraw-org-link-prop-data link-props)))
       (edraw-svg-decode-svg data t accepts-top-level-comments-p)
-    (if-let ((file (edraw-org-link-prop-file link-props)))
+    (if-let* ((file (edraw-org-link-prop-file link-props)))
         (if (file-exists-p file)
             (edraw-svg-read-from-file file accepts-top-level-comments-p)))))
 
@@ -120,7 +120,7 @@ its own."
                     (error "The type of the editing link is not `edraw:'")))
                (link-props (nth 0 link-props-place-type))
                (in-description-p (nth 1 link-props-place-type)))
-          (if-let ((file-path (edraw-org-link-prop-file link-props)))
+          (if-let* ((file-path (edraw-org-link-prop-file link-props)))
               ;; file
               (progn
                 (edraw-svg-write-to-file svg file-path file-gzip-p) ;;signal an error
@@ -172,20 +172,20 @@ its own."
 
 (defun edraw-org-link-cancel-edit (&optional editor)
   (interactive)
-  (when-let ((editor (or editor (edraw-current-editor))))
+  (when-let* ((editor (or editor (edraw-current-editor))))
     (when (or (null (edraw-modified-p editor))
               (yes-or-no-p (edraw-msg "Discard changes?")))
       (edraw-org-link-close-editor editor))))
 
 (defun edraw-org-link-close-editor (editor)
   ;; show link image
-  (when-let ((editor-overlay (oref editor overlay))
-             (buffer (overlay-buffer editor-overlay)))
+  (when-let* ((editor-overlay (oref editor overlay))
+              (buffer (overlay-buffer editor-overlay)))
     (with-current-buffer buffer
       (save-excursion
         ;; Recover inline image
-        (when-let ((image-overlay (edraw-org-link-image-overlay-at
-                                   (overlay-start editor-overlay))))
+        (when-let* ((image-overlay (edraw-org-link-image-overlay-at
+                                    (overlay-start editor-overlay))))
           (edraw-org-link-image-set-visible image-overlay t))
         ;; Recover mouse-face
         (edraw-org-link-recover-mouse-face (overlay-start editor-overlay)

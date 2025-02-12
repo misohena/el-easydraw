@@ -495,7 +495,7 @@ The previous subpath of FIRST and the next subpath of LAST will be nil."
   "Insert subpaths FIRST through LAST after SUBPATH."
   (when (and subpath first last)
     (edraw-path-subpath-remove-range first last)
-    (when-let ((next (edraw-path-subpath-next subpath)))
+    (when-let* ((next (edraw-path-subpath-next subpath)))
       (setf (edraw-path-subpath--prev next) last)
       (setf (edraw-path-subpath--next last) next))
     (setf (edraw-path-subpath--next subpath) first)
@@ -505,7 +505,7 @@ The previous subpath of FIRST and the next subpath of LAST will be nil."
   "Insert subpaths FIRST through LAST before SUBPATH."
   (when (and subpath first last)
     (edraw-path-subpath-remove-range first last)
-    (when-let ((prev (edraw-path-subpath-prev subpath)))
+    (when-let* ((prev (edraw-path-subpath-prev subpath)))
       (setf (edraw-path-subpath--next prev) first)
       (setf (edraw-path-subpath--prev first) prev))
     (setf (edraw-path-subpath--prev subpath) last)
@@ -705,11 +705,11 @@ ANCHOR (new handle objects will also be created).
 The new anchor does not yet belong to any subpath."
   (when (edraw-path-anchor-p anchor)
     (let ((new-anchor (edraw-path-anchor (edraw-path-anchor--xy anchor))))
-      (when-let ((backward-handle (edraw-path-anchor--backward-handle anchor)))
+      (when-let* ((backward-handle (edraw-path-anchor--backward-handle anchor)))
         (edraw-path-handle-set-xy-relative
          (edraw-path-anchor-backward-handle new-anchor)
          (edraw-path-handle-xy-relative backward-handle)))
-      (when-let ((forward-handle (edraw-path-anchor--forward-handle anchor)))
+      (when-let* ((forward-handle (edraw-path-anchor--forward-handle anchor)))
         (edraw-path-handle-set-xy-relative
          (edraw-path-anchor-forward-handle new-anchor)
          (edraw-path-handle-xy-relative forward-handle)))
@@ -771,12 +771,12 @@ The handles are also transformed."
 
 (defun edraw-path-anchor-has-backward-handle (anchor)
   "Return non-nil if ANCHOR has a active backward handle."
-  (when-let ((handle (edraw-path-anchor--backward-handle anchor)))
+  (when-let* ((handle (edraw-path-anchor--backward-handle anchor)))
     (edraw-path-handle-active-p handle)))
 
 (defun edraw-path-anchor-has-forward-handle (anchor)
   "Return non-nil if ANCHOR has a active forward handle."
-  (when-let ((handle (edraw-path-anchor--forward-handle anchor)))
+  (when-let* ((handle (edraw-path-anchor--forward-handle anchor)))
     (edraw-path-handle-active-p handle)))
 
 (defun edraw-path-anchor-backward-handle (anchor)
@@ -794,26 +794,26 @@ The handles are also transformed."
 (defun edraw-path-anchor-backward-handle-or-nil (anchor)
   "Return the backward handle of the ANCHOR.
 If the handle is in an inactive state, return nil."
-  (when-let ((handle (edraw-path-anchor--backward-handle anchor)))
+  (when-let* ((handle (edraw-path-anchor--backward-handle anchor)))
     (when (edraw-path-handle-active-p handle)
       handle)))
 
 (defun edraw-path-anchor-forward-handle-or-nil (anchor)
   "Return the forward handle of the ANCHOR.
 If the handle is in an inactive state, return nil."
-  (when-let ((handle (edraw-path-anchor--forward-handle anchor)))
+  (when-let* ((handle (edraw-path-anchor--forward-handle anchor)))
     (when (edraw-path-handle-active-p handle)
       handle)))
 
 (defun edraw-path-anchor-backward-handle-xy (anchor)
   "Return the coordinates of the backward handle of the ANCHOR."
-  (if-let ((handle (edraw-path-anchor--backward-handle anchor)))
+  (if-let* ((handle (edraw-path-anchor--backward-handle anchor)))
       (edraw-path-handle-xy handle)
     (edraw-path-anchor-xy anchor)))
 
 (defun edraw-path-anchor-forward-handle-xy (anchor)
   "Return the coordinates of the forward handle of the ANCHOR."
-  (if-let ((handle (edraw-path-anchor--forward-handle anchor)))
+  (if-let* ((handle (edraw-path-anchor--forward-handle anchor)))
       (edraw-path-handle-xy handle)
     (edraw-path-anchor-xy anchor)))
 
@@ -831,13 +831,13 @@ If the handle is in an inactive state, return nil."
 
 (defun edraw-path-anchor-backward-handle-xy-relative (anchor)
   "Return the relative coordinates of the backward handle of the ANCHOR."
-  (if-let ((handle (edraw-path-anchor--backward-handle anchor)))
+  (if-let* ((handle (edraw-path-anchor--backward-handle anchor)))
       (edraw-path-handle-xy-relative handle)
     (edraw-xy 0 0)))
 
 (defun edraw-path-anchor-forward-handle-xy-relative (anchor)
   "Return the relative coordinates of the forward handle of the ANCHOR."
-  (if-let ((handle (edraw-path-anchor--forward-handle anchor)))
+  (if-let* ((handle (edraw-path-anchor--forward-handle anchor)))
       (edraw-path-handle-xy-relative handle)
     (edraw-xy 0 0)))
 
@@ -855,12 +855,12 @@ If the handle is in an inactive state, return nil."
 
 (defun edraw-path-anchor-remove-backward-handle (anchor)
   "Remove the backward handle of ANCHOR."
-  (when-let ((handle (edraw-path-anchor--backward-handle anchor)))
+  (when-let* ((handle (edraw-path-anchor--backward-handle anchor)))
     (edraw-path-handle-remove handle)))
 
 (defun edraw-path-anchor-remove-forward-handle (anchor)
   "Remove the forward handle of ANCHOR."
-  (when-let ((handle (edraw-path-anchor--forward-handle anchor)))
+  (when-let* ((handle (edraw-path-anchor--forward-handle anchor)))
     (edraw-path-handle-remove handle)))
 
 (defun edraw-path-anchor-reverse-handles (anchor)
@@ -925,7 +925,7 @@ If ANCHOR is in a closed subpath, the anchor after the last anchor
  is the first anchor.
 If ANCHOR is in an open path, the anchor after the last anchor is nil."
   (let ((next (edraw-path-anchor--next anchor)))
-    (if-let ((subpath (edraw-path-anchor-sentinel-to-subpath next)))
+    (if-let* ((subpath (edraw-path-anchor-sentinel-to-subpath next)))
         (if (edraw-path-subpath-closed-p subpath)
             (edraw-path-subpath--anchor-first subpath)
           nil)
@@ -937,7 +937,7 @@ If ANCHOR is in a closed subpath, the anchor before the first anchor
  is the last anchor.
 If ANCHOR is in an open path, the anchor before the first anchor is nil."
   (let ((prev (edraw-path-anchor--prev anchor)))
-    (if-let ((subpath (edraw-path-anchor-sentinel-to-subpath prev)))
+    (if-let* ((subpath (edraw-path-anchor-sentinel-to-subpath prev)))
         (if (edraw-path-subpath-closed-p subpath)
             (edraw-path-subpath--anchor-last subpath)
           nil)
@@ -961,24 +961,24 @@ If ANCHOR is in an open path, the anchor before the first anchor is nil."
   "Return non-nil if the ANCHOR is an endpoint of an open subpath.
 Return non-nil only if ANCHOR is the first or last anchor on an open path.
 If ANCHOR is on a closed path, always return nil."
-  (when-let ((subpath (or (edraw-path-anchor-sentinel-to-subpath
-                           (edraw-path-anchor--prev anchor))
-                          (edraw-path-anchor-sentinel-to-subpath
-                           (edraw-path-anchor--next anchor)))))
+  (when-let* ((subpath (or (edraw-path-anchor-sentinel-to-subpath
+                            (edraw-path-anchor--prev anchor))
+                           (edraw-path-anchor-sentinel-to-subpath
+                            (edraw-path-anchor--next anchor)))))
     (edraw-path-subpath-open-p subpath)))
 
 (defun edraw-path-anchor-first-endpoint-p (anchor)
   "Return non-nil if the ANCHOR is an first endpoint of an open subpath.
 If ANCHOR is on a closed path, always return nil."
-  (when-let ((subpath (edraw-path-anchor-sentinel-to-subpath
-                       (edraw-path-anchor--prev anchor))))
+  (when-let* ((subpath (edraw-path-anchor-sentinel-to-subpath
+                        (edraw-path-anchor--prev anchor))))
     (edraw-path-subpath-open-p subpath)))
 
 (defun edraw-path-anchor-last-endpoint-p (anchor)
   "Return non-nil if the ANCHOR is an last endpoint of an open subpath.
 If ANCHOR is on a closed path, always return nil."
-  (when-let ((subpath (edraw-path-anchor-sentinel-to-subpath
-                       (edraw-path-anchor--next anchor))))
+  (when-let* ((subpath (edraw-path-anchor-sentinel-to-subpath
+                        (edraw-path-anchor--next anchor))))
     (edraw-path-subpath-open-p subpath)))
 
 (defun edraw-path-anchor-insert-before (this-anchor new-anchor)
@@ -1014,7 +1014,7 @@ The previous anchor of FIRST and the next anchor of LAST will be nil."
   "Insert anchors FIRST through LAST after ANCHOR."
   (when (and anchor first last)
     (edraw-path-anchor-remove-range first last)
-    (when-let ((next-anchor (edraw-path-anchor--next anchor)))
+    (when-let* ((next-anchor (edraw-path-anchor--next anchor)))
       (setf (edraw-path-anchor--prev next-anchor) last)
       (setf (edraw-path-anchor--next last) next-anchor))
     (setf (edraw-path-anchor--next anchor) first)
@@ -1024,7 +1024,7 @@ The previous anchor of FIRST and the next anchor of LAST will be nil."
   "Insert anchors FIRST through LAST before ANCHOR."
   (when (and anchor first last)
     (edraw-path-anchor-remove-range first last)
-    (when-let ((prev-anchor (edraw-path-anchor--prev anchor)))
+    (when-let* ((prev-anchor (edraw-path-anchor--prev anchor)))
       (setf (edraw-path-anchor--next prev-anchor) first)
       (setf (edraw-path-anchor--prev first) prev-anchor))
     (setf (edraw-path-anchor--prev anchor) last)
@@ -1045,7 +1045,7 @@ new subpath are inserted at the beginning of the existing
 subpath, and the subpath is turned into an open path.
 
 Return the new anchor."
-  (when-let ((subpath (edraw-path-anchor-parent-subpath anchor)))
+  (when-let* ((subpath (edraw-path-anchor-parent-subpath anchor)))
     (let ((new-anchor (edraw-path-anchor-clone anchor))
           (new-subpath (edraw-path-subpath)))
       ;; Duplicate anchor
@@ -1120,7 +1120,7 @@ Return the new anchor.
 
 If the ANCHOR is the first anchor of a closed subpath, wrap
 around (the previous anchor is taken from the last anchor)."
-  (when-let ((anchor-0 (edraw-path-anchor-prev-round anchor)))
+  (when-let* ((anchor-0 (edraw-path-anchor-prev-round anchor)))
     (let ((a0 (edraw-path-anchor-xy anchor-0))
           (a1 (edraw-path-anchor-xy anchor)))
       (if (and (not (edraw-path-anchor-has-forward-handle anchor-0))
@@ -1198,7 +1198,7 @@ If ANCHOR is not in the edraw-path-data object, return nil."
                          (> index 0))
                (setq it (edraw-path-anchor-next it))
                (cl-decf index))
-             (when-let ((subpath (edraw-path-anchor-sentinel-to-subpath it)))
+             (when-let* ((subpath (edraw-path-anchor-sentinel-to-subpath it)))
                ;; anchor sentinel to next subpath
                (setq it (edraw-path-subpath-next subpath))
                t)))
@@ -1402,8 +1402,8 @@ handles as a whole, use `edraw-path-anchor-transform'."
 The handle on the opposite side is moved only when it is exactly
 180 degrees opposite across the HANDLE and anchor."
   (when handle
-    (when-let ((anchor (edraw-path-handle-parent handle))
-               (handle2 (edraw-path-handle-opposite-handle-or-nil handle)))
+    (when-let* ((anchor (edraw-path-handle-parent handle))
+                (handle2 (edraw-path-handle-opposite-handle-or-nil handle)))
       (let* ((handle1-xy (edraw-path-handle-xy handle))
              (anchor-xy (edraw-path-anchor-xy anchor))
              (handle2-xy (edraw-path-handle-xy handle2))
@@ -1433,9 +1433,9 @@ The position of the opposite handle is point symmetrical across
 the anchor from NEW-XY."
   (when handle
     ;; opposite handle (symmetry)
-    (when-let ((anchor (edraw-path-handle-parent handle))
-               ;; Always create opposite handle
-               (opposite-handle (edraw-path-handle-opposite-handle handle)))
+    (when-let* ((anchor (edraw-path-handle-parent handle))
+                ;; Always create opposite handle
+                (opposite-handle (edraw-path-handle-opposite-handle handle)))
       (edraw-path-handle-set-xy
        opposite-handle
        (edraw-xy-sub (edraw-xy-nmul 2 (edraw-path-anchor-xy anchor))

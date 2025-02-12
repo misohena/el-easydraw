@@ -96,26 +96,26 @@
   '(full (fill . "#fff"))
   "Thumbnail background"
   :type '(cons :tag "Background Spec"
-          (choice (const full)
-                  (const content))
-          (repeat
-           (cons :tag "SVG Attribute"
-                 (symbol :tag "Attribute")
-                 (string :tag "Value")))
-          )
+               (choice (const full)
+                       (const content))
+               (repeat
+                (cons :tag "SVG Attribute"
+                      (symbol :tag "Attribute")
+                      (string :tag "Value")))
+               )
   :group 'edraw-shape-picker)
 
 (defcustom edraw-shape-picker-thumbnail-foreground-selected
   '(full (stroke . "rgba(0,100,255,0.75)") (stroke-width . "8") (fill . "none"))
   "Thumbnail background"
   :type '(cons :tag "Foreground Spec"
-          (choice (const full)
-                  (const content))
-          (repeat
-           (cons :tag "SVG Attribute"
-                 (symbol :tag "Attribute")
-                 (string :tag "Value")))
-          )
+               (choice (const full)
+                       (const content))
+               (repeat
+                (cons :tag "SVG Attribute"
+                      (symbol :tag "Attribute")
+                      (string :tag "Value")))
+               )
   :group 'edraw-shape-picker)
 
 (defcustom edraw-shape-picker-thumbnail-margin
@@ -380,7 +380,7 @@
         ;; (if (and window
         ;;          (window-live-p window))
         ;;     (quit-restore-window window 'bury)
-        ;;   (when-let ((window (get-buffer-window buffer)))
+        ;;   (when-let* ((window (get-buffer-window buffer)))
         ;;     (when (window-parent window)
         ;;       (delete-window window))))
 
@@ -476,7 +476,7 @@
                   (copy-tree entries)
                 entries))
   ;; Restore selection
-  (when-let ((entry (edraw-shape-picker-file-last-selection-get)))
+  (when-let* ((entry (edraw-shape-picker-file-last-selection-get)))
     (setq-local edraw-shape-picker-selected-shape-entry entry)))
 
 ;;;;; Notification
@@ -550,7 +550,7 @@
          "Region"
          (edraw-shape-picker-region-actions))
       (goto-char pos)
-      (if-let ((entry (edraw-shape-picker-entry-at pos)))
+      (if-let* ((entry (edraw-shape-picker-entry-at pos)))
           (edraw-popup-menu-call-interactively
            (edraw-shape-picker-entry-name-for-msg entry)
            (edraw-shape-picker-entry-actions entry))
@@ -676,7 +676,7 @@
 
 (defun edraw-shape-picker-rename-entry-at (pos)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (when (edraw-shape-picker-entry-can-have-name-p entry)
       ;; :section, :shape
       (let* ((old-name
@@ -725,7 +725,7 @@
 
 (defun edraw-shape-picker-set-entry-property-at (pos)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (let* ((prop-defs (alist-get (edraw-shape-picker-entry-type entry)
                                  edraw-shape-picker-entry-prop-defs))
            (prop-name (completing-read (edraw-msg "Property: ")
@@ -805,18 +805,18 @@
       nil)))
 
 (defun edraw-shape-picker-read-prop-value-rect (curr-val)
-  (if-let ((left
-            (edraw-read-number-or-nil
-             "Left: " (and curr-val (edraw-rect-left curr-val))))
-           (top
-            (edraw-read-number-or-nil
-             "Top: " (and curr-val (edraw-rect-top curr-val))))
-           (right
-            (edraw-read-number-or-nil
-             "Right: " (and curr-val (edraw-rect-right curr-val))))
-           (bottom
-            (edraw-read-number-or-nil
-             "Bottom: " (and curr-val (edraw-rect-bottom curr-val)))))
+  (if-let* ((left
+             (edraw-read-number-or-nil
+              "Left: " (and curr-val (edraw-rect-left curr-val))))
+            (top
+             (edraw-read-number-or-nil
+              "Top: " (and curr-val (edraw-rect-top curr-val))))
+            (right
+             (edraw-read-number-or-nil
+              "Right: " (and curr-val (edraw-rect-right curr-val))))
+            (bottom
+             (edraw-read-number-or-nil
+              "Bottom: " (and curr-val (edraw-rect-bottom curr-val)))))
       (edraw-rect left top right bottom)
     nil))
 
@@ -841,7 +841,7 @@
 (defun edraw-shape-picker-edit-shape-at (pos)
   (interactive "d")
 
-  (when-let ((entry (edraw-shape-picker-shape-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-shape-entry-at pos)))
     (edraw-edit-svg
      ;; Source
      (edraw-create-document-svg
@@ -877,7 +877,7 @@
 (defun edraw-shape-picker-insert-new-shape-at (pos)
   (interactive "d")
 
-  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+  (if-let* ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
       (progn
         (edraw-edit-svg
          ;; Source
@@ -907,7 +907,7 @@
 (defun edraw-shape-picker-insert-new-section-at (pos)
   (interactive "d")
 
-  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+  (if-let* ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
       (edraw-shape-picker-entry-insert
        (car parent-index) (cdr parent-index)
        ;;@todo Make shape constructor function
@@ -939,15 +939,15 @@
 
 (defun edraw-shape-picker-delete-entry-at (pos)
   (interactive "d")
-  (if-let ((entry (edraw-shape-picker-entry-at pos)))
+  (if-let* ((entry (edraw-shape-picker-entry-at pos)))
       (edraw-shape-picker-delete-entry-common entry)
     (message (edraw-msg "No entries at point"))))
 
 (defun edraw-shape-picker-delete-backward-entry-at (pos)
   (interactive "d")
-  (when-let ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos nil))
-             (entry (car entry-pos))
-             (range (edraw-shape-picker-lookup-text-entry-range (cdr entry-pos))))
+  (when-let* ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos nil))
+              (entry (car entry-pos))
+              (range (edraw-shape-picker-lookup-text-entry-range (cdr entry-pos))))
     (goto-char (car range))
     (edraw-shape-picker-delete-entry-common entry)))
 
@@ -981,7 +981,7 @@
 
 (defun edraw-shape-picker-copy-entry-at (pos)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (deactivate-mark)
     (edraw-shape-picker-clipboard-set (list entry))
     (message (edraw-msg "Copied %s")
@@ -990,7 +990,7 @@
 
 (defun edraw-shape-picker-cut-entry-at (pos)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (deactivate-mark)
     (when (edraw-shape-picker-delete-entry-common entry)
       (edraw-shape-picker-clipboard-set (list entry))
@@ -1002,7 +1002,7 @@
 
 (defun edraw-shape-picker-paste-entry-at (pos)
   (interactive "d")
-  (when-let ((entries (edraw-shape-picker-clipboard-get)))
+  (when-let* ((entries (edraw-shape-picker-clipboard-get)))
     (edraw-shape-picker-entries-insert-at entries pos)))
 
 ;; Region
@@ -1010,7 +1010,7 @@
 (defun edraw-shape-picker-copy-entries-region (beg end)
   (interactive "r")
 
-  (when-let ((entries (edraw-shape-picker-entries-in-region beg end)))
+  (when-let* ((entries (edraw-shape-picker-entries-in-region beg end)))
     (edraw-shape-picker-clipboard-set entries)
     (deactivate-mark)
     (message (edraw-msg "Copied %s entries")
@@ -1019,7 +1019,7 @@
 (defun edraw-shape-picker-cut-entries-region (beg end)
   (interactive "r")
 
-  (when-let ((entries (edraw-shape-picker-entries-in-region beg end)))
+  (when-let* ((entries (edraw-shape-picker-entries-in-region beg end)))
     (when (memq edraw-shape-picker-entries entries)
       (error (edraw-msg "Unable to cut root entry")))
     (edraw-shape-picker-clipboard-set entries)
@@ -1037,12 +1037,12 @@
 (defun edraw-shape-picker-move-entry-forward (pos &optional
                                                   no-enter-p no-leave-p)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (let ((ins-point
            ;; Find next insertion point
-           (if-let ((parent-index (edraw-shape-picker-entry-parent-index entry))
-                    (parent (car parent-index))
-                    (index (cdr parent-index)))
+           (if-let* ((parent-index (edraw-shape-picker-entry-parent-index entry))
+                     (parent (car parent-index))
+                     (index (cdr parent-index)))
                (if (< index
                       (1- (length (edraw-shape-picker-entry-child-entries parent))))
                    ;; ENTRY is not the last child of PARENT
@@ -1060,8 +1060,8 @@
                  ;; ENTRY is the last child of PARENT
                  (if no-leave-p
                      nil
-                   (if-let ((grandparent-index
-                             (edraw-shape-picker-entry-parent-index parent)))
+                   (if-let* ((grandparent-index
+                              (edraw-shape-picker-entry-parent-index parent)))
                        ;; ENTRY becomes next sibling of PARENT
                        (cons
                         (car grandparent-index)
@@ -1083,12 +1083,12 @@
 (defun edraw-shape-picker-move-entry-backward (pos &optional
                                                    no-enter-p no-leave-p)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (let ((ins-point
            ;; Find previous insertion point
-           (if-let ((parent-index (edraw-shape-picker-entry-parent-index entry))
-                    (parent (car parent-index))
-                    (index (cdr parent-index)))
+           (if-let* ((parent-index (edraw-shape-picker-entry-parent-index entry))
+                     (parent (car parent-index))
+                     (index (cdr parent-index)))
                (if (> index 0)
                    ;; ENTRY is not the first child of PARENT
                    (let ((prev-entry
@@ -1107,8 +1107,8 @@
                  ;; ENTRY is the first child of PARENT
                  (if no-leave-p
                      nil
-                   (if-let ((grandparent-index
-                             (edraw-shape-picker-entry-parent-index parent)))
+                   (if-let* ((grandparent-index
+                              (edraw-shape-picker-entry-parent-index parent)))
                        ;; ENTRY becomes previous sibling of PARENT
                        (cons
                         (car grandparent-index)
@@ -1140,7 +1140,7 @@
 
 (defun edraw-shape-picker-export-section-at (pos)
   (interactive "d")
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (when (eq (edraw-shape-picker-entry-type entry) :section)
       (let* ((name (or (edraw-shape-picker-entry-prop-get entry :name) ""))
              (filename-initial
@@ -1155,7 +1155,7 @@
 
 (defun edraw-shape-picker-import-section-at (pos)
   (interactive "d")
-  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+  (if-let* ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
       (let* ((filename (read-file-name "Import .eshapes file: " nil nil t))
              (entry (edraw-shape-picker-load-entries filename)))
 
@@ -1357,7 +1357,7 @@
   (car (last (edraw-shape-picker-entry-child-entries entry))))
 
 (defun edraw-shape-picker-entry-last-descendant (entry)
-  (if-let ((last-child (edraw-shape-picker-entry-last-child entry)))
+  (if-let* ((last-child (edraw-shape-picker-entry-last-child entry)))
       (edraw-shape-picker-entry-last-descendant last-child)
     entry))
 
@@ -1465,7 +1465,7 @@ subsequent entry will be connected."
       children)))
 
 (defun edraw-shape-picker-entries-insert-at (entries pos)
-  (if-let ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
+  (if-let* ((parent-index (edraw-shape-picker-entry-insertion-point-at pos)))
       (edraw-shape-picker-entries-insert (car parent-index) (cdr parent-index)
                                          entries)
     (message (edraw-msg "Failed to find insertion point"))))
@@ -1550,13 +1550,13 @@ ROOT is the top level entry of the tree containing ENTRY."
         ;; If ENTRY does not contains NAME property
         (unless (plist-member props name)
           ;; Get value from ancestor
-          (if-let ((found-prop
-                    (seq-some (lambda (anc)
-                                (edraw-shape-picker-entry-prop-memq
-                                 anc
-                                 (edraw-shape-picker-entry-inherit-props--name
-                                  anc basename default-prefix type-prefix)))
-                              ancestors)))
+          (if-let* ((found-prop
+                     (seq-some (lambda (anc)
+                                 (edraw-shape-picker-entry-prop-memq
+                                  anc
+                                  (edraw-shape-picker-entry-inherit-props--name
+                                   anc basename default-prefix type-prefix)))
+                               ancestors)))
               (setq props (plist-put props name (cadr found-prop)))
             ;; Get value from global variable
             (when var-prefix
@@ -1612,8 +1612,8 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-deselect-shape ()
   (when edraw-shape-picker-selected-shape-entry
     ;; Update Image
-    (when-let ((range (edraw-shape-picker-find-entry-text
-                       edraw-shape-picker-selected-shape-entry)))
+    (when-let* ((range (edraw-shape-picker-find-entry-text
+                        edraw-shape-picker-selected-shape-entry)))
       (with-silent-modifications
         (put-text-property (car range) (cdr range)
                            'display
@@ -1630,10 +1630,10 @@ ROOT is the top level entry of the tree containing ENTRY."
   (with-current-buffer (or buffer (current-buffer))
     (when (edraw-shape-picker-notification-hook-empty-p)
       (error (edraw-msg "This shape picker is not connected to an editor")))
-    (when-let ((entry (edraw-shape-picker-entry-at pos))
-               (range (edraw-shape-picker-lookup-text-entry-range pos))
-               (beg (car range))
-               (end (cdr range)))
+    (when-let* ((entry (edraw-shape-picker-entry-at pos))
+                (range (edraw-shape-picker-lookup-text-entry-range pos))
+                (beg (car range))
+                (end (cdr range)))
       (edraw-shape-picker-deselect-shape)
       ;; Update Image
       (with-silent-modifications
@@ -1661,14 +1661,14 @@ ROOT is the top level entry of the tree containing ENTRY."
     (setq buffer (current-buffer)))
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
-      (when-let ((entry edraw-shape-picker-selected-shape-entry))
+      (when-let* ((entry edraw-shape-picker-selected-shape-entry))
         (edraw-shape-picker-make-selected-shape-args entry)))))
 
 ;; Save Last Selection per File
 
 (defun edraw-shape-picker-file-last-selection-put ()
   "Save current selection to `edraw-shape-picker-file-last-selection'."
-  (when-let ((file (buffer-file-name)))
+  (when-let* ((file (buffer-file-name)))
     (let* ((entry (edraw-shape-picker-selected-shape-entry))
            (indices (mapcar #'cdr (edraw-shape-picker-entry-path entry))))
       (setf (alist-get file edraw-shape-picker-file-last-selection nil nil #'equal)
@@ -1677,10 +1677,10 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-file-last-selection-get ()
   "Get last selection from `edraw-shape-picker-file-last-selection'."
   (when-let* ((file (buffer-file-name))
-             (info (alist-get file edraw-shape-picker-file-last-selection nil nil #'equal))
-             (indices (car info))
-             (shape (cdr info))
-             (entry edraw-shape-picker-entries))
+              (info (alist-get file edraw-shape-picker-file-last-selection nil nil #'equal))
+              (indices (car info))
+              (shape (cdr info))
+              (entry edraw-shape-picker-entries))
     (dolist (index indices)
       (setq entry (nth index (edraw-shape-picker-entry-child-entries entry))))
     (when (equal entry shape)
@@ -1860,27 +1860,27 @@ ROOT is the top level entry of the tree containing ENTRY."
    (next-single-property-change pos prop)))
 
 (defun edraw-shape-picker-lookup-text-entry-range (pos)
-  (when-let ((entry (get-text-property pos 'edraw-shape-picker-entry)))
+  (when-let* ((entry (get-text-property pos 'edraw-shape-picker-entry)))
     (edraw-shape-picker-lookup-text-prop-range pos 'edraw-shape-picker-entry
                                                entry)))
 
 (defun edraw-shape-picker-shape-entry-at (pos)
-  (when-let ((entry (edraw-shape-picker-entry-at pos)))
+  (when-let* ((entry (edraw-shape-picker-entry-at pos)))
     (when (eq (edraw-shape-picker-entry-type entry) :shape)
       entry)))
 
 (defun edraw-shape-picker-find-entry-text (entry)
   (save-excursion
     (goto-char (point-min))
-    (when-let ((match-data (text-property-search-forward
-                            'edraw-shape-picker-entry entry #'eq)))
+    (when-let* ((match-data (text-property-search-forward
+                             'edraw-shape-picker-entry entry #'eq)))
       (cons
        (prop-match-beginning match-data)
        (prop-match-end match-data)))))
 
 (defun edraw-shape-picker-entry-insertion-point-at (pos)
   "Detect entry insertion point at POS."
-  (when-let ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos t))) ;;include POS
+  (when-let* ((entry-pos (edraw-shape-picker-search-backward-entry-pos pos t))) ;;include POS
     (let* ((entry (car entry-pos))
            (pos (cdr entry-pos))
            (range (edraw-shape-picker-lookup-text-entry-range pos))
@@ -2014,7 +2014,7 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-set-entry-visibility (entry visibility
                                                       &optional begin end)
   (unless (and begin begin)
-    (when-let ((begin-end (edraw-shape-picker-entry-contents-range entry)))
+    (when-let* ((begin-end (edraw-shape-picker-entry-contents-range entry)))
       (setq begin (car begin-end)
             end (cdr begin-end))))
 
@@ -2045,7 +2045,7 @@ ROOT is the top level entry of the tree containing ENTRY."
 (defun edraw-shape-picker-toggle-entry-visibility-at (pos &optional buffer)
   (interactive (edraw-shape-picker-interactive-point-buffer))
   (with-current-buffer (or buffer (current-buffer))
-    (when-let ((entry (edraw-shape-picker-entry-at pos)))
+    (when-let* ((entry (edraw-shape-picker-entry-at pos)))
       (edraw-shape-picker-toggle-entry-visibility entry))))
 
 (defun edraw-shape-picker-show-all-entries ()
@@ -2057,16 +2057,16 @@ ROOT is the top level entry of the tree containing ENTRY."
   (save-excursion
     (goto-char (point-min))
 
-    (while (when-let ((begin-md (text-property-search-forward
-                                 'edraw-shape-picker-contents-begin nil
-                                 (lambda (a b) (or a b))))
-                      (entry (prop-match-value begin-md))
-                      (end-md (save-excursion
-                                (text-property-search-forward
-                                 'edraw-shape-picker-contents-end
-                                 entry)))
-                      (begin (prop-match-beginning begin-md))
-                      (end (prop-match-end end-md)))
+    (while (when-let* ((begin-md (text-property-search-forward
+                                  'edraw-shape-picker-contents-begin nil
+                                  (lambda (a b) (or a b))))
+                       (entry (prop-match-value begin-md))
+                       (end-md (save-excursion
+                                 (text-property-search-forward
+                                  'edraw-shape-picker-contents-end
+                                  entry)))
+                       (begin (prop-match-beginning begin-md))
+                       (end (prop-match-end end-md)))
              (when (and
                     (not (eq entry edraw-shape-picker-entries)) ;;not root
                     (eq (edraw-shape-picker-entry-type entry) :section))

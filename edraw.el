@@ -852,19 +852,19 @@ edraw-editor initialization is now called automatically."
 (cl-defmethod edraw-add-hook ((editor edraw-editor) hook-type
                               function &rest args)
   (with-slots (hooks) editor
-    (when-let ((hook (alist-get hook-type hooks)))
+    (when-let* ((hook (alist-get hook-type hooks)))
       (apply 'edraw-hook-add hook function args))))
 
 (cl-defmethod edraw-remove-hook ((editor edraw-editor) hook-type
                                  function &rest args)
   (with-slots (hooks) editor
-    (when-let ((hook (alist-get hook-type hooks)))
+    (when-let* ((hook (alist-get hook-type hooks)))
       (apply 'edraw-hook-remove hook function args))))
 
 (cl-defmethod edraw-call-hook ((editor edraw-editor) hook-type
                                &rest args)
   (with-slots (hooks) editor
-    (when-let ((hook (alist-get hook-type hooks)))
+    (when-let* ((hook (alist-get hook-type hooks)))
       (apply 'edraw-hook-call hook args))))
 
 ;;;;; Editor - Lookup Editor
@@ -1092,7 +1092,7 @@ This function deletes all redo data."
     ;; Discard undo data exceeding the limit.
     (unless (or (> edraw-editor-undo-group-level 0)
                 edraw-editor-inhibit-discarding-undo-data)
-      (when-let ((cell (nthcdr edraw-editor-undo-limit undo-list)))
+      (when-let* ((cell (nthcdr edraw-editor-undo-limit undo-list)))
         (setcdr cell nil)))))
 
 ;; No Undo Data
@@ -1297,7 +1297,7 @@ For use with `edraw-editor-with-temp-undo-list',
              (or h (edraw-default-document-property-get 'height)))))
 
     ;; #edraw-defs
-    (if-let ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
+    (if-let* ((defs-element (edraw-dom-get-by-id svg edraw-editor-svg-defs-id)))
         (setq deftbl (edraw-svg-deftbl-from-dom
                       defs-element
                       (edraw-dom-get-by-id svg edraw-editor-svg-body-id)))
@@ -1321,7 +1321,7 @@ For use with `edraw-editor-with-temp-undo-list',
   (edraw-editor-with-no-undo-data
     (dolist (element
              (dom-elements dom 'data-edraw-point-connections ""))
-      (when-let ((shape (edraw-shape-from-element element editor t)))
+      (when-let* ((shape (edraw-shape-from-element element editor t)))
         (edraw-restore-point-connections shape)))))
 
 (defun edraw-create-document-svg (&optional width height background children)
@@ -1414,7 +1414,7 @@ For use with `edraw-editor-with-temp-undo-list',
                                           svg-document-original-height
                                           svg-document-original-viewbox)
 
-      (when-let ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
+      (when-let* ((defs (edraw-dom-get-by-id doc-svg edraw-editor-svg-defs-id)))
         ;; Remove unreferenced definition elements
         ;;
         ;; Definition elements such as markers are usually deleted
@@ -1512,28 +1512,28 @@ For use with `edraw-editor-with-temp-undo-list',
   (cdr (oref editor svg-document-size)))
 
 (cl-defmethod edraw-viewbox-left ((editor edraw-editor))
-  (if-let ((vbox (oref editor svg-document-viewbox))) (nth 0 vbox) 0))
+  (if-let* ((vbox (oref editor svg-document-viewbox))) (nth 0 vbox) 0))
 
 (cl-defmethod edraw-viewbox-top ((editor edraw-editor))
-  (if-let ((vbox (oref editor svg-document-viewbox))) (nth 1 vbox) 0))
+  (if-let* ((vbox (oref editor svg-document-viewbox))) (nth 1 vbox) 0))
 
 (cl-defmethod edraw-viewbox-right ((editor edraw-editor))
-  (if-let ((vbox (oref editor svg-document-viewbox)))
+  (if-let* ((vbox (oref editor svg-document-viewbox)))
       (+ (nth 0 vbox) (nth 2 vbox))
     (edraw-width editor)))
 
 (cl-defmethod edraw-viewbox-bottom ((editor edraw-editor))
-  (if-let ((vbox (oref editor svg-document-viewbox)))
+  (if-let* ((vbox (oref editor svg-document-viewbox)))
       (+ (nth 1 vbox) (nth 3 vbox))
     (edraw-height editor)))
 
 (cl-defmethod edraw-viewbox-width ((editor edraw-editor))
-  (if-let ((vbox (oref editor svg-document-viewbox)))
+  (if-let* ((vbox (oref editor svg-document-viewbox)))
       (nth 2 vbox)
     (edraw-width editor)))
 
 (cl-defmethod edraw-viewbox-height ((editor edraw-editor))
-  (if-let ((vbox (oref editor svg-document-viewbox)))
+  (if-let* ((vbox (oref editor svg-document-viewbox)))
       (nth 3 vbox)
     (edraw-height editor)))
 
@@ -1675,37 +1675,37 @@ document size or view box."
 
 (cl-defmethod edraw-background-right ((editor edraw-editor))
   (pcase edraw-editor-background-align
-    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+    ('viewbox (if-let* ((vbox (oref editor svg-document-viewbox)))
                   (+ (nth 0 vbox) (nth 2 vbox)) (edraw-width editor)))
     (_ (edraw-width editor))))
 
 (cl-defmethod edraw-background-bottom ((editor edraw-editor))
   (pcase edraw-editor-background-align
-    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+    ('viewbox (if-let* ((vbox (oref editor svg-document-viewbox)))
                   (+ (nth 1 vbox) (nth 3 vbox)) (edraw-height editor)))
     (_ (edraw-height editor))))
 
 (cl-defmethod edraw-background-width ((editor edraw-editor))
   (pcase edraw-editor-background-align
-    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+    ('viewbox (if-let* ((vbox (oref editor svg-document-viewbox)))
                   (nth 2 vbox) (edraw-width editor)))
     (_ (edraw-width editor))))
 
 (cl-defmethod edraw-background-height ((editor edraw-editor))
   (pcase edraw-editor-background-align
-    ('viewbox (if-let ((vbox (oref editor svg-document-viewbox)))
+    ('viewbox (if-let* ((vbox (oref editor svg-document-viewbox)))
                   (nth 3 vbox) (edraw-height editor)))
     (_ (edraw-height editor))))
 
 (cl-defmethod edraw-update-background ((editor edraw-editor))
-  (when-let ((element (edraw-svg-background editor)))
+  (when-let* ((element (edraw-svg-background editor)))
     (edraw-svg-set-attr-number element 'x (edraw-background-left editor))
     (edraw-svg-set-attr-number element 'y (edraw-background-top editor))
     (edraw-svg-set-attr-number element 'width (edraw-background-width editor))
     (edraw-svg-set-attr-number element 'height (edraw-background-height editor))))
 
 (cl-defmethod edraw-get-background ((editor edraw-editor))
-  (when-let ((element (edraw-svg-background editor)))
+  (when-let* ((element (edraw-svg-background editor)))
     (dom-attr element 'fill)))
 
 (defun edraw-editor-background-fill-empty-p (fill)
@@ -1713,9 +1713,9 @@ document size or view box."
 
 (defun edraw-editor-background-fill-opaque-p (fill)
   (when (stringp fill)
-    (when-let ((color (edraw-color-picker-color-from-string
-                       fill
-                       '((:color-name-scheme . web) (:enable-opacity . t)))))
+    (when-let* ((color (edraw-color-picker-color-from-string
+                        fill
+                        '((:color-name-scheme . web) (:enable-opacity . t)))))
       (>= (edraw-color-a color) 1))))
 
 (edraw-editor-defcmd edraw-set-background ((editor edraw-editor) fill)
@@ -1751,7 +1751,7 @@ document size or view box."
     (if (edraw-editor-background-fill-empty-p fill)
         ;; remove background
         (edraw-dom-remove-by-id svg edraw-editor-svg-background-id)
-      (if-let ((element (edraw-svg-background editor)))
+      (if-let* ((element (edraw-svg-background editor)))
           ;; change fill
           (edraw-svg-set-attr-string element 'fill fill)
         ;; add background
@@ -1798,7 +1798,7 @@ document size or view box."
        (error (edraw-msg "No shapes")))
      (list editor (edraw-read-translate-params))))
 
-  (when-let ((shapes (edraw-all-shapes editor)))
+  (when-let* ((shapes (edraw-all-shapes editor)))
     (edraw-make-undo-group editor 'all-shapes-translate
       (dolist (shape shapes)
         (edraw-translate shape xy)))))
@@ -1898,7 +1898,7 @@ document size or view box."
                    (edraw-viewbox-right editor) (edraw-viewbox-bottom editor))
        ))))
 
-  (when-let ((shapes (edraw-all-shapes editor)))
+  (when-let* ((shapes (edraw-all-shapes editor)))
     (edraw-make-undo-group editor 'all-shapes-scale
       (let ((matrix (edraw-matrix-move-origin-xy (edraw-matrix-scale sx sy 1) origin-xy)))
         (dolist (shape shapes)
@@ -1931,7 +1931,7 @@ document size or view box."
        (edraw-rect (edraw-viewbox-left editor) (edraw-viewbox-top editor)
                    (edraw-viewbox-right editor) (edraw-viewbox-bottom editor))
        ))))
-  (when-let ((shapes (edraw-all-shapes editor)))
+  (when-let* ((shapes (edraw-all-shapes editor)))
     (edraw-make-undo-group editor 'all-shapes-rotate
       (let ((matrix (edraw-matrix-move-origin-xy
                      (edraw-matrix-rotate angle) origin-xy)))
@@ -1940,16 +1940,16 @@ document size or view box."
 
 (cl-defmethod edraw-notify-document-close-to-all-shapes ((editor edraw-editor))
   (dolist (node (dom-children (edraw-svg-body editor)))
-    (when-let ((shape (edraw-shape-from-element-no-create node)))
+    (when-let* ((shape (edraw-shape-from-element-no-create node)))
       (edraw-notify-change-hook shape 'document-close))))
 
 ;; Shape Finding
 
 (cl-defmethod edraw-find-shape-by-internal-id ((editor edraw-editor) id)
-  (when-let ((element (car (dom-elements
-                            (edraw-svg-body editor)
-                            'data-edraw-id
-                            (concat "\\`" id "\\'")))))
+  (when-let* ((element (car (dom-elements
+                             (edraw-svg-body editor)
+                             'data-edraw-id
+                             (concat "\\`" id "\\'")))))
     (edraw-shape-from-element element editor t)))
 
 (cl-defmethod edraw-find-shapes-by-xy ((shapes list) xy
@@ -2045,7 +2045,7 @@ document size or view box."
       (edraw-dom-do src-body
                     (lambda (node _ancestors)
                       (when (edraw-dom-element-p node)
-                        (when-let ((id (dom-attr node 'id)))
+                        (when-let* ((id (dom-attr node 'id)))
                           (when (edraw-dom-get-by-id dst-body id)
                             (lwarn 'edraw-editor :warning
                                    (edraw-msg "ID `%s' is already in use, so remove it")
@@ -2207,7 +2207,7 @@ document size or view box."
       (setq image nil))))
 
 (defun edraw-editor-svg-node-filter (dom)
-  (if-let ((shape (edraw-shape-from-element-no-create dom)))
+  (if-let* ((shape (edraw-shape-from-element-no-create dom)))
       (edraw-visible-p shape)
     t))
 
@@ -2369,7 +2369,7 @@ document size or view box."
 
 (cl-defmethod edraw-update-ui-style-svg ((editor edraw-editor))
   (with-slots (svg) editor
-    (when-let ((style (edraw-dom-get-by-id svg "edraw-ui-style")))
+    (when-let* ((style (edraw-dom-get-by-id svg "edraw-ui-style")))
       (edraw-dom-remove-all-children style)
       (edraw-dom-append-child style edraw-editor-ui-style))))
 
@@ -2484,7 +2484,7 @@ document size or view box."
 
 (cl-defmethod edraw-update-grid ((editor edraw-editor))
   (with-slots (svg) editor
-    (when-let ((g (edraw-dom-get-by-id svg "edraw-ui-grid")))
+    (when-let* ((g (edraw-dom-get-by-id svg "edraw-ui-grid")))
       (edraw-dom-remove-all-children g)
       (when (edraw-get-setting editor 'grid-visible)
         (let* ((interval (edraw-get-setting editor 'grid-interval))
@@ -2599,7 +2599,7 @@ document size or view box."
   (edraw-dom-remove-by-id parent "edraw-ui-shape-points"))
 
 (defun edraw-svg-ui-shape-points-create-group (parent)
-  (if-let ((g (edraw-dom-get-by-id parent "edraw-ui-shape-points")))
+  (if-let* ((g (edraw-dom-get-by-id parent "edraw-ui-shape-points")))
       (progn
         (edraw-dom-remove-all-children g)
         g)
@@ -2801,8 +2801,8 @@ document size or view box."
         (let ((new-view-w
                (edraw-clamp
                 (* ;;(edraw-width editor)
-                   (edraw-viewbox-width editor)
-                   new-scale)
+                 (edraw-viewbox-width editor)
+                 new-scale)
                 curr-view-w
                 (max
                  curr-view-w
@@ -2810,8 +2810,8 @@ document size or view box."
               (new-view-h
                (edraw-clamp
                 (* ;;(edraw-height editor)
-                   (edraw-viewbox-height editor)
-                   new-scale)
+                 (edraw-viewbox-height editor)
+                 new-scale)
                 curr-view-h
                 (max
                  curr-view-h
@@ -2935,7 +2935,7 @@ document size or view box."
 (defun edraw-editor-scroll-by-arrow-key (&optional editor n)
   (interactive "i\np")
   (let ((event last-input-event))
-    (when-let ((editor (or editor (edraw-editor-at-input event))))
+    (when-let* ((editor (or editor (edraw-editor-at-input event))))
       (let* ((mods (event-modifiers event))
              (d (* (or n 1)
                    (if (memq 'meta mods)
@@ -3069,14 +3069,14 @@ document size or view box."
     (not (null (memq shape selected-shapes)))))
 
 (cl-defmethod edraw-selected-anchor ((editor edraw-editor))
-  (when-let ((spt (oref editor selected-anchor)))
+  (when-let* ((spt (oref editor selected-anchor)))
     (if (edraw-valid-point-p spt)
         spt
       ;; (message "Warning: The selected anchor is invalid")
       nil)))
 
 (cl-defmethod edraw-selected-handle ((editor edraw-editor))
-  (when-let ((spt (oref editor selected-handle)))
+  (when-let* ((spt (oref editor selected-handle)))
     (if (and (edraw-valid-point-p spt)
              (edraw-active-handle-p spt))
         spt
@@ -3300,12 +3300,12 @@ document size or view box."
 ;;;;; Editor - Manipulate Selected Shapes
 
 (cl-defmethod edraw-selected-multiple-shapes ((editor edraw-editor))
-  (if-let ((selected-shapes (oref editor selected-shapes)))
+  (if-let* ((selected-shapes (oref editor selected-shapes)))
       (edraw-multiple-shapes :shapes selected-shapes :editor editor)
     (error (edraw-msg "No shape selected"))))
 
 (cl-defmethod edraw-selected-multiple-shapes-or-shape ((editor edraw-editor))
-  (if-let ((selected-shapes (oref editor selected-shapes)))
+  (if-let* ((selected-shapes (oref editor selected-shapes)))
       (if (cdr selected-shapes)
           (edraw-multiple-shapes :shapes selected-shapes :editor editor)
         (car selected-shapes))
@@ -3382,7 +3382,7 @@ document size or view box."
              (op (cond
                   ((and (memq 'meta mods)
                         ;; Do not duplicate anchor or handle
-                         ;;@todo if multiple points are selected?
+                        ;;@todo if multiple points are selected?
                         (not (edraw-selecting-point-p editor)))
                    'duplicate)
                   ((and (eq d-spec 'snap)
@@ -3426,8 +3426,8 @@ document size or view box."
            (edraw-display-selected-object-coordinates editor))
 
           ('snap
-           (when-let ((spt (or (edraw-selected-handle editor)
-                               (edraw-selected-anchor editor))))
+           (when-let* ((spt (or (edraw-selected-handle editor)
+                                (edraw-selected-anchor editor))))
              (let* ((xy (edraw-get-xy spt))
                     (x (edraw-x xy))
                     (y (edraw-y xy))
@@ -3563,13 +3563,13 @@ document size or view box."
 (edraw-editor-defcmd edraw-select-next-shape ((editor edraw-editor))
   (if (edraw-selected-shapes editor)
       (edraw-select-next-shape (edraw-selected-multiple-shapes-or-shape editor))
-    (when-let ((back (edraw-back-shape editor)))
+    (when-let* ((back (edraw-back-shape editor)))
       (edraw-select-shape editor back))))
 
 (edraw-editor-defcmd edraw-select-previous-shape ((editor edraw-editor))
   (if (edraw-selected-shapes editor)
       (edraw-select-previous-shape (edraw-selected-multiple-shapes-or-shape editor))
-    (when-let ((front (edraw-front-shape editor)))
+    (when-let* ((front (edraw-front-shape editor)))
       (edraw-select-shape editor front))))
 
 (edraw-editor-defcmd edraw-group-selected-shapes ((editor edraw-editor))
@@ -3669,7 +3669,7 @@ document size or view box."
     (edraw-make-undo-group editor 'paste
       (edraw-shape-from-shape-descriptor-list
        editor (edraw-svg-body editor)
-       (if-let ((selected-shapes (edraw-selected-shapes editor)))
+       (if-let* ((selected-shapes (edraw-selected-shapes editor)))
            ;; after selected shapes
            (1+ (cl-loop for s in selected-shapes
                         maximize (edraw-node-position s)))
@@ -3678,7 +3678,7 @@ document size or view box."
        (edraw-clipboard-data)))))
 
 (edraw-editor-defcmd edraw-paste-and-select ((editor edraw-editor))
-  (when-let ((shapes (edraw-paste editor)))
+  (when-let* ((shapes (edraw-paste editor)))
     (edraw-select-shapes editor shapes)
     shapes))
 
@@ -3711,8 +3711,8 @@ document size or view box."
             ('initial-default-shape-for-tool
              (let ((tool-class (edraw-preset-name-special-subtype name)))
                (when (edraw-editor-tool-class-p tool-class)
-                 (when-let ((object (edraw-get-default-shape-object-for-tool
-                                     editor tool-class)))
+                 (when-let* ((object (edraw-get-default-shape-object-for-tool
+                                      editor tool-class)))
                    (edraw-preset-apply object data 'not-required)))))))))))
 
 (cl-defmethod edraw-initialize-default-marker-properties ((editor edraw-editor))
@@ -3791,7 +3791,7 @@ document size or view box."
 
 (cl-defmethod edraw-set-default-shape-properties-from-shape
   ((editor edraw-editor) shape)
-  (when-let ((shape-type (edraw-shape-type shape)))
+  (when-let* ((shape-type (edraw-shape-type shape)))
     (dolist (prop-info (edraw-get-property-info-list shape))
       ;; Skip required property
       (unless (edraw-svg-prop-info-required-p prop-info)
@@ -3807,9 +3807,9 @@ document size or view box."
 (cl-defmethod edraw-get-default-shape-object ((editor edraw-editor) shape-type
                                               &optional
                                               ignore-selected-tool-p)
-  (when-let ((alist-head (edraw-get-default-shape-properties-container
-                          editor shape-type t ignore-selected-tool-p))
-             (shape-class (edraw-shape-type-to-class shape-type)))
+  (when-let* ((alist-head (edraw-get-default-shape-properties-container
+                           editor shape-type t ignore-selected-tool-p))
+              (shape-class (edraw-shape-type-to-class shape-type)))
     (edraw-property-proxy-shape
      :alist-head alist-head
      :editor editor
@@ -3832,10 +3832,10 @@ document size or view box."
 
 (cl-defmethod edraw-get-default-shape-object-for-tool ((editor edraw-editor)
                                                        tool-class)
-  (when-let ((alist-head (edraw-get-default-shape-properties-container-for-tool
-                          editor tool-class t))
-             (shape-type (edraw-shape-type-to-create tool-class))
-             (shape-class (edraw-shape-type-to-class shape-type)))
+  (when-let* ((alist-head (edraw-get-default-shape-properties-container-for-tool
+                           editor tool-class t))
+              (shape-type (edraw-shape-type-to-create tool-class))
+              (shape-class (edraw-shape-type-to-class shape-type)))
     (edraw-property-proxy-shape
      :alist-head alist-head
      :editor editor
@@ -3853,7 +3853,7 @@ document size or view box."
 
 (cl-defmethod edraw-edit-default-shape-properties ((editor edraw-editor)
                                                    shape-type)
-  (when-let (object (edraw-get-default-shape-object editor shape-type))
+  (when-let* ((object (edraw-get-default-shape-object editor shape-type)))
     (edraw-editor-open-property-editor editor object)))
 
 (defun edraw-editor-edit-default-shape-props (&optional editor shape-type)
@@ -3930,8 +3930,8 @@ document size or view box."
 
 (cl-defmethod edraw-edit-default-marker-properties ((editor edraw-editor)
                                                     marker-type)
-  (when-let ((marker-object (edraw-get-default-marker-object editor
-                                                             marker-type)))
+  (when-let* ((marker-object (edraw-get-default-marker-object editor
+                                                              marker-type)))
     (edraw-editor-open-property-editor editor marker-object)))
 
 
@@ -4036,7 +4036,7 @@ document size or view box."
 
 (edraw-editor-defcmd edraw-popup-context-menu ((editor edraw-editor))
   "Show context menu of EDITOR."
-  (if-let ((selected-shapes (edraw-selected-shapes editor)))
+  (if-let* ((selected-shapes (edraw-selected-shapes editor)))
       (if (cdr selected-shapes)
           ;; Multiple selected shapes
           (edraw-popup-context-menu-for-selected-shapes editor)
@@ -4170,7 +4170,7 @@ edraw-on-down-mouse-1. Determine the editor object from the
 position where the EVENT occurred."
   (interactive "e")
 
-  (when-let ((editor (edraw-editor-at-input event)))
+  (when-let* ((editor (edraw-editor-at-input event)))
     (let ((method-name (edraw-editor-event-handler-name event)))
       (when (fboundp method-name)
         (funcall method-name editor event)))))
@@ -4183,7 +4183,7 @@ position where the EVENT occurred."
           (funcall method-name tool event))))))
 
 (cl-defmethod edraw-update-tool-last-prefix-arg ((editor edraw-editor))
-  (when-let ((tool (oref editor tool)))
+  (when-let* ((tool (oref editor tool)))
     (edraw-set-prefix-arg-last-down-mouse tool)))
 
 (cl-defmethod edraw-on-down-mouse-1 ((editor edraw-editor) down-event)
@@ -4281,9 +4281,9 @@ position where the EVENT occurred."
                 (cl-incf y spacing))
               (cl-decf y spacing)
               ;; stroke & fill (tool option)
-              (when-let ((shape-type
-                          (and current-tool
-                               (edraw-shape-type-to-create current-tool))))
+              (when-let* ((shape-type
+                           (and current-tool
+                                (edraw-shape-type-to-create current-tool))))
                 (cl-incf y 16)
                 (push (edraw-make-toolbar-color-button
                        editor components-g x y shape-type 'stroke)
@@ -4534,8 +4534,8 @@ position where the EVENT occurred."
 
 (cl-defmethod edraw-edit-selected-tool-default-shape-property
   ((editor edraw-editor) prop-name)
-  (when-let ((tag-value (edraw-get-selected-tool-default-shape-property
-                         editor prop-name)))
+  (when-let* ((tag-value (edraw-get-selected-tool-default-shape-property
+                          editor prop-name)))
     (let ((new-value (edraw-color-picker-read-color
                       (format "%s %s: " (car tag-value) prop-name)
                       (cdr tag-value)
@@ -4564,8 +4564,8 @@ position where the EVENT occurred."
 (defun edraw-editor-edit-tool-properties ()
   (interactive)
   (let ((editor (edraw-current-editor)))
-    (when-let ((selected-tool (edraw-selected-tool editor))
-               (shape-type (edraw-shape-type-to-create selected-tool)))
+    (when-let* ((selected-tool (edraw-selected-tool editor))
+                (shape-type (edraw-shape-type-to-create selected-tool)))
       (edraw-edit-default-shape-properties editor shape-type))))
 
 
@@ -4795,7 +4795,7 @@ to down-mouse-1 and processes drag and click."
 
 (cl-defmethod edraw-context-menu-at-point ((editor edraw-editor) xy
                                            &optional pick-forced)
-  (if-let ((shapes (edraw-find-shapes-by-xy editor xy pick-forced)))
+  (if-let* ((shapes (edraw-find-shapes-by-xy editor xy pick-forced)))
       (let ((selected-shapes (edraw-selected-shapes editor)))
         (if (and (cdr selected-shapes)
                  (edraw-selected-p (car shapes)))
@@ -4874,7 +4874,7 @@ to down-mouse-1 and processes drag and click."
   (oref editor tool))
 
 (cl-defmethod edraw-selected-tool-class ((editor edraw-editor))
-  (when-let ((current-tool (oref editor tool)))
+  (when-let* ((current-tool (oref editor tool)))
     (edraw-tool-class current-tool)))
 
 (cl-defmethod edraw-get-selected-tool-default-shape-property
@@ -4953,18 +4953,18 @@ to down-mouse-1 and processes drag and click."
 
       (cond
        ;; Handle
-       ((when-let ((target-spoint (and (edraw-selected-anchor editor)
-                                       (edraw-shape-point-find
-                                        (edraw-selectable-handles editor)
-                                        click-xy
-                                        pick-forced))))
+       ((when-let* ((target-spoint (and (edraw-selected-anchor editor)
+                                        (edraw-shape-point-find
+                                         (edraw-selectable-handles editor)
+                                         click-xy
+                                         pick-forced))))
           (edraw-popup-context-menu target-spoint))) ;; Return t if popuped
        ;; Anchor
-       ((when-let ((target-spoint (seq-some
-                                   (lambda (shp)
-                                     (edraw-pick-anchor-point shp click-xy
-                                                              pick-forced))
-                                   (edraw-selected-shapes editor))))
+       ((when-let* ((target-spoint (seq-some
+                                    (lambda (shp)
+                                      (edraw-pick-anchor-point shp click-xy
+                                                               pick-forced))
+                                    (edraw-selected-shapes editor))))
           (edraw-popup-context-menu target-spoint))) ;; Return t if popuped
        ;; Shape
        (t
@@ -5317,12 +5317,12 @@ to down-mouse-1 and processes drag and click."
 
 (cl-defmethod edraw-snap-text-to-back-shape-center ((tool edraw-editor-tool-text) xy)
   (with-slots (editor) tool
-    (when-let ((font-size (edraw-svg-attr-length-to-number
-                           (edraw-get-default-shape-property
-                            editor 'text 'font-size)))
-               (shape (car (edraw-find-shapes-by-xy editor xy))))
-      (when-let ((rect (ignore-errors (edraw-shape-aabb shape)))
-                 (center (edraw-rect-center rect)))
+    (when-let* ((font-size (edraw-svg-attr-length-to-number
+                            (edraw-get-default-shape-property
+                             editor 'text 'font-size)))
+                (shape (car (edraw-find-shapes-by-xy editor xy))))
+      (when-let* ((rect (ignore-errors (edraw-shape-aabb shape)))
+                  (center (edraw-rect-center rect)))
         (when (< (edraw-xy-distance center xy) font-size)
           ;;(message "Snapped to the center of background shape")
           (cons
@@ -5365,10 +5365,10 @@ to down-mouse-1 and processes drag and click."
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-image)
                                      down-event)
   (with-slots (editor) tool
-    (when-let ((rect (edraw-read-rectangle editor down-event t))
-               (image-file
-                (expand-file-name
-                 (read-file-name (edraw-msg "Image File: ") nil nil t))))
+    (when-let* ((rect (edraw-read-rectangle editor down-event t))
+                (image-file
+                 (expand-file-name
+                  (read-file-name (edraw-msg "Image File: ") nil nil t))))
 
       ;; Warn that images in different directories cannot be displayed
       ;; for security reasons.
@@ -5535,20 +5535,20 @@ to down-mouse-1 and processes drag and click."
   "Start continuing a path when mouse is down in path tool."
   (with-slots (editor last-anchor) tool
     (when (null last-anchor)
-      (when-let (;; Find the end anchor that was mouse down
-                 (anchor
-                  ;;@todo support all selected shapes or all shapes
-                  (when-let ((selected-path
-                              (edraw-cast (edraw-last-selected-shape editor)
-                                          'edraw-shape-path)))
-                    (let ((target-anchors
-                           (edraw-get-endpoints selected-path))
-                          (down-xy
-                           ;;Do not any rounding coordinates
-                           (edraw-mouse-event-to-xy-raw editor down-event)))
-                      (seq-find (lambda (anchor)
-                                  (edraw-hit-input-p anchor down-xy))
-                                target-anchors)))))
+      (when-let* (;; Find the end anchor that was mouse down
+                  (anchor
+                   ;;@todo support all selected shapes or all shapes
+                   (when-let* ((selected-path
+                                (edraw-cast (edraw-last-selected-shape editor)
+                                            'edraw-shape-path)))
+                     (let ((target-anchors
+                            (edraw-get-endpoints selected-path))
+                           (down-xy
+                            ;;Do not any rounding coordinates
+                            (edraw-mouse-event-to-xy-raw editor down-event)))
+                       (seq-find (lambda (anchor)
+                                   (edraw-hit-input-p anchor down-xy))
+                                 target-anchors)))))
         (setq last-anchor anchor)
 
         (message (edraw-msg "Continue"))
@@ -5563,18 +5563,18 @@ to down-mouse-1 and processes drag and click."
   "Connect endpoints within the same path when mouse is down in path tool."
   (with-slots (editor last-anchor) tool
     (when last-anchor
-      (when-let (;; Find the end anchor that was mouse down
-                 (anchor
-                  (let* ((shape (edraw-parent-shape last-anchor))
-                         (down-xy
-                          ;;Do not any rounding coordinates
-                          (edraw-mouse-event-to-xy-raw editor down-event)))
-                    (seq-find (lambda (anchor)
-                                (and
-                                 ;; Exclude last-anchor
-                                 (not (edraw-same-point-p anchor last-anchor))
-                                 (edraw-hit-input-p anchor down-xy)))
-                              (edraw-get-endpoints shape)))))
+      (when-let* (;; Find the end anchor that was mouse down
+                  (anchor
+                   (let* ((shape (edraw-parent-shape last-anchor))
+                          (down-xy
+                           ;;Do not any rounding coordinates
+                           (edraw-mouse-event-to-xy-raw editor down-event)))
+                     (seq-find (lambda (anchor)
+                                 (and
+                                  ;; Exclude last-anchor
+                                  (not (edraw-same-point-p anchor last-anchor))
+                                  (edraw-hit-input-p anchor down-xy)))
+                               (edraw-get-endpoints shape)))))
         (edraw-make-undo-group editor 'path-tool-connect-subpaths
           (let ((from-anchor last-anchor)
                 ;; Connect LAST-ANCHOR to pressed ANCHOR
@@ -5596,22 +5596,22 @@ to down-mouse-1 and processes drag and click."
   "Connect endpoints of different paths when mouse is down in path tool."
   (with-slots (editor last-anchor) tool
     (when last-anchor
-      (when-let (;; Find the end anchor that was mouse down
-                 (anchor
-                  (let ((editing-path (edraw-parent-shape last-anchor))
-                        (down-xy
-                         ;;Do not any rounding coordinates
-                         (edraw-mouse-event-to-xy-raw editor down-event)))
-                    (seq-some
-                     (lambda (shape)
-                       (let ((path (edraw-cast shape 'edraw-shape-path)))
-                         (when (and path
-                                    (not (eq path editing-path)))
-                           (seq-find (lambda (anchor)
-                                       (edraw-hit-input-p anchor down-xy))
-                                     (edraw-get-endpoints path)))))
-                     ;; @todo Inefficient
-                     (nreverse (edraw-all-shapes editor))))))
+      (when-let* (;; Find the end anchor that was mouse down
+                  (anchor
+                   (let ((editing-path (edraw-parent-shape last-anchor))
+                         (down-xy
+                          ;;Do not any rounding coordinates
+                          (edraw-mouse-event-to-xy-raw editor down-event)))
+                     (seq-some
+                      (lambda (shape)
+                        (let ((path (edraw-cast shape 'edraw-shape-path)))
+                          (when (and path
+                                     (not (eq path editing-path)))
+                            (seq-find (lambda (anchor)
+                                        (edraw-hit-input-p anchor down-xy))
+                                      (edraw-get-endpoints path)))))
+                      ;; @todo Inefficient
+                      (nreverse (edraw-all-shapes editor))))))
         (edraw-make-undo-group editor 'path-tool-connect-to-another-path
           (let ((from-anchor last-anchor)
                 ;; Connect last anchor to pressed anchor
@@ -5892,17 +5892,17 @@ check the difference before and after smoothing."
       ;; Create
       (when (cdr points) ;;(>= (length points) 2)
         (setq points (nreverse points))
-        (when-let ((path-data
-                    (if (or
-                         (edraw-get-setting editor 'grid-visible) ;;@todo Checking while snapping should be a dedicated predicate.
-                         edraw-editor-tool-freehand-separate-smoothing-process)
-                        ;; If snapped to grid, don't smooth.
-                        ;; or when separating smoothing process.
-                        (edraw-editor-tool-freehand--make-poly-line points)
-                      ;; Smooth
-                      (edraw-editor-tool-freehand--make-smooth
-                       points
-                       (edraw-scroll-scale editor)))))
+        (when-let* ((path-data
+                     (if (or
+                          (edraw-get-setting editor 'grid-visible) ;;@todo Checking while snapping should be a dedicated predicate.
+                          edraw-editor-tool-freehand-separate-smoothing-process)
+                         ;; If snapped to grid, don't smooth.
+                         ;; or when separating smoothing process.
+                         (edraw-editor-tool-freehand--make-poly-line points)
+                       ;; Smooth
+                       (edraw-editor-tool-freehand--make-smooth
+                        points
+                        (edraw-scroll-scale editor)))))
           ;; Add a new path shape
           (let ((path-obj
                  (edraw-create-shape-default ;;modify
@@ -5911,10 +5911,10 @@ check the difference before and after smoothing."
 
             ;; Separated smoothing process
             (when edraw-editor-tool-freehand-separate-smoothing-process
-              (when-let ((path-data-smoothed
-                          (edraw-editor-tool-freehand--make-smooth
-                           points
-                           (edraw-scroll-scale editor))))
+              (when-let* ((path-data-smoothed
+                           (edraw-editor-tool-freehand--make-smooth
+                            points
+                            (edraw-scroll-scale editor))))
                 (edraw-set-property path-obj 'd path-data-smoothed)))
             path-obj))))))
 
@@ -6053,15 +6053,15 @@ If nil, no division will be performed."
      (/ edraw-editor-tool-freehand-bezier-fitting-max-div-distance
         (float scroll-scale))))
 
-  (when-let ((curves
-              ;; Split POINTS at corners
-              (edraw-xy-points-to-curves
-               (edraw-xy-remove-consecutive-same-points points)
-               edraw-editor-tool-freehand-bezier-fitting-corner-angle-min
-               (/ edraw-editor-tool-freehand-bezier-fitting-corner-distance-min
-                  (float scroll-scale))
-               (/ edraw-editor-tool-freehand--straight-line-tolerance
-                  (float scroll-scale)))))
+  (when-let* ((curves
+               ;; Split POINTS at corners
+               (edraw-xy-points-to-curves
+                (edraw-xy-remove-consecutive-same-points points)
+                edraw-editor-tool-freehand-bezier-fitting-corner-angle-min
+                (/ edraw-editor-tool-freehand-bezier-fitting-corner-distance-min
+                   (float scroll-scale))
+                (/ edraw-editor-tool-freehand--straight-line-tolerance
+                   (float scroll-scale)))))
     ;;(message "curves=%s" (length curves))
     ;; Create Bezier curves and concat them
     (mapconcat (lambda (curve)
@@ -6304,7 +6304,7 @@ This function is destructive: the list POINTS is modified."
 
 (cl-defmethod edraw-update-custom-shape-selection ((tool edraw-editor-tool-custom-shape))
   (with-slots (picker-buffer) tool
-    (when-let ((args (edraw-shape-picker-selected-args picker-buffer)))
+    (when-let* ((args (edraw-shape-picker-selected-args picker-buffer)))
       (apply #'edraw-select-shape-picker-shape tool args))
     ;;else (edraw-select-shape-picker-shape tool nil nil) ;;Do not deselect. Keep current selection
     ))
@@ -6424,11 +6424,11 @@ This function is destructive: the list POINTS is modified."
                editor)
       tool
     (when selected-shape-descriptor-list
-      (when-let ((shapes (edraw-shape-from-shape-descriptor-list
-                          editor
-                          (edraw-svg-body editor)
-                          nil ;;top most
-                          selected-shape-descriptor-list)))
+      (when-let* ((shapes (edraw-shape-from-shape-descriptor-list
+                           editor
+                           (edraw-svg-body editor)
+                           nil ;;top most
+                           selected-shape-descriptor-list)))
 
         ;; Apply default properties
         (let ((keep-properties (plist-get selected-picker-entry-properties
@@ -6568,12 +6568,12 @@ This function is destructive: the list POINTS is modified."
     (edraw-undo holder)))
 
 (cl-defmethod edraw-edit-properties ((holder edraw-properties-holder))
-  (when-let ((editor (edraw-get-editor holder)))
+  (when-let* ((editor (edraw-get-editor holder)))
     (edraw-editor-open-property-editor editor holder)))
 
 (cl-defmethod edraw-edit-property-paint ((holder edraw-properties-holder)
                                          prop-name)
-  (when-let ((editor (edraw-get-editor holder)))
+  (when-let* ((editor (edraw-get-editor holder)))
     (let* ((old-value (edraw-get-property holder prop-name))
            (new-value
             ;; undo all changes in preview in case edraw-set-property
@@ -6657,7 +6657,7 @@ Return nil if no value is specified."
   (not (null (edraw-get-property holder prop-name))))
 
 (cl-defmethod edraw-get-transform-method ((holder edraw-properties-holder))
-  (when-let ((editor (edraw-get-editor holder)))
+  (when-let* ((editor (edraw-get-editor holder)))
     (edraw-get-transform-method editor)))
 
 ;;;; Shape
@@ -6718,7 +6718,7 @@ Only shape types registered in `edraw-shape-type-alist' are valid."
   (let ((shape-type
          (or
           ;;<?? data-edraw-type="type" ...>
-          (when-let ((value (dom-attr element 'data-edraw-type)))
+          (when-let* ((value (dom-attr element 'data-edraw-type)))
             (cond
              ((symbolp value) value)
              ((stringp value) (intern value))))
@@ -6947,7 +6947,7 @@ e.g. rect, ellipse, path, image, text, group, generator."
 
 (cl-defmethod edraw-clone ((shape edraw-shape))
   (with-slots (editor) shape
-    (when-let ((shape-type (edraw-shape-type shape)))
+    (when-let* ((shape-type (edraw-shape-type shape)))
       (edraw-make-undo-group editor 'clone-shape
         (let ((new-shape
                (edraw-create-shape-without-default
@@ -6971,21 +6971,21 @@ e.g. rect, ellipse, path, image, text, group, generator."
 
 (cl-defmethod edraw-convert-to-path-shape ((shape edraw-shape))
   (with-slots (editor) shape
-    (when-let ((path-data
-                (edraw-svg-element-to-path-data (edraw-element shape)))
-               (shape-descriptor
-                (edraw-shape-descriptor shape)))
+    (when-let* ((path-data
+                 (edraw-svg-element-to-path-data (edraw-element shape)))
+                (shape-descriptor
+                 (edraw-shape-descriptor shape)))
       (edraw-shape-descriptor-set-type shape-descriptor 'path)
       (edraw-shape-descriptor-put-property shape-descriptor 'd
                                            (edraw-path-data-to-string
                                             path-data))
       (edraw-make-undo-group editor 'convert-to-path
         ;; Create a new shape
-        (when-let ((new-shape (edraw-shape-from-shape-descriptor
-                               editor
-                               (edraw-parent-element shape)
-                               (edraw-node-position shape)
-                               shape-descriptor)))
+        (when-let* ((new-shape (edraw-shape-from-shape-descriptor
+                                editor
+                                (edraw-parent-element shape)
+                                (edraw-node-position shape)
+                                shape-descriptor)))
           ;; Select the new shape
           (when (edraw-selected-shape-p editor shape)
             (edraw-add-shape-selection editor new-shape))
@@ -7008,7 +7008,7 @@ e.g. rect, ellipse, path, image, text, group, generator."
    (list
     (cons :type (edraw-shape-type shape))
     (cons :properties (edraw-get-all-properties shape)))
-   (when-let ((children (edraw-children shape)))
+   (when-let* ((children (edraw-children shape)))
      (list
       (cons :children (mapcar #'edraw-shape-descriptor children))))))
 
@@ -7031,7 +7031,7 @@ e.g. rect, ellipse, path, image, text, group, generator."
                  (cons prop-name prop-value)))
              (edraw-svg-element-get-property-info-list element))))
      (when (eq (edraw-shape-type-from-element element) 'g) ;;@todo type check??
-       (when-let ((children (dom-children element)))
+       (when-let* ((children (dom-children element)))
          (list
           (cons :children
                 (mapcar
@@ -7069,14 +7069,14 @@ e.g. rect, ellipse, path, image, text, group, generator."
 
 (defun edraw-shape-descriptor-from-svg-element (svg-element editor)
   (when (edraw-dom-element-p svg-element)
-    (if-let ((shape (edraw-shape-from-element svg-element editor 'noerror)))
+    (if-let* ((shape (edraw-shape-from-element svg-element editor 'noerror)))
         (edraw-shape-descriptor shape)
       (message (edraw-msg "Unsupported SVG element: %s") svg-element)
       nil)))
 
 (defun edraw-shape-descriptor-list-from-svg-string (svg-text editor)
-  (when-let ((container (edraw-svg-decode-xml
-                         (concat "<g>" svg-text "</g>") nil)))
+  (when-let* ((container (edraw-svg-decode-xml
+                          (concat "<g>" svg-text "</g>") nil)))
     (cl-loop for node in (dom-children container)
              for desc = (edraw-shape-descriptor-from-svg-element node editor)
              when desc collect desc)))
@@ -7116,11 +7116,11 @@ e.g. rect, ellipse, path, image, text, group, generator."
 
 (defun edraw-shape-descriptor-to-svg-string (shape-descriptor &optional editor)
   (if editor
-      (when-let ((shape (edraw-shape-from-shape-descriptor editor nil nil
-                                                           shape-descriptor)))
+      (when-let* ((shape (edraw-shape-from-shape-descriptor editor nil nil
+                                                            shape-descriptor)))
         (edraw-svg-string shape))
-    (when-let ((element
-                (edraw-shape-descriptor-to-svg-element shape-descriptor)))
+    (when-let* ((element
+                 (edraw-shape-descriptor-to-svg-element shape-descriptor)))
       (edraw-svg-encode element nil nil))))
 
 (defun edraw-shape-descriptor-list-to-svg-string (shape-descriptor-list &optional editor)
@@ -7140,7 +7140,7 @@ e.g. rect, ellipse, path, image, text, group, generator."
     (edraw-notify-change-hook shape type hint)))
 
 (cl-defmethod edraw-notify-parent-of-change ((shape edraw-shape) type)
-  (if-let ((parent (edraw-parent shape)))
+  (if-let* ((parent (edraw-parent shape)))
       (edraw-on-child-changed parent shape type)
     (edraw-on-document-changed (oref shape editor) 'shape)))
 
@@ -7457,7 +7457,7 @@ return it."
   (edraw-svg-element-summary (edraw-element shape)))
 
 (cl-defmethod edraw-get-property-info-list ((class (subclass edraw-shape)))
-  (when-let ((tag (edraw-shape-svg-tag class)))
+  (when-let* ((tag (edraw-shape-svg-tag class)))
     (edraw-svg-tag-get-property-info-list tag)))
 
 (cl-defmethod edraw-get-property-info-list ((shape edraw-shape))
@@ -7613,11 +7613,11 @@ return it."
 ;; have been better?  If `-next-shape' selects descendants of a tree,
 ;; it needs to be clearly distinguished from `-next-sibling'.
 (cl-defmethod edraw-select-next-shape ((shape edraw-shape))
-  (when-let ((sibling (edraw-next-sibling shape)))
+  (when-let* ((sibling (edraw-next-sibling shape)))
     (edraw-select sibling)))
 
 (cl-defmethod edraw-select-previous-shape ((shape edraw-shape))
-  (when-let ((sibling (edraw-previous-sibling shape)))
+  (when-let* ((sibling (edraw-previous-sibling shape)))
     (edraw-select sibling)))
 
 (cl-defmethod edraw-matches-selected-p ((shape edraw-shape))
@@ -7638,7 +7638,7 @@ return it."
     (edraw-remove shape)))
 
 (cl-defmethod edraw-duplicate-and-select ((shape edraw-shape))
-  (when-let ((new-shape (edraw-clone shape)))
+  (when-let* ((new-shape (edraw-clone shape)))
     (edraw-select new-shape)))
 
 (defun edraw-duplicate-shapes (shapes)
@@ -7673,13 +7673,13 @@ return it."
   (edraw-menu-items-shape-common shape))
 
 (cl-defmethod edraw-filter-menu-items ((shape edraw-shape) menu-type items)
-  (when-let ((editor (edraw-get-editor shape)))
+  (when-let* ((editor (edraw-get-editor shape)))
     (edraw-filter-menu-items editor (list menu-type :target shape) items)))
 
 (cl-defmethod edraw-get-actions--keys (obj command)
   (when (or (null obj)
             (edraw-matches-selected-p obj))
-    (when-let ((binding (edraw-where-is-string command nil t)))
+    (when-let* ((binding (edraw-where-is-string command nil t)))
       (list :keys binding))))
 
 (defun edraw-menu-items-shape-common--dummy (&rest _)
@@ -7940,12 +7940,12 @@ check for either using `edraw-rect-empty-p'.")
   (edraw-has-property-p shape 'transform))
 
 (cl-defmethod edraw-transform-prop-get-matrix ((shape edraw-shape))
-  (when-let ((transform-str (edraw-get-property shape 'transform)))
+  (when-let* ((transform-str (edraw-get-property shape 'transform)))
     (ignore-errors
       (edraw-svg-transform-to-matrix transform-str))))
 
 (cl-defmethod edraw-transform-prop-get-inverse-matrix ((shape edraw-shape))
-  (if-let ((mat (edraw-transform-prop-get-matrix shape)))
+  (if-let* ((mat (edraw-transform-prop-get-matrix shape)))
       (edraw-matrix-inverse mat)
     (edraw-matrix)))
 
@@ -8733,7 +8733,7 @@ may be replaced by another mechanism."
 
 (cl-defmethod edraw-set-properties ((shape edraw-shape-path) prop-list)
   (let (old-prop-list)
-    (when-let ((d-cell (assq 'd prop-list)))
+    (when-let* ((d-cell (assq 'd prop-list)))
       (with-slots (path-data) shape
         (let ((new-d (or (cdr d-cell) ""))
               (old-d-attr (dom-attr (edraw-element shape) 'd))
@@ -8871,14 +8871,14 @@ may be replaced by another mechanism."
   (edraw-shape-path-make-anchor-object
    shape
    ;; Make edraw-path-data-anchor-first ?
-   (when-let ((subpath (edraw-path-data-first-or-nil (oref shape path-data))))
+   (when-let* ((subpath (edraw-path-data-first-or-nil (oref shape path-data))))
      (edraw-path-subpath-anchor-first-or-nil subpath))))
 
 (cl-defmethod edraw-get-last-anchor-point ((shape edraw-shape-path))
   (edraw-shape-path-make-anchor-object
    shape
    ;; Make edraw-path-data-anchor-last ?
-   (when-let ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
+   (when-let* ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
      (edraw-path-subpath-anchor-last-or-nil subpath))))
 
 (cl-defmethod edraw-get-endpoints ((shape edraw-shape-path))
@@ -8896,10 +8896,10 @@ Closed subpaths and handle points are ignored."
    (edraw-path-data-endpoints (oref shape path-data))))
 
 (cl-defmethod edraw-add-anchor ((shape edraw-shape-path)
-                                      xy
-                                      &optional
-                                      backward-handle-xy-relative
-                                      forward-handle-xy-relative)
+                                xy
+                                &optional
+                                backward-handle-xy-relative
+                                forward-handle-xy-relative)
   "Add a new anchor to the end of the path SHAPE.
 XY are the coordinates of the anchor.
 
@@ -8924,8 +8924,8 @@ created."
 (cl-defmethod edraw-remove-last-anchor ((shape edraw-shape-path))
   "Delete the last anchor of the path SHAPE.
 If the last subpath becomes empty due to the deletion, also delete the subpath."
-  (when-let ((subpath (edraw-path-data-last-or-nil (oref shape path-data)))
-             (anchor (edraw-path-subpath-anchor-last-or-nil subpath)))
+  (when-let* ((subpath (edraw-path-data-last-or-nil (oref shape path-data)))
+              (anchor (edraw-path-subpath-anchor-last-or-nil subpath)))
     (edraw-make-undo-group (oref shape editor) 'shape-path-remove-anchor-last
       (edraw-path-anchor-remove anchor)
       (when (edraw-path-subpath-empty-p subpath)
@@ -8954,7 +8954,7 @@ If the last subpath becomes empty due to the deletion, also delete the subpath."
 ;;   )
 
 (cl-defmethod edraw-move-nth-point ((shape edraw-shape-path) index xy)
-  (when-let ((spt (edraw-get-nth-point shape index)))
+  (when-let* ((spt (edraw-get-nth-point shape index)))
     (edraw-move spt xy)))
 
 (cl-defmethod edraw-move-nth-points ((shape edraw-shape-path) list-index-xy)
@@ -8976,21 +8976,21 @@ If the last subpath becomes empty due to the deletion, also delete the subpath."
   "Return non-nil if the SHAPE is a closed path.
 Note: This method does not support multiple subpaths.
 Return the status of the last subpath."
-  (when-let ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
+  (when-let* ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
     (edraw-path-subpath-closed-p subpath)))
 
 (cl-defmethod edraw-open-path-shape-p ((shape edraw-shape-path))
   "Return non-nil if the SHAPE is an open path.
 Note: This method does not support multiple subpaths.
 Return the status of the last subpath."
-  (when-let ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
+  (when-let* ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
     (not (edraw-path-subpath-closed-p subpath))))
 
 (cl-defmethod edraw-close-path-shape ((shape edraw-shape-path))
   "Close the SHAPE path.
 Note: This method does not support multiple subpaths.
 Close the last subpath if it is open."
-  (when-let ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
+  (when-let* ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
     (when (edraw-path-subpath-open-p subpath)
       (edraw-path-subpath-close subpath)
       (edraw-make-undo-group (oref shape editor) 'shape-path-close
@@ -9004,7 +9004,7 @@ Close the last subpath if it is open."
   "Open the SHAPE path.
 Note: This method does not support multiple subpaths.
 Open the last subpath if it is closed."
-  (when-let ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
+  (when-let* ((subpath (edraw-path-data-last-or-nil (oref shape path-data))))
     (when (edraw-path-subpath-closed-p subpath)
       (edraw-path-subpath-open subpath)
       (edraw-make-undo-group (oref shape editor) 'shape-path-close
@@ -9065,13 +9065,13 @@ The order of all subpaths, anchors, and handles within the SHAPE is reversed."
             (push (edraw-path-anchor-xy
                    (edraw-path-subpath-anchor-first-or-nil subpath))
                   points))
-          (when-let (subpath-d
-                     (edraw-xy-points-to-smooth-path-data points)
-                     ;; Emulate Freehand Tool
-                     ;; (edraw-editor-tool-freehand--smooth-bezier-fitting
-                     ;;  points
-                     ;;  (edraw-scroll-scale (oref path editor)))
-                     )
+          (when-let* ((subpath-d
+                       (edraw-xy-points-to-smooth-path-data points)
+                       ;; Emulate Freehand Tool
+                       ;; (edraw-editor-tool-freehand--smooth-bezier-fitting
+                       ;;  points
+                       ;;  (edraw-scroll-scale (oref path editor)))
+                       ))
             ;;(message "subpath-d=%s" subpath-d)
             (setq d (concat d subpath-d
                             (when (edraw-path-subpath-closed-p subpath)
@@ -9648,7 +9648,7 @@ TYPE represents the type of generator. Specify the properties of
 that type in the remaining argument PLIST.
 
 The settings are recorded in the variable `edraw-shape-generator-alist'."
-  (if-let ((cell (assoc type edraw-shape-generator-alist)))
+  (if-let* ((cell (assoc type edraw-shape-generator-alist)))
       (setcdr cell (edraw-plist-append plist (cdr cell)))
     (push (cons type plist) edraw-shape-generator-alist))
   (edraw-shape-generator-prop-info-list--clear-cache))
@@ -9904,12 +9904,12 @@ which is a list of `edraw-svg-prop-info' objects."
   nil)
 
 (cl-defmethod edraw-filter-menu-items ((spt edraw-shape-point) menu-type items)
-  (when-let ((shape (edraw-parent-shape spt))
-             (editor (edraw-get-editor shape)))
+  (when-let* ((shape (edraw-parent-shape spt))
+              (editor (edraw-get-editor shape)))
     (edraw-filter-menu-items editor (list menu-type :target spt) items)))
 
 (cl-defmethod edraw-menu-shape-point ((spt edraw-shape-point))
-  (when-let ((actions (edraw-get-actions spt)))
+  (when-let* ((actions (edraw-get-actions spt)))
     `(,(let* ((point-type (edraw-get-point-type spt))
               (point-type-name (pcase point-type
                                  ('anchor (edraw-msg "Anchor"))
@@ -9923,7 +9923,7 @@ which is a list of `edraw-svg-prop-info' objects."
       ,(edraw-filter-menu-items spt 'shape-point actions))))
 
 (cl-defmethod edraw-popup-context-menu ((spt edraw-shape-point))
-  (when-let ((menu (edraw-menu-shape-point spt)))
+  (when-let* ((menu (edraw-menu-shape-point spt)))
     (edraw-popup-menu nil menu spt)
     ;; Return t if popuped
     t))
@@ -9994,15 +9994,15 @@ change hook."
                          (* r r)))))))))
 
 (cl-defmethod edraw-get-xy-transformed ((spt edraw-shape-point))
-  (when-let ((shape (edraw-parent-shape spt)))
+  (when-let* ((shape (edraw-parent-shape spt)))
     (edraw-matrix-mul-mat-xy
      (edraw-transform-prop-get-matrix shape)
      (edraw-get-xy spt))))
 
 (cl-defmethod edraw-move-on-transformed ((spt edraw-shape-point)
                                          xy)
-  (when-let ((shape (edraw-parent-shape spt))
-             (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
+  (when-let* ((shape (edraw-parent-shape spt))
+              (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
     (edraw-move spt (edraw-matrix-mul-mat-xy inv-mat xy))))
 
 (cl-defmethod edraw-delete-point ((_spt edraw-shape-point))
@@ -10178,19 +10178,19 @@ objects."
 (cl-defmethod edraw-same-subpath-p ((spt1 edraw-shape-point-path-anchor)
                                     (spt2 edraw-shape-point-path-anchor))
   "Return non-nil if the SPT1 and the SPT2 are on the same subpath."
-  (when-let ((subpath1 (edraw-path-anchor-parent-subpath (oref spt1 anchor)))
-             (subpath2 (edraw-path-anchor-parent-subpath (oref spt2 anchor))))
+  (when-let* ((subpath1 (edraw-path-anchor-parent-subpath (oref spt1 anchor)))
+              (subpath2 (edraw-path-anchor-parent-subpath (oref spt2 anchor))))
     (eq subpath1 subpath2)))
 
 
 (cl-defmethod edraw-in-closed-subpath-p ((spt edraw-shape-point-path-anchor))
   "Returns t if the point SPT is part of a closed subpath in the path shape."
-  (when-let ((subpath (edraw-path-anchor-parent-subpath (oref spt anchor))))
+  (when-let* ((subpath (edraw-path-anchor-parent-subpath (oref spt anchor))))
     (edraw-path-subpath-closed-p subpath)))
 
 (cl-defmethod edraw-in-open-subpath-p ((spt edraw-shape-point-path-anchor))
   "Returns t if the point SPT is part of a closed subpath in the path shape."
-  (when-let ((subpath (edraw-path-anchor-parent-subpath (oref spt anchor))))
+  (when-let* ((subpath (edraw-path-anchor-parent-subpath (oref spt anchor))))
     (edraw-path-subpath-open-p subpath)))
 
 (cl-defmethod edraw-endpoint-p ((spt edraw-shape-point-path-anchor))
@@ -10224,12 +10224,12 @@ first and the last."
 (cl-defmethod edraw-previous-anchor-round
   ((spt edraw-shape-point-path-anchor))
   (with-slots (anchor shape) spt
-    (when-let ((prev-anchor (edraw-path-anchor-prev-round anchor)))
+    (when-let* ((prev-anchor (edraw-path-anchor-prev-round anchor)))
       (edraw-shape-point-path-anchor :shape shape :anchor prev-anchor))))
 
 (cl-defmethod edraw-next-anchor-round ((spt edraw-shape-point-path-anchor))
   (with-slots (anchor shape) spt
-    (when-let ((next-anchor (edraw-path-anchor-next-round anchor)))
+    (when-let* ((next-anchor (edraw-path-anchor-next-round anchor)))
       (edraw-shape-point-path-anchor :shape shape :anchor next-anchor))))
 
 (cl-defmethod edraw-anchor-index-in-path
@@ -10362,7 +10362,7 @@ Return the added anchor."
       (when (edraw-glued-p spt)
         (edraw-unglue spt))
       ;; Delete Point
-      (when-let ((subpath (edraw-path-anchor-parent-subpath anchor)))
+      (when-let* ((subpath (edraw-path-anchor-parent-subpath anchor)))
         ;; Remove anchor
         (edraw-path-anchor-remove anchor)
         ;; Remove empty subpath
@@ -10375,7 +10375,7 @@ Return the added anchor."
 
 (cl-defmethod edraw-insert-point-before ((spt edraw-shape-point-path-anchor))
   (with-slots (anchor shape) spt
-    (when-let ((new-anchor (edraw-path-anchor-insert-midpoint-before anchor)))
+    (when-let* ((new-anchor (edraw-path-anchor-insert-midpoint-before anchor)))
       (edraw-make-undo-group (oref shape editor) 'path-point-insert-before
         ;;@todo Avoid using edraw-push-undo-path-d-change?
         (edraw-push-undo-path-d-change spt 'path-point-insert-before)
@@ -10434,8 +10434,8 @@ This operation creates a new anchor that duplicates the SPT."
   "Splits the path shape object at the anchor SPT."
   (with-slots (anchor shape) spt
     (edraw-make-undo-group (oref shape editor) 'split-path-at-anchor
-      (when-let ((subpath (edraw-path-anchor-parent-subpath anchor))
-                 (new-anchor (edraw-path-anchor-split anchor)))
+      (when-let* ((subpath (edraw-path-anchor-parent-subpath anchor))
+                  (new-anchor (edraw-path-anchor-split anchor)))
         ;; Add new path shape
         (unless (eq (edraw-path-anchor-parent-subpath new-anchor) subpath)
           (let ((new-path-data (edraw-path-data))
@@ -10740,7 +10740,7 @@ Even if a handle is valid, it may not have any effect as a
 
 (cl-defmethod edraw-parent-anchor ((spt edraw-shape-point-path-handle))
   (with-slots (handle shape) spt
-    (when-let ((anchor (edraw-path-handle-parent handle)))
+    (when-let* ((anchor (edraw-path-handle-parent handle)))
       (edraw-shape-point-path-anchor :shape shape :anchor anchor))))
 
 (cl-defmethod edraw-index-in-path ((spt edraw-shape-point-path-handle))
@@ -10788,9 +10788,9 @@ Even if a handle is valid, it may not have any effect as a
 
 (cl-defmethod edraw-get-opposite-handle-index-xy
   ((spt edraw-shape-point-path-handle))
-  (when-let ((opposite-handle (edraw-path-handle-opposite-handle-or-nil
-                               (oref spt handle)))
-             (index (edraw-shape-path-point-index opposite-handle)))
+  (when-let* ((opposite-handle (edraw-path-handle-opposite-handle-or-nil
+                                (oref spt handle)))
+              (index (edraw-shape-path-point-index opposite-handle)))
     (cons
      index
      (edraw-xy-clone (edraw-path-handle-xy opposite-handle)))))
@@ -10809,8 +10809,8 @@ Even if a handle is valid, it may not have any effect as a
 
 (cl-defmethod edraw-move-with-opposite-handle-on-transformed
   ((spt edraw-shape-point-path-handle) xy)
-  (when-let ((shape (edraw-parent-shape spt))
-             (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
+  (when-let* ((shape (edraw-parent-shape spt))
+              (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
     (edraw-move-with-opposite-handle
      spt (edraw-matrix-mul-mat-xy inv-mat xy))))
 
@@ -10828,8 +10828,8 @@ Even if a handle is valid, it may not have any effect as a
 
 (cl-defmethod edraw-move-with-opposite-handle-symmetry-on-transformed
   ((spt edraw-shape-point-path-handle) xy)
-  (when-let ((shape (edraw-parent-shape spt))
-             (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
+  (when-let* ((shape (edraw-parent-shape spt))
+              (inv-mat (edraw-transform-prop-get-inverse-matrix shape)))
     (edraw-move-with-opposite-handle-symmetry
      spt (edraw-matrix-mul-mat-xy inv-mat xy))))
 
@@ -10873,7 +10873,7 @@ Even if a handle is valid, it may not have any effect as a
   (or
    ;; Compute the destination coordinates
    (with-slots (shape) src
-     (when-let ((conn (edraw-find-point-connection shape src)))
+     (when-let* ((conn (edraw-find-point-connection shape src)))
        (edraw-update conn)))
    ;; Return the current source coordinates
    (edraw-get-xy src)))
@@ -10944,14 +10944,14 @@ Even if a handle is valid, it may not have any effect as a
 (cl-defmethod edraw-get-xy ((src edraw-point-connection-src-anchor))
   "Return the current coordinates of the connection SRC."
   (with-slots (shape index) src
-    (when-let ((spt (edraw-get-nth-anchor-point shape (edraw-normalized-index src))))
+    (when-let* ((spt (edraw-get-nth-anchor-point shape (edraw-normalized-index src))))
       (edraw-get-xy spt))))
 
 (cl-defmethod edraw-set-xy ((src edraw-point-connection-src-anchor) xy)
   "Move SRC to XY."
   (when xy
     (with-slots (shape index) src
-      (when-let ((spt (edraw-get-nth-anchor-point shape (edraw-normalized-index src))))
+      (when-let* ((spt (edraw-get-nth-anchor-point shape (edraw-normalized-index src))))
         ;;(message "set-xy %s %s %s" (edraw-name shape) (edraw-normalized-index src) xy)
         (edraw-move spt xy))))
   xy)
@@ -11045,7 +11045,7 @@ Even if a handle is valid, it may not have any effect as a
 (cl-defmethod edraw-get-xy ((src edraw-point-connection-src-aabb))
   "Return the current coordinates of the connection SRC."
   (with-slots (shape x-ratio y-ratio) src
-    (when-let ((aabb (edraw-point-connection-aabb shape)))
+    (when-let* ((aabb (edraw-point-connection-aabb shape)))
       (edraw-xy
        (+ (edraw-rect-left aabb)
           (* x-ratio (edraw-rect-width aabb)))
@@ -11055,7 +11055,7 @@ Even if a handle is valid, it may not have any effect as a
 (cl-defmethod edraw-set-xy ((src edraw-point-connection-src-aabb) xy)
   "Move SRC to XY."
   (when xy
-    (when-let ((curr-xy (edraw-get-xy src)))
+    (when-let* ((curr-xy (edraw-get-xy src)))
       (edraw-translate (oref src shape) (edraw-xy-sub xy curr-xy))))
   xy)
 
@@ -11327,7 +11327,7 @@ is SHAPE."
      (cons conn (edraw-get-point-connections shape)))
 
     ;; Add referrer
-    (when-let ((dst-shape (oref (edraw-dst conn) shape)))
+    (when-let* ((dst-shape (oref (edraw-dst conn) shape)))
       (edraw-set-point-connection-referrers
        dst-shape
        (cons conn (edraw-get-point-connection-referrers dst-shape))))
@@ -11515,7 +11515,7 @@ is SHAPE."
   (let* ((fun (edraw-point-connection-parse-function input))
          (name (car fun))
          (args (cdr fun)))
-    (if-let ((constructor (alist-get name edraw-point-connection-src-types nil nil #'string=)))
+    (if-let* ((constructor (alist-get name edraw-point-connection-src-types nil nil #'string=)))
         (funcall constructor src-shape args)
       (error "Invalid point connection src name %s" name))))
 
@@ -11549,7 +11549,7 @@ is SHAPE."
 
     (unless dst-shape
       (error "Cannot find shape %s" id))
-    (if-let ((constructor (alist-get name edraw-point-connection-dst-types nil nil #'string=)))
+    (if-let* ((constructor (alist-get name edraw-point-connection-dst-types nil nil #'string=)))
         (funcall constructor dst-shape args)
       (error "Invalid point connection dst name %s" name))))
 
@@ -11843,7 +11843,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
   (edraw-menu-items-shape-common obj))
 
 (cl-defmethod edraw-filter-menu-items ((obj edraw-multiple-shapes) menu-type items)
-  (when-let ((editor (edraw-get-editor obj)))
+  (when-let* ((editor (edraw-get-editor obj)))
     (edraw-filter-menu-items editor (list menu-type :target obj) items)))
 
 (cl-defmethod edraw-property-editor-actions ((obj edraw-multiple-shapes))
@@ -11986,7 +11986,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
   (edraw-make-undo-group (oref obj editor) 'shapes-bring-forward
     (let ((shape-list (edraw-shapes-front-to-back obj)))
       (dolist (shape shape-list)
-        (when-let ((next (edraw-next-sibling shape)))
+        (when-let* ((next (edraw-next-sibling shape)))
           (unless (memq next shape-list) ;; No overtaking
             (edraw-bring-forward shape)))))))
 
@@ -11994,7 +11994,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
   (edraw-make-undo-group (oref obj editor) 'shapes-send-backward
     (let ((shape-list (edraw-shapes-back-to-front obj)))
       (dolist (shape shape-list)
-        (when-let ((prev (edraw-previous-sibling shape)))
+        (when-let* ((prev (edraw-previous-sibling shape)))
           (unless (memq prev shape-list) ;; No overtaking
             (edraw-send-backward shape)))))))
 
@@ -12004,7 +12004,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
       (edraw-send-to-back shape))))
 
 (cl-defmethod edraw-back-shape ((obj edraw-multiple-shapes))
-  (when-let ((shapes (oref obj shapes)))
+  (when-let* ((shapes (oref obj shapes)))
     (let* ((back-most-shape (car shapes))
            (back-most-index (edraw-node-position back-most-shape)))
       (dolist (shape (cdr shapes))
@@ -12015,7 +12015,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
       back-most-shape)))
 
 (cl-defmethod edraw-front-shape ((obj edraw-multiple-shapes))
-  (when-let ((shapes (oref obj shapes)))
+  (when-let* ((shapes (oref obj shapes)))
     (let* ((front-most-shape (car shapes))
            (front-most-index (edraw-node-position front-most-shape)))
       (dolist (shape (cdr shapes))
@@ -12058,7 +12058,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
                        (edraw-duplicate-shapes (oref obj shapes))))
 
 (cl-defmethod edraw-copy ((obj edraw-multiple-shapes))
-  (when-let ((shapes (edraw-shapes-back-to-front obj)))
+  (when-let* ((shapes (edraw-shapes-back-to-front obj)))
     (edraw-clipboard-set
      'shape-descriptor-list
      (mapcar #'edraw-shape-descriptor shapes))))
@@ -12688,18 +12688,18 @@ REF is a point reference in scaling-points."
              (when shift-p
                (setq move-xy (edraw-xy-snap-to-45deg move-xy old-xy)))
 
-             (if-let ((ratio-xy
-                       (seq-find (lambda (ratio-xy)
-                                   (< (edraw-xy-distance
-                                       (edraw-ref-xy-on-global
-                                        transformer
-                                        (cons (cons 'ratio (car ratio-xy))
-                                              (cons 'ratio (cdr ratio-xy))))
-                                       move-xy)
-                                      snap-radius))
-                                 '((0.0 . 0.0) (0.5 . 0.0) (1.0 . 0.0)
-                                   (0.0 . 0.5) (0.5 . 0.5) (1.0 . 0.5)
-                                   (0.0 . 1.0) (0.5 . 1.0) (1.0 . 1.0)))))
+             (if-let* ((ratio-xy
+                        (seq-find (lambda (ratio-xy)
+                                    (< (edraw-xy-distance
+                                        (edraw-ref-xy-on-global
+                                         transformer
+                                         (cons (cons 'ratio (car ratio-xy))
+                                               (cons 'ratio (cdr ratio-xy))))
+                                        move-xy)
+                                       snap-radius))
+                                  '((0.0 . 0.0) (0.5 . 0.0) (1.0 . 0.0)
+                                    (0.0 . 0.5) (0.5 . 0.5) (1.0 . 0.5)
+                                    (0.0 . 1.0) (0.5 . 1.0) (1.0 . 1.0)))))
                  ;; Relative
                  (edraw-set-transform-origin transformer
                                              (list (car ratio-xy))
@@ -12916,11 +12916,11 @@ REF is a point reference in scaling-points."
                    ((eq event ?o)
                     (edraw-set-transform-origin-interactive transformer))
                    ((eq event ?m)
-                    (when-let ((method
-                                (pcase (read-char (edraw-msg "a:auto  t:transform property  p:anchor points"))
-                                  (?a 'auto)
-                                  (?t 'transform-property)
-                                  (?p 'anchor-points))))
+                    (when-let* ((method
+                                 (pcase (read-char (edraw-msg "a:auto  t:transform property  p:anchor points"))
+                                   (?a 'auto)
+                                   (?t 'transform-property)
+                                   (?p 'anchor-points))))
                       (edraw-set-transform-method editor method)))
                    ;; ((memq (event-basic-type event) '(left up right down))
                    ;;  @todo translate by key
@@ -13259,7 +13259,7 @@ This function is for registering with the `kill-buffer-query-functions' hook."
 
 (defun edraw-edit-svg--close-editor (editor)
   (edraw-close editor)
-  (when-let ((buffer (edraw-get-extra-prop editor 'edraw-edit-svg--new-buffer)))
+  (when-let* ((buffer (edraw-get-extra-prop editor 'edraw-edit-svg--new-buffer)))
     (when (and buffer
                (eq (current-buffer) buffer))
       (quit-window t))))

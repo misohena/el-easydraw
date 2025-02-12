@@ -105,7 +105,7 @@
       (edraw-buffer-display-fit-window-size-to-content))))
 
 (defun edraw-buffer-display-fit-window-size-to-content ()
-  (when-let ((parent-window (window-parent)))
+  (when-let* ((parent-window (window-parent)))
     (let* ((parent-window-height (window-height parent-window))
            (max-height (/ parent-window-height 2)))
       (fit-window-to-buffer nil max-height)
@@ -346,13 +346,13 @@
 (cl-defmethod edraw-ui-state-load ((ui-state edraw-ui-state))
   (with-slots (store) ui-state
     (unless store
-      (when-let ((file (edraw-ui-state-file ui-state)))
+      (when-let* ((file (edraw-ui-state-file ui-state)))
         (setq store (edraw-ui-state-file-load file))))))
 
 (cl-defgeneric edraw-ui-state-save (ui-state))
 
 (cl-defmethod edraw-ui-state-save ((ui-state edraw-ui-state))
-  (when-let ((file (edraw-ui-state-file ui-state)))
+  (when-let* ((file (edraw-ui-state-file ui-state)))
     (edraw-ui-state-file-save file (oref ui-state store))))
 
 (defun edraw-ui-state-file-load (file)

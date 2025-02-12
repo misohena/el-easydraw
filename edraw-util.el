@@ -330,7 +330,7 @@ by the `auto-coding-functions'."
             for id from 0
             for key = (intern (format "item%s" id))
             ;; Remove invisible item
-            when (if-let ((visible (plist-member props :visible)))
+            when (if-let* ((visible (plist-member props :visible)))
                      (progn
                        ;; Remove :visible property
                        (setq props
@@ -651,7 +651,7 @@ returns nil."
 (cl-defmethod edraw-shrink ((list edraw-list) n)
   (if (< n 1)
       (edraw-clear list)
-    (when-let ((cell (nthcdr (1- n) (edraw-list-data list))))
+    (when-let* ((cell (nthcdr (1- n) (edraw-list-data list))))
       (setcdr cell nil)))
   list)
 
@@ -852,11 +852,11 @@ If there are multiple KEYs, the first one is removed."
   ;; +If you want to make destructive changes to the list, consider+
   ;; +using `cl-remf'.+
   ;; (unless predicate (setq predicate #'eq))
-  (if-let ((head (plist-member
-                  plist key
-                  ;; @todo The third argument of plist-member can be used with Emacs 29 or later.
-                  ;; predicate
-                  )))
+  (if-let* ((head (plist-member
+                   plist key
+                   ;; @todo The third argument of plist-member can be used with Emacs 29 or later.
+                   ;; predicate
+                   )))
       (nconc
        (edraw-plist-take-while plist (lambda (k _)
                                        (not
@@ -1311,7 +1311,7 @@ Compared to set-transient-map, it has the following differences:
 
 
 (defun edraw-where-is-string (definition &optional keymap firstonly)
-  (when-let ((keys (where-is-internal definition keymap firstonly)))
+  (when-let* ((keys (where-is-internal definition keymap firstonly)))
     (if (listp keys)
         (mapcar #'key-description keys)
       (key-description keys))))
