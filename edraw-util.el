@@ -433,6 +433,25 @@ by the `auto-coding-functions'."
                (car (posn-object pos2))) ;;ex: 'image
          t)))
 
+(defun edraw-this-command-event ()
+  "Return the first event with parameters that invoked the current command.
+
+This function corresponds to (interactive \"e\"). However, if there is
+no event with parameters, this function returns nil (while (interactive
+\"e\") signals an error).
+
+`last-command-event' and `last-input-event' return the last event that
+occurred, so they cannot be used for the same purpose. For example, if
+you right-click on text in `context-menu-mode', then select an item in
+the menu and execute a command, `last-command-event' and
+`last-input-event' will return the event for the menu item you
+selected. Using this function, you can get the event at the time you
+right-clicked.
+
+For the implementation of (interactive \"e\"), see the
+`call-interactively' function in callint.c."
+  (seq-find #'consp (this-command-keys-vector)))
+
 ;;;; Mouse Wheel Event
 
 (defconst edraw-wheel-down-event

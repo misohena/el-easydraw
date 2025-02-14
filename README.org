@@ -244,37 +244,54 @@ The following code is an example of inserting an editor into a buffer from Emacs
 
 * Color Picker
 
-edraw-color-picker.el contains a color picker library and some commands.
+edraw-color-picker.el provides a color picker library and several commands.
 
-Commands to add/replace the selected color to the buffer:
-- edraw-color-picker-insert-color
+Commands to replace or insert the selected color in the buffer:
+
+- edraw-color-picker-replace-or-insert-color-at
 - edraw-color-picker-replace-color-at
-- edraw-color-picker-replace-or-insert-color-at-point
+- edraw-color-picker-insert-color-at
 
-Settings for using them while editing CSS or HTML:
+edraw-color-picker-mode.el defines two minor modes, edraw-color-picker-mode and edraw-color-picker-global-mode, which make it easy to use these commands in any buffer.
+
+edraw-color-picker-mode adds key bindings for these commands in the buffer. You can customize the bindings flexibly with:
+
+  M-x customize-variable edraw-color-picker-mode-custom-bindings
+
+You can also bind specific keys for specific major modes. This mode also provides a context menu.
+
+edraw-color-picker-global-mode enables edraw-color-picker-mode in all buffers. If you want to enable it only for specific major modes, you can configure it with:
+
+  M-x customize-variable edraw-color-picker-global-modes
+
+To use edraw-color-picker-global-mode, add the following to your init.el:
+
+#+begin_src elisp
+(require 'edraw-color-picker-mode)
+(edraw-color-picker-global-mode)
+#+end_src
+
+You can also manually bind each command without using these minor modes. For example, to open the color picker with mouse-1 and C-c C-o in css-mode and mhtml-mode, configure it as follows.
 
 #+begin_src elisp
 (autoload 'edraw-color-picker-replace-color-at "edraw-color-picker" nil t)
-(autoload 'edraw-color-picker-replace-or-insert-color-at-point "edraw-color-picker" nil t)
+(autoload 'edraw-color-picker-replace-or-insert-color-at "edraw-color-picker" nil t)
 
 (defun my-edraw-color-picker-add-keys (map)
   ;; Replaces the color of the clicked location
   (define-key map [mouse-1] #'edraw-color-picker-replace-color-at)
   ;; C-c C-o replaces the color in place or adds color
   (define-key map (kbd "C-c C-o")
-              #'edraw-color-picker-replace-or-insert-color-at-point))
+              #'edraw-color-picker-replace-or-insert-color-at))
 
 (defun my-edraw-color-picker-enable ()
-  (my-edraw-color-picker-add-keys (or (current-local-map)
-                                      (let ((map (make-sparse-keymap)))
-                                        (use-local-map map)
-                                        map))))
+  (my-edraw-color-picker-add-keys (current-local-map)))
 
 (add-hook 'css-mode-hook 'my-edraw-color-picker-enable)
 (add-hook 'mhtml-mode-hook 'my-edraw-color-picker-enable)
 #+end_src
 
-Settings for use with Customize:
+Settings for use with Customize buffer:
 
 #+begin_src elisp
 (with-eval-after-load "cus-edit"
@@ -284,6 +301,8 @@ Settings for use with Customize:
 
 #+CAPTION: Show color picker inline
 [[file:./screenshot/color-picker-inline.png]]
+
+edraw-color-picker.el also provides the following functions for use from Emacs Lisp.
 
 Show color picker in minibuffer:
 - (edraw-color-picker-read-color)

@@ -1,5 +1,8 @@
 
 * Inbox
+** TODO 色/カラーピッカー外のクリックでまた開かないようにしたい
+色置き換え・挿入コマンド使用時、ピッカーの外をクリックした時に、その場所でまた開かないようにしたい。downイベントで閉じてclickイベントで開いてしまう。
+
 ** TODO 色/新しい構文解析・文字列化機構に合わせて既存の文字列処理を修正
 新しい仕組みと古い仕組みで機能が被っている。
 
@@ -900,14 +903,6 @@ edrawリンクのdata-file相互変換機能があれば十分かも？　data�
 ただ、topの方は関数を分ければ対処可能。ルートがtopかsvgと分かっている場所は専用の関数を呼ぶべき。もしくはトップ以外と分かっているところはedraw-svg-print-nodeみたいにするか。
 
 edraw-svg-printの意味がちょっと曖昧になっている。svg要素をprintする関数なのか、汎用的なSVG仕様定義要素をprintする関数なのか。現在は再帰で呼び出しているのだから後者と考えざるを得ない。でも後者ならtopを特別扱いするのは良くない。
-
-** TODO 色/カラーピッカーを簡単に使えるようにするマイナーモードを追加する
-edraw-color-picker-global-modeとedraw-color-picker-mode。
-- キーによる起動
-- クリックによる起動 (できれば開いてる後のクリックは閉じるだけにしたい)
-- コンテキストメニュー
-- Embark
-- 使用するモードの設定
 
 ** TODO 色/カラーピッカーから出力する形式を変更できるようにする
 HEX, rgb, hsl, hwb, lab, lch, oklab, oklchから選びたい。
@@ -6469,3 +6464,23 @@ when-letはwhen-let*とほぼ同じなので、when-letをlet的に並列に複�
 こうしてみると、when-letとwhen-let*を使い分けること自体がすでにバカバカしいものであったし、こういったミスも発生していたことも考えると統一したのは良かったのではないか。
 
 置換して一応全部確認した。
+** DONE 色/色置き換え・挿入コマンドのマウスイベント処理を修正する
+CLOSED: [2025-02-15 Sat 08:11]
+他のウィンドウをクリックした時に正しく動かない。
+また、コンテキストメニュー経由で実行したときにも正しく動かない。
+
+コンテキストメニュー経由で実行するとlast-input-eventはメニューで選んだメニュー項目のキーイベントになってしまう。一方 ~(interactive "e")~ ではコンテキストメニューを開いたときのイベントが手に入る。これはコマンドを実行したときの一連のイベントの内、最初の1、2個にあるマウスイベントを使っているからだとマニュアルに書いてあった(https://ayatakesi.github.io/emacs/24.5/elisp_html/Interactive-Codes.html)。this-command-keysやthis-command-keys-vectorを使うとその一連のイベントを取得できるので、その中からマウスイベントを探して使うようにした。[[elisp-function:edraw-this-command-event]]を追加した。
+
+最初は -color-at-point内で最後のイベントを参照しようとしたが、それだと (goto-char ..)してから -color-at-point を呼んだときに現在のポイントでは無く最後のイベントの場所に開いてしまう。 -color-at の引数を pos-or-event にして対処した。
+
+** DONE 色/カラーピッカーを簡単に使えるようにするマイナーモードを追加する
+CLOSED: [2025-02-15 Sat 08:11]
+edraw-color-picker-mode と edraw-color-picker-global-mode 。
+
+edraw-color-picker-modeは単独のバッファ内で動作する。
+
+- defcustomによるキー割り当ての変更機能を提供(特定メジャーモード専用キー割り当て機能あり)
+- コンテキストメニュー
+
+edraw-color-picker-global-mode
+- 使用するモードの設定

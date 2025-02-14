@@ -26,19 +26,18 @@
 ;; - (edraw-color-picker-read-color) (<= eval here !!)
 
 ;; Insert the selected color into the buffer:
-;; - (edraw-color-picker-insert-color)
-;; - (edraw-color-picker-replace-color-at-point)
+;; - (edraw-color-picker-insert-color-at)
 ;; - (edraw-color-picker-replace-color-at)
-;; - (edraw-color-picker-replace-or-insert-color-at-point)
+;; - (edraw-color-picker-replace-or-insert-color-at)
 
 ;; To use it while editing css or html:
 ;;   (autoload 'edraw-color-picker-replace-color-at "edraw-color-picker" nil t)
-;;   (autoload 'edraw-color-picker-replace-or-insert-color-at-point "edraw-color-picker" nil t)
+;;   (autoload 'edraw-color-picker-replace-or-insert-color-at "edraw-color-picker" nil t)
 ;;   (defun my-edraw-color-picker-enable ()
 ;;     ;; Replaces the color of the clicked location
 ;;     (local-set-key [mouse-1] #'edraw-color-picker-replace-color-at)
 ;;     ;; C-c C-o replaces the color in place or adds color
-;;     (local-set-key (kbd "C-c C-o") #'edraw-color-picker-replace-or-insert-color-at-point))
+;;     (local-set-key (kbd "C-c C-o") #'edraw-color-picker-replace-or-insert-color-at))
 ;;   (add-hook 'css-mode-hook 'my-edraw-color-picker-enable)
 ;;   (add-hook 'mhtml-mode-hook 'my-edraw-color-picker-enable)
 
@@ -2725,9 +2724,9 @@ undo list."
 buffer using a color picker.
 
 Such commands include:
-- `edraw-color-picker-replace-or-insert-color-at-point'
-- `edraw-color-picker-replace-color-at-point'
-- `edraw-color-picker-insert-color'
+- `edraw-color-picker-replace-or-insert-color-at'
+- `edraw-color-picker-replace-color-at'
+- `edraw-color-picker-insert-color-at'
 
 The following options can be specified:
 
@@ -2745,8 +2744,36 @@ Other options passed to the color picker object."
   :type '(alist :key-type symbol :value-type sexp))
 
 ;;;###autoload
+(defun edraw-color-picker-insert-color-at (pos-or-event
+                                           &optional initial-color options)
+  "Insert a color selected by color picker at POS-OR-EVENT."
+  (interactive
+   (list (or (edraw-this-command-event)
+             (point))
+         nil edraw-color-picker-replace-color-command-options))
+
+  (if (integer-or-marker-p pos-or-event)
+      ;; point
+      (save-excursion
+        (goto-char pos-or-event)
+        (edraw-color-picker-insert-color initial-color options))
+    ;; event
+    (let* ((posn (event-end pos-or-event))
+           (window (posn-window posn))
+           (buffer (window-buffer window))
+           (point (posn-point posn)))
+      (with-selected-window window
+        (with-current-buffer buffer
+          (save-excursion
+            (goto-char point)
+            (edraw-color-picker-insert-color initial-color options)))))))
+
+;;;###autoload
 (defun edraw-color-picker-insert-color (&optional initial-color options)
-  "Insert a color selected by color picker."
+  "Insert a color selected by color picker at the current point.
+
+Note: Use `edraw-color-picker-insert-color-at' when binding to mouse
+events."
   (interactive
    (list nil edraw-color-picker-replace-color-command-options))
 
@@ -2760,29 +2787,65 @@ Other options passed to the color picker object."
   t)
 
 ;;;###autoload
+(defun edraw-color-picker-replace-or-insert-color-at (pos-or-event
+                                                      &optional options)
+  "Select a color with the color picker. If there is color text at
+POS-OR-EVENT, replace it; otherwise, insert the color text."
+  (interactive
+   (list (or (edraw-this-command-event)
+             (point))
+         edraw-color-picker-replace-color-command-options))
+  (or (edraw-color-picker-replace-color-at pos-or-event options)
+      (edraw-color-picker-insert-color-at pos-or-event nil options)))
+
+;;;###autoload
 (defun edraw-color-picker-replace-or-insert-color-at-point (&optional options)
+  "Select a color with the color picker. If there is color text at
+the current point, replace it; otherwise, insert the color text.
+
+Note: Use `edraw-color-picker-replace-or-insert-color-at' when binding
+to mouse events."
   (interactive
    (list edraw-color-picker-replace-color-command-options))
-  (or (edraw-color-picker-replace-color-at (point) options)
+  (or (edraw-color-picker-replace-color-at-point options)
       (edraw-color-picker-insert-color nil options)))
 
 ;;;###autoload
-(defun edraw-color-picker-replace-color-at-point (&optional options)
-  "Replace the color at the point with the color selected by color picker."
+(defun edraw-color-picker-replace-color-at (pos-or-event &optional options)
+  "Replace the color at POS-OR-EVENT with the color selected by color picker."
   (interactive
-   (list edraw-color-picker-replace-color-command-options))
-  (edraw-color-picker-replace-color-at (point) options))
+   (list (or (edraw-this-command-event)
+             (point))
+         edraw-color-picker-replace-color-command-options))
+
+  (if (integer-or-marker-p pos-or-event)
+      ;; point
+      (save-excursion
+        (goto-char pos-or-event)
+        (edraw-color-picker-replace-color-at-point options))
+    ;; event
+    (let* ((posn (event-end pos-or-event))
+           (window (posn-window posn))
+           (buffer (window-buffer window))
+           (point (posn-point posn)))
+      (with-selected-window window
+        (with-current-buffer buffer
+          (save-excursion
+            (goto-char point)
+            (edraw-color-picker-replace-color-at-point options)))))))
 
 ;;;###autoload
-(defun edraw-color-picker-replace-color-at (position &optional options)
-  "Replace the color at POSITION with the color selected by color picker."
+(defun edraw-color-picker-replace-color-at-point (&optional options)
+  "Replace the color at the point with the color selected by color picker.
+
+Note: Use `edraw-color-picker-replace-color-at' when binding to mouse
+events."
   (interactive
-   (list (point)
-         edraw-color-picker-replace-color-command-options))
+   (list edraw-color-picker-replace-color-command-options))
 
   (when-let* ((color-info
                (edraw-color-info-at
-                position
+                (point)
                 (edraw-color-picker-syntax-system options nil)
                 t)))
     (edraw-color-picker-replace-color-region color-info options)
