@@ -749,7 +749,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
              (edraw-color-from-emacs-color-name
               (match-string-no-properties 2 string))
              (error "Invalid color name"))
-            :syntax 'emacs-color-name)))))
+            :syntax 'emacs-color-name))
+          (t (error "Invalid match data")))))
     (nconc
      color-info
      (list :begin beg :end end :syntax-system 'emacs))))
@@ -1125,7 +1126,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
                 (match-string-no-properties 3 string)
                 (match-string-no-properties 4 string))
                ;; Just to be sure
-               (error "Failed to edraw-color-css-call-function"))))))
+               (error "Failed to edraw-color-css-call-function")))
+          (t (error "Invalid match data")))))
     (nconc
      color-info
      (list :begin beg :end end :syntax-system 'css))))
