@@ -3279,19 +3279,19 @@ of input changes."
                                          &optional default-syntax-system)
   (or
    (alist-get :color-syntax-system options)
+   ;; For compatibility (will be removed in the future)
    (pcase (alist-get :color-name-scheme options)
      ('web 'css)
      ('css 'css)
-     ('emacs 'emacs)
-     (_ (edraw-color-syntax-system-default
-         (or default-syntax-system 'emacs))))))
+     ('emacs 'emacs))
+   (edraw-color-syntax-system-default
+    (or default-syntax-system 'emacs))))
 
 (defun edraw-color-picker-color-to-string (color options)
   "Convert COLOR edraw-color object to string.
 
 Valid OPTIONS are:
 (:color-syntax-system . emacs or css)
-(:color-name-scheme . emacs or css or web)
 (:color-serializer-options . <plist>)
 (:color-info-props . <plist>)
 (:enable-opacity . nil or t)"
@@ -3310,7 +3310,6 @@ Valid OPTIONS are:
 
 Valid options are:
 (:color-syntax-system . emacs or css)
-(:color-name-scheme . emacs or css or web)
 (:enable-opacity . nil or t)"
   (let ((color-info
          (edraw-color-info-from-string
@@ -3327,7 +3326,6 @@ Valid options are:
 
 Valid options are:
 (:color-syntax-system . emacs or css)
-(:color-name-scheme . emacs or css or web)
 (:enable-opacity . nil or t)"
   (car (edraw-color-picker-color-info-from-string string options)))
 

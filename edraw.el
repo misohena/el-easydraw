@@ -1715,7 +1715,7 @@ document size or view box."
   (when (stringp fill)
     (when-let* ((color (edraw-color-picker-color-from-string
                         fill
-                        '((:color-name-scheme . web) (:enable-opacity . t)))))
+                        '((:color-syntax-system . css) (:enable-opacity . t)))))
       (>= (edraw-color-a color) 1))))
 
 (edraw-editor-defcmd edraw-set-background ((editor edraw-editor) fill)
@@ -1729,7 +1729,7 @@ document size or view box."
                   (edraw-msg "Background Color: ")
                   (or current-value "")
                   '("" "none")
-                  `((:color-name-scheme . web)
+                  `((:color-syntax-system . css)
                     (:no-color . "none")
                     (:on-input-change
                      . ,(lambda (string color)
@@ -4540,7 +4540,7 @@ position where the EVENT occurred."
                       (format "%s %s: " (car tag-value) prop-name)
                       (cdr tag-value)
                       '("" "none")
-                      `((:color-name-scheme . web)
+                      `((:color-syntax-system . css)
                         (:no-color . "none")
                         (:scale-direct . ,(oref editor image-scale))
                         (:palette-colors . ,(edraw-get-palette-colors editor))
@@ -6587,7 +6587,7 @@ This function is destructive: the list POINTS is modified."
                    (format "%s: " prop-name)
                    (or old-value "")
                    '("" "none")
-                   `((:color-name-scheme . web)
+                   `((:color-syntax-system . css)
                      (:no-color . "none")
                      (:on-input-change
                       . ,(lambda (string color)

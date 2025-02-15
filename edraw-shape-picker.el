@@ -763,7 +763,7 @@
               edraw-shape-picker-ui-state
             (edraw-ui-state-object-default)))
          (options-for-read-color
-          `((:color-name-scheme . web)
+          `((:color-syntax-system . css)
             (:no-color . "none")
             ,@(when (and (boundp 'edraw-editor-image-scaling-factor)
                          edraw-editor-image-scaling-factor)

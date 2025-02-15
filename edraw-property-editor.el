@@ -1238,7 +1238,7 @@ as a string."
      (format "%s: " (edraw-property-editor-property-display-name prop-name))
      old-value
      '("" "none")
-     `((:color-name-scheme . web)
+     `((:color-syntax-system . css)
        (:no-color . "none")
        ,@(when-let* ((image-scale (alist-get 'image-scale options)))
            (list
@@ -1260,7 +1260,7 @@ as a string."
                  (edraw-property-editor-property-display-name prop-name))
          old-value
          '("" "none")
-         `((:color-name-scheme . web)
+         `((:color-syntax-system . css)
            (:no-color . "none")
            ;; Preview
            ,@(list

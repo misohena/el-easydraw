@@ -64,7 +64,7 @@
    nil
    old-color
    '("" "none")
-   `((:color-name-scheme . web)
+   `((:color-syntax-system . css)
      (:no-color . "none"))))
 
 (defun edraw-widget-web-color--choose-action (widget &optional _event)
