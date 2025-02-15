@@ -6484,3 +6484,6 @@ edraw-color-picker-modeは単独のバッファ内で動作する。
 
 edraw-color-picker-global-mode
 - 使用するモードの設定
+** DONE 色/edraw-color-picker-read-colorで無効な色を入力したとき
+CLOSED: [2025-02-15 Sat 18:26]
+再度入力になるがカラーピッカーが消えてしまう。

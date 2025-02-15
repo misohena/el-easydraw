@@ -3053,14 +3053,9 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                    '(:transient-keymap-var
                      . edraw-color-picker-minibuffer-mode-map)
                    options)))
-         (setup-p nil)
          (on-minibuffer-setup
           (lambda ()
-            (unless setup-p
-              (setq setup-p t)
-              (edraw-color-picker-minibuffer--on-minibuffer-setup picker))))
-         (minibuffer-setup-hook (cons on-minibuffer-setup
-                                      minibuffer-setup-hook))
+            (edraw-color-picker-minibuffer--on-minibuffer-setup picker)))
          (edraw-color-picker-read-color--history
           (edraw-color-picker-make-history-list options initial-color)))
 
@@ -3087,10 +3082,16 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                   (edraw-get-current-color picker) options))))
               (result nil))
           (while (null result)
-            (let ((input (read-string (edraw-color-picker-minibuffer--prompt
-                                       prompt allow-strings options)
-                                      initial-input
-                                      'edraw-color-picker-read-color--history)))
+            (let ((input
+                   (minibuffer-with-setup-hook
+                       ;; If the minibuffer is re-entered recursively,
+                       ;; on-minibuffer-setup will only be called
+                       ;; once, for the outermost use of the minibuffer.
+                       on-minibuffer-setup
+                     (read-string (edraw-color-picker-minibuffer--prompt
+                                   prompt allow-strings options)
+                                  initial-input
+                                  'edraw-color-picker-read-color--history))))
               (when (or (member input allow-strings)
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
