@@ -69,19 +69,10 @@
 ;;    edraw-list : a list of palette color strings
 ;; :recent-colors
 ;;    edraw-list : a list of recently used color strings
-;; :color-float-format (default: 4)
-;;    integer : number of digits after the decimal point
-;;    string : format string (e.g. "%s")
-;;    function : format function (funcall f value)
-;; :color-format
+;; :color-syntax-system
 ;;    symbol
-;;      nil : hex or rgb
-;;      'hex : #RRGGBB or #RRGGBBAA
-;;      'rgba : rgba(R, G, B, A)
-;; :color-name-scheme
-;;    symbol
-;;      'emacs : Use emacs color name
-;;      'web : Use web color keyword
+;;      'emacs : Use emacs color syntax
+;;      'css   : Use CSS color syntax
 ;; :scale
 ;;    float : scaling factor for color picker image
 ;;            (rate from default image size)
@@ -2780,7 +2771,7 @@ events."
     initial-color
     :begin (point)
     :end (point)
-    :syntax-system (edraw-color-picker-syntax-system options nil))
+    :syntax-system (edraw-color-picker-syntax-system options))
    options)
   t)
 
@@ -2844,7 +2835,7 @@ events."
   (when-let* ((color-info
                (edraw-color-info-at
                 (point)
-                (edraw-color-picker-syntax-system options nil)
+                (edraw-color-picker-syntax-system options)
                 t)))
     (edraw-color-picker-replace-color-region color-info options)
     t))
@@ -3015,17 +3006,6 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
      (* bri 100)
      (* rl 100))))
 
-;;;; Color Syntax System
-
-(defun edraw-color-picker-syntax-system (options default-syntax-system)
-  (or
-   (alist-get :color-syntax-system options)
-   (pcase (alist-get :color-name-scheme options)
-     ('web 'css)
-     ('css 'css)
-     ('emacs 'emacs)
-     (_ (edraw-color-syntax-system-default
-         (or default-syntax-system 'emacs))))))
 
 ;;;;; Read Color from Minibuffer
 
@@ -3044,25 +3024,43 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
   (when (eq allow-strings t)
     (setq allow-strings '(""))) ;;allow-empty
 
-  (let* ((overlay (let ((ov (make-overlay (point) (point) nil t nil)))
+  ;; Determine the color syntax system
+  (unless (alist-get :color-syntax-system options)
+    (push (cons :color-syntax-system
+                (edraw-color-picker-syntax-system options))
+          options))
+
+  (push (cons :transient-keymap-var 'edraw-color-picker-minibuffer-mode-map)
+        options)
+
+  (let* (;; Normalize INITIAL-COLOR and save original text format
+         (initial-color-info
+          (when (stringp initial-color)
+            (edraw-color-picker-color-info-from-string initial-color options)))
+         (initial-color-normalized
+          (if initial-color-info
+              (car initial-color-info)
+            (edraw-color-picker-ensure-color initial-color options)))
+         ;; Make :color-info-props property
+         (_
+          (push (cons :color-info-props
+                      (when initial-color-info
+                        (edraw-color-info-props initial-color-info)))
+                options))
+
+         ;; Create an overlay and a color picker object
+         (overlay (let ((ov (make-overlay (point) (point) nil t nil)))
                     (delete-overlay ov)
                     (overlay-put ov 'after-string "\n")
                     ov))
          (picker (edraw-color-picker-overlay
-                  overlay 'before-string initial-color
-                  (cons
-                   '(:transient-keymap-var
-                     . edraw-color-picker-minibuffer-mode-map)
-                   options)))
-         (on-minibuffer-setup
-          (lambda ()
-            (edraw-color-picker-minibuffer--on-minibuffer-setup picker)))
-         (edraw-color-picker-read-color--history
-          (edraw-color-picker-make-history-list options initial-color)))
+                  overlay 'before-string initial-color-normalized options)))
 
     ;; Add hooks to picker
-    (edraw-add-hook picker 'ok #'edraw-color-picker-minibuffer--on-ok)
-    (edraw-add-hook picker 'cancel #'edraw-color-picker-minibuffer--on-cancel)
+    (edraw-add-hook picker 'ok
+                    #'edraw-color-picker-minibuffer--on-ok)
+    (edraw-add-hook picker 'cancel
+                    #'edraw-color-picker-minibuffer--on-cancel)
     (when (alist-get :no-color options)
       (edraw-add-hook picker 'no-color
                       #'edraw-color-picker-minibuffer--on-no-color))
@@ -3070,7 +3068,9 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                     #'edraw-color-picker-minibuffer--on-color-change)
 
     (unwind-protect
-        (let ((max-mini-window-height 1.0)
+        (let ((edraw-color-picker-read-color--history
+               (edraw-color-picker-make-history-list options initial-color))
+              (max-mini-window-height 1.0)
               (initial-input
                (cond
                 ((cl-typep initial-color 'edraw-color)
@@ -3088,12 +3088,15 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                        ;; If the minibuffer is re-entered recursively,
                        ;; on-minibuffer-setup will only be called
                        ;; once, for the outermost use of the minibuffer.
-                       on-minibuffer-setup
+                       (lambda ()
+                         (edraw-color-picker-minibuffer--on-minibuffer-setup
+                          picker))
                      (read-string (edraw-color-picker-minibuffer--prompt
                                    prompt allow-strings options)
                                   initial-input
                                   'edraw-color-picker-read-color--history))))
               (when (or (member input allow-strings)
+                        ;; INPUT is a valid color?
                         (edraw-color-picker-color-from-string input options))
                 (setq result input))))
           (when-let* ((result-color
@@ -3108,10 +3111,8 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
   "Create a prompt for `edraw-color-picker-read-color'."
   (or prompt
       (format
-       "Color (%s name or %s%s): "
-       (alist-get :color-name-scheme options 'emacs)
-       (if (alist-get 'enable-opacity options t)
-           "#RGBA" "#RGB")
+       "Color (%s syntax%s): "
+       (edraw-color-picker-syntax-system options)
        (if allow-strings
            (concat
             " or "
@@ -3168,8 +3169,10 @@ correctly."
                (picker-color-str (edraw-color-picker-color-to-string
                                   picker-color options))
                (minibuffer-string (minibuffer-contents-no-properties))
-               (minibuffer-color (edraw-color-picker-color-from-string
-                                  minibuffer-string options)))
+               (minibuffer-color-info (edraw-color-picker-color-info-from-string
+                                       minibuffer-string options))
+               (minibuffer-color (edraw-color-info-color
+                                  minibuffer-color-info)))
           ;; update color picker
           (when (and
                  ;; not equals string representation of picker color
@@ -3182,6 +3185,19 @@ correctly."
                  (not (edraw-color-equal-p minibuffer-color
                                            picker-color)))
             (edraw-set-current-color picker minibuffer-color))
+          ;; update format
+          (when (and
+                 ;; not equals string representation of picker color
+                 ;; (set by last on-color-change)
+                 (not (string= minibuffer-string
+                               picker-color-str))
+                 ;; is valid color
+                 minibuffer-color-info
+                 ;; @todo Block if color name?
+                 )
+            (when-let* ((cell (assq :color-info-props options)))
+              (setcdr cell (edraw-color-info-props minibuffer-color-info))))
+
           ;; callback minibuffer string change
           ;; (include invalid string. e.g. "none")
           (edraw-color-picker-minibuffer--notify-input-change
@@ -3257,44 +3273,63 @@ of input changes."
 
 
 
-;;;; Color Utility
+;;;; Color Text Conversion
 
+(defun edraw-color-picker-syntax-system (options
+                                         &optional default-syntax-system)
+  (or
+   (alist-get :color-syntax-system options)
+   (pcase (alist-get :color-name-scheme options)
+     ('web 'css)
+     ('css 'css)
+     ('emacs 'emacs)
+     (_ (edraw-color-syntax-system-default
+         (or default-syntax-system 'emacs))))))
 
 (defun edraw-color-picker-color-to-string (color options)
   "Convert COLOR edraw-color object to string.
 
 Valid OPTIONS are:
-(:color-float-format . num-digits or format-string or format-function)
-(:color-format . nil or \\='hex or \\='rgb)
-(:enable-opacity . nil or t)
-"
-  (let ((edraw-color-string-float-format
-         (alist-get :color-float-format options 4))
-        (color (if (alist-get :enable-opacity options t)
-                   color
-                 (edraw-replace-a color 1.0))))
-    (pcase (alist-get :color-format options)
-      ('nil
-       (edraw-to-string color))
-      ('hex
-       (edraw-to-string-hex color))
-      ((or 'rgb 'rgba)
-       (edraw-to-string-rgba-or-rgb color)))))
+(:color-syntax-system . emacs or css)
+(:color-name-scheme . emacs or css or web)
+(:color-serializer-options . <plist>)
+(:color-info-props . <plist>)
+(:enable-opacity . nil or t)"
+  (unless (alist-get :enable-opacity options t)
+    (setq color (edraw-replace-a color 1.0)))
+
+  (edraw-color-syntax-serialize
+   color
+   (append (alist-get :color-serializer-options options)
+           ;; Append original format
+           (alist-get :color-info-props options))
+   (edraw-color-picker-syntax-system options)))
+
+(defun edraw-color-picker-color-info-from-string (string options)
+  "Convert STRING to parsed color info.
+
+Valid options are:
+(:color-syntax-system . emacs or css)
+(:color-name-scheme . emacs or css or web)
+(:enable-opacity . nil or t)"
+  (let ((color-info
+         (edraw-color-info-from-string
+          string nil
+          (edraw-color-picker-syntax-system options)
+          "[ \t\n\r\f]*\\'")))
+    (when (or (alist-get :enable-opacity options t)
+              (and color-info (= (edraw-color-a (car color-info)) 1.0)))
+      ;; Accept opacity or opaque
+      color-info)))
 
 (defun edraw-color-picker-color-from-string (string options)
   "Convert STRING to edraw-color object.
 
 Valid options are:
-(:color-name-scheme . emacs or web)
-(:enable-opacity . nil or t)
-"
-  (let ((edraw-color-name-scheme (alist-get :color-name-scheme options 'emacs)))
-    (let ((color (edraw-color-from-string string)))
-      (if (alist-get :enable-opacity options t)
-          color
-        (if (and color (= (oref color a) 1.0))
-            color
-          nil)))))
+(:color-syntax-system . emacs or css)
+(:color-name-scheme . emacs or css or web)
+(:enable-opacity . nil or t)"
+  (car (edraw-color-picker-color-info-from-string string options)))
 
 (defun edraw-color-picker-ensure-color (obj options)
   (if (cl-typep obj 'edraw-color)

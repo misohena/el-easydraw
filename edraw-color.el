@@ -1932,7 +1932,9 @@ color text."
     (ignore-errors
       (edraw-color-syntax-matched-color-info syntax-system))))
 
-(defun edraw-color-info-from-string (string &optional position syntax-system)
+(defun edraw-color-info-from-string (string
+                                     &optional position syntax-system
+                                     trailing-regexp)
   "Return the color information of the color text written at the POSITION
 in STRING.
 
@@ -1949,8 +1951,10 @@ words, if (edraw-color-info-from-string \"#1122334455\" 0 \\='css) is
 evaluated, it will match the \"#11223344\" part. If POSITION is nil, 0
 is assumed to be specified."
   (when (and (string-match (concat
-                            "[ \t\n\r\f]*\\(?:\\(?:"
+                            "\\(?:\\(?:[ \t\n\r\f]*\\(?:"
                             (edraw-color-syntax-regexp syntax-system)
+                            "\\)"
+                            trailing-regexp
                             "\\)\\|\\)")
                            string position)
              (< (match-beginning 0) (match-end 0)))
@@ -1961,6 +1965,8 @@ is assumed to be specified."
 ;; TEST: (edraw-color-info-from-string "Dust   #44448888cccc dust" 4 'emacs) => (#s(edraw-color 0.26666666666666666 0.5333333333333333 0.8 1.0) :num-components 3 :hex-digits-per-component 4 :syntax emacs-hex-color :begin 4 :end 20 :syntax-system emacs)
 ;; TEST: (edraw-color-info-from-string "Dust   #44448888cccc dust" 4 'css) => (#s(edraw-color 0.26666666666666666 0.26666666666666666 0.5333333333333333 0.5333333333333333) :num-components 4 :hex-digits-per-component 2 :syntax css-hex-color :begin 4 :end 16 :syntax-system css)
 ;; TEST: (car (edraw-color-info-from-string "Dust   hsl( 30 50 50/0.5)dust" 4 'css)) => #s(edraw-color 0.75 0.5 0.25 0.5)
+;; TEST: (car (edraw-color-info-from-string "Dust   hsl( 30 50 50)   " 4 'css " *\\'")) => #s(edraw-color 0.75 0.5 0.25 1.0)
+;; TEST: (edraw-color-info-from-string "Dust   hsl( 30 50 50) dust " 4 'css " *\\'") => nil
 
 
 (provide 'edraw-color)

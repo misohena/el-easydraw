@@ -17,9 +17,6 @@ Custom-mode内からCSSの色をカラーピッカーで指定したい場合も
 customize-variableからのedraw関連の設定などは特にCustom-modeバッファ内でCSSの色を指定する機会があるはず(まぁ、専用のwidgetを使えば良いんだけど)。
 そうなると、フォールバック的に他のsyntax-systemも試すような仕組みが必要ではないだろうか。
 
-** TODO 色/新しい色テキスト処理をミニバッファ入力方式にも適用する
-今のままだとedraw-editorからhslやらが使えない。
-
 ** TODO 色/edraw-color-syntax-serializeのoptionsを改善する
 様々な形式を指定出来るようにする。もしくは元々の表記をより反映する。
 - 細かい書式の改善
@@ -6487,3 +6484,10 @@ edraw-color-picker-global-mode
 ** DONE 色/edraw-color-picker-read-colorで無効な色を入力したとき
 CLOSED: [2025-02-15 Sat 18:26]
 再度入力になるがカラーピッカーが消えてしまう。
+** DONE 色/新しい色テキスト処理をミニバッファ入力方式にも適用する
+CLOSED: [2025-02-15 Sat 18:49]
+今のままだとedraw-editorからhslやらが使えない。
+
+- edraw-color-picker-color-from-string を修正すればとりあえず新しい構文を入力・解釈できる。
+- edraw-color-picker-read-colorの最初の方で、initial-colorが文字列だったときは解析してcolor-infoのプロパティを保存するようにした。文字列化するときはその情報も加味する。
+- post-command-hookでは文字列を手動で変更した場合、color-infoプロパティを更新するようにした。
