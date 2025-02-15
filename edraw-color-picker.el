@@ -1429,7 +1429,8 @@
                                   &optional initial-color options)
   "Create a color picker object and initialize it."
   (let ((picker (edraw-color-picker
-                 :initial-color initial-color
+                 :initial-color (edraw-color-picker-ensure-color
+                                 initial-color options)
                  :display uninitialized-display
                  :options options)))
     ;; Initialize the display object and link it to the picker object
@@ -1439,7 +1440,8 @@
     picker))
 
 (defclass edraw-color-picker ()
-  ((initial-color :initarg :initial-color :initform (edraw-color-f 1 0 0 1))
+  ((initial-color
+    :type edraw-color :initarg :initial-color :initform (edraw-color-f 1 0 0 1))
    (model)
    (svg)
    (areas)
@@ -1460,10 +1462,7 @@
 (cl-defmethod initialize-instance :after ((picker edraw-color-picker)
                                           &rest _args)
   (let* ((options (oref picker options))
-         (initial-color (edraw-color-picker-ensure-color
-                         (oref picker initial-color)
-                         options))
-         (model (edraw-color-picker-model-create initial-color))
+         (model (edraw-color-picker-model-create (oref picker initial-color)))
          (padding 12)
          (padding-top 12)
          (padding-bottom 12)
@@ -1499,7 +1498,6 @@
                 (edraw-color-picker-areas-create-element areas))))
     (dom-append-child svg body)
 
-    (oset picker initial-color initial-color)
     (oset picker model model)
     (oset picker svg svg)
     (oset picker areas areas)
