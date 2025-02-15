@@ -3040,6 +3040,9 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
   "Read a color from minibuffer or color picker."
   (interactive)
 
+  ;; Normalize ALLOW-STRINGS
+  (when (stringp allow-strings)
+    (setq allow-strings (list allow-strings)))
   (when (eq allow-strings t)
     (setq allow-strings '(""))) ;;allow-empty
 
