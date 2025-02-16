@@ -1964,7 +1964,10 @@ is assumed to be specified."
                             "\\(?:\\(?:[ \t\n\r\f]*\\(?:"
                             (edraw-color-syntax-regexp syntax-system)
                             "\\)"
-                            trailing-regexp
+                            (pcase trailing-regexp
+                              ('eos "\\'")
+                              ('ws-eos "[ \t\n\r\f]*\\'")
+                              ((pred stringp) trailing-regexp))
                             "\\)\\|\\)")
                            string position)
              (< (match-beginning 0) (match-end 0)))

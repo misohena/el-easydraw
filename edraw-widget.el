@@ -75,7 +75,8 @@
 
 (defun edraw-widget-web-color-sample-face-get (widget)
   (let ((color (condition-case nil
-                   (edraw-color-from-string (widget-value widget))
+                   (car (edraw-color-info-from-string (widget-value widget)
+                                                      nil 'css 'ws-eos))
                  (error (widget-get widget :value)))))
     (if color
         ;;@todo Use SVG image for sample
@@ -102,8 +103,7 @@
   (and (stringp value)
        (or (string= value "")
            (string= value "none")
-           (assoc value edraw-color-css-color-names)
-           (string-match edraw-color-string-patterns-re value))))
+           (edraw-color-info-from-string value nil 'css 'ws-eos))))
 
 (defun edraw-widget-web-color-validate (widget)
   "Check that WIDGET's value is a valid color."
