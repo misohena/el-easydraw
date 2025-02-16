@@ -11,6 +11,7 @@ customize-variableからのedraw関連の設定などは特にCustom-modeバッ�
 ** TODO 色/edraw-color-syntax-serializeのoptionsを改善する
 様々な形式を指定出来るようにする。もしくは元々の表記をより反映する。
 - 細かい書式の改善
+  - [X] alphaが1未満の時にHEXよりもrgbaを優先する(#RRGGBBAAはCSS4からなので)
   - 既存の関数名をできるだけ維持するオプション
   - 桁数のカスタマイズ => これは完全にやるのは案外大変
   - すでに書いてある数字の桁数を真似るべきだろうか。hexではやっている。
@@ -18,7 +19,6 @@ customize-variableからのedraw関連の設定などは特にCustom-modeバッ�
   - 関数名の大文字小文字維持
   - ファイル毎の自動デフォルト形式判定(どの書き方が一番多いか)
   - 設定方法の改善
-  - alphaが1未満の時にHEXよりもrgbaを優先する(#RRGGBBAAはCSS4からなので)
 
 ** TODO 選択ツールで選択図形の色をツールバーから変更できるようにする
 選択ツールでは、現在選択中の図形のstrokeとfill色をツールバーに表示する。

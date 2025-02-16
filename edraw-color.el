@@ -1742,7 +1742,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
 (defun edraw-color-css-serialize (color &optional options)
   "Convert COLOR to a string in CSS color syntax."
 
-  (let ((syntax (plist-get options :syntax)))
+  (let ((syntax (or (plist-get options :syntax)
+                    (plist-get options :css-default-color-syntax))))
     (or
      ;; Try converting to color name
      (when (and (not (plist-get options :disable-color-names))
@@ -1750,20 +1751,24 @@ Signals an error if there is a syntax or other problem, never returns nil."
                     (plist-get options :prefer-color-names))) ;;@todo Add :css-?
        (edraw-color-css-make-named-color color options))
      ;; Unable or unwilling to represent as a color name
-     (pcase syntax
-       ('css-hex-color
-        (edraw-color-css-make-hex-color color options))
-       ('css-color-function
-        (edraw-color-css-make-color-function color options))
-       (_ ;; Unspecified or named-color
-        (pcase (plist-get options :css-default-color-syntax)
-          ('hex-color
-           (edraw-color-css-make-hex-color color options))
-          ('color-function
-           (edraw-color-css-make-color-function color options))
-          (_
-           (edraw-color-css-make-hex-color color options))))))))
-;; TEST: (edraw-color-css-serialize (edraw-color-f 0.25 0.5 0.75 0.3)) => "#4080bf4c"
+
+     ;; <hex-color>
+     (when (and
+            ;; css-hex-color
+            ;; css-named-color
+            ;; nil (Unspecified)
+            (not (eq syntax 'css-color-function))
+            (not (plist-get options :disable-hex-color))
+            (or (edraw-opaque-p color)
+                (plist-get options :enable-hex-non-opaque)))
+       (edraw-color-css-make-hex-color color options))
+     ;; <function-color>
+     (edraw-color-css-make-color-function color options))))
+;; TEST: (edraw-color-css-serialize (edraw-color-f 0 1 0)) => "#00ff00"
+;; TEST: (edraw-color-css-serialize (edraw-color-f 0 1 0 0.5)) => "rgba(0,255,0,0.5)"
+;; TEST: (edraw-color-css-serialize (edraw-color-f 0.25 0.5 0.75 0.3)) => "rgba(64,128,191,0.3)"
+;; TEST: (edraw-color-css-serialize (edraw-color-f 0 1 0) '(:syntax css-named-color)) => "lime"
+;; TEST: (edraw-color-css-serialize (edraw-color-f 0 1 0 0.5) '(:syntax css-named-color)) => "rgba(0,255,0,0.5)"
 
 ;;;;; LaTeX color syntax system
 
