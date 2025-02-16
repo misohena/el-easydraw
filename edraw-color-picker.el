@@ -2751,6 +2751,11 @@ The following options can be specified:
   `:color-syntax-system'
     : One of the symbols stored in the `edraw-color-syntax-systems'
       variable. Specifies the language used to represent colors.
+      If nil, it will be automatically detected.
+
+  `:color-syntax-system-default'
+    : The color syntax system to use if it cannot be determined
+      automatically when :color-syntax-system is nil.
 
 Other options passed to the color picker object."
   :group 'edraw-color-picker
@@ -3310,7 +3315,9 @@ of input changes."
      ('css 'css)
      ('emacs 'emacs))
    (edraw-color-syntax-system-default
-    (or default-syntax-system 'emacs))))
+    (or default-syntax-system
+        (alist-get :color-syntax-system-default options)
+        'css))))
 
 (defun edraw-color-picker-color-to-string (color options)
   "Convert COLOR edraw-color object to string.
