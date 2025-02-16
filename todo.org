@@ -3,15 +3,6 @@
 ** TODO 色/カラーピッカー外のクリックでまた開かないようにしたい
 色置き換え・挿入コマンド使用時、ピッカーの外をクリックした時に、その場所でまた開かないようにしたい。downイベントで閉じてclickイベントで開いてしまう。
 
-** TODO 色/新しい構文解析・文字列化機構に合わせて既存の文字列処理を修正
-新しい仕組みと古い仕組みで機能が被っている。
-
-- :color-name-schemeは廃止したい。色名だけに留まらない。
-
-- edraw-widget.el や edraw-property-editor.el への影響を調べる。 edraw-color-string-patterns-re なんかを使っている箇所があるんだけど。これだとhsl等に対応できないので、新しい仕組みを使うように変更すべき。
-
-- edraw-color.elのFrom StringとTo Stringはどうしよう。新しい仕組みと機能が重複するんだけど。できれば消したいけど、とにかく形式は何でもいいから文字列化・復帰できれば良い場合や効率重視の場合に利用価値があるかもしれない。その方向で整理すべき。color-name-schemeの仕組みは廃止してシンプル化したい。8-bit精度のRGBAが保持できれば良い。
-
 ** TODO 色/color-syntax-systemのフォールバック機構
 Custom-mode内からCSSの色をカラーピッカーで指定したい場合もあるのではないか。
 customize-variableからのedraw関連の設定などは特にCustom-modeバッファ内でCSSの色を指定する機会があるはず(まぁ、専用のwidgetを使えば良いんだけど)。
@@ -27,6 +18,7 @@ customize-variableからのedraw関連の設定などは特にCustom-modeバッ�
   - 関数名の大文字小文字維持
   - ファイル毎の自動デフォルト形式判定(どの書き方が一番多いか)
   - 設定方法の改善
+  - alphaが1未満の時にHEXよりもrgbaを優先する(#RRGGBBAAはCSS4からなので)
 
 ** TODO 選択ツールで選択図形の色をツールバーから変更できるようにする
 選択ツールでは、現在選択中の図形のstrokeとfill色をツールバーに表示する。
@@ -6491,3 +6483,62 @@ CLOSED: [2025-02-15 Sat 18:49]
 - edraw-color-picker-color-from-string を修正すればとりあえず新しい構文を入力・解釈できる。
 - edraw-color-picker-read-colorの最初の方で、initial-colorが文字列だったときは解析してcolor-infoのプロパティを保存するようにした。文字列化するときはその情報も加味する。
 - post-command-hookでは文字列を手動で変更した場合、color-infoプロパティを更新するようにした。
+** DONE 色/新しい構文解析・文字列化機構に合わせて既存の文字列処理を修正
+CLOSED: [2025-02-16 Sun 14:29]
+新しい仕組みと古い仕組みで機能が被っている。
+
+- :color-name-schemeは廃止したい。色名だけに留まらない。
+
+- edraw-widget.el や edraw-property-editor.el への影響を調べる。 edraw-color-string-patterns-re なんかを使っている箇所があるんだけど。これだとhsl等に対応できないので、新しい仕組みを使うように変更すべき。
+
+- edraw-color.elのFrom StringとTo Stringはどうしよう。新しい仕組みと機能が重複するんだけど。できれば消したいけど、とにかく形式は何でもいいから文字列化・復帰できれば良い場合や効率重視の場合に利用価値があるかもしれない。その方向で整理すべき。color-name-schemeの仕組みは廃止してシンプル化したい。8-bit精度のRGBAが保持できれば良い。
+
+(edraw-to-string <edraw-color>)はaが1ならhex、そうでないならrgbaで出力している。なので、その反対操作である(edraw-color-from-string str)は両方に対応せざるを得ない。
+
+色名はどうしよう。そもそもcolor-name-schemeで切り替える必要があるのか。
+
+色名の被りはあるのか。
+
+#+begin_src elisp :results pp
+(seq-intersection (mapcar #'car edraw-color-css-color-names) (defined-colors))
+#+end_src
+
+#+RESULTS:
+: ("aquamarine" "azure" "beige" "bisque" "black" "blue" "brown"
+:  "burlywood" "chartreuse" "chocolate" "coral" "cornsilk" "cyan"
+:  "firebrick" "gainsboro" "gold" "goldenrod" "gray" "green" "grey"
+:  "honeydew" "ivory" "khaki" "lavender" "linen" "magenta" "maroon"
+:  "moccasin" "navy" "orange" "orchid" "peru" "pink" "plum" "purple"
+:  "red" "salmon" "seashell" "sienna" "snow" "tan" "thistle" "tomato"
+:  "turquoise" "violet" "wheat" "white" "yellow")
+
+一致しない色はあるのか。
+
+#+begin_src elisp
+(cl-loop for name in (seq-intersection (mapcar #'car edraw-color-css-color-names) (defined-colors))
+         for emacs-rgb = (apply #'color-rgb-to-hex (append (color-name-to-rgb name) '(2)))
+         for css-rgb = (alist-get name edraw-color-css-color-names nil nil #'equal)
+         unless (equal emacs-rgb css-rgb)
+         collect (list name emacs-rgb css-rgb))
+#+end_src
+
+#+RESULTS:
+| gray   | #bebebe | #808080 |
+| green  | #00ff00 | #008000 |
+| grey   | #bebebe | #808080 |
+| maroon | #b03060 | #800000 |
+| purple | #a020f0 | #800080 |
+
+うわー、結構あるな。
+
+この辺りはそのままで残して置いた方が良さそう。
+ただ、すでに edraw-color-name-scheme を設定しているところは存在しない。
+
+気になるのは edraw-color-string-patterns-re や edraw-color-string-patterns を参照しているところ。
+
+- (edraw-widget-web-color-match (_widget value))
+- (edraw-read-from-file ((palette edraw-color-picker-palette-model) file))
+
+widgetは修正した。hslも認識するようになった。
+
+edraw-read-from-fileは互換性のために必要。Aが1.0ではないときにrgbaを出力しているたので。#RRGGBBAAを出力するように修正したが、互換性のために edraw-color-string-patterns-re で判定する必要がある。

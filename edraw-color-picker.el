@@ -359,13 +359,24 @@
 
 ;;;;; Palette Model
 
-(defun edraw-color-picker-normalize-color-string (color)
-  "Return normalized COLOR string."
+(defun edraw-color-picker-palette-color-to-string (color)
+  "Convert COLOR into a string for storing in
+`edraw-color-picker-palette-model'.
+
+COLOR must be an `edraw-color' or a string.
+
+If it is a string, it must be in one of the following forms:
+- #RRGGBB
+- #RRGGBBAA
+- rgba(R,G,B,A)
+Do not pass a color name, as it may change between CSS and Emacs color names."
+  ;; In the past, rgba() was output when A was not 1.
+  ;; Currently only #RRGGBB or #RRGGBBAA is output.
   ;;@todo validate more
-  (edraw-to-string
-   (if (stringp color)
-       (edraw-color-from-string color)
-     color)))
+  (if (stringp color)
+      (edraw-to-string-hex
+       (edraw-color-from-string color)) ;; @todo What if a color name is passed?
+    (edraw-to-string-hex color)))
 
 (defclass edraw-color-picker-palette-model (edraw-color-picker-observable)
   ((options :initarg :options)
@@ -391,9 +402,10 @@
   (edraw-empty-p (edraw-as-list palette)))
 
 (cl-defmethod edraw-assign ((palette edraw-color-picker-palette-model)
+                            ;; Do not pass color names
                             colors)
   (setq colors
-        (mapcar #'edraw-color-picker-normalize-color-string colors))
+        (mapcar #'edraw-color-picker-palette-color-to-string colors))
   (with-slots (options option-key colors-var) palette
     (if-let* ((option-cell (assq option-key options)))
         ;; Write back to the OPTIONS alist
@@ -406,16 +418,19 @@
 
 (cl-defmethod edraw-set-nth ((palette edraw-color-picker-palette-model)
                              n
+                             ;; Do not pass a color name
                              color)
   (edraw-assign
    palette
    ;; @todo Expand size?
    (edraw-set-nth (edraw-to-new-list palette) n
-                  (edraw-color-picker-normalize-color-string color))))
+                  (edraw-color-picker-palette-color-to-string color))))
 
 (cl-defmethod edraw-push-front-limit ((palette edraw-color-picker-palette-model)
-                                      color max-size)
-  (let ((color-str (edraw-color-picker-normalize-color-string color)))
+                                      ;; Do not pass a color name
+                                      color
+                                      max-size)
+  (let ((color-str (edraw-color-picker-palette-color-to-string color)))
     (edraw-assign
      palette
      (seq-take ;; Limit number of colors
@@ -423,7 +438,7 @@
             ;; Remove same color
             (seq-remove (lambda (c)
                           (string=
-                           (edraw-color-picker-normalize-color-string c)
+                           (edraw-color-picker-palette-color-to-string c)
                            color-str))
                         (edraw-as-list palette)))
       max-size))))
@@ -441,7 +456,9 @@
   (with-temp-file file
     (insert "# edraw-colors\n")
     (dolist (color (edraw-as-list palette))
-      (insert (edraw-color-picker-normalize-color-string color) "\n"))))
+      ;; In the past, rgba() was output when A was not 1.
+      ;; Currently only #RRGGBB or #RRGGBBAA is output.
+      (insert (edraw-color-picker-palette-color-to-string color) "\n"))))
 
 (cl-defmethod edraw-read-from-file ((palette edraw-color-picker-palette-model)
                                     file)
@@ -453,6 +470,9 @@
         (error "Not in edraw-colors format")) ;; @todo This error is barely visible
       (forward-line)
       (while (not (eobp))
+        ;; #RRGGBB
+        ;; #RRGGBBAA
+        ;; rgba(R,G,B,A)  (For compatibility)
         (when (looking-at
                (concat " *\\(" edraw-color-string-patterns-re "\\)"))
           (when-let* ((color (edraw-color-from-string (match-string 1))))
@@ -550,7 +570,9 @@
   (edraw-as-list
    (edraw-color-picker-get-recent-colors-model options)))
 
-(defun edraw-color-picker-add-recent-color (options color)
+(defun edraw-color-picker-add-recent-color (options
+                                            ;; Do not pass a color name
+                                            color)
   (edraw-push-front-limit
    (edraw-color-picker-get-recent-colors-model options)
    color
@@ -558,7 +580,7 @@
 
 (defun edraw-color-picker-make-history-list (options initial-color)
   "Create a color history list for `read-from-minibuffer'."
-  (let ((hist (mapcar #'edraw-color-picker-normalize-color-string
+  (let ((hist (mapcar #'edraw-color-picker-palette-color-to-string
                       (edraw-color-picker-get-recent-colors options))))
     (when (or
            ;; Use car of HIST as initial-color
@@ -566,7 +588,7 @@
            ;; Same color
            (and
             hist
-            (equal (edraw-color-picker-normalize-color-string initial-color)
+            (equal (edraw-color-picker-palette-color-to-string initial-color)
                    (car hist))))
       (pop hist))
     hist))
@@ -2636,7 +2658,7 @@ correctly."
       (when (= (plist-get (cdr info) :hist-pos) 0)
         (edraw-plist-set (cdr info)
                          :hist-current
-                         (edraw-color-picker-normalize-color-string
+                         (edraw-color-picker-palette-color-to-string
                           (edraw-get-current-color picker))))
       (let ((color-str
              (cond
@@ -2678,6 +2700,8 @@ The default keymap is `edraw-color-picker--transient-keymap'"
   (unless (assq :transient-keymap-var options)
     (setf (alist-get :transient-keymap-var options)
           'edraw-color-picker--transient-keymap))
+
+  (setq initial-color (edraw-color-picker-ensure-color initial-color options))
 
   (let ((picker (edraw-color-picker-open-near-point initial-color options)))
     ;; Start transient-map
@@ -3069,7 +3093,8 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
 
     (unwind-protect
         (let ((edraw-color-picker-read-color--history
-               (edraw-color-picker-make-history-list options initial-color))
+               (edraw-color-picker-make-history-list options
+                                                     initial-color-normalized))
               (max-mini-window-height 1.0)
               (initial-input
                (cond
