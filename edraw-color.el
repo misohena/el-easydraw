@@ -1908,7 +1908,7 @@ POS is preferred."
 
   (save-excursion
     (goto-char pos)
-    (let ((eol (pos-eol))
+    (let ((eol (line-end-position))
           (match-data nil))
       (forward-line 0)
       (while (and (re-search-forward regexp eol t)
