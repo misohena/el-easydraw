@@ -1760,7 +1760,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
             (not (eq syntax 'css-color-function))
             (not (plist-get options :disable-hex-color))
             (or (edraw-opaque-p color)
-                (plist-get options :enable-hex-non-opaque)))
+                (plist-get options :enable-hex-non-opaque)
+                ;; Original text is in #RRGGBBAA format
+                (and (eq syntax 'css-hex-color)
+                     (eql (plist-get options :num-components) 4))))
        (edraw-color-css-make-hex-color color options))
      ;; <function-color>
      (edraw-color-css-make-color-function color options))))
