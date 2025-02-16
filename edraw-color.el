@@ -618,38 +618,51 @@ See https://en.wikipedia.org/wiki/Relative_luminance"
 ;; TEST: (edraw-color-number-to-string pi -1) => "3"
 ;; TEST: (edraw-color-number-to-string 120.1 0) => "120"
 
-(defun edraw-color-parse-hex-color (hex-string pos)
-  "Parse the HEX-STRING starting with POS.
+(defun edraw-color-parse-hex-color (hex-string
+                                    &optional begin end no-props)
+  "Parse HEX-STRING from BEGIN to END.
 
-Signals an error if there is a syntax or other problem, never returns nil."
-  ;; #RGB
-  ;; #RGBA (CSS)
-  ;; #RRGGBB
-  ;; #RRGGBBAA (CSS)
-  ;; #RRRGGGBBB (Emacs)
-  ;; #RRRRGGGGBBBB (Emacs)
-  (let* ((len (- (length hex-string) pos))
-         ;; @todo Check xdigit from pos to EOS ?
+HEX-STRING must be filled with hexadecimal digits from BEGIN to END of
+the string. The behavior is undefined if any digits other than
+hexadecimal digits are included.
+
+Supported formats:
+  RGB
+  RGBA (CSS)
+  RRGGBB
+  RRGGBBAA (CSS)
+  RRRGGGBBB (Emacs)
+  RRRRGGGGBBBB (Emacs)
+
+Signals an error if something unexpected occurs and never returns nil."
+  (unless begin (setq begin 0))
+  (unless end (setq end (length hex-string)))
+  (let* ((len (- end begin))
          (num-components (cond
+                          ;; 3 <= len <= 12, (len mod 3)=>3, (len mod 4)=>4
                           ((memq len '(3 6 9 12)) 3) ;; 12 => 3 not 4
                           ((memq len '(4 8)) 4)
                           (t (error "Invalid hex-string length %d" len))))
          (digits-per-component (/ len num-components))
          (max-value (float (1- (ash 1 (* 4 digits-per-component)))))
-         (components (cl-loop for i from pos below (+ pos len)
+         (components (cl-loop for i from begin below end
                               by digits-per-component
                               collect
                               (/
-                               (float (string-to-number
-                                       (substring hex-string
-                                                  i
-                                                  (+ i digits-per-component))
-                                       16))
+                               (float
+                                ;; @todo Check if filled with xdigit?
+                                (string-to-number
+                                 (substring hex-string
+                                            i
+                                            (+ i digits-per-component))
+                                 16))
                                max-value))))
-    (list
-     (apply #'edraw-color-f components)
-     :num-components num-components
-     :hex-digits-per-component digits-per-component)))
+    (if no-props
+        (apply #'edraw-color-f components)
+      (list
+       (apply #'edraw-color-f components)
+       :num-components num-components
+       :hex-digits-per-component digits-per-component))))
 ;; TEST: (edraw-color-parse-hex-color "#40008000c000" 1) => (#s(edraw-color 0.2500038147554742 0.5000076295109483 0.7500114442664225 1.0) :num-components 3 :hex-digits-per-component 4)
 
 (defun edraw-color-make-hex-color (color
