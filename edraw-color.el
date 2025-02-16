@@ -363,6 +363,16 @@ or greater (returning a list of 3 elements of only RGB)."
 (defun edraw-color-equal-p (a b)
   (equal a b))
 
+(cl-defmethod edraw-opaque-p ((color edraw-color))
+  "Return t if COLOR is opaque.
+A color is considered opaque if its alpha component is 1 or greater."
+  (>= (oref color a) 1.0))
+
+(cl-defmethod edraw-transparent-p ((color edraw-color))
+  "Return t if COLOR is transparent.
+A color is considered transparent if its alpha component is 0 or less."
+  (<= (oref color a) 0.0))
+
 ;;;;; Retrieving attributes
 
 (cl-defmethod edraw-hue ((color edraw-color))
