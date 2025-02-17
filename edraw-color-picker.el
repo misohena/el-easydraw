@@ -1921,19 +1921,23 @@ but the reverse can also be done."
                       value))))
 
 
-(defun edraw-color-picker-define-keys-for-color-set (km &optional prefix)
+(defun edraw-color-picker-define-keys-for-color-set (km
+                                                     &optional
+                                                     prefix upcase)
   (when prefix
     (let ((prefix-km (make-sparse-keymap)))
       (define-key km (kbd prefix) (cons "Set Color Component" prefix-km))
       (setq km prefix-km)))
-  (define-key km (kbd "h") '("Hue" . edraw-color-picker-set-color-hue))
-  (define-key km (kbd "s") '("Saturation" . edraw-color-picker-set-color-saturation))
-  (define-key km (kbd "v") '("Value(Brightness)" . edraw-color-picker-set-color-brightness))
-  (define-key km (kbd "r") '("Red" . edraw-color-picker-set-color-red))
-  (define-key km (kbd "g") '("Green" . edraw-color-picker-set-color-green))
-  (define-key km (kbd "b") '("Blue" . edraw-color-picker-set-color-blue))
-  (define-key km (kbd "a") '("Opacity" . edraw-color-picker-set-opacity))
-  (define-key km (kbd "o") '("Opacity" . edraw-color-picker-set-opacity)))
+
+  (cl-labels ((kb (key) (kbd (if upcase (upcase key) key))))
+    (define-key km (kb "h") '("Hue" . edraw-color-picker-set-color-hue))
+    (define-key km (kb "s") '("Saturation" . edraw-color-picker-set-color-saturation))
+    (define-key km (kb "v") '("Value(Brightness)" . edraw-color-picker-set-color-brightness))
+    (define-key km (kb "r") '("Red" . edraw-color-picker-set-color-red))
+    (define-key km (kb "g") '("Green" . edraw-color-picker-set-color-green))
+    (define-key km (kb "b") '("Blue" . edraw-color-picker-set-color-blue))
+    (define-key km (kb "a") '("Opacity" . edraw-color-picker-set-opacity))
+    (define-key km (kb "o") '("Opacity" . edraw-color-picker-set-opacity))))
 
 ;;;;; Palette
 
@@ -2056,7 +2060,7 @@ but the reverse can also be done."
     (define-key km [triple-mouse-3] 'ignore)
     (edraw-color-picker-define-keys-for-palette-colors km)
     (edraw-color-picker-define-keys-for-color-move km)
-    (edraw-color-picker-define-keys-for-color-set km)
+    (edraw-color-picker-define-keys-for-color-set km nil t)
     km))
 
 (defun edraw-color-picker-overlay
@@ -2810,7 +2814,7 @@ OVERLAY uses the display property to display the color PICKER."
     (define-key km (kbd "M-n") #'edraw-color-picker--transient-map-next-history-color)
     (edraw-color-picker-define-keys-for-palette-colors km)
     (edraw-color-picker-define-keys-for-color-move km)
-    (edraw-color-picker-define-keys-for-color-set km)
+    (edraw-color-picker-define-keys-for-color-set km nil t)
     km))
 
 (defvar edraw-color-picker--transient-map-info nil
