@@ -2061,6 +2061,7 @@ but the reverse can also be done."
     (edraw-color-picker-define-keys-for-palette-colors km)
     (edraw-color-picker-define-keys-for-color-move km)
     (edraw-color-picker-define-keys-for-color-set km nil t)
+    (edraw-color-picker-define-keys-for-output-format km)
     km))
 
 (defun edraw-color-picker-overlay
@@ -2775,6 +2776,22 @@ OVERLAY uses the display property to display the color PICKER."
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "oklch"))
 
+(defun edraw-color-picker-define-keys-for-output-format (km &optional prefix)
+  (when prefix
+    (let ((prefix-km (make-sparse-keymap)))
+      (define-key km (kbd prefix) (cons "Set Output Format" prefix-km))
+      (setq km prefix-km)))
+
+  (define-key km (kbd "F-") '("Auto" . edraw-color-picker-set-output-format-css-auto))
+  (define-key km (kbd "F#") '("HEX" . edraw-color-picker-set-output-format-css-hex))
+  (define-key km (kbd "Fr") '("RGB" . edraw-color-picker-set-output-format-css-rgb))
+  (define-key km (kbd "Fh") '("HSL" . edraw-color-picker-set-output-format-css-hsl))
+  (define-key km (kbd "Fw") '("HWB" . edraw-color-picker-set-output-format-css-hwb))
+  (define-key km (kbd "Fla") '("LAB" . edraw-color-picker-set-output-format-css-lab))
+  (define-key km (kbd "Flc") '("LCH" . edraw-color-picker-set-output-format-css-lch))
+  (define-key km (kbd "Foa") '("OKLAB" . edraw-color-picker-set-output-format-css-oklab))
+  (define-key km (kbd "Foc") '("OKLCH" . edraw-color-picker-set-output-format-css-oklch)))
+
 ;;;; Applications
 
 ;;;;; Display in Current Buffer
@@ -2815,6 +2832,7 @@ OVERLAY uses the display property to display the color PICKER."
     (edraw-color-picker-define-keys-for-palette-colors km)
     (edraw-color-picker-define-keys-for-color-move km)
     (edraw-color-picker-define-keys-for-color-set km nil t)
+    (edraw-color-picker-define-keys-for-output-format km)
     km))
 
 (defvar edraw-color-picker--transient-map-info nil
@@ -3460,6 +3478,7 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
             (edraw-color-picker-define-keys-for-palette-colors km)
             (edraw-color-picker-define-keys-for-color-move km)
             (edraw-color-picker-define-keys-for-color-set km "C-c C-s")
+            (edraw-color-picker-define-keys-for-output-format km "C-c C-s")
             km))
 
 (defun edraw-color-picker-minibuffer--on-minibuffer-setup (picker)
