@@ -1175,16 +1175,23 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
 
     ,(edraw-color-picker-area-button
       :name "ok"
-      :spacing 8
+      :spacing 10
       :width (* 4 edraw-color-picker-font-size)
       :height 24
       :text "OK")
     ,(edraw-color-picker-area-button
       :name "cancel"
-      :spacing 8
+      :spacing 10
       :width (* 4 edraw-color-picker-font-size)
       :height 24
       :text "Cancel")
+    ,(when (alist-get :enable-menu options t)
+       (edraw-color-picker-area-button
+        :name "menu"
+        :spacing 10
+        :width (* 4 edraw-color-picker-font-size)
+        :height 24
+        :text "Menu"))
     ,(when (alist-get :no-color options)
        (edraw-color-picker-area-no-color
         :name "no-color"
@@ -1468,6 +1475,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
    (hooks :initform (list
                      (cons 'closed (edraw-hook-make))
                      (cons 'color-change (edraw-hook-make))
+                     (cons 'options-change (edraw-hook-make))
                      (cons 'ok (edraw-hook-make))
                      (cons 'cancel (edraw-hook-make))
                      (cons 'no-color (edraw-hook-make))))))
@@ -1541,6 +1549,12 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
               (when-let* ((fun (alist-get :cancel options)))
                 (funcall fun picker))
               (edraw-hook-call (alist-get 'cancel (oref picker hooks)) picker))))
+    (when-let* ((button (edraw-color-picker-areas-find-by-name areas "menu"))
+                (menu-function (alist-get :menu-function options
+                                          #'edraw-color-picker-open-menu)))
+      (oset button on-click
+            (lambda (_area)
+              (funcall menu-function picker))))
     (when-let* ((button (edraw-color-picker-areas-find-by-name areas "no-color")))
       (oset button on-click
             (lambda (_area)
@@ -1568,6 +1582,9 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
       (unless (edraw-closed-p display)
         (edraw-close display)
         (edraw-hook-call (alist-get 'closed (oref picker hooks)) picker)))))
+
+(cl-defmethod edraw-notify-options-change ((picker edraw-color-picker))
+  (edraw-hook-call (alist-get 'options-change (oref picker hooks)) picker))
 
 (cl-defmethod edraw-update ((picker edraw-color-picker))
   (with-slots (display) picker
@@ -2315,6 +2332,13 @@ OVERLAY uses the display property to display the color PICKER."
                         truncate-lines nil
                         show-trailing-whitespace nil
                         display-line-numbers nil)
+            ;; Buffer local keymap
+            (when-let* ((transient-map-var (alist-get
+                                            :transient-keymap-var
+                                            (edraw-options picker)))
+                        (keymap (ignore-errors
+                                  (symbol-value transient-map-var))))
+              (use-local-map keymap))
             ;; Create overlay
             (insert (propertize "*"
                                 'read-only t
@@ -2513,6 +2537,239 @@ OVERLAY uses the display property to display the color PICKER."
   (setq edraw-color-picker--unused-frames nil))
 
 
+;;;; Menu for Color Picker
+
+(defun edraw-color-picker-open-menu (picker)
+  (interactive
+   (list
+    (edraw-color-picker-at-input-or-error (edraw-this-command-event))))
+  (edraw-popup-menu (edraw-msg "Color Picker Menu")
+                    (edraw-color-picker-create-menu-items picker)))
+
+(defun edraw-color-picker-create-menu-items (picker)
+  (let* ((options (edraw-options picker))
+         (syntax-system
+          (alist-get :color-syntax-system options))
+         (serializer-options
+          (alist-get :color-serializer-options options))
+         (prefer-syntax
+          (plist-get serializer-options :css-prefer-color-syntax))
+         (prefer-function
+          (when (eq prefer-syntax 'css-color-function)
+            (plist-get serializer-options :css-prefer-color-function))))
+
+    (when (stringp prefer-function)
+      (setq prefer-function (downcase prefer-function))) ;; lowercase
+
+    `(((edraw-msg "Output Format (Emacs)")
+       (((edraw-msg "Prefer Color Names")
+         edraw-color-picker-toggle-output-format-prefer-color-names
+         :button (:toggle . ,(not (null (plist-get serializer-options
+                                                   :prefer-color-names)))))
+        ((edraw-msg "Disallow Color Names")
+         edraw-color-picker-toggle-output-format-disable-color-names
+         :button (:toggle . ,(not (null (plist-get serializer-options
+                                                   :disallow-color-names))))))
+       :visible ,(eq syntax-system 'emacs))
+      ((edraw-msg "Output Format (CSS)")
+       (((edraw-msg "Prefer Color Names")
+         edraw-color-picker-toggle-output-format-prefer-color-names
+         :button (:toggle . ,(not (null (plist-get serializer-options
+                                                   :prefer-color-names)))))
+        ((edraw-msg "Disallow Color Names")
+         edraw-color-picker-toggle-output-format-disable-color-names
+         :button (:toggle . ,(not (null (plist-get serializer-options
+                                                   :disallow-color-names)))))
+        ("--single-line")
+        ((edraw-msg "Auto") edraw-color-picker-set-output-format-css-auto
+         :button (:toggle . ,(null prefer-syntax)))
+        ((edraw-msg "HEX") edraw-color-picker-set-output-format-css-hex
+         :button (:toggle . ,(eq prefer-syntax 'css-hex-color)))
+        ((edraw-msg "RGB") edraw-color-picker-set-output-format-css-rgb
+         :button (:toggle . ,(not (null (member prefer-function
+                                                '("rgb" "rgba"))))))
+        ((edraw-msg "HSL") edraw-color-picker-set-output-format-css-hsl
+         :button (:toggle . ,(not (null (member prefer-function
+                                                '("hsl" "hsla"))))))
+        ((edraw-msg "HWB") edraw-color-picker-set-output-format-css-hwb
+         :button (:toggle . ,(equal prefer-function "hwb")))
+        ((edraw-msg "LAB") edraw-color-picker-set-output-format-css-lab
+         :button (:toggle . ,(equal prefer-function "lab")))
+        ((edraw-msg "LCH") edraw-color-picker-set-output-format-css-lch
+         :button (:toggle . ,(equal prefer-function "lch")))
+        ((edraw-msg "OKLAB") edraw-color-picker-set-output-format-css-oklab
+         :button (:toggle . ,(equal prefer-function "oklab")))
+        ((edraw-msg "OKLCH") edraw-color-picker-set-output-format-css-oklch
+         :button (:toggle . ,(equal prefer-function "oklch"))))
+       :visible ,(eq syntax-system 'css))
+      ((edraw-msg "Color Components")
+       (((edraw-msg "Red...") edraw-color-picker-set-color-red)
+        ((edraw-msg "Green...") edraw-color-picker-set-color-green)
+        ((edraw-msg "Blue...") edraw-color-picker-set-color-blue)
+        ((edraw-msg "Opacity...") edraw-color-picker-set-opacity)
+        ((edraw-msg "Hue...") edraw-color-picker-set-color-hue)
+        ((edraw-msg "Saturation...") edraw-color-picker-set-color-saturation)
+        ((edraw-msg "Brightness...") edraw-color-picker-set-color-brightness)))
+      ;; For displaying key bindings to users (not for actual use)
+      ((edraw-msg "Increase/Decrease")
+       (((format (edraw-msg "Increase X by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-increase-color-x-1)
+        ((format (edraw-msg "Decrease X by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-decrease-color-x-1)
+        ((format (edraw-msg "Increase X by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-increase-color-x-2)
+        ((format (edraw-msg "Decrease X by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-decrease-color-x-2)
+        ((format (edraw-msg "Increase Y by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-increase-color-y-1)
+        ((format (edraw-msg "Decrease Y by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-decrease-color-y-1)
+        ((format (edraw-msg "Increase Y by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-increase-color-y-2)
+        ((format (edraw-msg "Decrease Y by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-decrease-color-y-2)
+        ((format (edraw-msg "Increase Z by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-increase-color-z-1)
+        ((format (edraw-msg "Decrease Z by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-decrease-color-z-1)
+        ((format (edraw-msg "Increase Z by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-increase-color-z-2)
+        ((format (edraw-msg "Decrease Z by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-decrease-color-z-2)
+        ((format (edraw-msg "Increase Opacity by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-increase-opacity-1)
+        ((format (edraw-msg "Decrease Opacity by %d")
+                 edraw-color-picker-increase-color-amount-1)
+         edraw-color-picker-decrease-opacity-1)
+        ((format (edraw-msg "Increase Opacity by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-increase-opacity-2)
+        ((format (edraw-msg "Decrease Opacity by %d")
+                 edraw-color-picker-increase-color-amount-2)
+         edraw-color-picker-decrease-opacity-2)))
+      ((edraw-msg "History")
+       (((edraw-msg "Previous Color")
+         edraw-color-picker--transient-map-previous-history-color)
+        ((edraw-msg "Next Color")
+         edraw-color-picker--transient-map-next-history-color))
+       :visible ,(eq (alist-get :transient-keymap-var options)
+                     'edraw-color-picker--transient-keymap))
+      ((edraw-msg "History")
+       (((edraw-msg "Previous Color") previous-history-element)
+        ((edraw-msg "Next Color") next-history-element))
+       :visible ,(eq (alist-get :transient-keymap-var options)
+                     'edraw-color-picker-minibuffer-mode-map))
+      )))
+
+(defun edraw-color-picker-toggle-serializer-options (picker &rest keys)
+  ;; Note: Modify the contents of PICKER options list
+  (cl-loop for key in keys
+           do
+           (cl-callf not
+               (edraw-plist-get
+                (alist-get :color-serializer-options (oref picker options))
+                key)))
+  ;; Force update output text (minibuffer or preview text)
+  (edraw-notify-options-change picker))
+
+(defun edraw-color-picker-set-serializer-options (picker &rest new-props)
+  ;; Note: Modify the contents of PICKER options list
+  (cl-loop for (key value) on new-props by #'cddr
+           do
+           (setf (edraw-plist-get
+                  (alist-get :color-serializer-options (oref picker options))
+                  key)
+                 value))
+  ;; Force update output text (minibuffer or preview text)
+  (edraw-notify-options-change picker))
+
+(defun edraw-color-picker-toggle-output-format-prefer-color-names ()
+  (interactive)
+  (edraw-color-picker-toggle-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :prefer-color-names))
+
+(defun edraw-color-picker-toggle-output-format-disable-color-names ()
+  (interactive)
+  (edraw-color-picker-toggle-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :disallow-color-names))
+
+(defun edraw-color-picker-set-output-format-css-auto ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax nil
+   :css-prefer-color-function nil))
+
+(defun edraw-color-picker-set-output-format-css-hex ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-hex-color
+   :css-prefer-color-function nil))
+
+(defun edraw-color-picker-set-output-format-css-rgb ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "rgb"))
+
+(defun edraw-color-picker-set-output-format-css-hsl ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "hsl"))
+
+(defun edraw-color-picker-set-output-format-css-hwb ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "hwb"))
+
+(defun edraw-color-picker-set-output-format-css-lab ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "lab"))
+
+(defun edraw-color-picker-set-output-format-css-lch ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "lch"))
+
+(defun edraw-color-picker-set-output-format-css-oklab ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "oklab"))
+
+(defun edraw-color-picker-set-output-format-css-oklch ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :css-prefer-color-syntax 'css-color-function
+   :css-prefer-color-function "oklch"))
 
 ;;;; Applications
 
@@ -2869,17 +3126,34 @@ events."
     (edraw-color-picker-replace-color-region color-info options)
     t))
 
-(defun edraw-color-picker-replace-color-region (color-info options)
+(defun edraw-color-picker-replace-color-region (initial-color-info options)
+  ;; Determine the color syntax system
+  (unless (alist-get :color-syntax-system options)
+    (push (cons :color-syntax-system
+                (or (plist-get (edraw-color-info-props initial-color-info)
+                               :syntax-system)
+                    (edraw-color-picker-syntax-system options)))
+          options))
+
+  ;; Duplicate serializer options
+  ;; (Prevent changes from menu.
+  ;;  See `edraw-color-picker-toggle-serializer-options' and
+  ;; `edraw-color-picker-set-serializer-options')
+  (push (cons :color-serializer-options
+              (copy-sequence
+               (alist-get :color-serializer-options options)))
+        options)
+
   ;; Open color picker near the point
   (let* ((picker (edraw-color-picker-open-with-transient-map
-                  (edraw-color-info-color color-info) options))
-         (beg (plist-get (edraw-color-info-props color-info) :begin))
-         (end (plist-get (edraw-color-info-props color-info) :end))
+                  (edraw-color-info-color initial-color-info) options))
+         (beg (plist-get (edraw-color-info-props initial-color-info) :begin))
+         (end (plist-get (edraw-color-info-props initial-color-info) :end))
          (initial-text (buffer-substring-no-properties beg end))
-         (overlay (make-overlay beg end nil nil t))
+         (field-overlay (make-overlay beg end nil nil t))
          (last-undo-list-head buffer-undo-list))
-    (overlay-put overlay 'field 'edraw-color-picker-field)
-    (overlay-put overlay 'face 'edraw-color-picker-field)
+    (overlay-put field-overlay 'field 'edraw-color-picker-field)
+    (overlay-put field-overlay 'face 'edraw-color-picker-field)
     ;; On OK
     (edraw-add-hook
      picker 'ok
@@ -2889,54 +3163,55 @@ events."
        ;; Replace color string as same format
        (setq last-undo-list-head
              (edraw-color-picker--replace-overlay-with-color
-              overlay picker color-info options
+              field-overlay picker initial-color-info
               last-undo-list-head))))
     ;; On Closed
     (edraw-add-hook
      picker 'closed
      (lambda (&rest _)
-       (delete-overlay overlay)))
+       (delete-overlay field-overlay)))
     ;; Echo current color
     (edraw-add-hook picker 'color-change
                     #'edraw-color-picker-echo-current-color)
     ;; Immediate replacement
     (when edraw-color-picker-replace-immediately
-      ;; Preview
-      (edraw-add-hook
-       picker
-       'color-change
-       (lambda (picker)
-         (setq last-undo-list-head
-               (edraw-color-picker--replace-overlay-with-color
-                overlay picker color-info options
-                last-undo-list-head))))
-      ;; Revert
-      (edraw-add-hook
-       picker 'cancel
-       (lambda (&rest _)
-         (setq last-undo-list-head
-               (edraw-color-picker--replace-overlay-with-text
-                overlay initial-text
-                last-undo-list-head)))))))
+      (let ((fun-update-color-text
+             (lambda (&rest _)
+               (setq last-undo-list-head
+                     (edraw-color-picker--replace-overlay-with-color
+                      field-overlay picker initial-color-info
+                      last-undo-list-head))))
+            (fun-revert-color-text
+             (lambda (&rest _)
+               (setq last-undo-list-head
+                     (edraw-color-picker--replace-overlay-with-text
+                      field-overlay initial-text
+                      last-undo-list-head)))))
+        ;; Preview
+        (edraw-add-hook picker 'color-change fun-update-color-text)
+        (edraw-add-hook picker 'options-change fun-update-color-text)
+        ;; Revert
+        (edraw-add-hook picker 'cancel fun-revert-color-text)))))
 
 (defun edraw-color-picker--replace-overlay-with-color (overlay
                                                        picker
-                                                       color-info
-                                                       options
+                                                       initial-color-info
                                                        last-undo-list-head)
   (edraw-color-picker--replace-overlay-with-text
    overlay
    (edraw-color-picker--serialize-color
-    (edraw-get-current-color picker) color-info options)
+    (edraw-get-current-color picker)
+    initial-color-info
+    (edraw-options picker))
    last-undo-list-head))
 
-(defun edraw-color-picker--serialize-color (color color-info options)
+(defun edraw-color-picker--serialize-color (color initial-color-info options)
   (edraw-color-syntax-serialize
    color
    (append
     (alist-get :color-serializer-options options)
-    (edraw-color-info-props color-info))
-   (plist-get (edraw-color-info-props color-info) :syntax-system)))
+    (edraw-color-info-props initial-color-info))
+   (plist-get (edraw-color-info-props initial-color-info) :syntax-system)))
 
 (defun edraw-color-picker--replace-overlay-with-text (overlay
                                                       text
@@ -3053,29 +3328,44 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
   (when (eq allow-strings t)
     (setq allow-strings '(""))) ;;allow-empty
 
-  ;; Determine the color syntax system
-  (unless (alist-get :color-syntax-system options)
-    (push (cons :color-syntax-system
-                (edraw-color-picker-syntax-system options))
-          options))
-
-  (push (cons :transient-keymap-var 'edraw-color-picker-minibuffer-mode-map)
-        options)
-
   (let* (;; Normalize INITIAL-COLOR and save original text format
          (initial-color-info
-          (when (stringp initial-color)
-            (edraw-color-picker-color-info-from-string initial-color options)))
-         (initial-color-normalized
-          (if initial-color-info
-              (car initial-color-info)
-            (edraw-color-picker-ensure-color initial-color options)))
-         ;; Make :color-info-props property
+          (or
+           (when (stringp initial-color)
+             (edraw-color-picker-color-info-from-string initial-color options))
+           (cons
+            (edraw-color-picker-ensure-color initial-color options)
+            (list :syntax-system (edraw-color-picker-syntax-system options)))))
+         ;; Complete OPTIONS
          (_
-          (push (cons :color-info-props
-                      (when initial-color-info
-                        (edraw-color-info-props initial-color-info)))
-                options))
+          (progn
+            ;; Make :color-info-props property
+            (push (cons :color-info-props
+                        (when initial-color-info
+                          (edraw-color-info-props initial-color-info)))
+                  options)
+            ;; Determine the color syntax system
+            (unless (alist-get :color-syntax-system options)
+              (push (cons :color-syntax-system
+                          (or (plist-get
+                               (edraw-color-info-props initial-color-info)
+                               :syntax-system)
+                              (edraw-color-picker-syntax-system options)))
+                    options))
+
+            ;; Duplicate serializer options
+            ;; (Prevent changes from menu.
+            ;;  See `edraw-color-picker-toggle-serializer-options' and
+            ;; `edraw-color-picker-set-serializer-options')
+            (push (cons :color-serializer-options
+                        (copy-sequence
+                         (alist-get :color-serializer-options options)))
+                  options)
+
+            ;; Set keymap variable
+            (push (cons :transient-keymap-var
+                        'edraw-color-picker-minibuffer-mode-map)
+                  options)))
 
          ;; Create an overlay and a color picker object
          (overlay (let ((ov (make-overlay (point) (point) nil t nil)))
@@ -3083,7 +3373,8 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                     (overlay-put ov 'after-string "\n")
                     ov))
          (picker (edraw-color-picker-overlay
-                  overlay 'before-string initial-color-normalized options)))
+                  overlay 'before-string
+                  (edraw-color-info-color initial-color-info) options)))
 
     ;; Add hooks to picker
     (edraw-add-hook picker 'ok
@@ -3095,11 +3386,14 @@ H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
                       #'edraw-color-picker-minibuffer--on-no-color))
     (edraw-add-hook picker 'color-change
                     #'edraw-color-picker-minibuffer--on-color-change)
+    (edraw-add-hook picker 'options-change
+                    #'edraw-color-picker-minibuffer--on-options-change)
 
     (unwind-protect
         (let ((edraw-color-picker-read-color--history
-               (edraw-color-picker-make-history-list options
-                                                     initial-color-normalized))
+               (edraw-color-picker-make-history-list
+                options
+                (edraw-color-info-color initial-color-info)))
               (max-mini-window-height 1.0)
               (initial-input
                (cond
@@ -3278,6 +3572,24 @@ of input changes."
                ;;or (edraw-color-picker-color-from-string picker-color-str)?
                ;;NG: minibuffer-color
                ))))))))
+
+(defun edraw-color-picker-minibuffer--on-options-change (picker)
+  "Called when the color picker options changes."
+  (let ((buffer (edraw-buffer picker)))
+    (when (and buffer (buffer-live-p buffer))
+      (with-current-buffer buffer
+        (unless edraw-color-picker-minibuffer--in-post-command-p
+
+          (let* ((options (edraw-options picker))
+                 (picker-color (edraw-get-current-color picker))
+                 (picker-color-str (edraw-color-picker-color-to-string
+                                    picker-color options)))
+            ;; Update minibuffer text
+            (edraw-color-picker-minibuffer--set-contents picker-color-str)
+            ;; Callback
+            (edraw-color-picker-minibuffer--notify-input-change
+             picker-color-str
+             picker-color)))))))
 
 (defun edraw-color-picker-minibuffer--on-ok (picker)
   (with-current-buffer (edraw-buffer picker)

@@ -782,15 +782,20 @@ Signals an error if there is a syntax or other problem, never returns nil."
 
 (defun edraw-color-emacs-serialize (color &optional options)
   "Convert COLOR to a string in Emacs color syntax."
-  (or (and (not (plist-get options :disable-color-names))
-           (edraw-color-to-emacs-color-name color))
-      (edraw-color-make-hex-color
-       color "#" t
-       (max
-        (or (plist-get options :hex-digits-per-component) 2)
-        (or (plist-get options :hex-min-digits-per-component) 0))
-       (plist-get options :hex-upcase))))
-;; TEST: (edraw-color-emacs-serialize (edraw-color-f 0.5 0.5 0.5)) => "gray50"
+  (let ((syntax (or (plist-get options :emacs-prefer-color-syntax)
+                    (plist-get options :syntax)
+                    (plist-get options :emacs-default-color-syntax))))
+    (or (and (not (plist-get options :disallow-color-names))
+             (or (eq syntax 'emacs-color-name)
+                 (plist-get options :prefer-color-names))
+             (edraw-color-to-emacs-color-name color))
+        (edraw-color-make-hex-color
+         color "#" t
+         (max
+          (or (plist-get options :hex-digits-per-component) 2)
+          (or (plist-get options :hex-min-digits-per-component) 0))
+         (plist-get options :hex-upcase)))))
+;; TEST: (edraw-color-emacs-serialize (edraw-color-f 0.5 0.5 0.5) '(:prefer-color-names t)) => "gray50"
 ;; TEST: (edraw-color-emacs-serialize (edraw-color-f 0.25 0.5 0.75 0.5)) => "#4080bf"
 
 
@@ -1724,7 +1729,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
       :decimal-places-number 0))))
 
 (defun edraw-color-css-make-color-function (color &optional options)
-  (let* ((fname (or (plist-get options :css-fname)
+  (let* ((fname (or (plist-get options :css-prefer-color-function)
+                    (plist-get options :css-fname)
                     ;; @todo Ensure string?
                     (plist-get options :css-default-color-function)))
          (serializer
@@ -1742,11 +1748,12 @@ Signals an error if there is a syntax or other problem, never returns nil."
 (defun edraw-color-css-serialize (color &optional options)
   "Convert COLOR to a string in CSS color syntax."
 
-  (let ((syntax (or (plist-get options :syntax)
+  (let ((syntax (or (plist-get options :css-prefer-color-syntax)
+                    (plist-get options :syntax)
                     (plist-get options :css-default-color-syntax))))
     (or
      ;; Try converting to color name
-     (when (and (not (plist-get options :disable-color-names))
+     (when (and (not (plist-get options ::disallow-color-names))
                 (or (eq syntax 'css-named-color)
                     (plist-get options :prefer-color-names))) ;;@todo Add :css-?
        (edraw-color-css-make-named-color color options))
@@ -1758,9 +1765,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
             ;; css-named-color
             ;; nil (Unspecified)
             (not (eq syntax 'css-color-function))
-            (not (plist-get options :disable-hex-color))
+            (not (plist-get options :disallow-hex-color))
             (or (edraw-opaque-p color)
-                (plist-get options :enable-hex-non-opaque)
+                (eq (plist-get options :css-prefer-color-syntax) 'css-hex-color)
+                (plist-get options :allow-hex-non-opaque)
                 ;; Original text is in #RRGGBBAA format
                 (and (eq syntax 'css-hex-color)
                      (eql (plist-get options :num-components) 4))))
