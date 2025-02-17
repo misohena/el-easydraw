@@ -1617,8 +1617,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
              :number-ref 255.0 :percent-ref 1.0
              :decimal-places-number
              ,(or (plist-get options :decimal-places-legacy-rgb) 0)
-             :decimal-places-percentage
-             ,(or (plist-get options :decimal-places-legacy-percentage) 0))))
+             :decimal-places-percent
+             ,(or (plist-get options :decimal-places-legacy-percent) 0))))
       (edraw-color-css-make-color-function-impl
        color options '("rgb" "rgba")
        #'edraw-color-to-rgb-list
@@ -1626,6 +1626,7 @@ Signals an error if there is a syntax or other problem, never returns nil."
        t t))))
 ;; TEST: (edraw-color-css-make-rgb (edraw-color-f 0.25 0.5 0.75 0.3)) => "rgba(64,128,191,0.3)"
 ;; TEST: (edraw-color-css-make-rgb (edraw-color-f 0.25 0.5 0.75 0.3) '(:css-use-modern-syntax t)) => "rgb(64 128 191/0.3)"
+;; TEST: (edraw-color-css-make-rgb (edraw-color-f 0.125 0.3333 0.4444 0.3) '(:css-fname "rgb" :css-args ((0 :unit "%") (0 :pre-separator "," :unit "%") (0 :pre-separator "," :unit "%")))) => "rgba(12%,33%,44%,0.3)"
 
 (defun edraw-color-css-make-hsl (color &optional options)
   ;; HSL ( https://www.w3.org/TR/css-color-4/#the-hsl-notation )
@@ -1662,13 +1663,13 @@ Signals an error if there is a syntax or other problem, never returns nil."
         :decimal-places-number
         ,(or (plist-get options :decimal-places-legacy-hsl) 0)
         :decimal-places-percent
-        ,(or (plist-get options :decimal-places-legacy-percentage) 0))
+        ,(or (plist-get options :decimal-places-legacy-percent) 0))
        (:unit
         "%"
         :decimal-places-number
         ,(or (plist-get options :decimal-places-legacy-hsl) 0)
         :decimal-places-percent
-        ,(or (plist-get options :decimal-places-legacy-percentage) 0)))
+        ,(or (plist-get options :decimal-places-legacy-percent) 0)))
      t)))
 ;; TEST: (edraw-color-css-make-hsl (edraw-color-f 0 0.5 0 0.3)) => "hsla(120,100%,25%,0.3)"
 ;; TEST: (edraw-color-css-make-hsl (edraw-color-f 0.2 0.5 0.11 0.3) '(:css-default-hue-unit "deg")) => "hsla(106deg,64%,30%,0.3)"
