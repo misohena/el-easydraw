@@ -1480,28 +1480,23 @@ Signals an error if there is a syntax or other problem, never returns nil."
 ;; TEST: (edraw-color-css-make-number-unit 120.1 "grad" 255.0) => "133grad"
 ;; TEST: (edraw-color-css-make-number-unit 120.1 "turn" 255.0) => "0.334turn"
 
-(defun edraw-color-css-make-slash (options)
-  (concat (plist-get options :css-spaces-before-slash)
-          "/"
-          (plist-get options :css-spaces-after-slash)))
-
-(defun edraw-color-css-make-comma (options)
-  (concat (plist-get options :css-spaces-before-comma)
-          ","
-          (plist-get options :css-spaces-after-comma)))
-
 (defun edraw-color-css-make-alpha (alpha modern arg-props options)
   (when (< alpha 1.0)
     (concat
-     (if modern
-         (edraw-color-css-make-slash options)
-       (edraw-color-css-make-comma options))
+     ;; Separator
+     (if modern "/" ",")
+     ;; Spaces
+     (or
+      (when arg-props
+        (or (plist-get arg-props :pre-spaces) ""))
+      (if modern
+          (plist-get options :css-spaces-after-slash)
+        (plist-get options :css-spaces-after-comma)))
+     ;; Argument
      (let ((unit (or (plist-get arg-props :unit)
                      (plist-get options :css-default-alpha-unit))))
-       (concat
-        (plist-get arg-props :pre-spaces)
-        (edraw-color-css-make-alpha-number alpha unit options)
-        (plist-get arg-props :post-spaces))))))
+       (edraw-color-css-make-alpha-number alpha unit options))
+     (plist-get arg-props :post-spaces))))
 
 (defun edraw-color-css-make-color-function-impl
     (color options target-fname color-to-value-list-function arg-syntax-list
@@ -1532,8 +1527,7 @@ Signals an error if there is a syntax or other problem, never returns nil."
            (car target-fname))
        target-fname) ;; @todo Keep upcase?
      "("
-     (cl-loop with comma = (when legacy-p (edraw-color-css-make-comma options))
-              with unified-unit = (when unify-unit-p
+     (cl-loop with unified-unit = (when unify-unit-p
                                     (or (when args-for-this-fun-p
                                           (plist-get (cdr (car args)) :unit))
                                         (plist-get
@@ -1541,7 +1535,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
                                          (plist-get (car arg-syntax-list)
                                                     :default-unit-keyword))))
               for i from 0
-              for value in (funcall color-to-value-list-function color)
+              for rest-values on (funcall color-to-value-list-function color)
+              for value = (car rest-values)
+              for first-p = (= i 0)
+              for last-p = (null (cdr rest-values))
               for arg-syntax = (pop arg-syntax-list)
               for arg-props = (cdr (pop args))
               for unit = (if unify-unit-p
@@ -1556,9 +1553,14 @@ Signals an error if there is a syntax or other problem, never returns nil."
               concat
               (concat
                ;; Argument separator for legacy syntax
-               (when (and legacy-p (> i 0)) comma)
+               (when (and legacy-p (not first-p)) ",")
                ;; Whitespaces before argument
-               (plist-get arg-props :pre-spaces)
+               (or
+                (when arg-props
+                  (or (plist-get arg-props :pre-spaces) ""))
+                ;; Legacy: ,[ ]ARG
+                (when (and legacy-p (not first-p))
+                  (plist-get options :css-spaces-after-comma)))
                ;; Argument
                (edraw-color-css-make-number-unit
                 value unit
@@ -1567,9 +1569,20 @@ Signals an error if there is a syntax or other problem, never returns nil."
                 arg-syntax
                 options)
                ;; Whitespaces after argument
-               (or (plist-get arg-props :post-spaces)
-                   ;; Argument separator for modern syntax
-                   (when (and (not legacy-p) (< i 2)) " "))))
+               (or (when arg-props
+                     (or (plist-get arg-props :post-spaces) ""))
+                   (if legacy-p
+                       ;; Legacy: ARG[ ],(NEXTARG|ALPHA)
+                       (when (or (not last-p) has-alpha)
+                         (plist-get options :css-spaces-before-comma))
+                     ;; Modern:
+                     (if last-p
+                         ;; Modern: ARG[ ]/ALPHA
+                         (when has-alpha
+                           (plist-get options :css-spaces-before-slash))
+                       ;; Modern: ARG[ ]NEXTARG
+                       (or (plist-get options :css-spaces-between-args)
+                           " "))))))
      ;; Alpha
      (when has-alpha
        (edraw-color-css-make-alpha (edraw-color-a color)
