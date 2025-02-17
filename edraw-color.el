@@ -1436,28 +1436,41 @@ Signals an error if there is a syntax or other problem, never returns nil."
 (defun edraw-color-css-make-number-unit (value unit &optional
                                                number-ref
                                                percent-ref
-                                               decimal-places-for-number
+                                               arg-syntax
                                                options)
+  (when (integerp arg-syntax)
+    (setq arg-syntax (list :decimal-places-number arg-syntax)))
+
   (concat
    (pcase unit
      ('nil (edraw-color-number-to-string
             (* (or number-ref 1.0) value)
-            decimal-places-for-number))
+            (plist-get arg-syntax :decimal-places-number)))
      ("%" (edraw-color-number-to-string
            (/ (* 100.0 value) (or percent-ref 1.0))
-           (or (plist-get options :decimal-places-percent) 1))) ;; 100
+           (or (plist-get options :decimal-places-percent)
+               (plist-get arg-syntax :decimal-places-percent)
+               1))) ;; 100
      ("deg" (edraw-color-number-to-string
              value
-             (or (plist-get options :decimal-places-deg) 0))) ;; 360
+             (or (plist-get options :decimal-places-deg)
+                 (plist-get arg-syntax :decimal-places-deg)
+                 0))) ;; 360
      ("rad" (edraw-color-number-to-string
              (/ (* float-pi value) 180.0)
-             (or (plist-get options :decimal-places-rad) 2))) ;; 6.28
+             (or (plist-get options :decimal-places-rad)
+                 (plist-get arg-syntax :decimal-places-rad)
+                 2))) ;; 6.28
      ("grad" (edraw-color-number-to-string
               (/ (* 400.0 value) 360.0)
-              (or (plist-get options :decimal-places-grad) 0))) ;; 400
+              (or (plist-get options :decimal-places-grad)
+                  (plist-get arg-syntax :decimal-places-grad)
+                  0))) ;; 400
      ("turn" (edraw-color-number-to-string
               (/ value 360.0)
-              (or (plist-get options :decimal-places-turn) 3))) ;; 1
+              (or (plist-get options :decimal-places-turn)
+                  (plist-get arg-syntax :decimal-places-turn)
+                  3))) ;; 1
      (_ (error "Unknown unit: %s" unit)))
    unit))
 ;; TEST: (edraw-color-css-make-number-unit 0.25 nil 255.0) => "63.75"
@@ -1551,7 +1564,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
                 value unit
                 (plist-get arg-syntax :number-ref)
                 (plist-get arg-syntax :percent-ref)
-                (plist-get arg-syntax :decimal-places-number))
+                arg-syntax
+                options)
                ;; Whitespaces after argument
                (or (plist-get arg-props :post-spaces)
                    ;; Argument separator for modern syntax
@@ -1576,7 +1590,7 @@ Signals an error if there is a syntax or other problem, never returns nil."
                :css-default-rgb-unit
                :number-ref 255.0 :percent-ref 1.0
                :decimal-places-number
-               ,(or (plist-get options :decimal-places-rgb-legacy) 0))))
+               ,(or (plist-get options :decimal-places-rgb) 0))))
         (edraw-color-css-make-color-function-impl
          color options '("rgb" "rgba") ;; Always use rgb
          #'edraw-color-to-rgb-list
@@ -1589,7 +1603,9 @@ Signals an error if there is a syntax or other problem, never returns nil."
              :css-default-rgb-unit
              :number-ref 255.0 :percent-ref 1.0
              :decimal-places-number
-             ,(or (plist-get options :decimal-places-rgb) 0))))
+             ,(or (plist-get options :decimal-places-legacy-rgb) 0)
+             :decimal-places-percentage
+             ,(or (plist-get options :decimal-places-legacy-percentage) 0))))
       (edraw-color-css-make-color-function-impl
        color options '("rgb" "rgba")
        #'edraw-color-to-rgb-list
@@ -1624,13 +1640,25 @@ Signals an error if there is a syntax or other problem, never returns nil."
     (edraw-color-css-make-color-function-impl
      color options '("hsl" "hsla")
      #'edraw-color-to-hsl-list
-     '((:default-unit-keyword
+     `((:default-unit-keyword
         :css-default-hue-unit
-        :decimal-places-number 0)
-       (:unit "%")
-       (:unit "%"))
+        :decimal-places-number 0
+        :decimal-places-deg 0)
+       (:unit
+        "%"
+        :decimal-places-number
+        ,(or (plist-get options :decimal-places-legacy-hsl) 0)
+        :decimal-places-percent
+        ,(or (plist-get options :decimal-places-legacy-percentage) 0))
+       (:unit
+        "%"
+        :decimal-places-number
+        ,(or (plist-get options :decimal-places-legacy-hsl) 0)
+        :decimal-places-percent
+        ,(or (plist-get options :decimal-places-legacy-percentage) 0)))
      t)))
 ;; TEST: (edraw-color-css-make-hsl (edraw-color-f 0 0.5 0 0.3)) => "hsla(120,100%,25%,0.3)"
+;; TEST: (edraw-color-css-make-hsl (edraw-color-f 0.2 0.5 0.11 0.3) '(:css-default-hue-unit "deg")) => "hsla(106deg,64%,30%,0.3)"
 
 (defun edraw-color-css-make-hwb (color &optional options)
   ;; HWB ( https://www.w3.org/TR/css-color-4/#the-hwb-notation )
