@@ -578,20 +578,10 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
    color
    edraw-color-picker-recent-colors-max-size))
 
-(defun edraw-color-picker-make-history-list (options initial-color)
+(defun edraw-color-picker-make-history-list (options _initial-color)
   "Create a color history list for `read-from-minibuffer'."
-  (let ((hist (mapcar #'edraw-color-picker-palette-color-to-string
-                      (edraw-color-picker-get-recent-colors options))))
-    (when (or
-           ;; Use car of HIST as initial-color
-           (null initial-color)
-           ;; Same color
-           (and
-            hist
-            (equal (edraw-color-picker-palette-color-to-string initial-color)
-                   (car hist))))
-      (pop hist))
-    hist))
+  (mapcar #'edraw-color-picker-palette-color-to-string
+          (edraw-color-picker-get-recent-colors options)))
 
 
 ;;;; SVG Common
