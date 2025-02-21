@@ -689,6 +689,12 @@ Signals an error if something unexpected occurs and never returns nil."
 
 ;;;;;; Color names
 
+(defun edraw-color-emacs-color-name-alist ()
+  "Return an alist of colors defined by Emacs and `edraw-color' objects."
+  (mapcar (lambda (name)
+            (cons name (apply #'edraw-color-f (color-name-to-rgb name))))
+          (defined-colors)))
+
 (defun edraw-color-from-emacs-color-name (name)
   "Convert a Emacs color name to an `edraw-color' object."
   (when-let* ((rgb (color-name-to-rgb name)))
@@ -958,6 +964,13 @@ Signals an error if there is a syntax or other problem, never returns nil."
     ;; Special Color
     ("transparent" . "#00000000"))
   "An alist of CSS color names and their associated hex color values.")
+
+(defun edraw-color-css-color-name-alist ()
+  "Return an alist of colors defined by CSS and `edraw-color' objects."
+  (mapcar (lambda (name-hex)
+            (cons (car name-hex)
+                  (edraw-color-from-hex-string (cdr name-hex))))
+          edraw-color-css-color-names))
 
 (defun edraw-color-css-color-name-to-hex-color (name)
   "Convert a CSS color name to a HEX color."
@@ -2052,6 +2065,114 @@ is assumed to be specified."
 ;; TEST: (car (edraw-color-info-from-string "Dust   hsl( 30 50 50)   " 4 'css " *\\'")) => #s(edraw-color 0.75 0.5 0.25 1.0)
 ;; TEST: (edraw-color-info-from-string "Dust   hsl( 30 50 50) dust " 4 'css " *\\'") => nil
 
+
+;;;; Read Color Name
+
+(defvar edraw-color-read-name-sources
+  '(("emacs" . edraw-color-emacs-color-name-alist)
+    ("css" . edraw-color-css-color-name-alist)
+    ;; You may add various color swatches here.
+    ))
+
+(defvar edraw-color-read-name--align-pos 0)
+(defvar edraw-color-read-name--align-str nil)
+
+(defface edraw-color-read-name-annotation
+  '((t))
+  "Face used to color annotations."
+  :group 'edraw)
+
+(defun edraw-color-read-name--annotate-color (color)
+  (propertize
+   (concat
+    (edraw-to-string-hex color)
+    " "
+    (let ((hsl (edraw-color-to-hsl-list color)))
+      (format "%3d° %3d%% %3d%%"
+              (round (car hsl))
+              (round (* 100 (cadr hsl)))
+              (round (* 100 (caddr hsl))))))
+   'face 'edraw-color-read-name-annotation))
+
+(defvar edraw-color-read-name-annotator
+  #'edraw-color-read-name--annotate-color)
+
+(defun edraw-color-read-name--annotate-name (name)
+  (pcase (get-text-property 0 'edraw-color-name-source name)
+    (`(,color ,_name ,_source)
+     (concat
+      edraw-color-read-name--align-str
+      (truncate-string-to-width
+       (funcall edraw-color-read-name-annotator color)
+       (max 0
+            (- (window-width (minibuffer-window))
+               edraw-color-read-name--align-pos
+               2)))))))
+
+(defun edraw-color-read-color-by-name (&optional prompt sources)
+  "Read a color name and return the information of that color.
+
+This function is intended to provide a way to specify colors by color
+names defined by various color sets. It is not intended to read the
+color names themselves.
+
+Return (COLOR COLOR-NAME COLOR-SOURCE), where COLOR is an `edraw-color'
+object, COLOR-NAME is the color name string, and COLOR-SOURCE is the
+string that is the key of the SOURCES alist.
+
+If SOURCES is nil, the alist specified in
+`edraw-color-read-name-sources' is used."
+  (unless sources (setq sources edraw-color-read-name-sources))
+  (let* ((names
+          (cl-loop
+           for (source-name . source-def) in sources
+           for alist = (cond
+                        ((functionp source-def)
+                         (funcall source-def))
+                        ((and (symbolp source-def) (boundp source-def))
+                         (symbol-value source-def))
+                        (t source-def))
+           nconc
+           (cl-loop for (color-name . color) in alist
+                    do (setq color
+                             (cond
+                              ((stringp color)
+                               (edraw-color-from-string color))
+                              ((cl-typep color 'edraw-color)
+                               color)))
+                    when color
+                    collect (propertize
+                             (concat source-name "/" color-name)
+                             'face (list
+                                    :background (edraw-to-string-hex color)
+                                    :foreground (if (> (edraw-relative-luminance
+                                                        color)
+                                                       0.5)
+                                                    "#000000" "#ffffff"))
+                             'edraw-color-name-source
+                             (list color color-name source-name)))))
+         (align-pos (1+ (cl-loop for str in names maximize (string-width str))))
+         (edraw-color-read-name--align-pos align-pos)
+         (edraw-color-read-name--align-str
+          (propertize " " 'display `(space :align-to ,align-pos)))
+         (selected-name
+          (completing-read (or prompt "Color Name: ")
+                           (lambda (string pred action)
+                             (if (eq action 'metadata)
+                                 `(metadata
+                                   ;; Prevent overwriting by `marginalia-mode'.
+                                   ;; See `marginalia-prompt-categories'
+                                   (category . edraw-color-source-and-name)
+                                   (annotation-function
+                                    . ,#'edraw-color-read-name--annotate-name))
+                               (complete-with-action action names string pred)))
+                           nil t)))
+    (unless (string-empty-p selected-name)
+      (when-let* ((selected-name-with-props (car (member selected-name names))))
+        (get-text-property 0 'edraw-color-name-source
+                           selected-name-with-props)))))
+;; EXAMPLE: (edraw-color-read-color-by-name)
+;; EXAMPLE: (edraw-color-read-color-by-name nil '(("monochrome" ("gray-1" . "#111") ("gray-8" . "#888") ("gray-15" . "#fff"))))
 
 (provide 'edraw-color)
 ;;; edraw-color.el ends here

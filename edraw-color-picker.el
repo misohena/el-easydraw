@@ -1910,6 +1910,13 @@ but the reverse can also be done."
                         (/ value 255.0)
                       value))))
 
+(defun edraw-color-picker-set-color-by-name-read ()
+  (interactive)
+  (when-let* ((picker
+               (edraw-color-picker-at-input-or-error last-command-event))
+              (color-name-source
+               (edraw-color-read-color-by-name (edraw-msg "Color Name: "))))
+    (edraw-set-current-color picker (car color-name-source))))
 
 (defun edraw-color-picker-define-keys-for-color-set (km
                                                      &optional
@@ -1927,7 +1934,9 @@ but the reverse can also be done."
     (define-key km (kb "g") '("Green" . edraw-color-picker-set-color-green))
     (define-key km (kb "b") '("Blue" . edraw-color-picker-set-color-blue))
     (define-key km (kb "a") '("Opacity" . edraw-color-picker-set-opacity))
-    (define-key km (kb "o") '("Opacity" . edraw-color-picker-set-opacity))))
+    (define-key km (kb "o") '("Opacity" . edraw-color-picker-set-opacity))
+    (define-key km (kb "n") '("Color Name"
+                              . edraw-color-picker-set-color-by-name-read))))
 
 ;;;;; Palette
 
@@ -2096,7 +2105,8 @@ but the reverse can also be done."
         ((edraw-msg "Opacity...") edraw-color-picker-set-opacity)
         ((edraw-msg "Hue...") edraw-color-picker-set-color-hue)
         ((edraw-msg "Saturation...") edraw-color-picker-set-color-saturation)
-        ((edraw-msg "Brightness...") edraw-color-picker-set-color-brightness)))
+        ((edraw-msg "Brightness...") edraw-color-picker-set-color-brightness)
+        ((edraw-msg "Color Name...") edraw-color-picker-set-color-by-name-read)))
       ;; For displaying key bindings to users (not for actual use)
       ((edraw-msg "Increase/Decrease")
        (((format (edraw-msg "Increase X by %d")
