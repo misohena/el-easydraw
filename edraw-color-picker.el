@@ -1910,21 +1910,28 @@ but the reverse can also be done."
                         (/ value 255.0)
                       value))))
 
-(defun edraw-color-picker-set-color-by-name-read ()
-  (interactive)
-  (when-let* ((picker
-               (edraw-color-picker-at-input-or-error last-command-event))
-              (color-name-source
-               (edraw-color-read-color-by-name (edraw-msg "Color Name: "))))
-    (edraw-set-current-color picker (car color-name-source))))
+(defun edraw-color-picker-set-color-by-name-read (picker color)
+  (interactive
+   (let ((enable-recursive-minibuffers t))
+     (list (edraw-color-picker-at-input-or-error last-command-event)
+           (car
+            (edraw-color-read-color-by-name (edraw-msg "Color Name: "))))))
+  (when (and picker color)
+    (edraw-set-current-color picker color)))
 
 (defun edraw-color-picker-define-keys-for-color-set (km
                                                      &optional
                                                      prefix upcase)
   (when prefix
-    (let ((prefix-km (make-sparse-keymap)))
-      (define-key km (kbd prefix) (cons "Set Color Component" prefix-km))
-      (setq km prefix-km)))
+    (setq km (or
+              (let ((prefix-km (lookup-key km (kbd prefix))))
+                (when (keymapp prefix-km)
+                  prefix-km))
+              (let ((prefix-km
+                     (make-sparse-keymap)))
+                (define-key km (kbd prefix)
+                            (cons "Color Picker" prefix-km))
+                prefix-km))))
 
   (cl-labels ((kb (key) (kbd (if upcase (upcase key) key))))
     (define-key km (kb "h") '("Hue" . edraw-color-picker-set-color-hue))
@@ -2270,10 +2277,17 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-define-keys-for-output-format (km &optional prefix)
   (when prefix
-    (let ((prefix-km (make-sparse-keymap)))
-      (define-key km (kbd prefix) (cons "Set Output Format" prefix-km))
-      (setq km prefix-km)))
+    (setq km (or
+              (let ((prefix-km (lookup-key km (kbd prefix))))
+                (when (keymapp prefix-km)
+                  prefix-km))
+              (let ((prefix-km
+                     (make-sparse-keymap)))
+                (define-key km (kbd prefix)
+                            (cons "Color Picker" prefix-km))
+                prefix-km))))
 
+  (define-key km (kbd "F") (cons "Format" (make-sparse-keymap)))
   (define-key km (kbd "F-") '("Auto" . edraw-color-picker-set-output-format-css-auto))
   (define-key km (kbd "F#") '("HEX" . edraw-color-picker-set-output-format-css-hex))
   (define-key km (kbd "Fr") '("RGB" . edraw-color-picker-set-output-format-css-rgb))
