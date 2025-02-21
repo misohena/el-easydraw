@@ -36,6 +36,7 @@
      ;; (edraw-msg-update-catalog-buffer)
      ;; M-x edraw-msg-search at point
      ;; [BEGIN MSG DATA]
+     "%" "%"
      "%s (%g,%g)-(%g,%g) selected" "%s (%g,%g)-(%g,%g)を選択中"
      "%s Selected Shapes" "%s個の選択図形"
      "%s Source Code: " "%s ソースコード: "
@@ -54,6 +55,7 @@
      "Anchor (%g,%g) selected" "アンカー(%g,%g)を選択中"
      "Anchor Points" "アンカーポイント"
      "Anchor" "アンカー"
+     "Angle Unit" "角度の単位"
      "Angle: " "角度: "
      "Apply group's transform property to children?" "グループのtransformプロパティをグループ内に適用しますか?"
      "Apply transform property to anchors" "transformプロパティをアンカーポイントへ適用"
@@ -290,6 +292,7 @@
      "Path Tool" "パスツール"
      "Path data does not start with M" "パスデータがMで始まっていません"
      "Path" "パス"
+     "Percentage Unit" "割合の単位"
      "Please enter a integer or empty." "整数か空を入力してください"
      "Please enter a integer." "整数を入力してください"
      "Please enter a number or empty." "数値か空を入力してください"
@@ -446,9 +449,13 @@
      "\"transform\" Property" "\"transform\"プロパティ"
      "a:auto  t:transform property  p:anchor points" "a:自動  t:transformプロパティ  p:アンカーポイント"
      "all, none, property names separated by spaces, or empty: " "all, none, 空白区切りのプロパティ名列, or 空: "
+     "deg" "deg"
      "edraw-import: %s warnings raised" "edraw-import: %s 件の警告が発生しました"
+     "grad" "grad"
      "q/R-Click:Cancel, RET/Dbl-Click:Commit,\ns:Scale(%.2f%% %.2f%%), r:Rotate(%.2fdeg), t:Translate,\no:Origin(%s %s), m:Transform Method(%s)" "q/右クリック:キャンセル, RET/ダブルクリック:確定,\ns:拡大縮小(%.2f%% %.2f%%), r:回転(%.2f度), t:平行移動,\no:原点(%s %s), m:変形方式(%s)"
      "r-click:quit, drag:Scroll, wheel:Zoom,\nSPC/q/C-g:quit, [S|C|M-]arrow keys:Scroll, +/-:Zoom, 0:reset" "右クリック:終了, ドラッグ:スクロール, ホイール:ズーム,\nSPC/q/C-g:終了, [S|C|M-]矢印キー:スクロール, +/-:ズーム, 0:リセット"
+     "rad" "rad"
+     "turn" "turn"
      ;; [END MSG DATA]
      )))
 

@@ -6617,3 +6617,8 @@ CLOSED: [2025-02-21 Fri 14:50]
 色名の頭には色ソースを識別する接頭辞を追加する。css/green, emacs/greenのように。
 
 現在のsyntax-systemが何であろうと、全ての色名で検索できる。
+** DONE 色/カラーピッカーの書式指定のメニュー項目を増やす
+CLOSED: [2025-02-21 Fri 20:44]
+- 色名の使用(:color-name-usage): nil, disabled, enabled : FC- FC0 FC1
+- 割合の単位(:css-percentage-unit): nil, none, %        : F%- F%0 F%%
+- 角度の単位(:css-angle-unit): nil, none, deg, rad, grad, turn : FA- FA0 FAd

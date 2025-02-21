@@ -2061,7 +2061,11 @@ but the reverse can also be done."
           (when (eq prefer-syntax 'css-color-function)
             (plist-get serializer-options :css-prefer-color-function)))
          (color-name-usage
-          (plist-get serializer-options :color-name-usage)))
+          (plist-get serializer-options :color-name-usage))
+         (percentage-unit
+          (plist-get serializer-options :css-percentage-unit))
+         (angle-unit
+          (plist-get serializer-options :css-angle-unit)))
 
     (when (stringp prefer-function)
       (setq prefer-function (downcase prefer-function))) ;; lowercase
@@ -2090,6 +2094,35 @@ but the reverse can also be done."
           ((edraw-msg "Enabled")
            edraw-color-picker-set-output-format-color-name-usage-enabled
            :button (:toggle . ,(memq color-name-usage '(t enabled))))))
+        ((edraw-msg "Percentage Unit")
+         (((edraw-msg "Auto")
+           edraw-color-picker-set-output-format-css-percentage-unit-auto
+           :button (:toggle . ,(eq percentage-unit nil)))
+          ((edraw-msg "None")
+           edraw-color-picker-set-output-format-css-percentage-unit-none
+           :button (:toggle . ,(eq percentage-unit 'none)))
+          ((edraw-msg "%")
+           edraw-color-picker-set-output-format-css-percentage-unit-percent
+           :button (:toggle . ,(equal percentage-unit "%")))))
+        ((edraw-msg "Angle Unit")
+         (((edraw-msg "Auto")
+           edraw-color-picker-set-output-format-css-angle-unit-auto
+           :button (:toggle . ,(eq angle-unit nil)))
+          ((edraw-msg "None")
+           edraw-color-picker-set-output-format-css-angle-unit-none
+           :button (:toggle . ,(eq angle-unit 'none)))
+          ((edraw-msg "deg")
+           edraw-color-picker-set-output-format-css-angle-unit-deg
+           :button (:toggle . ,(equal angle-unit "deg")))
+          ((edraw-msg "rad")
+           edraw-color-picker-set-output-format-css-angle-unit-rad
+           :button (:toggle . ,(equal angle-unit "rad")))
+          ((edraw-msg "grad")
+           edraw-color-picker-set-output-format-css-angle-unit-grad
+           :button (:toggle . ,(equal angle-unit "grad")))
+          ((edraw-msg "turn")
+           edraw-color-picker-set-output-format-css-angle-unit-turn
+           :button (:toggle . ,(equal angle-unit "turn")))))
         ("--single-line")
         ((edraw-msg "Auto") edraw-color-picker-set-output-format-css-auto
          :button (:toggle . ,(null prefer-syntax)))
@@ -2186,6 +2219,9 @@ but the reverse can also be done."
       )))
 
 (defun edraw-color-picker-toggle-serializer-options (picker &rest keys)
+  (unless picker
+    (setq picker
+          (edraw-color-picker-at-input-or-error (edraw-this-command-event))))
   ;; Note: Modify the contents of PICKER options list
   (cl-loop for key in keys
            do
@@ -2197,6 +2233,9 @@ but the reverse can also be done."
   (edraw-notify-options-change picker))
 
 (defun edraw-color-picker-set-serializer-options (picker &rest new-props)
+  (unless picker
+    (setq picker
+          (edraw-color-picker-at-input-or-error (edraw-this-command-event))))
   ;; Note: Modify the contents of PICKER options list
   (cl-loop for (key value) on new-props by #'cddr
            do
@@ -2209,82 +2248,113 @@ but the reverse can also be done."
 
 (defun edraw-color-picker-set-output-format-color-name-usage-auto ()
   (interactive)
-  (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
-   :color-name-usage nil))
+  (edraw-color-picker-set-serializer-options nil :color-name-usage nil))
 
 (defun edraw-color-picker-set-output-format-color-name-usage-enabled ()
   (interactive)
-  (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
-   :color-name-usage 'enabled))
+  (edraw-color-picker-set-serializer-options nil :color-name-usage 'enabled))
 
 (defun edraw-color-picker-set-output-format-color-name-usage-disabled ()
   (interactive)
-  (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
-   :color-name-usage 'disabled))
+  (edraw-color-picker-set-serializer-options nil :color-name-usage 'disabled))
+
+(defun edraw-color-picker-set-output-format-css-percentage-unit-auto ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-percentage-unit nil))
+
+(defun edraw-color-picker-set-output-format-css-percentage-unit-none ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-percentage-unit 'none))
+
+(defun edraw-color-picker-set-output-format-css-percentage-unit-percent ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-percentage-unit "%"))
+
+(defun edraw-color-picker-set-output-format-css-angle-unit-auto ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-angle-unit nil))
+
+(defun edraw-color-picker-set-output-format-css-angle-unit-none ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-angle-unit 'none))
+
+(defun edraw-color-picker-set-output-format-css-angle-unit-deg ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-angle-unit "deg"))
+
+(defun edraw-color-picker-set-output-format-css-angle-unit-rad ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-angle-unit "rad"))
+
+(defun edraw-color-picker-set-output-format-css-angle-unit-grad ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-angle-unit "grad"))
+
+(defun edraw-color-picker-set-output-format-css-angle-unit-turn ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options nil :css-angle-unit "turn"))
+
 
 (defun edraw-color-picker-set-output-format-css-auto ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax nil
    :css-prefer-color-function nil))
 
 (defun edraw-color-picker-set-output-format-css-hex ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-hex-color
    :css-prefer-color-function nil))
 
 (defun edraw-color-picker-set-output-format-css-rgb ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "rgb"))
 
 (defun edraw-color-picker-set-output-format-css-hsl ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "hsl"))
 
 (defun edraw-color-picker-set-output-format-css-hwb ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "hwb"))
 
 (defun edraw-color-picker-set-output-format-css-lab ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "lab"))
 
 (defun edraw-color-picker-set-output-format-css-lch ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "lch"))
 
 (defun edraw-color-picker-set-output-format-css-oklab ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "oklab"))
 
 (defun edraw-color-picker-set-output-format-css-oklch ()
   (interactive)
   (edraw-color-picker-set-serializer-options
-   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   nil
    :css-prefer-color-syntax 'css-color-function
    :css-prefer-color-function "oklch"))
 
@@ -2306,6 +2376,20 @@ but the reverse can also be done."
   (define-key km (kbd "FC-") '("Auto" . edraw-color-picker-set-output-format-color-name-usage-auto))
   (define-key km (kbd "FC0") '("None" . edraw-color-picker-set-output-format-color-name-usage-disabled))
   (define-key km (kbd "FC1") '("None" . edraw-color-picker-set-output-format-color-name-usage-enabled))
+
+  (define-key km (kbd "F%") (cons "Percentage Unit" (make-sparse-keymap)))
+  (define-key km (kbd "F%-") '("Auto" . edraw-color-picker-set-output-format-css-percentage-unit-auto))
+  (define-key km (kbd "F%0") '("None" . edraw-color-picker-set-output-format-css-percentage-unit-none))
+  (define-key km (kbd "F%%") '("%" . edraw-color-picker-set-output-format-css-percentage-unit-percent))
+
+  (define-key km (kbd "FA") (cons "Angle Unit" (make-sparse-keymap)))
+  (define-key km (kbd "FA-") '("Auto" . edraw-color-picker-set-output-format-css-angle-unit-auto))
+  (define-key km (kbd "FA0") '("None" . edraw-color-picker-set-output-format-css-angle-unit-none))
+  (define-key km (kbd "FAd") '("deg" . edraw-color-picker-set-output-format-css-angle-unit-deg))
+  (define-key km (kbd "FAr") '("rad" . edraw-color-picker-set-output-format-css-angle-unit-rad))
+  (define-key km (kbd "FAg") '("grad" . edraw-color-picker-set-output-format-css-angle-unit-grad))
+  (define-key km (kbd "FAt") '("turn" . edraw-color-picker-set-output-format-css-angle-unit-turn))
+
   (define-key km (kbd "F-") '("Auto" . edraw-color-picker-set-output-format-css-auto))
   (define-key km (kbd "F#") '("HEX" . edraw-color-picker-set-output-format-css-hex))
   (define-key km (kbd "Fr") '("RGB" . edraw-color-picker-set-output-format-css-rgb))

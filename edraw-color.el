@@ -1439,9 +1439,11 @@ Signals an error if there is a syntax or other problem, never returns nil."
   (setq value (max 0.0 (min 1.0 value)))
   (concat
    (pcase unit
-     ('nil (edraw-color-number-to-string
-            value
-            (or (plist-get options :css-decimal-places-alpha) 3)))
+     ((or 'nil 'none 'no-unit)
+      (setq unit nil)
+      (edraw-color-number-to-string
+       value
+       (or (plist-get options :css-decimal-places-alpha) 3)))
      ("%" (edraw-color-number-to-string (* value 100.0) 1))
      (_ (error "Unexpected unit: %s" unit)))
    unit))
@@ -1457,9 +1459,11 @@ Signals an error if there is a syntax or other problem, never returns nil."
 
   (concat
    (pcase unit
-     ('nil (edraw-color-number-to-string
-            (* (or number-ref 1.0) value)
-            (plist-get arg-syntax :decimal-places-number)))
+     ((or 'nil 'none 'no-unit)
+      (setq unit nil)
+      (edraw-color-number-to-string
+       (* (or number-ref 1.0) value)
+       (plist-get arg-syntax :decimal-places-number)))
      ("%" (edraw-color-number-to-string
            (/ (* 100.0 value) (or percent-ref 1.0))
            (or (plist-get options :decimal-places-percent)
@@ -1494,6 +1498,17 @@ Signals an error if there is a syntax or other problem, never returns nil."
 ;; TEST: (edraw-color-css-make-number-unit 120.1 "grad" 255.0) => "133grad"
 ;; TEST: (edraw-color-css-make-number-unit 120.1 "turn" 255.0) => "0.334turn"
 
+(defun edraw-color-css-arg-unit (arg-syntax arg-props options)
+  (or
+   (if (eq (plist-get arg-syntax :value-type) 'angle)
+       (plist-get options :css-angle-unit)
+     (plist-get options :css-percentage-unit))
+   (plist-get arg-syntax :unit) ;; forced unit
+   (plist-get arg-props :unit)
+   (plist-get
+    options
+    (plist-get arg-syntax :default-unit-keyword))))
+
 (defun edraw-color-css-make-alpha (alpha modern arg-props options)
   (when (< alpha 1.0)
     (concat
@@ -1507,9 +1522,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
           (plist-get options :css-spaces-after-slash)
         (plist-get options :css-spaces-after-comma)))
      ;; Argument
-     (let ((unit (or (plist-get arg-props :unit)
-                     (plist-get options :css-default-alpha-unit))))
-       (edraw-color-css-make-alpha-number alpha unit options))
+     (edraw-color-css-make-alpha-number
+      alpha
+      (edraw-color-css-arg-unit nil arg-props options)
+      options)
      (plist-get arg-props :post-spaces))))
 
 (defun edraw-color-css-make-color-function-impl
@@ -1542,12 +1558,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
        target-fname) ;; @todo Keep upcase?
      "("
      (cl-loop with unified-unit = (when unify-unit-p
-                                    (or (when args-for-this-fun-p
-                                          (plist-get (cdr (car args)) :unit))
-                                        (plist-get
-                                         options
-                                         (plist-get (car arg-syntax-list)
-                                                    :default-unit-keyword))))
+                                    (edraw-color-css-arg-unit
+                                     (car arg-syntax-list)
+                                     (when args-for-this-fun-p (cdr (car args)))
+                                     options))
               for i from 0
               for rest-values on (funcall color-to-value-list-function color)
               for value = (car rest-values)
@@ -1558,12 +1572,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
               for unit = (if unify-unit-p
                              unified-unit
                            ;; Modern syntax allows different units for each arg
-                           (or (plist-get arg-syntax :unit) ;; forced unit
-                               (when args-for-this-fun-p
-                                 (plist-get arg-props :unit))
-                               (plist-get
-                                options
-                                (plist-get arg-syntax :default-unit-keyword))))
+                           (edraw-color-css-arg-unit
+                            arg-syntax
+                            (when args-for-this-fun-p arg-props)
+                            options))
               concat
               (concat
                ;; Argument separator for legacy syntax
@@ -1654,7 +1666,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
        #'edraw-color-to-hsl-list
        `((:default-unit-keyword
           :css-default-hue-unit
-          :decimal-places-number 0)
+          :decimal-places-number 0
+          :value-type angle)
          (:default-unit-keyword
           :css-default-saturation-unit
           :number-ref 100.0 :percent-ref 1.0
@@ -1671,7 +1684,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
      `((:default-unit-keyword
         :css-default-hue-unit
         :decimal-places-number 0
-        :decimal-places-deg 0)
+        :decimal-places-deg 0
+        :value-type angle)
        (:unit
         "%"
         :decimal-places-number
@@ -1698,7 +1712,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
    color options "hwb" #'edraw-color-to-hwb-list
    '((:default-unit-keyword
       :css-default-hue-unit
-      :decimal-places-number 0)
+      :decimal-places-number 0
+      :value-type angle)
      (:default-unit-keyword
       :css-default-lightness-unit
       :number-ref 100.0
@@ -1745,7 +1760,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
       :decimal-places-number 2)
      (:default-unit-keyword
       :css-default-hue-unit
-      :decimal-places-number 0))))
+      :decimal-places-number 0
+      :value-type angle))))
 
 (defun edraw-color-css-make-oklab (color &optional options)
   ;; Lab ( https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch )
@@ -1782,7 +1798,8 @@ Signals an error if there is a syntax or other problem, never returns nil."
       :decimal-places-number 5)
      (:default-unit-keyword
       :css-default-hue-unit
-      :decimal-places-number 0))))
+      :decimal-places-number 0
+      :value-type angle))))
 
 (defun edraw-color-css-make-color-function (color &optional options)
   (let* ((fname (or (plist-get options :css-prefer-color-function)
