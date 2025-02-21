@@ -2059,30 +2059,37 @@ but the reverse can also be done."
           (plist-get serializer-options :css-prefer-color-syntax))
          (prefer-function
           (when (eq prefer-syntax 'css-color-function)
-            (plist-get serializer-options :css-prefer-color-function))))
+            (plist-get serializer-options :css-prefer-color-function)))
+         (color-name-usage
+          (plist-get serializer-options :color-name-usage)))
 
     (when (stringp prefer-function)
       (setq prefer-function (downcase prefer-function))) ;; lowercase
 
+    ;; Note: On Windows, :radio will garble non-ASCII characters
     `(((edraw-msg "Output Format (Emacs)")
-       (((edraw-msg "Prefer Color Names")
-         edraw-color-picker-toggle-output-format-prefer-color-names
-         :button (:toggle . ,(not (null (plist-get serializer-options
-                                                   :prefer-color-names)))))
-        ((edraw-msg "Disallow Color Names")
-         edraw-color-picker-toggle-output-format-disable-color-names
-         :button (:toggle . ,(not (null (plist-get serializer-options
-                                                   :disallow-color-names))))))
+       (((edraw-msg "Color Name Usage")
+         (((edraw-msg "Auto")
+           edraw-color-picker-set-output-format-color-name-usage-auto
+           :button (:toggle . ,(eq color-name-usage nil)))
+          ((edraw-msg "Disabled")
+           edraw-color-picker-set-output-format-color-name-usage-disabled
+           :button (:toggle . ,(eq color-name-usage 'disabled)))
+          ((edraw-msg "Enabled")
+           edraw-color-picker-set-output-format-color-name-usage-enabled
+           :button (:toggle . ,(memq color-name-usage '(t enabled)))))))
        :visible ,(eq syntax-system 'emacs))
       ((edraw-msg "Output Format (CSS)")
-       (((edraw-msg "Prefer Color Names")
-         edraw-color-picker-toggle-output-format-prefer-color-names
-         :button (:toggle . ,(not (null (plist-get serializer-options
-                                                   :prefer-color-names)))))
-        ((edraw-msg "Disallow Color Names")
-         edraw-color-picker-toggle-output-format-disable-color-names
-         :button (:toggle . ,(not (null (plist-get serializer-options
-                                                   :disallow-color-names)))))
+       (((edraw-msg "Color Name Usage")
+         (((edraw-msg "Auto")
+           edraw-color-picker-set-output-format-color-name-usage-auto
+           :button (:toggle . ,(eq color-name-usage nil)))
+          ((edraw-msg "Disabled")
+           edraw-color-picker-set-output-format-color-name-usage-disabled
+           :button (:toggle . ,(eq color-name-usage 'disabled)))
+          ((edraw-msg "Enabled")
+           edraw-color-picker-set-output-format-color-name-usage-enabled
+           :button (:toggle . ,(memq color-name-usage '(t enabled))))))
         ("--single-line")
         ((edraw-msg "Auto") edraw-color-picker-set-output-format-css-auto
          :button (:toggle . ,(null prefer-syntax)))
@@ -2200,17 +2207,23 @@ but the reverse can also be done."
   ;; Force update output text (minibuffer or preview text)
   (edraw-notify-options-change picker))
 
-(defun edraw-color-picker-toggle-output-format-prefer-color-names ()
+(defun edraw-color-picker-set-output-format-color-name-usage-auto ()
   (interactive)
-  (edraw-color-picker-toggle-serializer-options
+  (edraw-color-picker-set-serializer-options
    (edraw-color-picker-at-input-or-error (edraw-this-command-event))
-   :prefer-color-names))
+   :color-name-usage nil))
 
-(defun edraw-color-picker-toggle-output-format-disable-color-names ()
+(defun edraw-color-picker-set-output-format-color-name-usage-enabled ()
   (interactive)
-  (edraw-color-picker-toggle-serializer-options
+  (edraw-color-picker-set-serializer-options
    (edraw-color-picker-at-input-or-error (edraw-this-command-event))
-   :disallow-color-names))
+   :color-name-usage 'enabled))
+
+(defun edraw-color-picker-set-output-format-color-name-usage-disabled ()
+  (interactive)
+  (edraw-color-picker-set-serializer-options
+   (edraw-color-picker-at-input-or-error (edraw-this-command-event))
+   :color-name-usage 'disabled))
 
 (defun edraw-color-picker-set-output-format-css-auto ()
   (interactive)
@@ -2288,6 +2301,11 @@ but the reverse can also be done."
                 prefix-km))))
 
   (define-key km (kbd "F") (cons "Format" (make-sparse-keymap)))
+
+  (define-key km (kbd "FC") (cons "Color Name Usage" (make-sparse-keymap)))
+  (define-key km (kbd "FC-") '("Auto" . edraw-color-picker-set-output-format-color-name-usage-auto))
+  (define-key km (kbd "FC0") '("None" . edraw-color-picker-set-output-format-color-name-usage-disabled))
+  (define-key km (kbd "FC1") '("None" . edraw-color-picker-set-output-format-color-name-usage-enabled))
   (define-key km (kbd "F-") '("Auto" . edraw-color-picker-set-output-format-css-auto))
   (define-key km (kbd "F#") '("HEX" . edraw-color-picker-set-output-format-css-hex))
   (define-key km (kbd "Fr") '("RGB" . edraw-color-picker-set-output-format-css-rgb))

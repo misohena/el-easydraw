@@ -792,8 +792,9 @@ Signals an error if there is a syntax or other problem, never returns nil."
                     (plist-get options :syntax)
                     (plist-get options :emacs-default-color-syntax))))
     (or (and (not (plist-get options :disallow-color-names))
+             (not (eq (plist-get options :color-name-usage) 'disabled))
              (or (eq syntax 'emacs-color-name)
-                 (plist-get options :prefer-color-names))
+                 (memq (plist-get options :color-name-usage) '(t enabled)))
              (edraw-color-to-emacs-color-name color))
         (edraw-color-make-hex-color
          color "#" t
@@ -801,7 +802,7 @@ Signals an error if there is a syntax or other problem, never returns nil."
           (or (plist-get options :hex-digits-per-component) 2)
           (or (plist-get options :hex-min-digits-per-component) 0))
          (plist-get options :hex-upcase)))))
-;; TEST: (edraw-color-emacs-serialize (edraw-color-f 0.5 0.5 0.5) '(:prefer-color-names t)) => "gray50"
+;; TEST: (edraw-color-emacs-serialize (edraw-color-f 0.5 0.5 0.5) '(:color-name-usage enabled)) => "gray50"
 ;; TEST: (edraw-color-emacs-serialize (edraw-color-f 0.25 0.5 0.75 0.5)) => "#4080bf"
 
 
@@ -1808,9 +1809,9 @@ Signals an error if there is a syntax or other problem, never returns nil."
                     (plist-get options :css-default-color-syntax))))
     (or
      ;; Try converting to color name
-     (when (and (not (plist-get options ::disallow-color-names))
+     (when (and (not (eq (plist-get options :color-name-usage) 'disabled))
                 (or (eq syntax 'css-named-color)
-                    (plist-get options :prefer-color-names))) ;;@todo Add :css-?
+                    (memq (plist-get options :color-name-usage) '(t enabled)))) ;;@todo Add :css-?
        (edraw-color-css-make-named-color color options))
      ;; Unable or unwilling to represent as a color name
 
