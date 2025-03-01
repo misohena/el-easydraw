@@ -1,5 +1,10 @@
 
 * Inbox
+** TODO タッチスクリーンからツールバーのボタンが押せない問題の回避策を消す
+[[*タッチスクリーンからツールバーのボタンが押せないのを直す][タッチスクリーンからツールバーのボタンが押せないのを直す]]で導入した回避策が edraw-update-toolbar メソッド内にあるが、これを無くしたい。
+Android版は大丈夫でWindows版はダメ。おそらくバグだと思う。
+将来のバージョンで解決されるのを待つしか。
+
 ** TODO 選択ツールで選択図形の色をツールバーから変更できるようにする
 選択ツールでは、現在選択中の図形のstrokeとfill色をツールバーに表示する。
 それをクリックしたらカラーピッカーが出て、色を指定したら選択中の図形のstrokeやfillが変わるようにする。
@@ -6622,3 +6627,19 @@ CLOSED: [2025-02-21 Fri 20:44]
 - 色名の使用(:color-name-usage): nil, disabled, enabled : FC- FC0 FC1
 - 割合の単位(:css-percentage-unit): nil, none, %        : F%- F%0 F%%
 - 角度の単位(:css-angle-unit): nil, none, deg, rad, grad, turn : FA- FA0 FAd
+** DONE タッチスクリーンからツールバーのボタンが押せないのを直す
+CLOSED: [2025-03-01 Sat 20:55]
+Emacs 30.1において、ツールバーのボタンをタッチスクリーンから押すとエラーが発生する。
+Androidでは押せるがWindowsでは押せない。
+
+次のようなエラーが出る。なぜかエリアが2回出現している。
+
+: <edraw-editor-select-tool-rect> <edraw-editor-select-tool-rect> <mouse-1> is undefined [3 times]
+: <edraw-editor-select-tool-select> <edraw-editor-select-tool-select> <mouse-1> is undefined
+: <edraw-editor-select-tool-ellipse> <edraw-editor-select-tool-ellipse> <mouse-1> is undefined
+: <edraw-editor-select-tool-path> <edraw-editor-select-tool-path> <mouse-1> is undefined
+: <edraw-editor-select-tool-freehand> <edraw-editor-select-tool-freehand> <mouse-1> is undefined
+: <edraw-editor-select-tool-path> <edraw-editor-select-tool-path> <mouse-1> is undefined
+: <edraw-editor-select-tool-rect> <edraw-editor-select-tool-rect> <mouse-1> is undefined
+
+edraw-update-toolbarを修正してツールバーのキーマップに (vector key-id key-id 'mouse-1) を登録してしまえば回避できる。気持ち悪いけど。

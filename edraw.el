@@ -4342,7 +4342,15 @@ position where the EVENT occurred."
             (let ((km (make-sparse-keymap)))
               (dolist (hot-spot image-map)
                 (let ((key-id (nth 1 hot-spot)))
-                  (define-key km (vector key-id 'mouse-1) key-id)))
+                  (define-key km (vector key-id 'mouse-1) key-id)
+                  ;; Work around inability to press buttons via touchscreen.
+                  ;; The following error occurs:
+                  ;; "<edraw-editor-select-tool-select>
+                  ;;  <edraw-editor-select-tool-select> <mouse-1> is undefined"
+                  ;; Doesn't occur on Android, NTEmacs bug?
+                  ;; @todo Remove this work around
+                  (define-key km (vector key-id key-id 'mouse-1) key-id)
+                  ))
               km)))
       ;; Flush old image
       (edraw-flush-toolbar-image editor)
