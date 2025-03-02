@@ -1583,12 +1583,17 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
     (when display
       (edraw-update display))))
 
+(cl-defmethod edraw-invalidate-image ((picker edraw-color-picker))
+  (with-slots (display) picker
+    (when display
+      (edraw-invalidate-image display))))
+
 (cl-defmethod edraw-get-current-color ((picker edraw-color-picker))
   (edraw-get-current-color (oref picker model)))
 
 (cl-defmethod edraw-set-current-color ((picker edraw-color-picker) color)
   (edraw-set-current-color (oref picker model) color)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-get-image ((picker edraw-color-picker))
   (with-slots (areas-info image-map areas image-scale svg) picker
@@ -1606,7 +1611,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
   (with-slots (areas image-scale) picker
     (edraw-color-picker-areas-on-down-mouse
      areas down-event image-scale
-     (lambda () (edraw-update picker)))))
+     (lambda () (edraw-invalidate-image picker)))))
 
 (cl-defmethod edraw-click-area ((picker edraw-color-picker) name)
   (with-slots (areas) picker
@@ -1619,23 +1624,23 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
 
 (cl-defmethod edraw-increase-color-xy ((picker edraw-color-picker) xy)
   (edraw-increase-color-xy (oref picker model) xy)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-increase-color-x ((picker edraw-color-picker) n)
   (edraw-increase-color-xy (oref picker model) (cons n 0))
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-increase-color-y ((picker edraw-color-picker) n)
   (edraw-increase-color-xy (oref picker model) (cons 0 n))
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-increase-color-z ((picker edraw-color-picker) n)
   (edraw-increase-color-z (oref picker model) n)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-increase-opacity ((picker edraw-color-picker) n)
   (edraw-increase-opacity (oref picker model) n)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (defcustom edraw-color-picker-increase-color-amount-1 1
   "The amount of change for the edraw-color-picker-increase-*-1 command.
@@ -1789,15 +1794,15 @@ but the reverse can also be done."
 
 (cl-defmethod edraw-set-color-xy ((picker edraw-color-picker) xy)
   (edraw-set-color-xy (oref picker model) xy)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-set-color-z ((picker edraw-color-picker) z)
   (edraw-set-color-z (oref picker model) z)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 (cl-defmethod edraw-set-opacity ((picker edraw-color-picker) opacity)
   (edraw-set-opacity (oref picker model) opacity)
-  (edraw-update picker))
+  (edraw-invalidate-image picker))
 
 
 (cl-defmethod edraw-get-color-hue ((picker edraw-color-picker))
@@ -2457,6 +2462,7 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
 (defclass edraw-color-picker-display-overlay ()
   ((overlay :initarg :overlay)
    (target-property :initarg :target-property)
+   (image-update-timer :initform nil)
    (keymap :initarg :keymap)
    (picker)
    (target-frame :initform nil :writer edraw-set-target-frame)))
@@ -2484,6 +2490,7 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
       (null (overlay-buffer overlay)))))
 
 (cl-defmethod edraw-close ((display edraw-color-picker-display-overlay))
+  (edraw-update-image-timer-cancel display)
   (with-slots (overlay target-property) display
     (edraw-flush-image display)
     (pcase target-property
@@ -2494,7 +2501,32 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
     ;;@todo delete here? (If change here, also change edraw-closed-p)
     (delete-overlay overlay)))
 
+(cl-defmethod edraw-invalidate-image ((display
+                                       edraw-color-picker-display-overlay))
+  (edraw-log "Color Picker Display: Invalidate image")
+  (with-slots (image-update-timer) display
+    (unless image-update-timer
+      (edraw-log "Color Picker Display: Schedule update image")
+      ;; Post update command
+      (setq image-update-timer
+            (run-at-time 0.008 nil 'edraw-update-image-on-timer display)))))
+
+(cl-defmethod edraw-update-image-on-timer ((display
+                                            edraw-color-picker-display-overlay))
+  (with-slots (image-update-timer) display
+    (setq image-update-timer nil)
+    (edraw-update display)))
+
+(cl-defmethod edraw-update-image-timer-cancel ((display
+                                                edraw-color-picker-display-overlay))
+  (with-slots (image-update-timer) display
+    (when image-update-timer
+      (cancel-timer image-update-timer)
+      (setq image-update-timer nil))))
+
 (cl-defmethod edraw-update ((display edraw-color-picker-display-overlay))
+  (edraw-log "Color Picker Display: update-image")
+  (edraw-update-image-timer-cancel display)
   (edraw-flush-image display)
   (with-slots (overlay target-property keymap picker) display
     (pcase target-property
@@ -2782,6 +2814,10 @@ OVERLAY uses the display property to display the color PICKER."
       ;; Hide frame
       (edraw-color-picker--hide-frame frame)
       (setq frame nil))))
+
+(cl-defmethod edraw-invalidate-image ((display
+                                       edraw-color-picker-display-frame))
+  (edraw-invalidate-image (oref display overlay-display)))
 
 (cl-defmethod edraw-update ((display edraw-color-picker-display-frame))
   (edraw-update (oref display overlay-display)))

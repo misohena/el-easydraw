@@ -2162,11 +2162,13 @@ document size or view box."
 
 (cl-defmethod edraw-invalidate-image ((editor edraw-editor))
   "Request an image update."
+  (edraw-log "Display: Invalidate image")
   (with-slots (image-update-timer) editor
     (unless image-update-timer
+      (edraw-log "Display: Schedule update image")
       ;; Post update command
       (setq image-update-timer
-            (run-at-time 0 nil 'edraw-update-image-on-timer editor)))))
+            (run-at-time 0.008 nil 'edraw-update-image-on-timer editor)))))
 
 (cl-defmethod edraw-update-image-on-timer ((editor edraw-editor))
   (with-slots (image-update-timer) editor
@@ -2182,6 +2184,7 @@ document size or view box."
 (cl-defmethod edraw-update-image ((editor edraw-editor))
   "Update the image and apply the image to the overlay."
   (with-slots (overlay svg image image-base-uri) editor
+    (edraw-log "Display: update-image")
     (edraw-update-image-timer-cancel editor)
     (edraw-update-ui-parts editor)
     (edraw-call-hook editor 'before-image-update)
