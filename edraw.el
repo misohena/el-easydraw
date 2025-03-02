@@ -482,6 +482,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
 (defvar edraw-editor-map
   (let ((km (make-sparse-keymap)))
     (define-key km [remap self-insert-command] 'ignore)
+    (define-key km [touchscreen-begin] 'edraw-editor-dispatch-event)
     (define-key km [down-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [C-down-mouse-1] 'edraw-editor-dispatch-event)
     (define-key km [S-down-mouse-1] 'edraw-editor-dispatch-event)
@@ -1582,7 +1583,7 @@ For use with `edraw-editor-with-temp-undo-list',
     (while (null rect)
       (let ((event (read-event prompt)))
         (cond
-         ((eq (car-safe event) 'down-mouse-1)
+         ((memq (car-safe event) '(down-mouse-1 touchscreen-begin))
           (setq rect (edraw-read-rectangle editor event t))) ;;snap
          ((or (eq (car-safe event) 'mouse-3)
               (eq event ?q)
@@ -2958,14 +2959,15 @@ document size or view box."
       (while (null down-event)
         (let ((new-event (read-event)))
           (cond
-           ((eq (car-safe new-event) 'down-mouse-1)
+           ((memq (car-safe new-event) '(down-mouse-1 touchscreen-begin))
             (setq down-event new-event))))))
 
     ;; Drag and scroll
     (let ((button (event-basic-type down-event)))
-      (unless (memq button '(mouse-1 mouse-2 mouse-3))
+      (unless (memq button '(mouse-1 mouse-2 mouse-3 touchscreen-begin))
         (error "edraw-editor-scroll-by-dragging does not support events other than mouse-1 through mouse-3."))
-      (unless (memq 'down (event-modifiers down-event))
+      (unless (or (memq 'down (event-modifiers down-event))
+                  (eq (car-safe down-event) 'touchscreen-begin))
         (error "edraw-editor-scroll-by-dragging requires a down event."))
 
       (let ((scroll-xy-start (edraw-xy (edraw-scroll-pos-x editor)
@@ -2992,7 +2994,7 @@ document size or view box."
                     (edraw-msg "r-click:quit, drag:Scroll, wheel:Zoom,\nSPC/q/C-g:quit, [S|C|M-]arrow keys:Scroll, +/-:Zoom, 0:reset"))))
         (cond
          ;; Drag and scroll
-         ((eq (car-safe event) 'down-mouse-1)
+         ((memq (car-safe event) '(down-mouse-1 touchscreen-begin))
           (edraw-editor-scroll-by-dragging event))
          ((or (eq (car-safe event) 'mouse-3)
               (eq event ?q)
@@ -4221,6 +4223,31 @@ position where the EVENT occurred."
 (cl-defmethod edraw-on-mouse-3 ((editor edraw-editor) down-event)
   (edraw-call-tool-event-handler editor down-event))
 
+(cl-defmethod edraw-on-touchscreen-begin ((editor edraw-editor) event)
+  (unless (eq (car-safe event) 'touchscreen-begin)
+    (error "EVENT is not a touchscreen-begin"))
+
+  (edraw-update-tool-last-prefix-arg editor)
+  (edraw-call-tool-event-handler editor event)
+
+  ;; @todo Support multi-touch operations
+  ;; (let ((quit nil)
+  ;;       (points (list (cdr first-event))))
+  ;;   (while (not quit)
+  ;;     (let* ((new-event (edraw-read-event-silent))
+  ;;            (new-event-type (car-safe new-event)))
+  ;;       (cond
+  ;;        ((eq new-event-type 'touchscreen-begin)
+  ;;         (push (cdr new-event) points))
+  ;;        ((eq new-event-type 'touchscreen-end)
+  ;;         )
+  ;;        ((eq new-event-type 'touchscreen-update)
+  ;;         )
+  ;;        (t ;; otherwise
+  ;;         (push (cons t new-event) unread-command-events)
+  ;;         (setq quit t))))))
+  )
+
 ;;;;; Editor - Toolbar
 
 (defvar edraw-editor-tool-list
@@ -4680,8 +4707,10 @@ to down-mouse-1 and processes drag and click."
          (down-selected-p (memq down-shape selected-shapes))
          (modifiers (event-modifiers down-event))
          (shift-p (memq 'shift modifiers))
-         (event-type (edraw-make-event-modifiers-symbol
-                      (remq 'shift modifiers)))
+         (event-type (if (eq (car-safe down-event) 'touchscreen-begin)
+                         'down
+                       (edraw-make-event-modifiers-symbol
+                        (remq 'shift modifiers))))
          moving-shapes)
     (when down-shape
       ;; Select/unselect shape and determine the moving target shapes
@@ -4978,6 +5007,10 @@ to down-mouse-1 and processes drag and click."
        (t
         (edraw-context-menu-at-point editor click-xy pick-forced))))))
 
+(cl-defmethod edraw-on-touchscreen-begin ((tool edraw-editor-tool)
+                                          event)
+  (edraw-on-down-mouse-1 tool event))
+
 (cl-defgeneric edraw-on-selected (target selector)
   "Called when TARGET is selected by SELECTOR.")
 (cl-defmethod edraw-on-selected ((tool edraw-editor-tool) (editor edraw-editor))
@@ -5266,6 +5299,9 @@ to down-mouse-1 and processes drag and click."
 
 (cl-defmethod edraw-print-help ((_tool edraw-editor-tool-text))
   (message (edraw-msg "[Text Tool] Click:Add or Change, C-u Click:Add, C-Click:Glue")))
+
+(cl-defmethod edraw-on-touchscreen-begin ((tool edraw-editor-tool-text) event)
+  (edraw-on-mouse-1 tool event))
 
 (cl-defmethod edraw-on-mouse-1 ((tool edraw-editor-tool-text) click-event)
   (or (and (not (oref tool prefix-arg-last-down-mouse))
@@ -12895,7 +12931,8 @@ REF is a point reference in scaling-points."
                       ;; Commit
                       (?\C-c (setq result 'ok))))
                    ;; Mouse Down
-                   ((memq (car-safe event) '(S-down-mouse-1 down-mouse-1))
+                   ((memq (car-safe event) '(touchscreen-begin
+                                             S-down-mouse-1 down-mouse-1))
                     (edraw-on-mouse-down transformer event))
                    ;; Mouse Move
                    ((mouse-movement-p event)

@@ -1,9 +1,31 @@
 
 * Inbox
-** TODO タッチスクリーンからツールバーのボタンが押せない問題の回避策を消す
+** TODO 画像更新の間隔を延ばす
+現在はタイマーで0秒で更新しているが、これを適切な長さに伸ばす。
+タッチイベントはマウス移動イベントの3～4倍ほど多く発生するため、非常の高頻度が画面更新が発生して全体の動作が非常に遅くなってしまう。
+タイマーの遅延時間を0.008にするだけでも状況が改善する。
+理想的には前回の更新時間を元に遅延時間を決定する方が良い。
+更新間隔はカスタマイズ出来る方が望ましい。
+
+** TODO touchscreen/アンカーやハンドルを押すのが絶望的に無理
+指だと正確に指定できないので無理。
+タッチスクリーン時の当たり判定距離をカスタマイズできるようにしたい。
+** TODO Androidでcolor-pickerのボタンの文字が表示されない
+Arialが無いから？　いや、テキスト自体表示できないような気がする。
++edraw-color-picker-font-familyはandroidの時は"Droid Sans Mono"を使用する。+ 効かない。Noto Serifなんかを指定してもダメ。
+
+** TODO Androidでツールバーのグラデーションが正しく表示されていない
+なぜだろう。
+** TODO touchscreen/二本指で拡大縮小スクロール出来るようにする
+** TODO touchscreen/かなり重いのを何とかする
+少なくともWindowsではかなり重い。おそらくイベントが来すぎているのでは？
+** TODO touchscreen/ツールバーのボタンが押せない問題の回避策を消す
 [[*タッチスクリーンからツールバーのボタンが押せないのを直す][タッチスクリーンからツールバーのボタンが押せないのを直す]]で導入した回避策が edraw-update-toolbar メソッド内にあるが、これを無くしたい。
-Android版は大丈夫でWindows版はダメ。おそらくバグだと思う。
-将来のバージョンで解決されるのを待つしか。
+Android版は大丈夫でWindows版はダメ。何かのバグ？　将来のバージョンで解決されるのを待つしか。
+
+後に<edraw-editor-select-tool-select> <edraw-editor-select-tool-select> <mouse-1> ではなく 単に <edraw-editor-select-tool-select> だけが発生するという現象も見られた。
+** TODO touchscreen/track-mouseでup-mouse-1が来ない問題について調べる
+track-mouseを使用しているとmouse-motionイベントが来るが、touchscreen-endが来てもup-mouse-1は来ない。少なくともWindowsは。Androidでもそうか調査する。
 
 ** TODO 選択ツールで選択図形の色をツールバーから変更できるようにする
 選択ツールでは、現在選択中の図形のstrokeとfill色をツールバーに表示する。
@@ -6643,3 +6665,27 @@ Androidでは押せるがWindowsでは押せない。
 : <edraw-editor-select-tool-rect> <edraw-editor-select-tool-rect> <mouse-1> is undefined
 
 edraw-update-toolbarを修正してツールバーのキーマップに (vector key-id key-id 'mouse-1) を登録してしまえば回避できる。気持ち悪いけど。
+** DONE タッチスクリーンに対応する
+CLOSED: [2025-03-02 Sun 11:42]
+
+対応が必要な箇所:
+- エディタ
+  - 全ツール
+  - read-rectangle
+  - インタラクティブスクロール
+  - インタラクティブ変形
+- カラーピッカー
+- プロパティエディタのラベルスライダー部分
+
+修正方法:
+- edraw-track-draggingをタッチイベントに対応させる
+  - track-mouseを使ってもup-mouseイベントが来ない(Windowsだけ)。
+- エディタの全ツールのon-touchscreen-beginはon-down-mouse-1を呼び出す。呼び出されたon-down-mouse-1はdown-eventとしてtouchscreen-beginイベントを受け取るが、これまで通りに使用して問題ないはず。
+  down-eventに対して行っているのは:
+  - event-startを通じて位置を割り出すこと
+  - event-modifiersで修飾キーを割り出すこと
+  - edraw-track-draggingに渡すこと
+- ツールバーが押せない(Windowsだけ) : [[*タッチスクリーンからツールバーのボタンが押せないのを直す][タッチスクリーンからツールバーのボタンが押せないのを直す]]
+- edraw-editor-tool-textだけはon-mouse-1を使っているのでon-touchscreen-beginをオーバーライドしてon-mouse-1にたらい回す。
+
+動作が遅い原因の一つは画像の更新間隔。invalidateしたときのタイマーの遅延時間が0なので、画像更新が高頻度で発生してしまうことが避けられていない。タッチイベントはマウスイベントの3～4倍くらいの頻度で発生するが、それでも0秒タイマーの間に隠れることは出来ないので。まだpathツールやread-rectangleが遅いので、おそらく他にも原因があると思う。

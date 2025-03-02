@@ -1000,6 +1000,7 @@ as a string."
 
 (defvar edraw-property-editor-number-title-keymap
   (let ((km (make-sparse-keymap)))
+    (define-key km [touchscreen-begin] 'edraw-property-editor-number-dragging)
     (define-key km [down-mouse-1] 'edraw-property-editor-number-dragging)
     (define-key km [wheel-down] 'edraw-property-editor-field-wheel-decrease)
     (define-key km [wheel-up] 'edraw-property-editor-field-wheel-increase)

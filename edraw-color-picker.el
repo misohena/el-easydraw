@@ -1380,7 +1380,9 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
     (let* ((inside-p t)
            ;; Generate detailed movement events even on fringes and scrollbars
            (mouse-fine-grained-tracking t)
-           (basic-type (event-basic-type down-event)))
+           (basic-type (if (eq (car-safe down-event) 'touchscreen-begin)
+                           'mouse-1
+                         (event-basic-type down-event))))
 
       (when (eq basic-type 'mouse-1)
         (edraw-dispatch-mouse-xy area down-xy)
@@ -2405,6 +2407,7 @@ but the reverse can also be done."
 
 (defvar edraw-color-picker-map
   (let ((km (make-sparse-keymap)))
+    (define-key km [touchscreen-begin] #'edraw-color-picker-on-down-mouse)
     (define-key km [down-mouse-1] #'edraw-color-picker-on-down-mouse)
     (define-key km [down-mouse-3] #'edraw-color-picker-on-down-mouse)
     (define-key km [hot-spot down-mouse-1] #'edraw-color-picker-on-down-mouse)
