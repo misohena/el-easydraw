@@ -29,6 +29,7 @@
 (require 'cl-print)
 (require 'seq)
 (require 'subr-x)
+(require 'eieio)
 (require 'edraw-msg)
 
 ;;;; Customize
@@ -1226,6 +1227,112 @@ Compared to set-transient-map, it has the following differences:
     ;; If the key is unbound `this-command` is
     ;; nil and so is `mc`.
     (and mc (eq this-command mc))))
+
+
+;;;; Lazy Image Updator
+
+(defconst edraw-image-update-delay-min 0.0001)
+
+(defcustom edraw-image-update-interval (/ 1.0 60.0)
+  "Image update interval time (in seconds).
+
+The larger the value, the lower the load, but the display will be rougher."
+  :group 'edraw
+  :type 'float)
+
+(defcustom edraw-image-update-fixed-delay-p nil
+  "Non-nil means that `edraw-image-update-interval' is a fixed delay after
+`edraw-invalidate-image'.
+
+If nil, the delay time for consecutive updates is calculated so that the
+update interval is as much as `edraw-image-update-interval'."
+  :group 'edraw
+  :type 'boolean)
+
+(defclass edraw-lazy-image-updator ()
+  ((image-update-timer :initform nil)
+   (image-update-last-scheduled-time :initform nil))
+  "A class for updating images asynchronously.
+
+Base class for classes that display information through a image.
+
+Updating the image every time the information is updated is inefficient,
+so a timer is used to update image all at once.
+
+When it is necessary to update the image, call the
+`edraw-invalidate-image' method.
+
+When it is time to update the image, the `edraw-update-image' method will
+be called.
+
+Derived classes must define the edraw-update-image method.")
+
+(cl-defmethod edraw-invalidate-image ((updator edraw-lazy-image-updator))
+  "Mark the image held by UPDATOR as invalid.
+
+If the image update has not been scheduled yet, schedule it.
+
+After the image update is scheduled, the `edraw-update-image' method
+will be called after a short delay.
+
+UPDATOR must implement the `edraw-update-image' method. When
+implementing `edraw-update-image', it is recommended to call the
+`edraw-update-image-timer-cancel' method to avoid unnecessary updates
+when `edraw-update-image' is called directly."
+  (edraw-log "Display: Invalidate image")
+  (with-slots (image-update-timer) updator
+    (unless image-update-timer
+      (edraw-log "Display: Schedule update image")
+      ;; Post update command
+      (setq image-update-timer
+            (run-at-time (edraw-update-image-delay updator) nil
+                         'edraw-update-image-on-timer updator)))))
+
+(cl-defmethod edraw-update-image-delay ((updator edraw-lazy-image-updator))
+  "Return the delay time of the image update timer."
+  (if edraw-image-update-fixed-delay-p
+      ;; Use `edraw-image-update-interval' as is
+      edraw-image-update-interval
+    ;; Make the average update interval closer to `edraw-image-update-interval'.
+    (let* ((curr (float-time))
+           ;; Note: If the timer is cancelled, it may not be the last
+           ;; time the image was updated.
+           (last (or (oref updator image-update-last-scheduled-time) 0.0))
+           (next (+ last edraw-image-update-interval))
+           (delay (- next curr)))
+      (cond
+       ((< delay edraw-image-update-delay-min)
+        (edraw-log "Display: Delayed %.3f[ms]" (* delay 1000))
+        (setq delay (* edraw-image-update-interval 0.5)))
+       ((> delay edraw-image-update-interval)
+        (setq delay edraw-image-update-interval))
+       (t
+        (edraw-log "Display: Not Delayed %.3f[ms]" (* delay 1000))
+        ))
+
+      (oset updator image-update-last-scheduled-time (+ curr delay))
+
+      delay)))
+
+(cl-defmethod edraw-update-image-timer-cancel ((updator
+                                                edraw-lazy-image-updator))
+  "Cancel the effect of `edraw-invalidate-image'."
+  (with-slots (image-update-timer) updator
+    (when image-update-timer
+      (cancel-timer image-update-timer)
+      ;; (oset updator image-update-last-scheduled-time ??)
+      (setq image-update-timer nil))))
+
+(cl-defmethod edraw-update-image-on-timer ((updator edraw-lazy-image-updator))
+  (oset updator image-update-timer nil)
+  (edraw-update-image updator))
+
+(cl-defgeneric edraw-update-image (object)
+  "Update the image held by OBJECT.")
+
+(cl-defmethod edraw-update-image ((updator edraw-lazy-image-updator))
+  (edraw-log "Display: Update image %.3f[ms]" (* (float-time) 1000))
+  (edraw-update-image-timer-cancel updator))
 
 
 ;;;; Misc

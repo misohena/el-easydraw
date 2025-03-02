@@ -658,7 +658,7 @@ line-prefix and wrap-prefix are used in org-indent.")
 
     (edraw-editor :overlay overlay :svg svg)))
 
-(defclass edraw-editor ()
+(defclass edraw-editor (edraw-lazy-image-updator)
   ((overlay :initarg :overlay :initform nil :reader edraw-overlay)
    (keymap :initarg :keymap :initform (identity edraw-editor-map))
    (svg :initarg :svg :initform nil)
@@ -681,7 +681,6 @@ line-prefix and wrap-prefix are used in org-indent.")
     :type number)
    (image :initform nil)
    (image-toolbar :initform nil)
-   (image-update-timer :initform nil)
    (invalid-ui-parts :initform nil)
    (scroll-transform :initform (list 0 0 1)) ;;dx dy scale
    (view-size :initform nil) ;; nil means document size
@@ -2160,32 +2159,10 @@ document size or view box."
   (oset editor image-base-uri filename-or-nil)
   (edraw-invalidate-image editor))
 
-(cl-defmethod edraw-invalidate-image ((editor edraw-editor))
-  "Request an image update."
-  (edraw-log "Display: Invalidate image")
-  (with-slots (image-update-timer) editor
-    (unless image-update-timer
-      (edraw-log "Display: Schedule update image")
-      ;; Post update command
-      (setq image-update-timer
-            (run-at-time 0.008 nil 'edraw-update-image-on-timer editor)))))
-
-(cl-defmethod edraw-update-image-on-timer ((editor edraw-editor))
-  (with-slots (image-update-timer) editor
-    (setq image-update-timer nil)
-    (edraw-update-image editor)))
-
-(cl-defmethod edraw-update-image-timer-cancel ((editor edraw-editor))
-  (with-slots (image-update-timer) editor
-    (when image-update-timer
-      (cancel-timer image-update-timer)
-      (setq image-update-timer nil))))
-
 (cl-defmethod edraw-update-image ((editor edraw-editor))
   "Update the image and apply the image to the overlay."
+  (cl-call-next-method) ;; Cancel already scheduled timer
   (with-slots (overlay svg image image-base-uri) editor
-    (edraw-log "Display: update-image")
-    (edraw-update-image-timer-cancel editor)
     (edraw-update-ui-parts editor)
     (edraw-call-hook editor 'before-image-update)
 

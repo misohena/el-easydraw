@@ -2459,10 +2459,9 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
                              initial-color
                              options))
 
-(defclass edraw-color-picker-display-overlay ()
+(defclass edraw-color-picker-display-overlay (edraw-lazy-image-updator)
   ((overlay :initarg :overlay)
    (target-property :initarg :target-property)
-   (image-update-timer :initform nil)
    (keymap :initarg :keymap)
    (picker)
    (target-frame :initform nil :writer edraw-set-target-frame)))
@@ -2501,32 +2500,11 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
     ;;@todo delete here? (If change here, also change edraw-closed-p)
     (delete-overlay overlay)))
 
-(cl-defmethod edraw-invalidate-image ((display
-                                       edraw-color-picker-display-overlay))
-  (edraw-log "Color Picker Display: Invalidate image")
-  (with-slots (image-update-timer) display
-    (unless image-update-timer
-      (edraw-log "Color Picker Display: Schedule update image")
-      ;; Post update command
-      (setq image-update-timer
-            (run-at-time 0.008 nil 'edraw-update-image-on-timer display)))))
-
-(cl-defmethod edraw-update-image-on-timer ((display
-                                            edraw-color-picker-display-overlay))
-  (with-slots (image-update-timer) display
-    (setq image-update-timer nil)
-    (edraw-update display)))
-
-(cl-defmethod edraw-update-image-timer-cancel ((display
-                                                edraw-color-picker-display-overlay))
-  (with-slots (image-update-timer) display
-    (when image-update-timer
-      (cancel-timer image-update-timer)
-      (setq image-update-timer nil))))
-
 (cl-defmethod edraw-update ((display edraw-color-picker-display-overlay))
-  (edraw-log "Color Picker Display: update-image")
-  (edraw-update-image-timer-cancel display)
+  (edraw-update-image display))
+
+(cl-defmethod edraw-update-image ((display edraw-color-picker-display-overlay))
+  (cl-call-next-method) ;; Cancel already scheduled timer
   (edraw-flush-image display)
   (with-slots (overlay target-property keymap picker) display
     (pcase target-property
