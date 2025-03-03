@@ -364,11 +364,72 @@ by the `auto-coding-functions'."
             finally return (nreverse result))))
 
 
+;;;; Input Events
 
-;;;; Emacs UI Utility
+;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Input-Events.html
 
-;;
-;;
+;;;;; Touchscreen Events
+
+(defsubst edraw-touch-event-p (event)
+  "Return non-nil if EVENT is a touchscreen event, and nil otherwise."
+  (memq (car-safe event)
+        '(touchscreen-begin touchscreen-end touchscreen-update)))
+
+(defsubst edraw-touch-event-begin-p (event)
+  "Return non-nil if EVENT is a touchscreen-begin event, and nil otherwise."
+  (eq (car-safe event) 'touchscreen-begin))
+
+(defsubst edraw-touch-event-end-p (event)
+  "Return non-nil if EVENT is a touchscreen-end event, and nil otherwise."
+  (eq (car-safe event) 'touchscreen-end))
+
+(defsubst edraw-touch-event-update-p (event)
+  "Return non-nil if EVENT is a touchscreen-update event, and nil otherwise."
+  (eq (car-safe event) 'touchscreen-update))
+
+(defsubst edraw-touch-event-begin-or-end-p (event)
+  "Return non-nil if EVENT is a touchscreen-begin or touchscreen-end event,
+and nil otherwise."
+  (memq (car-safe event) '(touchscreen-begin touchscreen-end)))
+
+(defsubst edraw-touch-event-point (event)
+  "Return (ID . POSN) of touchscreen-begin or -end EVENT."
+  (when (edraw-touch-event-begin-or-end-p event)
+    (cadr event)))
+
+(defsubst edraw-touch-event-id (event)
+  "Return ID of touchscreen-begin or -end EVENT."
+  (when (edraw-touch-event-begin-or-end-p event)
+    (caadr event)))
+
+(defsubst edraw-touch-event-posn (event)
+  "Return POSN of touchscreen-begin or -end EVENT."
+  (when (edraw-touch-event-begin-or-end-p event)
+    (cdadr event)))
+
+(defsubst edraw-touch-event-cancelled (event)
+  "Return CANCELLED flag of touchscreen-end EVENT."
+  (when (edraw-touch-event-end-p event)
+    (caddr event)))
+
+(defsubst edraw-touch-event-points (update-event)
+  "Return a list of (ID . POSN) of UPDATE-EVENT."
+  (when (edraw-touch-event-update-p update-event)
+    (cadr update-event)))
+
+(defsubst edraw-touch-event-assoc (event id)
+  "If touchscreen EVENT has a point matching ID, return its POSN."
+  (pcase (car-safe event)
+    ('touchscreen-update
+     ;; (touchscreen-update ( (id . posn) ... ))
+     (cdr (assoc id (cadr event))))
+    ((or 'touchscreen-begin 'touchscreen-end)
+     ;; (touchscreen-(begin|end) (id . posn)
+     (let ((point (cadr event)))
+       (when (eq (car point) id)
+         (cdr point))))))
+
+;;;;; Read Event
 
 (defun edraw-read-event-silent (&optional not-keep-echo-area)
   ;; Suppress display of events
@@ -380,105 +441,175 @@ by the `auto-coding-functions'."
         (prog1 (read-event)
           (edraw-echo old-message))))))
 
+;;;;; Track Drag Operation
+
 (defun edraw-track-dragging (down-event on-move
                                         &optional on-up on-leave target
                                         allow-pointer-shape-change-p
                                         allow-out-of-target-p
-                                        keep-echo-area)
+                                        keep-echo-area
+                                        allow-skipping-delayed-moves)
   (cond
    ;; Start with touchscreen-begin event
    ((eq (car-safe down-event) 'touchscreen-begin)
-    (edraw-track-dragging--internal
+    (edraw-track-drag--touchscreen
      down-event on-move on-up on-leave target allow-out-of-target-p
-     keep-echo-area))
+     keep-echo-area
+     allow-skipping-delayed-moves))
    ;; Start with down-mouse-(1|2|3) event
    ((memq 'down (event-modifiers down-event))
     (track-mouse ;; Enable mouse-movement events
       (unless allow-pointer-shape-change-p
         (setq track-mouse 'dragging))
-      (edraw-track-dragging--internal
+      (edraw-track-drag--mouse
        down-event on-move on-up on-leave target allow-out-of-target-p
        keep-echo-area)))
    (t
     (error "down-event is not down event. %s" (event-modifiers down-event)))))
 
-(defun edraw-track-dragging--internal (down-event
-                                       on-move
-                                       on-up on-leave target
-                                       allow-out-of-target-p
-                                       keep-echo-area)
+(defun edraw-track-drag--mouse (down-event
+                                on-move
+                                on-up on-leave target
+                                allow-out-of-target-p
+                                keep-echo-area)
+  (edraw-log "Track Drag: mouse")
   (let* ((down-basic-type (event-basic-type down-event))
-         (down-position (event-start down-event))
-         (touch-p (eq (car-safe down-event) 'touchscreen-begin))
-         (result))
-    ;;(message "down-event=%s" (car-safe down-event))
+         (down-posn (event-start down-event))
+         (result nil))
     (while (null result)
       (let ((event (edraw-read-event-silent (not keep-echo-area))))
-        ;;(message "event-type=%s" (car-safe event))
+        (edraw-log "Track Drag: Read event %s" (car-safe event))
         (cond
-         ;; mouse-movement or touchscreen-update
-         ((if touch-p
-              (eq (car-safe event) 'touchscreen-update)
-            (mouse-movement-p event))
-          (when-let* ((posn
-                       (if touch-p
-                           ;; Get the position information from EVENT that
-                           ;; has the same ID as the DOWN-EVENT.
-                           ;;   down-event: (touchscreen-begin (id . posn))
-                           ;;   event: (touchscreen-update ((id . posn) ... ))
-                           (cdr (assoc
-                                 ;; ID
-                                 (caadr down-event)
-                                 ;; POINTS
-                                 (cadr event)))
-                         (event-start event))))
-            ;; Convert touchscreen update to mouse-movement
-            (when touch-p
-              (setq event (list 'mouse-movement posn)))
-            ;;(message "Track Mouse: Move")
-            ;; check same object
-            (if (or allow-out-of-target-p
-                    (edraw-posn-same-object-p posn
-                                              down-position
-                                              target))
-                (if on-move (funcall on-move event))
-              ;; out of target
-              (if on-up (funcall on-leave event))
-              (setq result event))))
+         ;; mouse-movement
+         ((mouse-movement-p event)
+          (when-let* ((posn (event-start event)))
+            (setq result
+                  (edraw-track-drag--on-move event on-move on-leave target
+                                             allow-out-of-target-p down-posn))))
          ;; mouse up
-         ((if touch-p
-              ;; The touch point with the same ID as the DOWN-EVENT was released
-              ;;   down-event: (touchscreen-begin (id . posn))
-              ;;   event: (touchscreen-end (id . posn) canceled)
-              (and (eq (car-safe event) 'touchscreen-end)
-                   (equal (caadr event) (caadr down-event)))
-            (or
-             (and (eq (event-basic-type event) down-basic-type)
-                  (or (memq 'click (event-modifiers event))
-                      (memq 'drag (event-modifiers event))))
-             ;; @todo
-             (eq (car-safe event) 'touchscreen-end)))
-          ;;(message "Track Mouse: Up")
-          (if on-up (funcall on-up event))
-          (setq result event))
-         ;; Ignore some events
-         ((memq
-           (car-safe event)
-           '(;; (For Ubuntu 22/Emacs 27.1, To allow dragging in child frames)
-             switch-frame
-             ;; Unrelated touch events
-             touchscreen-begin
-             touchscreen-update
-             touchscreen-end)))
-         ;; Ignore unrelated mouse events
-         ((mouse-event-p event))
-         ;; otherwise
+         ((or
+           (and (eq (event-basic-type event) down-basic-type)
+                (or (memq 'click (event-modifiers event))
+                    (memq 'drag (event-modifiers event))))
+           ;; Just in case.
+           ;; If touchscreen-begin is converted to down-mouse-1, then
+           ;; up-mouse-1 will not come and touchscreen-end will come.
+           (eq (car-safe event) 'touchscreen-end))
+          (setq result (edraw-track-drag--on-up event on-up)))
          (t
-          ;;(message "Track Mouse: Otherwise %s" (car-safe event))
-          (if on-up (funcall on-up event))
-          (setq result event)
-          (push (cons t event) unread-command-events)))))
+          (setq result (edraw-track-drag--on-unknown-event event on-up))))))
     result))
+
+(defconst edraw-track-drag--skip-move-delay 0.3)
+
+(defun edraw-track-drag--touchscreen (down-event
+                                      on-move
+                                      on-up on-leave target
+                                      allow-out-of-target-p
+                                      keep-echo-area
+                                      allow-skipping-delayed-moves)
+  (edraw-log "Track Drag: touchscreen")
+  (let* ((down-posn (event-start down-event))
+         (down-point-id (caadr down-event))
+         (pending-events nil)
+         (timer nil)
+         (result nil)
+         on-timer)
+    (setq on-timer
+          (lambda ()
+            (setq timer nil)
+            (when pending-events
+              (edraw-log "Track Drag: Dispatch pending-events %d"
+                         (length pending-events))
+              ;; Use only the last event if ALLOW-SKIPPING-DELAYED-MOVES
+              (when (and allow-skipping-delayed-moves (cdr pending-events))
+                (edraw-log "Track Drag: Skip delayed events %d"
+                           (1- (length pending-events)))
+                (setcdr pending-events nil))
+
+              ;; Reorder events from oldest to newest
+              (setq pending-events (nreverse pending-events))
+
+              ;; Dispatch on-move or on-leave
+              (while (and (null result) pending-events)
+                (let* ((event-time-posn (pop pending-events))
+                       (event-time (car event-time-posn))
+                       (event-posn (cdr event-time-posn))
+                       (delay (- (float-time) event-time)))
+                  (when (or (null pending-events)
+                            (< delay edraw-track-drag--skip-move-delay))
+                    (setq result
+                          (edraw-track-drag--on-move
+                           ;; Convert to mouse-movement event
+                           (list 'mouse-movement event-posn)
+                           on-move on-leave target allow-out-of-target-p
+                           down-posn))))))))
+    (while (null result)
+      (let* ((event (edraw-read-event-silent (not keep-echo-area)))
+             (posn (edraw-touch-event-assoc event down-point-id)))
+        (edraw-log "Track Drag: Read event %s" (car-safe event))
+
+        (unless result ;; Might be set to nil from the timer in read-event?
+          (if posn ;; -end or -update, and matching DOWN-POINT-ID
+              (pcase (car-safe event)
+                ('touchscreen-update
+                 (push (cons (float-time) posn) pending-events)
+                 (unless timer
+                   (edraw-log "Track Drag: Schedule timer")
+                   (setq timer
+                         ;; (run-at-time (time-add nil (list 0 0 5000))
+                         (run-with-idle-timer 0 nil on-timer))))
+                ('touchscreen-end
+                 (when timer
+                   (cancel-timer timer)
+                   (funcall on-timer))
+                 (setq result (edraw-track-drag--on-up event on-up))))
+            (setq result (edraw-track-drag--on-unknown-event event on-up))))))
+    result))
+
+(defun edraw-track-drag--on-move (move-event ;; mouse-movement event (not touch)
+                                  on-move on-leave
+                                  target
+                                  allow-out-of-target-p
+                                  down-posn)
+  (edraw-log "Track Drag: On move event")
+  (if (or allow-out-of-target-p
+          (edraw-posn-same-object-p (cadr move-event) ;; posn of mouse-movement
+                                    down-posn
+                                    target))
+      (progn
+        (when on-move (funcall on-move move-event))
+        nil)
+    ;; out of target
+    (when on-leave (funcall on-leave move-event))
+    move-event))
+
+(defun edraw-track-drag--on-up (up-event on-up)
+  (edraw-log "Track Drag: On up event")
+  (when on-up (funcall on-up up-event))
+  up-event)
+
+(defun edraw-track-drag--on-unknown-event (event on-up)
+  (edraw-log "Track Drag: On unknown event %s" (car-safe event))
+  (cond
+   ;; Ignore some events
+   ((memq
+     (car-safe event)
+     '(;; (For Ubuntu 22/Emacs 27.1, To allow dragging in child frames)
+       switch-frame
+       ;; Unrelated touch events
+       touchscreen-begin touchscreen-update touchscreen-end))
+    nil)
+   ;; Ignore unrelated mouse events
+   ((mouse-event-p event)
+    nil)
+   ;; Otherwise
+   (t
+    (when on-up (funcall on-up event))
+    (push (cons t event) unread-command-events)
+    event)))
+
+;;;;; Event
 
 (defun edraw-posn-same-object-p (pos1 pos2 &optional target)
   (and (eq (posn-window pos1)
@@ -511,7 +642,8 @@ For the implementation of (interactive \"e\"), see the
 `call-interactively' function in callint.c."
   (seq-find #'consp (this-command-keys-vector)))
 
-;;;; Mouse Wheel Event
+
+;;;;; Mouse Wheel Event
 
 (defconst edraw-wheel-down-event
   (if (and (version< emacs-version "30")
@@ -535,7 +667,7 @@ For the implementation of (interactive \"e\"), see the
     ;;  always => wheel-up
     'wheel-up))
 
-;;;; Input Event Coordinates
+;;;;; Input Event Coordinates
 
 (defun edraw-posn-x-y-on-frame (position &optional default-inside-window-p)
   "Convert POSITION to frame coordinates.
@@ -600,7 +732,7 @@ returns nil."
                (- (cdr down-xy-on-object) (cdr down-xy-on-frame))))))
 
 
-;;;; Input Event Modifiers
+;;;;; Input Event Modifiers
 
 (defun edraw-event-mouse-modifiers (event)
   (seq-remove (lambda (m) (not (memq m '(click double triple drag down))))
