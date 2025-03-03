@@ -7,9 +7,6 @@
 
 マウスも同様にすべきだろうか？
 
-** TODO edraw-y-or-n-pとy-or-n-pが混在している
-Androidではedraw-y-or-n-pが正しく機能しない。プロンプトが全て表示されないのと、はいといいえの日本語が文字化けしている。普通にy-or-n-pを使うべきではないか？
-
 ** TODO 色/color-pickerの画像更新通知を自動化する
 現在は各所でedraw-invalidate-imageを呼び出しているが、これを自動化したい。
 モデルに対して何かを設定したらpickerのedraw-invalidate-imageが呼ばれるように。
@@ -29,8 +26,6 @@ https://sourceforge.net/projects/android-ports-for-gnu-emacs/files/ のREADMEの
 ** TODO Androidでツールバーのグラデーションが正しく表示されていない
 なぜだろう。
 ** TODO touchscreen/二本指で拡大縮小スクロール出来るようにする
-** TODO touchscreen/かなり重いのを何とかする
-少なくともWindowsではかなり重い。おそらくイベントが来すぎているのでは？
 ** TODO touchscreen/ツールバーのボタンが押せない問題の回避策を消す
 [[*タッチスクリーンからツールバーのボタンが押せないのを直す][タッチスクリーンからツールバーのボタンが押せないのを直す]]で導入した回避策が edraw-update-toolbar メソッド内にあるが、これを無くしたい。
 Android版は大丈夫でWindows版はダメ。何かのバグ？　将来のバージョンで解決されるのを待つしか。
@@ -6744,3 +6739,12 @@ CLOSED: [2025-03-03 Mon 15:57]
 - keep-echo-areaはnot-keep-echo-areaに改名する。デフォルトで維持する。イベントのエコーが必要な場所は無いと思う。
 - allow-skipping-delayed-movesはneed-intermediate-pointsに改名する。デフォルトで不要。ほとんどの場所で途中のポイントは必要ない。必要なのはフリーハンドツールだけ。
 - mouse-fine-grained-trackingは常にtにする。現在はプロパティエディタとカラーピッカーで使っている。
+** DONE edraw-y-or-n-pとy-or-n-pが混在している
+CLOSED: [2025-03-03 Mon 16:47]
+Androidではedraw-y-or-n-pが正しく機能しない。プロンプトが全て表示されないのと、はいといいえの日本語が文字化けしている。普通にy-or-n-pを使うべきではないか？
+
+- 実装をedraw-y-or-n-p--popup-menuに移動する
+- edraw-y-or-n-p-function変数を追加して切り替えられるようにする(Windows以外ではデフォルトはy-or-n-pにする)
+- edraw-y-or-n-p--popup-menuも(edraw-use-dialog-box-p)がnilのときはy-or-n-pを使う
+- 基本的にedraw-y-or-n-pを使う
+- ただし、マウスを使うことはほぼ無い場所ではy-or-n-pを使う

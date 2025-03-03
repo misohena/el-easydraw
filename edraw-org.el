@@ -537,7 +537,7 @@ the time `edraw-org-link-recover-mouse-face' is called."
 (defun edraw-org-link-image-open-at-point (&optional arg)
   (interactive)
   (if (and (edraw-org-link-at-description-link-p)
-           (y-or-n-p "Edit edraw link? (y:edit link, n:open link)"))
+           (edraw-y-or-n-p "Edit edraw link? (y:edit link, n:open link)"))
       (edraw-org-edit-link)
     (org-open-at-point arg)))
 
@@ -588,7 +588,7 @@ the time `edraw-org-link-recover-mouse-face' is called."
       (let ((buffer (current-buffer))
             (output-file (read-file-name "Export File(.edraw.svg): ")))
         (when (and (file-exists-p output-file)
-                   (not (y-or-n-p (edraw-msg "Overwrite?"))))
+                   (not (edraw-y-or-n-p (edraw-msg "Overwrite?"))))
           (signal 'quit nil))
 
         (with-temp-file output-file
@@ -657,7 +657,7 @@ Allowed values for TARGET-TYPE are:
        (when data
          (let ((output-file (read-file-name "Export File(.edraw.svg): ")))
            (when (and (file-exists-p output-file)
-                      (not (y-or-n-p (edraw-msg "Overwrite?"))))
+                      (not (edraw-y-or-n-p (edraw-msg "Overwrite?"))))
              (signal 'quit nil))
            (with-temp-file output-file
              (set-buffer-file-coding-system 'utf-8)

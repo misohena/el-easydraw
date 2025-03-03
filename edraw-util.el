@@ -241,13 +241,25 @@ by the `auto-coding-functions'."
 
 ;;;; Menu UI
 
+(defconst edraw-y-or-n-p-function
+  (pcase system-type
+    ('android #'y-or-n-p)
+    ('windows-nt #'edraw-y-or-n-p--popup-menu)
+    ;; I don't know much about other platforms
+    (_ #'y-or-n-p)))
+
 (defun edraw-y-or-n-p (prompt)
-  (x-popup-menu
-   t
-   (list prompt
-         (cons ""
-               (list (cons (edraw-msg "Yes") t)
-                     (cons (edraw-msg "No") nil))))))
+  (funcall edraw-y-or-n-p-function prompt))
+
+(defun edraw-y-or-n-p--popup-menu (prompt)
+  (if (edraw-use-dialog-box-p)
+      (x-popup-menu
+       t
+       (list prompt
+             (cons ""
+                   (list (cons (edraw-msg "Yes") t)
+                         (cons (edraw-msg "No") nil)))))
+    (y-or-n-p prompt)))
 
 (defcustom edraw-popup-menu-style 'x
   "How to display menus."

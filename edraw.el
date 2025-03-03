@@ -1463,9 +1463,9 @@ For use with `edraw-editor-with-temp-undo-list',
     (when (directory-name-p filename)
       (error "%s is a directory" filename))
     (when (and (file-exists-p filename)
-               (not (y-or-n-p (format-message
-                               (edraw-msg "File `%s' exists; overwrite? ")
-                               filename ))))
+               (not (edraw-y-or-n-p (format-message
+                                     (edraw-msg "File `%s' exists; overwrite? ")
+                                     filename ))))
       (user-error "Canceled"))
     (with-temp-file filename
       (set-buffer-file-coding-system 'utf-8)
@@ -9625,7 +9625,8 @@ result replaces the path itself."
   (edraw-ungroup
    group
    (unless (edraw-matrix-identity-p (edraw-transform-prop-get-matrix group))
-     (y-or-n-p (edraw-msg "Apply group's transform property to children?")))))
+     (edraw-y-or-n-p
+      (edraw-msg "Apply group's transform property to children?")))))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape-group))
   (let* ((items (copy-tree (cl-call-next-method))))
@@ -11935,7 +11936,7 @@ Deselect all shapes, then select the shapes contained in OBJ."
                            (not (edraw-matrix-identity-p
                                  (edraw-transform-prop-get-matrix g))))
                          groups)
-               (y-or-n-p
+               (edraw-y-or-n-p
                 (edraw-msg "Apply group's transform property to children?")))))
     (unless groups
       (error (edraw-msg "No group selected")))
@@ -13161,7 +13162,7 @@ This function is for registering with the `kill-buffer-query-functions' hook."
                    (not (edraw-modified-p editor))
                    (progn
                      (goto-char (overlay-start ov))
-                     (y-or-n-p
+                     (edraw-y-or-n-p
                       (edraw-msg "Edraw editor has unsaved changes. Discard changes ?")))))
            t))
        (overlays-in (point-min) (point-max))))))

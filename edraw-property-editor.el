@@ -2044,7 +2044,7 @@ menu is pressed."
                (data (edraw-preset-data target)))
            (when (and name data (not (string-empty-p name)))
              (when (and (edraw-preset-load ui-state preset-type name)
-                        (not (y-or-n-p (format (edraw-msg "Preset %s exists. Do you want to overwrite?") name))))
+                        (not (edraw-y-or-n-p (format (edraw-msg "Preset %s exists. Do you want to overwrite?") name))))
                (signal 'quit nil))
              (edraw-preset-save ui-state preset-type name data))))))))
 

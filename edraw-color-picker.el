@@ -490,7 +490,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
   (let ((file (read-file-name (edraw-msg "Save colors to file: ")
                               nil nil nil "palette.edraw-colors")))
     (when (or (not (file-exists-p file))
-              (y-or-n-p (edraw-msg "Do you want to overwrite?")))
+              (edraw-y-or-n-p (edraw-msg "Do you want to overwrite?")))
       (edraw-write-to-file palette file))))
 
 (cl-defmethod edraw-load-interactive ((palette
@@ -1115,7 +1115,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                (edraw-load-interactive palette-model)))
            ((edraw-msg "Reset to Default")
             ,(lambda ()
-               (when (y-or-n-p (edraw-msg "Do you want to restore the palette to its initial state?"))
+               (when (edraw-y-or-n-p (edraw-msg "Do you want to restore the palette to its initial state?"))
                  (edraw-reset-to-default palette-model)))))))))))
 
 (defun edraw-color-picker-palette-areas-update (palette all-areas)
