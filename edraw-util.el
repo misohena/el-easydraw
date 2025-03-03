@@ -443,27 +443,27 @@ and nil otherwise."
 
 ;;;;; Track Drag Operation
 
-(defun edraw-track-dragging (down-event on-move
-                                        &optional on-up on-leave target
-                                        allow-pointer-shape-change-p
-                                        allow-out-of-target-p
-                                        keep-echo-area
-                                        allow-skipping-delayed-moves)
+(cl-defun edraw-track-drag (down-event
+                            on-move
+                            &key
+                            on-up on-leave target
+                            allow-pointer-shape-change-p
+                            allow-out-of-target-p
+                            not-keep-echo-area
+                            need-intermediate-points)
   (cond
    ;; Start with touchscreen-begin event
    ((eq (car-safe down-event) 'touchscreen-begin)
     (edraw-track-drag--touchscreen
      down-event on-move on-up on-leave target allow-out-of-target-p
-     keep-echo-area
-     allow-skipping-delayed-moves))
+     not-keep-echo-area
+     need-intermediate-points))
    ;; Start with down-mouse-(1|2|3) event
    ((memq 'down (event-modifiers down-event))
-    (track-mouse ;; Enable mouse-movement events
-      (unless allow-pointer-shape-change-p
-        (setq track-mouse 'dragging))
-      (edraw-track-drag--mouse
-       down-event on-move on-up on-leave target allow-out-of-target-p
-       keep-echo-area)))
+    (edraw-track-drag--mouse
+     down-event on-move on-up on-leave target allow-out-of-target-p
+     not-keep-echo-area
+     allow-pointer-shape-change-p))
    (t
     (error "down-event is not down event. %s" (event-modifiers down-event)))))
 
@@ -471,33 +471,40 @@ and nil otherwise."
                                 on-move
                                 on-up on-leave target
                                 allow-out-of-target-p
-                                keep-echo-area)
+                                not-keep-echo-area
+                                allow-pointer-shape-change-p)
   (edraw-log "Track Drag: mouse")
   (let* ((down-basic-type (event-basic-type down-event))
          (down-posn (event-start down-event))
-         (result nil))
-    (while (null result)
-      (let ((event (edraw-read-event-silent (not keep-echo-area))))
-        (edraw-log "Track Drag: Read event %s" (car-safe event))
-        (cond
-         ;; mouse-movement
-         ((mouse-movement-p event)
-          (when-let* ((posn (event-start event)))
-            (setq result
-                  (edraw-track-drag--on-move event on-move on-leave target
-                                             allow-out-of-target-p down-posn))))
-         ;; mouse up
-         ((or
-           (and (eq (event-basic-type event) down-basic-type)
-                (or (memq 'click (event-modifiers event))
-                    (memq 'drag (event-modifiers event))))
-           ;; Just in case.
-           ;; If touchscreen-begin is converted to down-mouse-1, then
-           ;; up-mouse-1 will not come and touchscreen-end will come.
-           (eq (car-safe event) 'touchscreen-end))
-          (setq result (edraw-track-drag--on-up event on-up)))
-         (t
-          (setq result (edraw-track-drag--on-unknown-event event on-up))))))
+         (result nil)
+         ;; Generate detailed movement events even on characters,
+         ;; fringes and scrollbars
+         (mouse-fine-grained-tracking t))
+    (track-mouse ;; Enable mouse-movement events
+      (unless allow-pointer-shape-change-p
+        (setq track-mouse 'dragging))
+      (while (null result)
+        (let ((event (edraw-read-event-silent not-keep-echo-area)))
+          (edraw-log "Track Drag: Read event %s" (car-safe event))
+          (cond
+           ;; mouse-movement
+           ((mouse-movement-p event)
+            (when-let* ((posn (event-start event)))
+              (setq result (edraw-track-drag--on-move
+                            event on-move on-leave target
+                            allow-out-of-target-p down-posn))))
+           ;; mouse up
+           ((or
+             (and (eq (event-basic-type event) down-basic-type)
+                  (or (memq 'click (event-modifiers event))
+                      (memq 'drag (event-modifiers event))))
+             ;; Just in case.
+             ;; If touchscreen-begin is converted to down-mouse-1, then
+             ;; up-mouse-1 will not come and touchscreen-end will come.
+             (eq (car-safe event) 'touchscreen-end))
+            (setq result (edraw-track-drag--on-up event on-up)))
+           (t
+            (setq result (edraw-track-drag--on-unknown-event event on-up)))))))
     result))
 
 (defconst edraw-track-drag--skip-move-delay 0.3)
@@ -506,8 +513,8 @@ and nil otherwise."
                                       on-move
                                       on-up on-leave target
                                       allow-out-of-target-p
-                                      keep-echo-area
-                                      allow-skipping-delayed-moves)
+                                      not-keep-echo-area
+                                      need-intermediate-points)
   (edraw-log "Track Drag: touchscreen")
   (let* ((down-posn (event-start down-event))
          (down-point-id (caadr down-event))
@@ -521,8 +528,8 @@ and nil otherwise."
             (when pending-events
               (edraw-log "Track Drag: Dispatch pending-events %d"
                          (length pending-events))
-              ;; Use only the last event if ALLOW-SKIPPING-DELAYED-MOVES
-              (when (and allow-skipping-delayed-moves (cdr pending-events))
+              ;; Use only the last event if not NEED-INTERMEDIATE-POINTS
+              (when (and (not need-intermediate-points) (cdr pending-events))
                 (edraw-log "Track Drag: Skip delayed events %d"
                            (1- (length pending-events)))
                 (setcdr pending-events nil))
@@ -545,7 +552,7 @@ and nil otherwise."
                            on-move on-leave target allow-out-of-target-p
                            down-posn))))))))
     (while (null result)
-      (let* ((event (edraw-read-event-silent (not keep-echo-area)))
+      (let* ((event (edraw-read-event-silent not-keep-echo-area))
              (posn (edraw-touch-event-assoc event down-point-id)))
         (edraw-log "Track Drag: Read event %s" (car-safe event))
 

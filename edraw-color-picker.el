@@ -1378,8 +1378,6 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                         down-event image-scale down-event))
               (area (edraw-color-picker-areas-find-by-xy areas down-xy)))
     (let* ((inside-p t)
-           ;; Generate detailed movement events even on fringes and scrollbars
-           (mouse-fine-grained-tracking t)
            (basic-type (if (eq (car-safe down-event) 'touchscreen-begin)
                            'mouse-1
                          (event-basic-type down-event))))
@@ -1388,7 +1386,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
         (edraw-dispatch-mouse-xy area down-xy)
         (funcall updator))
 
-      (edraw-track-dragging
+      (edraw-track-drag
        down-event
        (lambda (move-event)
          (let ((move-xy (edraw-color-picker-mouse-to-xy
@@ -1398,11 +1396,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
            (when (eq basic-type 'mouse-1)
              (edraw-dispatch-mouse-xy area move-xy)
              (funcall updator))))
-       nil nil nil nil
-       ;; Allow out of image
-       t
-       ;; Keep echo area
-       t)
+       :allow-out-of-target-p t)
       (when inside-p
         (pcase basic-type
           ('mouse-1

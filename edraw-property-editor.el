@@ -1120,19 +1120,18 @@ as a string."
            (edraw-property-editor-number-dragging-image-update
             ov window down-x min-x max-x))
          (unwind-protect
-             (let ((mouse-fine-grained-tracking t))
-               (edraw-track-dragging
-                down-event
-                (lambda (move-event)
-                  (let* ((move-x (car (posn-x-y (event-start move-event))))
-                         (delta-value (/ (- move-x down-x) divisor))
-                         (new-value (+ start-value delta-value)))
-                    (edraw-set-value field new-value)
-                    (when ov
-                      (edraw-property-editor-number-dragging-image-update
-                       ov window move-x min-x max-x))
-                    ))
-                nil nil 'window))
+             (edraw-track-drag
+              down-event
+              (lambda (move-event)
+                (let* ((move-x (car (posn-x-y (event-start move-event))))
+                       (delta-value (/ (- move-x down-x) divisor))
+                       (new-value (+ start-value delta-value)))
+                  (edraw-set-value field new-value)
+                  (when ov
+                    (edraw-property-editor-number-dragging-image-update
+                     ov window move-x min-x max-x))
+                  ))
+              :target 'window)
            (when ov
              (delete-overlay ov))))))))
 

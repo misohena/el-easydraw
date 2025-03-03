@@ -1,10 +1,5 @@
 
 * Inbox
-** TODO edraw-track-dragging関数を整理する。
-- 名前はedraw-track-dragで良い。
-- キーワード引数にする。
-- keep-echo-areaはデフォルトでtが良い。nilが必要な場所は無いと思う。
-
 ** TODO edraw-track-dragはマウスでもタッチと同じようにすべきか
 タッチはマウスよりも量が多いので処理が遅延した場合に備える処理を入れてある。
 
@@ -6742,3 +6737,10 @@ touchscreen-updateはmouse-movementに比べると大幅に発生頻度が高く
 - △posn-timestamp(システム依存のミリ秒)と現在時刻との差を監視する => 可能ではあるが全てのプラットフォームでうまく行くかは分からない。
 - ×run-at-timeで少し時間をおいてからまとめて処理する => 5ms程度の遅延では1つずつしか処理できなかった。10～100msくらいであればある程度まとめて処理できるが、遅延が大きくなってしまうのであまり良くない。
 - ○run-with-idle-timerでアイドルになったらまとめて処理する => 一番安定して処理できた。
+** DONE edraw-track-dragging関数を整理する。
+CLOSED: [2025-03-03 Mon 15:57]
+- edraw-track-dragに改名する。
+- キーワード引数にする。
+- keep-echo-areaはnot-keep-echo-areaに改名する。デフォルトで維持する。イベントのエコーが必要な場所は無いと思う。
+- allow-skipping-delayed-movesはneed-intermediate-pointsに改名する。デフォルトで不要。ほとんどの場所で途中のポイントは必要ない。必要なのはフリーハンドツールだけ。
+- mouse-fine-grained-trackingは常にtにする。現在はプロパティエディタとカラーピッカーで使っている。

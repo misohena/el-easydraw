@@ -2954,7 +2954,7 @@ document size or view box."
                                        (edraw-scroll-pos-y editor)))
             (down-xy (edraw-scroll-view-xy-from-mouse-event
                       editor down-event)))
-        (edraw-track-dragging
+        (edraw-track-drag
          down-event
          (lambda (move-event)
            (let* ((move-xy (edraw-scroll-view-xy-from-mouse-event
@@ -4605,7 +4605,7 @@ position where the EVENT occurred."
                         (memq 'alt (event-modifiers down-event))))
             (move-xy nil))
         (edraw-editor-with-temp-modifications editor
-          (edraw-track-dragging
+          (edraw-track-drag
            down-event
            (lambda (move-event)
              (edraw-undo-all editor) ;; Cancel previous move
@@ -4649,7 +4649,7 @@ position where the EVENT occurred."
                               (edraw-get-opposite-point-vectors anchor)))
              (move-xy nil))
         (edraw-editor-with-temp-modifications editor
-          (edraw-track-dragging
+          (edraw-track-drag
            down-event
            (lambda (move-event)
              (edraw-undo-all editor) ;; Cancel previous move
@@ -4724,7 +4724,7 @@ to down-mouse-1 and processes drag and click."
                  (move-xy nil))
             ;; Preview while dragging
             (edraw-editor-with-temp-modifications editor
-              (edraw-track-dragging
+              (edraw-track-drag
                down-event
                (lambda (move-event)
                  ;; Cancel previous move
@@ -4757,7 +4757,7 @@ to down-mouse-1 and processes drag and click."
                editor
                (edraw-mouse-click-info editor down-event))))
         ;; Consume `UP' event
-        (edraw-track-dragging down-event (lambda (_move-event)))
+        (edraw-track-drag down-event (lambda (_move-event)))
         (edraw-display-selected-object-info
          editor
          (edraw-mouse-click-info editor down-event)))
@@ -4782,7 +4782,7 @@ to down-mouse-1 and processes drag and click."
         (edraw-editor-with-temp-modifications editor
           (let ((preview-shapes (edraw-duplicate-shapes target-shapes)))
             (edraw-editor-with-temp-modifications editor
-              (edraw-track-dragging
+              (edraw-track-drag
                down-event
                (lambda (move-event)
                  ;; Cancel previous move
@@ -4841,7 +4841,7 @@ to down-mouse-1 and processes drag and click."
           move-xy)
       (edraw-dom-append-child ui-parent ui-preview)
       (unwind-protect
-          (edraw-track-dragging
+          (edraw-track-drag
            down-event
            (lambda (move-event)
              (setq move-xy
@@ -5154,7 +5154,7 @@ to down-mouse-1 and processes drag and click."
               (progn
                 (edraw-select-shape editor shape)
 
-                (edraw-track-dragging
+                (edraw-track-drag
                  down-event
                  (lambda (move-event)
                    (setq move-xy
@@ -5226,7 +5226,7 @@ to down-mouse-1 and processes drag and click."
               (progn
                 (edraw-select-shape editor shape)
 
-                (edraw-track-dragging
+                (edraw-track-drag
                  down-event
                  (lambda (move-event)
                    (setq move-xy
@@ -5670,7 +5670,7 @@ symmetrical to the mouse coordinates."
         dragged-handle
         move-xy)
     (edraw-editor-with-temp-modifications editor
-      (edraw-track-dragging
+      (edraw-track-drag
        down-event
        (lambda (move-event)
          (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
@@ -5708,7 +5708,7 @@ down in path tool."
     (let ((anchor-xy (edraw-get-xy anchor))
           (backward-p (not (edraw-last-anchor-p anchor))))
       (edraw-editor-with-temp-modifications editor
-        (edraw-track-dragging
+        (edraw-track-drag
          down-event
          (lambda (move-event)
            (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
@@ -5877,7 +5877,7 @@ check the difference before and after smoothing."
                 (edraw-add-anchor preview-path down-xy)
 
                 ;; Add new points on dragging
-                (edraw-track-dragging
+                (edraw-track-drag
                  down-event
                  (lambda (move-event)
                    (let ((move-xy
@@ -5909,7 +5909,8 @@ check the difference before and after smoothing."
                        (push move-xy points)
                        (edraw-add-anchor preview-path move-xy)
                        (setq last-xy move-xy))))
-                 nil nil nil nil
+                 :need-intermediate-points t
+                 :allow-out-of-target-p
                  (and edraw-editor-tool-freehand-dragged-outside-view t)))
             (edraw-remove preview-path))))
 
@@ -6396,7 +6397,7 @@ This function is destructive: the list POINTS is modified."
                   (edraw-make-undo-group editor 'put-custom-shape--preview
                     (edraw-translate shapes down-xy))
 
-                  (edraw-track-dragging
+                  (edraw-track-drag
                    down-event
                    (lambda (move-event)
                      (setq move-xy
@@ -12660,7 +12661,7 @@ REF is a point reference in scaling-points."
                               (edraw-get-opposite-scaling-point-vectors
                                transformer ref))))
         ;;(message "old-xy=%s opposite-vecs=%s" old-xy opposite-vecs)
-        (edraw-track-dragging
+        (edraw-track-drag
          down-event
          (lambda (move-event)
            (edraw-on-mouse-move transformer move-event 'scale ref)
@@ -12704,7 +12705,7 @@ REF is a point reference in scaling-points."
             (shift-p (memq 'shift (event-modifiers down-event)))
             (snap-radius (/ edraw-transform-origin-snap-radius
                             (float (edraw-scroll-scale editor)))))
-        (edraw-track-dragging
+        (edraw-track-drag
          down-event
          (lambda (move-event)
            (edraw-on-mouse-move transformer move-event 'origin)
@@ -12751,7 +12752,7 @@ REF is a point reference in scaling-points."
       (let ((down-xy-snapped (edraw-snap-xy editor down-xy))
             (old-translation-delta (oref transformer translation-delta))
             (shift-p (memq 'shift (event-modifiers down-event))))
-        (edraw-track-dragging
+        (edraw-track-drag
          down-event
          (lambda (move-event)
            (edraw-on-mouse-move transformer move-event 'translate)
@@ -12775,7 +12776,7 @@ REF is a point reference in scaling-points."
          (old-rotation-angle (oref transformer rotation-angle))
          (old-translation-delta (oref transformer translation-delta))
          (shift-p (memq 'shift (event-modifiers down-event))))
-    (edraw-track-dragging
+    (edraw-track-drag
      down-event
      (lambda (move-event)
        (edraw-on-mouse-move transformer move-event 'rotate)
