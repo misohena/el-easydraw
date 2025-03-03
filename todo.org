@@ -25,6 +25,7 @@ https://sourceforge.net/projects/android-ports-for-gnu-emacs/files/ のREADMEの
 
 ** TODO Androidでツールバーのグラデーションが正しく表示されていない
 なぜだろう。
+** TODO touchscreen/長押しでコンテキストメニューを出す
 ** TODO touchscreen/二本指で拡大縮小スクロール出来るようにする
 ** TODO touchscreen/ツールバーのボタンが押せない問題の回避策を消す
 [[*タッチスクリーンからツールバーのボタンが押せないのを直す][タッチスクリーンからツールバーのボタンが押せないのを直す]]で導入した回避策が edraw-update-toolbar メソッド内にあるが、これを無くしたい。
@@ -6748,3 +6749,10 @@ Androidではedraw-y-or-n-pが正しく機能しない。プロンプトが全�
 - edraw-y-or-n-p--popup-menuも(edraw-use-dialog-box-p)がnilのときはy-or-n-pを使う
 - 基本的にedraw-y-or-n-pを使う
 - ただし、マウスを使うことはほぼ無い場所ではy-or-n-pを使う
+** DONE shapeのコンテキストメニューからの削除は確認せずに削除する
+CLOSED: [2025-03-03 Mon 17:20]
+現状でも複数選択してからだと確認しない。おそらくmultiple-shapesのではなく、選択図形の削除メソッドが呼び出されているから。同様にキーボードからだと確認しない。
+Undoがあるから不要だと思う。
+Delete...ではなくDeleteにする。
+edraw-removeを使う。
+edraw-delete-with-confirmはどこからも使われなくなる。

@@ -7896,7 +7896,7 @@ match all selected shapes in the editor."
                         (not (null (edraw-get-point-connections shape))))))
         :visible ,shape-p)
        ;; Basic Edit
-       ((edraw-msg "Delete...") edraw-delete-with-confirm
+       ((edraw-msg "Delete") edraw-remove ;;edraw-delete-with-confirm
         :cmd-for-selected edraw-editor-delete-selected)
        ((edraw-msg "Duplicate") edraw-duplicate-and-select
         :cmd-for-selected edraw-editor-duplicate-selected-shapes)
