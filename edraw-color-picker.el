@@ -1373,7 +1373,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
     (edraw-dispatch-click area)))
 
 (defun edraw-color-picker-areas-on-down-mouse (areas down-event image-scale
-                                                     updator)
+                                                     updator blur-focus)
   (when-let* ((down-xy (edraw-color-picker-mouse-to-xy
                         down-event image-scale down-event))
               (area (edraw-color-picker-areas-find-by-xy areas down-xy)))
@@ -1397,6 +1397,10 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
              (edraw-dispatch-mouse-xy area move-xy)
              (funcall updator))))
        :allow-out-of-target-p t)
+
+      ;; After up-event is consumed
+      (funcall blur-focus)
+
       (when inside-p
         (pcase basic-type
           ('mouse-1
@@ -1605,14 +1609,20 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
   (with-slots (areas image-scale) picker
     (edraw-color-picker-areas-on-down-mouse
      areas down-event image-scale
-     (lambda () (edraw-invalidate-image picker)))))
+     (lambda () (edraw-invalidate-image picker))
+     (lambda () (edraw-blur-if-child-frame picker)))))
 
 (cl-defmethod edraw-click-area ((picker edraw-color-picker) name)
   (with-slots (areas) picker
-    (edraw-color-picker-areas-click-by-name areas name)))
+    (unless (edraw-closed-p picker)
+      (edraw-color-picker-areas-click-by-name areas name))))
 
 (cl-defmethod edraw-buffer ((picker edraw-color-picker))
   (edraw-buffer (oref picker display)))
+
+(cl-defmethod edraw-blur-if-child-frame ((picker edraw-color-picker))
+  (when-let* ((display (edraw-get-display picker)))
+    (edraw-blur-if-child-frame display)))
 
 ;;;;; Increase/Decrease Color Components
 
@@ -2411,22 +2421,32 @@ but the reverse can also be done."
     (define-key km [down-mouse-3] #'edraw-color-picker-on-down-mouse)
     (define-key km [hot-spot down-mouse-1] #'edraw-color-picker-on-down-mouse)
     (define-key km [hot-spot down-mouse-3] #'edraw-color-picker-on-down-mouse)
-    (define-key km [drag-mouse-1] 'ignore)
-    (define-key km [drag-mouse-3] 'ignore)
-    (define-key km [mouse-1] 'ignore)
-    (define-key km [mouse-3] 'ignore)
-    (define-key km [double-down-mouse-1] 'ignore)
-    (define-key km [double-down-mouse-3] 'ignore)
-    (define-key km [double-drag-mouse-1] 'ignore)
-    (define-key km [double-drag-mouse-3] 'ignore)
-    (define-key km [double-mouse-1] 'ignore)
-    (define-key km [double-mouse-3] 'ignore)
-    (define-key km [triple-down-mouse-1] 'ignore)
-    (define-key km [triple-down-mouse-3] 'ignore)
-    (define-key km [triple-drag-mouse-1] 'ignore)
-    (define-key km [triple-drag-mouse-3] 'ignore)
-    (define-key km [triple-mouse-1] 'ignore)
-    (define-key km [triple-mouse-3] 'ignore)
+    ;; @todo Ignore all combinations of each modifier (C-S-mouse-1, ...)
+    (define-key km [drag-mouse-1] #'edraw-color-picker--ignore)
+    (define-key km [drag-mouse-2] #'edraw-color-picker--ignore)
+    (define-key km [drag-mouse-3] #'edraw-color-picker--ignore)
+    (define-key km [mouse-1] #'edraw-color-picker--ignore)
+    (define-key km [mouse-2] #'edraw-color-picker--ignore)
+    (define-key km [mouse-3] #'edraw-color-picker--ignore)
+    (define-key km [double-down-mouse-1] #'ignore)
+    (define-key km [double-down-mouse-2] #'ignore)
+    (define-key km [double-down-mouse-3] #'ignore)
+    (define-key km [double-drag-mouse-1] #'edraw-color-picker--ignore)
+    (define-key km [double-drag-mouse-2] #'edraw-color-picker--ignore)
+    (define-key km [double-drag-mouse-3] #'edraw-color-picker--ignore)
+    (define-key km [double-mouse-1] #'edraw-color-picker--ignore)
+    (define-key km [double-mouse-2] #'edraw-color-picker--ignore)
+    (define-key km [double-mouse-3] #'edraw-color-picker--ignore)
+    (define-key km [triple-down-mouse-1] #'ignore)
+    (define-key km [triple-down-mouse-2] #'ignore)
+    (define-key km [triple-down-mouse-3] #'ignore)
+    (define-key km [triple-drag-mouse-1] #'edraw-color-picker--ignore)
+    (define-key km [triple-drag-mouse-2] #'edraw-color-picker--ignore)
+    (define-key km [triple-drag-mouse-3] #'edraw-color-picker--ignore)
+    (define-key km [triple-mouse-1] #'edraw-color-picker--ignore)
+    (define-key km [triple-mouse-2] #'edraw-color-picker--ignore)
+    (define-key km [triple-mouse-3] #'edraw-color-picker--ignore)
+
     (edraw-color-picker-define-keys-for-palette-colors km)
     (edraw-color-picker-define-keys-for-color-move km)
     (edraw-color-picker-define-keys-for-color-set km nil t)
@@ -2527,6 +2547,9 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
              (when (consp spec) ;; imagep
                (ignore-errors (image-flush spec target-frame))))))))))
 
+(cl-defmethod edraw-blur-if-child-frame ((_display
+                                          edraw-color-picker-display-overlay)))
+
 (defun edraw-color-picker-make-overlay (overlay-or-args-props)
   "If OVERLAY-OR-ARGS-PROPS is an overlay, return it as is.
 
@@ -2584,6 +2607,11 @@ OVERLAY uses the display property to display the color PICKER."
   (interactive "e")
   (when-let* ((picker (edraw-color-picker-at-input down-event)))
     (edraw-on-down-mouse picker down-event)))
+
+(defun edraw-color-picker--ignore (down-event)
+  (interactive "e")
+  (when-let* ((picker (edraw-color-picker-at-input down-event)))
+    (edraw-blur-if-child-frame picker)))
 
 ;;;; Frame Display
 
@@ -2805,6 +2833,26 @@ OVERLAY uses the display property to display the color PICKER."
       ;;(cons 0 0)
       ))))
 
+(cl-defmethod edraw-blur-if-child-frame ((display
+                                          edraw-color-picker-display-frame))
+  (when (eq (selected-frame) (oref display frame))
+    (edraw-color-picker--remove-focus-from-child-frame)))
+
+(defconst edraw-color-picker-frame-focus-control-enabled t
+  "Non-nil means edraw-color-picker is allowed to control the focus state
+of the frame.
+Set nil if there are any issues.")
+
+;; Remove focus from the child frame as much as possible.
+;; Since transient-map is used, it is better to keep the original
+;; buffer selected.
+;; @todo Conversely, support a way to keep the focus on the child
+;; frame as much as possible without using transient-map.
+(defun edraw-color-picker--remove-focus-from-child-frame ()
+  (when edraw-color-picker-frame-focus-control-enabled
+    (when-let* ((parent (frame-parent)))
+      (select-frame-set-input-focus parent))))
+
 (defun edraw-color-picker-frame-position-near-point (width height)
   (let* ((window-edges (window-inside-pixel-edges))
          (window-left (nth 0 window-edges))
@@ -2955,6 +3003,8 @@ OVERLAY uses the display property to display the color PICKER."
 (defvar edraw-color-picker--transient-keymap
   (let ((km (make-sparse-keymap)))
     (define-key km (kbd "C-c C-c") #'edraw-color-picker--transient-map-click-ok)
+    (define-key km (kbd "C-c C-k") #'edraw-color-picker--transient-map-click-cancel)
+    (define-key km (kbd "C-g") #'edraw-color-picker--transient-map-click-cancel)
     (define-key km (kbd "M-p") #'edraw-color-picker--transient-map-previous-history-color)
     (define-key km (kbd "M-n") #'edraw-color-picker--transient-map-next-history-color)
     (edraw-color-picker-define-keys-for-palette-colors km)
@@ -2993,8 +3043,8 @@ correctly."
       picker)))
 
 (defconst edraw-color-picker--transient-map-help
-  "\\[keyboard-quit]:Cancel\
- \\<edraw-color-picker--transient-keymap>\
+  "\\<edraw-color-picker--transient-keymap>\
+ \\[edraw-color-picker--transient-map-click-cancel]:Cancel\
  \\[edraw-color-picker--transient-map-click-ok]:OK\
   \\[edraw-color-picker--transient-map-previous-history-color]\
 /\\[edraw-color-picker--transient-map-next-history-color]:Recent Color
@@ -3057,6 +3107,11 @@ correctly."
   (interactive)
   (when-let* ((picker (edraw-color-picker--transient-map-current-picker)))
     (edraw-click-area picker "ok")))
+
+(defun edraw-color-picker--transient-map-click-cancel ()
+  (interactive)
+  (when-let* ((picker (edraw-color-picker--transient-map-current-picker)))
+    (edraw-click-area picker "cancel")))
 
 (defun edraw-color-picker--goto-history-color (index)
   (let* ((info (edraw-color-picker--transient-map-info-current))
