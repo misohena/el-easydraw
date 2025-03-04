@@ -901,6 +901,7 @@ edraw-editor initialization is now called automatically."
 
 (defun edraw-editor-at-input (event)
   (if (or (mouse-event-p event)
+          (edraw-touch-event-p event)
           (memq (event-basic-type event)
                 '(wheel-up wheel-down mouse-4 mouse-5 drag-n-drop)))
       (let* ((mouse-pos (event-start event))
