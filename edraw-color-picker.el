@@ -2854,7 +2854,7 @@ Set nil if there are any issues.")
       (select-frame-set-input-focus parent))))
 
 (defun edraw-color-picker-frame-position-near-point (width height)
-  (let* ((window-edges (window-inside-pixel-edges))
+  (let* ((window-edges (window-pixel-edges))
          (window-left (nth 0 window-edges))
          (window-top (nth 1 window-edges))
          (window-right (nth 2 window-edges))
