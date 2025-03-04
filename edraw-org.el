@@ -44,7 +44,8 @@
 
 (defun edraw-org-setup-default ()
   (edraw-org-setup-exporter)
-  (edraw-org-setup-inline-images))
+  (edraw-org-setup-inline-images)
+  (edraw-org-setup-text-conversion))
 
 (defun edraw-org-setup-exporter ()
   (edraw-org-link-setup-exporter))
@@ -897,6 +898,73 @@ display, but for inline image links, it can be avoided by setting the
 This adjustment allows precise keyboard navigation of individual images."
   (remove-text-properties link-begin link-end '(invisible nil)))
 
+
+;;;; Text Conversion Control
+
+(defvar-local edraw-org-text-conversion-style-on-editor nil)
+(defvar-local edraw-org-text-conversion-style-original nil)
+
+(defvar text-conversion-style) ;; Emacs 30
+
+(define-minor-mode edraw-org-text-conversion-control-mode
+  "A minor mode to work around the `text-conversion-style' issue.
+
+When `text-conversion-style' is non-nil, the IME inputs alphabets
+directly into the buffer. As a result, the keymap property of the
+`edraw-editor' overlay is ignored, and convenient shortcut keys for
+single alphabetic characters cannot be used. A similar problem occurs
+with `org-speed-command' and `edebug-mode'.
+
+To avoid this problem, use a `post-command-hook' to track the movement
+of point and switch the `text-conversion-style' depending on the
+location."
+  :init-value nil
+  (cond
+   (edraw-org-text-conversion-control-mode
+    (if (not (boundp 'text-conversion-style))
+        ;; Emacs 29 or earlier
+        ;; @todo Should signal error?
+        (setq edraw-org-text-conversion-control-mode nil)
+      (setq edraw-org-text-conversion-style-on-editor nil)
+      (add-hook 'post-command-hook
+                #'edraw-org-text-conversion-style-update nil t)))
+   (t
+    (edraw-org-text-conversion-style--leave)
+    (remove-hook 'post-command-hook
+                 #'edraw-org-text-conversion-style-update t))))
+
+(defun edraw-org-text-conversion-style-update ()
+  (when (fboundp 'edraw-editor-at)
+    (if edraw-org-text-conversion-style-on-editor
+        (unless (edraw-editor-at nil t)
+          (edraw-org-text-conversion-style--leave))
+      (if text-conversion-style
+          (when (edraw-editor-at nil t)
+            (edraw-org-text-conversion-style--enter))
+        ;; No needs to control `text-conversion-style'.
+        ;; `text-conversion-style' is originally nil.
+        nil))))
+
+(defun edraw-org-text-conversion-style--enter ()
+  (when (not edraw-org-text-conversion-style-on-editor)
+    (when (fboundp 'set-text-conversion-style)
+      (set-text-conversion-style nil))
+    (setq edraw-org-text-conversion-style-original text-conversion-style
+          edraw-org-text-conversion-style-on-editor t)))
+
+(defun edraw-org-text-conversion-style--leave ()
+  (when edraw-org-text-conversion-style-on-editor
+    (when (fboundp 'set-text-conversion-style)
+      (set-text-conversion-style edraw-org-text-conversion-style-on-editor))
+    (setq edraw-org-text-conversion-style-on-editor nil)))
+
+(defun edraw-org-setup-text-conversion ()
+  "Work around the issue where shortcut keys for edraw-editor don't work
+because of `text-conversion-style'.
+
+For now, this workaround only applies to the Android version of Emacs."
+  (when (eq system-type 'android) ;; @todo Is it the same for other platforms?
+    (add-hook 'org-mode-hook 'edraw-org-text-conversion-control-mode)))
 
 ;;;; Export
 

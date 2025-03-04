@@ -479,7 +479,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
 
 (defvar edraw-editor-move-point-on-click t)
 
-(defvar edraw-editor-map
+(defun edraw-editor-make-default-keymap ()
   (let ((km (make-sparse-keymap)))
     (define-key km [remap self-insert-command] 'ignore)
     (define-key km [touchscreen-begin] 'edraw-editor-dispatch-event)
@@ -626,6 +626,8 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km (kbd "S-TAB") 'edraw-editor-select-previous-shape)
     (define-key km (kbd "<backtab>") 'edraw-editor-select-previous-shape)
     km))
+
+(defvar edraw-editor-map (edraw-editor-make-default-keymap))
 
 (defvar edraw-editor-disable-line-prefix t
   "Disable line-prefix and wrap-prefix properties on editor overlays.
@@ -883,12 +885,19 @@ edraw-editor initialization is now called automatically."
   (seq-filter (lambda (ov) (overlay-get ov 'edraw-editor))
               (overlays-in beg end)))
 
-(defun edraw-editor-at (&optional pos)
+(defun edraw-editor-at (&optional pos exact)
   (let ((pos (or pos (point))))
-    (or
-     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-at pos))
-     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-at (1- pos)))
-     (seq-some (lambda (ov) (overlay-get ov 'edraw-editor)) (overlays-in (1- pos) (1+ pos))))))
+    (if exact
+        ;; Find even if overlay is empty
+        (seq-some (lambda (ov) (overlay-get ov 'edraw-editor))
+                  (overlays-in pos (1+ pos)))
+      (or
+       (seq-some (lambda (ov) (overlay-get ov 'edraw-editor))
+                 (overlays-at pos))
+       (seq-some (lambda (ov) (overlay-get ov 'edraw-editor))
+                 (overlays-at (1- pos)))
+       (seq-some (lambda (ov) (overlay-get ov 'edraw-editor))
+                 (overlays-in (1- pos) (1+ pos)))))))
 
 (defun edraw-editor-at-input (event)
   (if (or (mouse-event-p event)

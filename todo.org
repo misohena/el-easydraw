@@ -1,5 +1,9 @@
 
 * Inbox
+** TODO ポイントがedraw-editor上に無いときにタッチで絵が描けない
+** TODO 色/一時モードからC-gやESC ESC ESCで脱出できるようにする
+子フレームが選択されていると脱出できない(そもそも子フレームが選択されるべきでは無い気もするが)。
+
 ** TODO edraw-track-dragはマウスでもタッチと同じようにすべきか
 タッチはマウスよりも量が多いので処理が遅延した場合に備える処理を入れてある。
 
@@ -17,11 +21,6 @@
 ** TODO Androidでcolor-pickerのボタンの文字が表示されない
 Arialが無いから？　いや、テキスト自体表示できないような気がする。
 +edraw-color-picker-font-familyはandroidの時は"Droid Sans Mono"を使用する。+ 効かない。Noto Serifなんかを指定してもダメ。
-
-** TODO Androidでショートカットキーが効かない
-pp等が効かない。
-
-https://sourceforge.net/projects/android-ports-for-gnu-emacs/files/ のREADMEの「10.My package X that relies on reading raw key events / binding keys globally doesn't work with an on screen keyboard!」は関係ある？ ([[https://qiita.com/ayatakesi/items/87828596c7fa136ac680#10-%E7%94%9F%E3%81%AE%E3%82%AD%E3%83%BC%E3%82%A4%E3%83%99%E3%83%B3%E3%83%88%E3%82%AD%E3%83%BC%E3%83%90%E3%82%A4%E3%83%B3%E3%83%89%E3%81%AB%E4%BE%9D%E5%AD%98%E3%81%99%E3%82%8B%E3%82%8F%E3%81%9F%E3%81%97%E3%81%AE%E3%83%91%E3%83%83%E3%82%B1%E3%83%BC%E3%82%B8x%E3%81%AF%E3%82%AA%E3%83%B3%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E3%81%A7%E3%81%AF%E6%A6%82%E3%81%AD%E5%8B%95%E4%BD%9C%E3%81%97%E3%81%AA%E3%81%84%E3%81%AE%E3%81%A0%E3%81%8C][和訳]])
 
 ** TODO Androidでツールバーのグラデーションが正しく表示されていない
 なぜだろう。
@@ -6756,3 +6755,24 @@ Undoがあるから不要だと思う。
 Delete...ではなくDeleteにする。
 edraw-removeを使う。
 edraw-delete-with-confirmはどこからも使われなくなる。
+** DONE Androidでショートカットキーが効かない
+CLOSED: [2025-03-04 Tue 14:39]
+pp(プロパティ一覧)やz(UNDO)等が効かない。矢印キーなどは効く。
+
+https://sourceforge.net/projects/android-ports-for-gnu-emacs/files/ のREADMEの「10.My package X that relies on reading raw key events / binding keys globally doesn't work with an on screen keyboard!」は関係ある？ ([[https://qiita.com/ayatakesi/items/87828596c7fa136ac680#10-%E7%94%9F%E3%81%AE%E3%82%AD%E3%83%BC%E3%82%A4%E3%83%99%E3%83%B3%E3%83%88%E3%82%AD%E3%83%BC%E3%83%90%E3%82%A4%E3%83%B3%E3%83%89%E3%81%AB%E4%BE%9D%E5%AD%98%E3%81%99%E3%82%8B%E3%82%8F%E3%81%9F%E3%81%97%E3%81%AE%E3%83%91%E3%83%83%E3%82%B1%E3%83%BC%E3%82%B8x%E3%81%AF%E3%82%AA%E3%83%B3%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E3%81%A7%E3%81%AF%E6%A6%82%E3%81%AD%E5%8B%95%E4%BD%9C%E3%81%97%E3%81%AA%E3%81%84%E3%81%AE%E3%81%A0%E3%81%8C][和訳]])
+
+text-conversion-styleをnil(set-text-conversion-style nil)にすると効くようになる。
+
+text-conversion-styleはバッファ内でのIMEによる変換をコントロールするためのものらしい。nilなら無効、tなら有効、actionはshellなどのコマンドラインで使われていてRETの扱いが変わるらしい。
+
+text-conversion-styleは各major-modeで必要なら設定するものらしい。例えばprog-modeでtにしているので、emacs-lisp-mode等各種プログラミングモードではtになる。text-modeでもtにしているので、outline-modeやorg-modeでもtになる。diredやedraw-modeでは何も設定していないのでnilだからショートカットキーは効く。
+
+org-speed-commandも同様に効かなくなっている。スピードコマンドはself-insert-commandをorg-self-insert-commandに置き換えることで実現している。text-conversion-styleがtの時はこれは呼ばれずに文字が挿入されるので効かなくなる。
+
+edebugも操作不能になる。
+
+結局の所、org-mode用に別のキーバインドを用意した方が良いかもしれない。つまり専用のプレフィックスを決める。使えるプレフィックスというのも多くは無いのだけど、例えば C-. あたり。このキーは私はEmbarkで使っているが、edrawの編集中にEmbarkを使いたいということはあまりないのではないか？(あり得ない話じゃないが)
+
+C-.という短いプレフィックスとは言え、zだけでUNDO出来ていたのに比べるとやはり面倒だ。なんとか編集中だけ効くようにならないだろうか。無理矢理やるならeditorの上にいる間だけ(set-text-conversion-style nil)にするくらい。post-command-hookで開いているエディタ上にポイントがあるならnilにする。そのようなマイナーモードを作るくらいしか思いつかない。他に見落としている仕組みが無ければ。
+
+というわけで edraw-org-text-conversion-control-mode を追加した。
