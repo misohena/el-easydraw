@@ -29,20 +29,61 @@
 
 ;;;; Export
 
-(defun edraw-org-export-latex-link (path _description _back-end info link)
-  ;; @todo Check inline-image-rules? However, unless it is converted
-  ;; into an inline image, it will just output base64 data, so I don't
-  ;; think it is practical.
-  ;; (when (org-export-inline-image-p
-  ;;        link (plist-get info :latex-inline-image-rules))
-  (if-let* ((file (edraw-org-export-get-file-from-edraw-path path)))
-      (edraw-org-export-link-as-file
-       link info file
-       ;; You may process any LaTeX specific options set in LINK
-       ;; (e.g.[[edraw:latex-some-option=??;file=...]]) here.
-       ;; (lambda (link info) .... (org-latex--inline-image link info))
-       #'org-latex--inline-image)
-    ""))
+;; First we setup varaibles for export command and options,
+;; then we try to automatically set them if possible.
+
+(defvar edraw-org-svg-to-pdf-command nil
+  "Executable to convert svg to pdf for latex export (e.g., inkscape).")
+(defvar edraw-org-svg-to-pdf-command-options nil
+  "Options for edraw-org-svg-to-pdf-command for latex export (e.g., -A).")
+
+(if (and (not edraw-org-svg-to-pdf-command) (executable-find "inkscape"))
+    (progn (message "Using inkscape for edraw svg to pdf on latex export")
+	   (setq edraw-org-svg-to-pdf-command "inkscape")
+	   (setq edraw-org-svg-to-pdf-command-options "-A")))
+
+(if (and (not edraw-org-svg-to-pdf-command) (executable-find "rsvg-convert"))
+    (progn (message "Using rsvg-convert for edraw svg to pdf on latex export")
+	   (setq edraw-org-svg-to-pdf-command "rsvg-convert")
+	   (setq edraw-org-svg-to-pdf-command-options "-f pdf -o ")))
+
+(if (not edraw-org-svg-to-pdf-command)
+    (display-warning :warning
+		     "edraw-org-svg-to-pdf-command not set for latex export"))
+
+
+;; The following will get called on latex export and will
+;; try converting svg files to pdf and include them in latex.
+(defun edraw-org-export-latex-link (path description backend info link)
+  "Export edraw links for LaTeX backend.
+PATH is the link path, DESCRIPTION is the link description,
+BACKEND is the export backend, INFO is the export info, and LINK is the link object."
+  (when (eq backend 'latex)
+    (if (string-match "file=\\(.*\\.svg\\)" path)
+	(let* ((svg-file (match-string 1 path))
+               (pdf-file (concat (file-name-sans-extension svg-file) ".pdf"))
+               ;; Keep the full path for the LaTeX \includegraphics command
+               (full-pdf-path pdf-file))
+          
+          ;; Convert SVG to PDF if needed
+          (when (and (file-exists-p svg-file)
+                     (or (not (file-exists-p pdf-file))
+			 (file-newer-than-file-p svg-file pdf-file)))
+            (message "Converting %s to %s for LaTeX export" svg-file pdf-file)
+            (call-process edraw-org-svg-to-pdf-command nil nil nil
+			  svg-file
+			  edraw-org-svg-to-pdf-command-options
+			  pdf-file))
+          
+          ;; Return the LaTeX \includegraphics command with the full path
+          (format "\\includegraphics{%s}" full-pdf-path))
+      ;; If not a file-type link then cannot convert it
+      (concat "\\begin{verbatim}\n"
+	      "cannot export edraw link " path
+	      "\n\\end{verbatim}")
+      )
+    )
+  )
 
 (provide 'edraw-org-export-latex)
 ;;; edraw-org-export-latex.el ends here
