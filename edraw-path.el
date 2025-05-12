@@ -138,7 +138,7 @@
 (defun edraw-path-data ()
   "Create a path data object."
   (let ((data
-         (record 'edraw-path-data
+         (vector 'edraw-path-data
                  nil ;; 1: Extra Properties
                  nil ;; 2: Last Subpath (Same location as `edraw-path-subpath')
                  nil ;; 3: First Subpath (Same location as `edraw-path-subpath')
@@ -150,7 +150,7 @@
 
 (defsubst edraw-path-data-p (obj)
   "Return non-nil if OBJ is a path data object."
-  (and (recordp obj) (eq (aref obj 0) 'edraw-path-data)))
+  (and (vectorp obj) (eq (aref obj 0) 'edraw-path-data)))
 
 ;;;;;; Subpaths in Path Data
 
@@ -391,7 +391,7 @@ If the path DATA does not have any subpaths, create one and add it there."
 (defun edraw-path-subpath (&optional closed)
   "Create a subpath object."
   (let ((subpath
-         (record 'edraw-path-subpath
+         (vector 'edraw-path-subpath
                  nil ;; 1: Extra Properties
                  nil ;; 2: Previous Subpath (Same location as `edraw-path-data')
                  nil ;; 3: Next Subpath (Same location as `edraw-path-data')
@@ -405,7 +405,7 @@ If the path DATA does not have any subpaths, create one and add it there."
 
 (defsubst edraw-path-subpath-p (obj)
   "Return non-nil if OBJ is a subpath object."
-  (and (recordp obj) (eq (aref obj 0) 'edraw-path-subpath)))
+  (and (vectorp obj) (eq (aref obj 0) 'edraw-path-subpath)))
 
 ;;;;;; Closed Path State
 
@@ -678,7 +678,7 @@ Returns the added anchor.
 (defun edraw-path-anchor (&optional xy b-handle-xy-rel f-handle-xy-rel)
   "Create an anchor object."
   (let ((anchor
-         (record
+         (vector
           'edraw-path-anchor
           nil ;; 1: Extra properties
           nil ;; 2: Backward handle
@@ -696,7 +696,7 @@ Returns the added anchor.
 
 (defsubst edraw-path-anchor-p (obj)
   "Return non-nil if OBJ is an anchor object."
-  (and (recordp obj) (eq (aref obj 0) 'edraw-path-anchor)))
+  (and (vectorp obj) (eq (aref obj 0) 'edraw-path-anchor)))
 
 (defun edraw-path-anchor-clone (anchor)
   "Duplicate ANCHOR and return it.
@@ -1295,7 +1295,7 @@ handle's position."
 
 (defun edraw-path-handle (parent-anchor &optional xy-relative)
   "Create a handle object."
-  (record 'edraw-path-handle
+  (vector 'edraw-path-handle
           nil ;; 1: Extra properties
           parent-anchor ;; 2: Parent anchor
           (if xy-relative
@@ -1304,7 +1304,7 @@ handle's position."
 
 (defsubst edraw-path-handle-p (obj)
   "Return non-nil if OBJ is a handle object."
-  (and (recordp obj) (eq (aref obj 0) 'edraw-path-handle)))
+  (and (vectorp obj) (eq (aref obj 0) 'edraw-path-handle)))
 
 ;;;;;; Parent Anchor of Handle
 
