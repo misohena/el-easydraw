@@ -4254,6 +4254,8 @@ position where the EVENT occurred."
 (defconst edraw-editor-toolbar-button-w 30)
 (defconst edraw-editor-toolbar-button-h 24)
 
+(defconst edraw-editor-toolbar-bg-fill "#888")
+
 (cl-defmethod edraw-update-toolbar ((editor edraw-editor))
   (with-slots (overlay keymap image-scale image-toolbar (current-tool tool))
       editor
@@ -4346,7 +4348,8 @@ position where the EVENT occurred."
                   (edraw-svg-group ;;root-g
                    :parent svg
                    :transform (format "scale(%s)" image-scale)
-                   (edraw-svg-rect 0 0 bar-w bar-h :fill "#888")
+                   (edraw-svg-rect 0 0 bar-w bar-h
+                                   :fill edraw-editor-toolbar-bg-fill)
                    components-g)
                   svg))
            ;; Create image
@@ -4386,6 +4389,9 @@ position where the EVENT occurred."
       (image-flush image-toolbar)
       (setq image-toolbar nil))))
 
+(defconst edraw-editor-toolbar-button-rect-fill "#888")
+(defconst edraw-editor-toolbar-button-rect-fill-selected "#666")
+
 (defun edraw-editor-make-toolbar-button
     (parent x y w h image-scale icon key-id help-echo selected-p)
   (let* ((x0 (floor x))
@@ -4394,7 +4400,10 @@ position where the EVENT occurred."
          (y1 (ceiling (+ y h))))
     (edraw-svg-rect x0 y0 (- x1 x0) (- y1 y0)
                     :parent parent
-                    :fill (if selected-p "#666" "#888") :rx 2 :ry 2)
+                    :fill (if selected-p
+                              edraw-editor-toolbar-button-rect-fill-selected
+                            edraw-editor-toolbar-button-rect-fill)
+                    :rx 2 :ry 2)
     (edraw-svg-set-attr-string icon 'transform (format "translate(%s %s)" x0 y0))
     (edraw-dom-append-child parent icon)
 
@@ -4489,6 +4498,9 @@ position where the EVENT occurred."
 ;;       (edraw-dom-append-child svg (edraw-editor-make-icon (intern name)))
 ;;       (svg-image svg)))))
 
+(defconst edraw-editor-toolbar-color-button-stroke "#444")
+(defconst edraw-editor-toolbar-color-button-none-stroke "#666")
+
 (cl-defmethod edraw-make-toolbar-color-button ((editor edraw-editor)
                                                parent x y
                                                shape-type
@@ -4506,7 +4518,10 @@ position where the EVENT occurred."
       (if (null tag-value)
           (edraw-svg-rect ix iy iw ih
                           :parent parent
-                          :fill "none" :stroke "#666" :stroke-width "1")
+                          :fill "none"
+                          :stroke
+                          edraw-editor-toolbar-color-button-none-stroke ;;??
+                          :stroke-width "1")
         (let* ((value (cdr tag-value))
                (none-p (or (null value) (string= value "none")))
                (icon (cond
@@ -4514,7 +4529,9 @@ position where the EVENT occurred."
                        (edraw-svg-group
                         (edraw-svg-rect
                          ix iy iw ih
-                         :fill "none" :stroke "#666" :stroke-width "1")
+                         :fill "none"
+                         :stroke edraw-editor-toolbar-color-button-none-stroke
+                         :stroke-width "1")
                         (edraw-svg-path
                          (concat
                           "M"
@@ -4531,7 +4548,9 @@ position where the EVENT occurred."
                       (t
                        (edraw-svg-group
                         (edraw-svg-rect ix iy iw ih
-                                        :fill "#fff" :stroke "#444"
+                                        :fill edraw-editor-transparent-bg-color1
+                                        :stroke
+                                        edraw-editor-toolbar-color-button-stroke
                                         :stroke-width "1")
                         (edraw-svg-rect ix iy iw ih
                                         :fill

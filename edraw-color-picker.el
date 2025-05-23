@@ -686,6 +686,10 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
 
 ;;;;; Area - Button
 
+(defconst edraw-color-picker-button-rect-fill "#ccc")
+(defconst edraw-color-picker-button-rect-stroke "#222")
+(defconst edraw-color-picker-button-text-fill "#222")
+
 (defclass edraw-color-picker-area-button (edraw-color-picker-area)
   ((text :initarg :text)))
 
@@ -694,7 +698,9 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
     (dom-node
      'g nil
      (edraw-color-picker-rect
-      left top width height "#ccc" "#222"
+      left top width height
+      edraw-color-picker-button-rect-fill
+      edraw-color-picker-button-rect-stroke
       (cons 'rx 2)
       (cons 'ry 2))
      (dom-node
@@ -707,11 +713,15 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                  (* (- edraw-color-picker-font-acent 0.5)
                     edraw-color-picker-font-size)))
         (text-anchor . "middle")
-        (fill . "#222")
+        (fill . ,edraw-color-picker-button-text-fill)
         (stroke . "none"))
       text))))
 
 ;;;;; Area - No Color Button ("none")
+
+(defconst edraw-color-picker-no-color-button-rect-stroke "#000000")
+(defconst edraw-color-picker-no-color-button-rect-fill "#ffffff")
+(defconst edraw-color-picker-no-color-button-diagonal-line "#f00000")
 
 (defclass edraw-color-picker-area-no-color (edraw-color-picker-area)
   ())
@@ -721,9 +731,11 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
     (dom-node
      'g nil
      (edraw-color-picker-rect
-      left top width height "#000000")
+      left top width height
+      edraw-color-picker-no-color-button-rect-stroke)
      (edraw-color-picker-rect
-      (+ left 0.5) (+ top 0.5) (- width 1) (- height 1) "#ffffff")
+      (+ left 0.5) (+ top 0.5) (- width 1) (- height 1)
+      edraw-color-picker-no-color-button-rect-fill)
      (dom-node
       'path
       `((d .
@@ -738,7 +750,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                      " ")
                     "Z"))
         (stroke . "none")
-        (fill . "#f00000"))))))
+        (fill . ,edraw-color-picker-no-color-button-diagonal-line))))))
 
 ;;;;; Area - Colored
 
@@ -792,6 +804,8 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
 
 ;;;;; Area - Preview
 
+(defconst edraw-color-picker-preview-rect-stroke "#000000")
+
 (defun edraw-color-picker-area-preview (name &rest args)
   (apply
    'edraw-color-picker-area-colored
@@ -805,17 +819,16 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
        (dom-node
         'g nil
         (edraw-color-picker-rect
-         left top width height "#ffffff")
+         left top width height edraw-color-picker-transparent-bg-color1)
         (edraw-color-picker-rect
-         left top width height
-         "url(#edraw-cp-transparent-bg)")
+         left top width height "url(#edraw-cp-transparent-bg)")
         (setq gradient-element
               (edraw-color-picker-rect
                (+ 0.5 left)
                (+ 0.5 top)
                width height
                (edraw-to-string (edraw-get-current-color this))
-               "#000000")))))
+               edraw-color-picker-preview-rect-stroke)))))
    :get-current-color
    (lambda (this)
      (edraw-get-value this))
@@ -943,7 +956,8 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                       (setq defs (dom-node 'defs))
                       (when (string= name "opacity")
                         (edraw-color-picker-rect
-                         (+ 6 left) top (- width 12) height "#ffffff"))
+                         (+ 6 left) top (- width 12) height
+                         edraw-color-picker-transparent-bg-color1))
                       (when (string= name "opacity")
                         (edraw-color-picker-rect
                          (+ 6 left) top (- width 12) height
@@ -986,14 +1000,17 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
           cursor left top width height value))))
    args))
 
+(defconst edraw-color-picker-1d-cursor-stroke "#000")
+(defconst edraw-color-picker-1d-cursor-fill "#ccc")
+
 (defun edraw-color-picker-1d-cursor (x y w h value)
   (dom-node
    'path
    `((d . ,(format
             "M6,0 l-4,-4 -2,0 0,8 2,0 4,-4Z M%s,0 l4,-4 2,0 0,8 -2,0 -4,-4Z"
             (- w 6)))
-     (stroke . "#000")
-     (fill . "#ccc")
+     (stroke . ,edraw-color-picker-1d-cursor-stroke)
+     (fill . ,edraw-color-picker-1d-cursor-fill)
      (transform . ,(format "translate(%s %s)"
                            x (+ y (* h (- 1 value))))))))
 
@@ -1027,6 +1044,8 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
           (edraw-on-r-click area)))
   (edraw-update-help-echo area))
 
+(defconst edraw-color-picker-palette-entry-rect-stroke "#383838")
+
 (cl-defmethod edraw-create-element ((area
                                      edraw-color-picker-area-palette-entry))
   (edraw-link-value area)
@@ -1034,17 +1053,16 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
     (dom-node
      'g nil
      (edraw-color-picker-rect
-      left top width height "#ffffff")
+      left top width height edraw-color-picker-transparent-bg-color1)
      (edraw-color-picker-rect
-      left top width height
-      "url(#edraw-cp-transparent-bg)")
+      left top width height "url(#edraw-cp-transparent-bg)")
      (setq gradient-element
            (edraw-color-picker-rect
             (+ 0.5 left)
             (+ 0.5 top)
             width height
             (edraw-to-string (edraw-get-current-color area))
-            "#383838")))))
+            edraw-color-picker-palette-entry-rect-stroke)))))
 
 (cl-defmethod edraw-get-current-color ((area
                                         edraw-color-picker-area-palette-entry))
@@ -1128,6 +1146,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
 
 ;;;; Areas (Layout)
 
+(defconst edraw-color-picker-label-text-fill "#888")
 
 (defun edraw-color-picker-areas-create (model padding-left padding-top options
                                               areas-info)
@@ -1225,7 +1244,7 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                               (y . ,(- y 3))
                               (font-family . edraw-color-picker-font-family)
                               (font-size . 9)
-                              (fill . "#888")
+                              (fill . ,edraw-color-picker-label-text-fill)
                               (stroke . "none"))
                             "Recent Colors")))
               (generate
@@ -1470,6 +1489,8 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                      (cons 'cancel (edraw-hook-make))
                      (cons 'no-color (edraw-hook-make))))))
 
+(defconst edraw-color-picker-bg-fill "#444")
+
 (cl-defmethod initialize-instance :after ((picker edraw-color-picker)
                                           &rest _args)
   (let* ((options (oref picker options))
@@ -1504,7 +1525,8 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
                 ;; Defs
                 (dom-node 'defs nil (edraw-color-picker-transparent-bg-pattern))
                 ;; Background
-                (edraw-color-picker-rect 0 0 areas-width areas-height "#444")
+                (edraw-color-picker-rect 0 0 areas-width areas-height
+                                         edraw-color-picker-bg-fill)
                 ;; Areas
                 (edraw-color-picker-areas-create-element areas))))
     (dom-append-child svg body)

@@ -1,5 +1,10 @@
 
 * Inbox
+** TODO UIのスタイルシート化
+カラーピッカーやエディタ、ツールバー等におけるボタン等について。
+色やrx、ry、stroke-width等はスタイルシートで指定すべき。
+defconstやdefcustomでの指定も引き続きサポートしたいので、スタイルシート更新関数を作る必要がある。
+
 ** TODO edraw-track-dragはマウスでもタッチと同じようにすべきか
 タッチはマウスよりも量が多いので処理が遅延した場合に備える処理を入れてある。
 
@@ -6792,3 +6797,21 @@ CLOSED: [2025-03-04 Tue 19:52]
 ** DONE ポイントがedraw-editor上に無いときにタッチで絵が描けない
 CLOSED: [2025-03-04 Tue 21:08]
 edraw-editor-at-inputがタッチイベントを認識していないのが原因。現在のpointによる検出にフォールバックして失敗している。
+** DONE Emacsの配色に合わせてUIの色をカスタマイズ出来るようにする
+CLOSED: [2025-05-23 Fri 11:41]
+[[https://github.com/misohena/el-easydraw/issues/39][feature request: customizable colors in edraw-color-picker · Issue #39 · misohena/el-easydraw]]
+
+色がハードコードされている部分が多いので。
+
+方法はいくつか考えられる。
+- classに基づくカスタマイズ
+  - 各UIパーツにclassを指定してスタイルシートでカスタマイズする。
+  - SVG要素作成関数に確実にclassを指定して、その関数にadviceをかければ済むようにする。
+  - UIデフォルト属性alistを用意する。
+- 単に色指定文字列をdefconstに置き換える。
+
+rxやry、stroke-width等もハードコードされているが、これもカスタマイズ出来るようにするならclassベースの方法が良いだろう。
+
+とは言えclassで解決できるのは結局CSSプロパティで出来るレベルまでなのでどこまでもカスタマイズ出来るわけではない。
+
+単に色を調整したいだけならdefconstで十分だろう。
