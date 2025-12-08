@@ -1973,8 +1973,8 @@ but the reverse can also be done."
     (define-key km (kb "r") '("Red" . edraw-color-picker-set-color-red))
     (define-key km (kb "g") '("Green" . edraw-color-picker-set-color-green))
     (define-key km (kb "b") '("Blue" . edraw-color-picker-set-color-blue))
-    (define-key km (kb "a") '("Opacity" . edraw-color-picker-set-opacity))
     (define-key km (kb "o") '("Opacity" . edraw-color-picker-set-opacity))
+    (define-key km (kb "a") '("Opacity" . edraw-color-picker-set-opacity))
     (define-key km (kb "n") '("Color Name"
                               . edraw-color-picker-set-color-by-name-read))))
 
@@ -2407,8 +2407,8 @@ but the reverse can also be done."
 
   (define-key km (kbd "FC") (cons "Color Name Usage" (make-sparse-keymap)))
   (define-key km (kbd "FC-") '("Auto" . edraw-color-picker-set-output-format-color-name-usage-auto))
-  (define-key km (kbd "FC0") '("None" . edraw-color-picker-set-output-format-color-name-usage-disabled))
-  (define-key km (kbd "FC1") '("None" . edraw-color-picker-set-output-format-color-name-usage-enabled))
+  (define-key km (kbd "FC0") '("Disabled" . edraw-color-picker-set-output-format-color-name-usage-disabled))
+  (define-key km (kbd "FC1") '("Enabled" . edraw-color-picker-set-output-format-color-name-usage-enabled))
 
   (define-key km (kbd "F%") (cons "Percentage Unit" (make-sparse-keymap)))
   (define-key km (kbd "F%-") '("Auto" . edraw-color-picker-set-output-format-css-percentage-unit-auto))
@@ -3024,8 +3024,11 @@ Set nil if there are any issues.")
 
 (defvar edraw-color-picker--transient-keymap
   (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "RET") #'edraw-color-picker--transient-map-click-ok)
     (define-key km (kbd "C-c C-c") #'edraw-color-picker--transient-map-click-ok)
     (define-key km (kbd "C-c C-k") #'edraw-color-picker--transient-map-click-cancel)
+    (define-key km (kbd "?") #'edraw-color-picker-echo-help)
+    (define-key km (kbd ".") #'edraw-color-picker-echo-current-color)
     (define-key km (kbd "C-g") #'edraw-color-picker--transient-map-click-cancel)
     (define-key km (kbd "M-p") #'edraw-color-picker--transient-map-previous-history-color)
     (define-key km (kbd "M-n") #'edraw-color-picker--transient-map-next-history-color)
@@ -3069,24 +3072,77 @@ correctly."
  \\[edraw-color-picker--transient-map-click-cancel]:Cancel\
  \\[edraw-color-picker--transient-map-click-ok]:OK\
   \\[edraw-color-picker--transient-map-previous-history-color]\
-/\\[edraw-color-picker--transient-map-next-history-color]:Recent Color
-\\[edraw-color-picker-set-color-hue]:Hue\
+/\\[edraw-color-picker--transient-map-next-history-color]:Recent Color\
+ \\[edraw-color-picker-echo-current-color]:Current Values
+Enter Value:\
+ \\[edraw-color-picker-set-color-hue]:Hue\
  \\[edraw-color-picker-set-color-saturation]:Saturation\
  \\[edraw-color-picker-set-color-brightness]:Value\
  \\[edraw-color-picker-set-color-red]:R\
  \\[edraw-color-picker-set-color-green]:G\
  \\[edraw-color-picker-set-color-blue]:B\
- \\[edraw-color-picker-set-opacity]:A
-\\[edraw-color-picker-increase-color-x-1]:X\
+ \\[edraw-color-picker-set-opacity]:A\
+ \\[edraw-color-picker-set-color-by-name-read]:Name
+Move Cursor:\
+ \\[edraw-color-picker-increase-color-x-1]:X\
  \\[edraw-color-picker-increase-color-y-1]:Y\
  \\[edraw-color-picker-increase-color-z-1]:Z\
- \\[edraw-color-picker-increase-opacity-1]:A")
+ \\[edraw-color-picker-increase-opacity-1]:A
+Format:\
+ \\[edraw-color-picker-set-output-format-css-auto]:Auto\
+ \\[edraw-color-picker-set-output-format-css-hex]:HEX\
+ \\[edraw-color-picker-set-output-format-css-rgb]:RGB\
+ \\[edraw-color-picker-set-output-format-css-hsl]:HSL\
+ \\[edraw-color-picker-set-output-format-css-hwb]:HWB\
+ \\[edraw-color-picker-set-output-format-css-lab]:LAB\
+ \\[edraw-color-picker-set-output-format-css-lch]:LCH\
+ \\[edraw-color-picker-set-output-format-css-oklab]:OKLAB\
+ \\[edraw-color-picker-set-output-format-css-oklch]:OKLCH
+Percentage Unit:\
+ \\[edraw-color-picker-set-output-format-css-percentage-unit-auto]:Auto\
+ \\[edraw-color-picker-set-output-format-css-percentage-unit-none]:None\
+ \\[edraw-color-picker-set-output-format-css-percentage-unit-percent]:%
+Angel Unit:\
+ \\[edraw-color-picker-set-output-format-css-angle-unit-auto]:Auto\
+ \\[edraw-color-picker-set-output-format-css-angle-unit-none]:None\
+ \\[edraw-color-picker-set-output-format-css-angle-unit-deg]:deg\
+ \\[edraw-color-picker-set-output-format-css-angle-unit-rad]:rad\
+ \\[edraw-color-picker-set-output-format-css-angle-unit-grad]:grad\
+ \\[edraw-color-picker-set-output-format-css-angle-unit-turn]:turn
+Color Name Output:\
+ \\[edraw-color-picker-set-output-format-color-name-usage-auto]:Auto\
+ \\[edraw-color-picker-set-output-format-color-name-usage-disabled]:Disabled\
+ \\[edraw-color-picker-set-output-format-color-name-usage-enabled]:Enabled")
+
+(defun edraw-color-picker-help-string ()
+  (substitute-command-keys edraw-color-picker--transient-map-help))
+
+(defun edraw-color-picker-echo-help ()
+  (interactive)
+  (edraw-echo (edraw-color-picker-help-string)))
+
+(defun edraw-color-picker-command-key-string (command limit default)
+  (let* ((prefix "\\<edraw-color-picker--transient-keymap>")
+         (source (concat prefix (format "\\[%s]" command)))
+         (help (substitute-command-keys source)))
+    (if (or (> (length help) limit )
+            (string-match-p (symbol-name command) help))
+        default
+      help)))
+;; TEST: (edraw-color-picker-command-key-string 'edraw-color-picker-set-color-red 1 "R") => #("R" 0 1 (font-lock-face help-key-binding face help-key-binding))
+
+(defcustom edraw-color-picker-show-help-first nil
+  "If non-nil, help will be displayed first when the color picker is opened.
+
+This setting only applies to some color replacement commands."
+  :group 'edraw-color-picker
+  :type 'boolean)
 
 (defun edraw-color-picker--set-transient-map (picker
                                               keymap options initial-color)
   (setq-local edraw-color-picker-finder
               #'edraw-color-picker--transient-map-current-picker)
-  (let* ((help (substitute-command-keys edraw-color-picker--transient-map-help))
+  (let* ((help (edraw-color-picker-help-string))
          (exit-transient-map-fun
           (edraw-transient-map
            keymap
@@ -3095,7 +3151,11 @@ correctly."
                   (edraw-color-picker--transient-map-keep-pred
                    ;; Pass the actual keymap to keep-pred
                    keymap)
-                  (progn (edraw-echo help) t)))
+                  (progn
+                    (if edraw-color-picker-show-help-first
+                        (edraw-echo help)
+                      (edraw-color-picker-echo-current-color picker))
+                    t)))
            (lambda () ;; on-exit:
              ;; (message "Exit transient-map")
              (edraw-close picker)
@@ -3114,7 +3174,9 @@ correctly."
      :hist-list (edraw-color-picker-make-history-list options initial-color)
      :hist-pos 0)
 
-    (edraw-echo help)))
+    (if edraw-color-picker-show-help-first
+        (edraw-echo help)
+      (edraw-color-picker-echo-current-color picker))))
 
 (defun edraw-color-picker--transient-map-keep-pred (keymap)
   (or
@@ -3511,8 +3573,10 @@ events."
       ;; Return next last-undo-list-head (target buffer's undo-list)
       buffer-undo-list)))
 
-
 (defun edraw-color-picker-echo-current-color (picker)
+  (interactive
+   (list (edraw-color-picker-at-input-or-error last-command-event)))
+
   ;; (edraw-color-picker-color-to-string c (edraw-options picker))
   (let* ((c (edraw-get-current-color picker))
          (r (edraw-color-r c)) (r8 (round (* r 255)))
@@ -3522,20 +3586,42 @@ events."
          (hue (edraw-get-color-hue picker))
          (sat (edraw-get-color-saturation picker))
          (bri (edraw-get-color-brightness picker))
-         (rl (edraw-relative-luminance c)))
+         (rl (edraw-relative-luminance c))
+         (lab (edraw-color-to-lab-list c)))
     (edraw-echo-format
      "\
-R:%5.1f%%(%3d,%02X), G:%5.1f%%(%3d,%02X), \
-B:%5.1f%%(%3d,%02X), A:%5.1f%%(%3d,%02X)
-H:%5.1fdeg, S:%5.1f%%, B:%5.1f%%, RL:%5.1f%%"
-     (* r 100) r8 r8
-     (* g 100) g8 g8
-     (* b 100) b8 b8
-     (* a 100) a8 a8
+%s:%5.1f%%(%3d), %s:%5.1f%%(%3d), \
+%s:%5.1f%%(%3d), %s:%5.1f%%(%3d), \
+HEX:%s
+%s:%5.1fdeg, %s:%5.1f%%, %s:%5.1f%%, RL:%5.1f%%, Lab:%s  %s"
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-color-red 1 "R")
+     (* r 100) r8
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-color-green 1 "G")
+     (* g 100) g8
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-color-blue 1 "B")
+     (* b 100) b8
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-opacity 1 "A")
+     (* a 100) a8
+     (edraw-to-string-hex c)
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-color-hue 1 "H")
      hue
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-color-saturation 1 "S")
      (* sat 100)
+     (edraw-color-picker-command-key-string
+      'edraw-color-picker-set-color-brightness 1 "V")
      (* bri 100)
-     (* rl 100))))
+     (* rl 100)
+     (apply #'format "(%3.1f %3.1f %3.1f)" lab)
+     (if-let* ((str (edraw-color-picker-command-key-string
+                     'edraw-color-picker-echo-help 1 nil)))
+         (concat str ":help")
+       ""))))
 
 
 ;;;;; Read Color from Minibuffer
