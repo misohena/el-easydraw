@@ -1583,7 +1583,10 @@ Signals an error if there is a syntax or other problem, never returns nil."
                ;; Whitespaces before argument
                (or
                 (when arg-props
-                  (or (plist-get arg-props :pre-spaces) ""))
+                  (if (or first-p legacy-p)
+                      (or (plist-get arg-props :pre-spaces) "")
+                    ;; modern and not first => no pre-spaces
+                    ""))
                 ;; Legacy: ,[ ]ARG
                 (when (and legacy-p (not first-p))
                   (plist-get options :css-spaces-after-comma)))
@@ -1596,7 +1599,15 @@ Signals an error if there is a syntax or other problem, never returns nil."
                 options)
                ;; Whitespaces after argument
                (or (when arg-props
-                     (or (plist-get arg-props :post-spaces) ""))
+                     (if (or last-p legacy-p)
+                         (or (plist-get arg-props :post-spaces) "")
+                       ;; modern and not last
+                       (let ((sp (plist-get arg-props :post-spaces)))
+                         (if (and (stringp sp) (not (string-empty-p sp)))
+                             sp
+                           ;; modern format required space between args
+                           (or (plist-get options :css-spaces-between-args)
+                               " ")))))
                    (if legacy-p
                        ;; Legacy: ARG[ ],(NEXTARG|ALPHA)
                        (when (or (not last-p) has-alpha)
@@ -1722,6 +1733,9 @@ Signals an error if there is a syntax or other problem, never returns nil."
       :css-default-lightness-unit
       :number-ref 100.0
       :decimal-places-number 1))))
+;; TEST: (edraw-color-css-make-hwb (edraw-color-f 0.25 0.5 0.75 0.3)) => "hwb(210 25 25/0.3)"
+;; TEST: (edraw-color-css-make-hwb (edraw-color-f 0.2 0.5 0.11 0.3) '(:css-default-hue-unit "deg")) => "hwb(106deg 11 50/0.3)"
+;; TEST: (edraw-color-css-make-hwb (edraw-color-f 0.25 0.5 0.75 0.3) '(:css-args ((0.00392156862745098 :pre-separator nil :pre-spaces nil :number-str "1" :unit nil :ident nil :post-spaces nil) (0.00784313725490196 :pre-separator "," :pre-spaces nil :number-str "2" :unit nil :ident nil :post-spaces nil) (0.011764705882352941 :pre-separator "," :pre-spaces nil :number-str "3" :unit nil :ident nil :post-spaces nil)))) => "hwb(210 25 25/0.3)"
 
 (defun edraw-color-css-make-lab (color &optional options)
   ;; Lab ( https://www.w3.org/TR/css-color-4/#specifying-lab-lch )
