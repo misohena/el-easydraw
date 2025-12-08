@@ -6815,3 +6815,8 @@ rxやry、stroke-width等もハードコードされているが、これもカ�
 とは言えclassで解決できるのは結局CSSプロパティで出来るレベルまでなのでどこまでもカスタマイズ出来るわけではない。
 
 単に色を調整したいだけならdefconstで十分だろう。
+** DONE 色/edraw-color-picker-modeのコンテキストメニューを改善する
+CLOSED: [2025-12-08 Mon 17:18]
+メニューの下の方に項目を追加する。
+add-hookのdepthを大きくしただけでは解決しない。
+define-key-afterを使えば良い。

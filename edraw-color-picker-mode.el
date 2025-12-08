@@ -414,15 +414,16 @@ symbols and the cdr is a key.
          (color-info (with-current-buffer buffer
                        (edraw-color-info-at point))))
 
+    (define-key-after menu [separator-edraw-color-picker] menu-bar-separator)
     (if color-info
-        (define-key
-         menu [edraw-color-picker-replace]
-         '(menu-item "Replace Color" edraw-color-picker-replace-color-at
-                     :help "Replace the color text using color picker"))
-      (define-key
-       menu [edraw-color-picker-insert]
-       '(menu-item "Insert Color" edraw-color-picker-insert-color-at
-                   :help "Insert color text using color picker"))))
+        (define-key-after
+          menu [edraw-color-picker-replace]
+          '(menu-item "Replace Color" edraw-color-picker-replace-color-at
+                      :help "Replace the color text using color picker"))
+      (define-key-after
+        menu [edraw-color-picker-insert]
+        '(menu-item "Insert Color" edraw-color-picker-insert-color-at
+                    :help "Insert color text using color picker"))))
   menu)
 
 
