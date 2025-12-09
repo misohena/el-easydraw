@@ -1427,7 +1427,10 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
            (funcall updator))
           ('mouse-3
            (edraw-dispatch-r-click area)
-           (funcall updator)))))))
+           (funcall updator)))))
+    ;; Return `t' if mouse-down occurred in a valid area (not that the
+    ;; area was clicked), or nil to let the caller handle the event
+    t))
 
 
 ;;;; Mouse Event
@@ -1629,10 +1632,17 @@ Do not pass a color name, as it may change between CSS and Emacs color names."
 
 (cl-defmethod edraw-on-down-mouse ((picker edraw-color-picker) down-event)
   (with-slots (areas image-scale) picker
-    (edraw-color-picker-areas-on-down-mouse
-     areas down-event image-scale
-     (lambda () (edraw-invalidate-image picker))
-     (lambda () (edraw-blur-if-child-frame picker)))))
+    (or
+     ;; Common
+     (edraw-color-picker-areas-on-down-mouse
+      areas down-event image-scale
+      (lambda () (edraw-invalidate-image picker))
+      (lambda () (edraw-blur-if-child-frame picker)))
+
+     ;; Display type dependent handling
+     (when-let* ((display (edraw-get-display picker)))
+       (edraw-on-down-mouse display down-event)
+       (edraw-blur-if-child-frame picker)))))
 
 (cl-defmethod edraw-click-area ((picker edraw-color-picker) name)
   (with-slots (areas) picker
@@ -2574,6 +2584,10 @@ Specify one of \\='display, \\='before-string, or \\='after-string."
 (cl-defmethod edraw-blur-if-child-frame ((_display
                                           edraw-color-picker-display-overlay)))
 
+(cl-defmethod edraw-on-down-mouse ((_display
+                                    edraw-color-picker-display-overlay)
+                                   _down-event))
+
 (defun edraw-color-picker-make-overlay (overlay-or-args-props)
   "If OVERLAY-OR-ARGS-PROPS is an overlay, return it as is.
 
@@ -2856,6 +2870,10 @@ OVERLAY uses the display property to display the color PICKER."
       (edraw-color-picker-frame-position-near-point width height)
       ;;(cons 0 0)
       ))))
+
+(cl-defmethod edraw-on-down-mouse ((_display edraw-color-picker-display-frame)
+                                   down-event)
+  (edraw-move-frame-on-mouse-down down-event))
 
 (cl-defmethod edraw-blur-if-child-frame ((display
                                           edraw-color-picker-display-frame))

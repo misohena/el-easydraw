@@ -750,6 +750,18 @@ returns nil."
          (cons (- (car down-xy-on-object) (car down-xy-on-frame))
                (- (cdr down-xy-on-object) (cdr down-xy-on-frame))))))
 
+(defun edraw-posn-x-y-on-display (position &optional default-inside-window-p)
+  (let* ((window-or-frame (posn-window position))
+         (frame (cond
+                 ((windowp window-or-frame) (window-frame window-or-frame))
+                 ((framep window-or-frame) window-or-frame))))
+    (when frame
+      (let ((xy (edraw-posn-x-y-on-frame position default-inside-window-p))
+            (frame-xy (frame-position frame)))
+        (cons
+         (+ (car frame-xy) (car xy))
+         (+ (cdr frame-xy) (cdr xy)))))))
+
 
 ;;;;; Input Event Modifiers
 
@@ -787,6 +799,118 @@ returns nil."
                 when (/= (logand code bit) 0)
                 if str do (setq str (concat str "-" s)) else do (setq str s)
                 finally return str)))))
+
+
+;;;; Frame
+
+;;;;; Frame Dragging
+
+(defconst edraw-frame-move-debounce-time 0.07
+  "Debounce time (in seconds) after moving the frame.
+Touch event coordinates immediately after moving a frame are unreliable,
+so events are ignored until this many seconds have elapsed since the
+last move.")
+
+(defun edraw-move-frame-on-mouse-down (down-event)
+  (interactive "e")
+  (let ((down-frame (window-frame (posn-window (event-start down-event))))
+        (buffer (window-buffer (posn-window (event-start down-event)))))
+    (when (and (frame-live-p down-frame)
+               ;; If decorated, the use native title bar should be used.
+               (frame-parameter down-frame 'undecorated)
+               (buffer-live-p buffer))
+
+      (let* ((down-xy (edraw-posn-x-y-on-display (event-start down-event)))
+             (down-frame-xy (frame-position down-frame))
+             (moved nil)
+             (last-frame-moved-time 0.0)
+             (touch (eq (car-safe down-event) 'touchscreen-begin))
+             (on-move
+              (lambda (move-event)
+                (when (or (not touch)
+                          (>= (- (float-time) last-frame-moved-time)
+                              edraw-frame-move-debounce-time))
+                  (let* ((curr-xy (edraw-posn-x-y-on-display (event-start move-event)))
+                         (dx (- (car curr-xy) (car down-xy)))
+                         (dy (- (cdr curr-xy) (cdr down-xy))))
+                    (when (and (not moved)
+                               (> (+ (* dx dx) (* dy dy))
+                                  (* double-click-fuzz double-click-fuzz)))
+                      (setq moved t))
+                    (when moved
+                      (edraw-set-frame-position
+                       down-frame
+                       (cons (+ (car down-frame-xy) dx)
+                             (+ (cdr down-frame-xy) dy)))
+                      (setq last-frame-moved-time (float-time))))))))
+        (edraw-track-drag down-event on-move :on-up on-move
+                          :allow-out-of-target-p t)
+
+        moved))))
+
+(defun edraw-set-frame-position (frame xy)
+  (setq xy (edraw-limit-frame-position frame xy))
+  (modify-frame-parameters frame `((left . (+ ,(car xy)))
+                                   (top . (+ ,(cdr xy))))))
+
+(defcustom edraw-frame-keep-visible-margins
+  '(80 80 80 80)
+  "Margins to keep visible when dragging frames.
+
+These values define the minimum amount (in pixels) of the frame that
+must remain visible within the parent display area during dragging
+operations.  This prevents the frame from being moved completely
+off-screen while still allowing partial positioning outside the visible
+area.
+
+The list contains four integers: (LEFT TOP RIGHT BOTTOM).
+
+Each margin value is capped by the corresponding frame dimension.
+For example, if BOTTOM is set to a value larger than the frame height,
+it effectively equals the frame height, preventing the frame from
+extending above the parent display area.  This ensures the title bar
+remains accessible."
+  :type '(list :tag "Margins (In pixels)"
+               (integer :tag "Left")
+               (integer :tag "Top")
+               (integer :tag "Right")
+               (integer :tag "Bottom"))
+  :group 'edraw)
+
+(defun edraw-limit-frame-position (frame xy)
+  "Limit position XY to keep FRAME partially visible within the parent area.
+
+XY is a cons cell (X . Y) representing the desired frame position.
+Returns a cons cell with the position adjusted to satisfy the
+visibility constraints defined by `edraw-frame-keep-visible-margins'."
+  (if-let* ((parent-frame (frame-parent frame)))
+      (let* ((frame-w (frame-outer-width frame))
+             (frame-h (frame-outer-height frame))
+             (parent-inner-edges (frame-edges parent-frame 'inner))
+             (parent-origin-x (nth 0 parent-inner-edges))
+             (parent-origin-y (nth 1 parent-inner-edges))
+             (parent-limit-edges (frame-edges parent-frame 'native))
+             (parent-l (- (nth 0 parent-limit-edges) parent-origin-x))
+             (parent-t (- (nth 1 parent-limit-edges) parent-origin-y))
+             (parent-r (- (nth 2 parent-limit-edges) parent-origin-x))
+             (parent-b (- (nth 3 parent-limit-edges) parent-origin-y))
+             (margin-l (min (nth 0 edraw-frame-keep-visible-margins)
+                            frame-w))
+             (margin-t (min (nth 1 edraw-frame-keep-visible-margins)
+                            frame-h))
+             (margin-r (min (nth 2 edraw-frame-keep-visible-margins)
+                            frame-w))
+             (margin-b (min (nth 3 edraw-frame-keep-visible-margins)
+                            frame-h))
+             (limit-l (+ (- parent-l frame-w) margin-r))
+             (limit-r (- parent-r margin-l))
+             (limit-t (+ (- parent-t frame-h) margin-b))
+             (limit-b (- parent-b margin-t)))
+        (cons (max limit-l (min (car xy) limit-r))
+              (max limit-t (min (cdr xy) limit-b))))
+    ;; Not a child frame
+    ;; TODO: Limit coordinates to within the screen area
+    xy))
 
 
 
