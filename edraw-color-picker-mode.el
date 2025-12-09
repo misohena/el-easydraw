@@ -109,9 +109,6 @@
 (defvar edraw-color-picker-mode-map
   (let ((km (make-composed-keymap
              (list 'edraw-color-picker-mode--cusmap-global-map))))
-    (define-key km
-                [menu-bar edraw-color-picker-mode]
-                edraw-color-picker-mode-menu-map)
     km)
   "The keymap used by `edraw-color-picker-mode'.
 \\{edraw-color-picker-mode-map}")

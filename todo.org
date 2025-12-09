@@ -6838,3 +6838,39 @@ legacy形式のpre-spacesとpost-spacesはmodern形式を出力する際にど�
 CLOSED: [2025-12-09 Tue 11:02]
 見たい物(エコーエリア(現在値やヘルプ)やバッファ内の他の情報など)に重なって見えなくなることがあるので。
 header-lineを有効にするのが一番簡単だが、ボタンがないところでドラッグさせたい。el-vkbdで似たようなことは既にやっている。
+** DONE 色/edraw-color-picker-mode-mapの無効なメニュー定義を削除する
+CLOSED: [2025-12-09 Tue 15:16]
+edraw-color-picker-mode-mapになぜか無効なメニュー登録がある。
+
+#+begin_src elisp
+(defvar edraw-color-picker-mode-map
+  (let ((km (make-composed-keymap
+             (list 'edraw-color-picker-mode--cusmap-global-map))))
+    (define-key km
+                [menu-bar edraw-color-picker-mode]
+                edraw-color-picker-mode-menu-map)
+    km)
+  "The keymap used by `edraw-color-picker-mode'.
+\\{edraw-color-picker-mode-map}")
+#+end_src
+
+これのせいで、コンテキストメニューにマイナーモードメニューを出そうとして出せなくてセパレータだけが無駄に挿入されてしまう。
+
+次のようにすれば一応メニューバーにメニューは追加されるが、メニューバーにわざわざエラーピッカーメニューを追加したいとは思わない。
+
+#+begin_src elisp
+(defvar edraw-color-picker-mode-map
+  (let ((km (make-composed-keymap
+             (list 'edraw-color-picker-mode--cusmap-global-map))))
+    (define-key km
+                [menu-bar edraw-color-picker-mode]
+                ;;↓ここを修正
+                (cons "Color-Picker" edraw-color-picker-mode-menu-map))
+    km)
+  "The keymap used by `edraw-color-picker-mode'.
+\\{edraw-color-picker-mode-map}")
+#+end_src
+
+現在カラーピッカーメニューはToolsメニューの下に追加しているが、何か勘違いがあったのだろうか。それとも消し忘れだろうか。今となっては分からない。
+
+シンプルにdefine-key部分だけを削除しておく。
