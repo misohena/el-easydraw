@@ -2428,8 +2428,10 @@ but the reverse can also be done."
   (define-key km (kbd "Fr") '("RGB" . edraw-color-picker-set-output-format-css-rgb))
   (define-key km (kbd "Fh") '("HSL" . edraw-color-picker-set-output-format-css-hsl))
   (define-key km (kbd "Fw") '("HWB" . edraw-color-picker-set-output-format-css-hwb))
+  (define-key km (kbd "Fl") (cons "CIE" (make-sparse-keymap)))
   (define-key km (kbd "Fla") '("LAB" . edraw-color-picker-set-output-format-css-lab))
   (define-key km (kbd "Flc") '("LCH" . edraw-color-picker-set-output-format-css-lch))
+  (define-key km (kbd "Fo") (cons "OK" (make-sparse-keymap)))
   (define-key km (kbd "Foa") '("OKLAB" . edraw-color-picker-set-output-format-css-oklab))
   (define-key km (kbd "Foc") '("OKLCH" . edraw-color-picker-set-output-format-css-oklch)))
 
