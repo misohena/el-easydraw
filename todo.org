@@ -6874,3 +6874,8 @@ edraw-color-picker-mode-mapになぜか無効なメニュー登録がある。
 現在カラーピッカーメニューはToolsメニューの下に追加しているが、何か勘違いがあったのだろうか。それとも消し忘れだろうか。今となっては分からない。
 
 シンプルにdefine-key部分だけを削除しておく。
+** DONE Version 1.3.0
+CLOSED: [2025-12-13 Sat 21:21]
+- edraw.elのPackage-Versionを1.3.0にしてコミットする。
+- タグを打つ。 git tag -a v1.3.0 -m "Version 1.3.0"
+- edraw.elのPackage-Versionを1.3.1にしてコミットする。
