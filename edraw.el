@@ -315,15 +315,23 @@ uses the value of `image-scaling-factor' variable."
   :type '(choice number
                  (const :tag "Use `image-scaling-factor'" nil)))
 
+(defcustom edraw-editor-default-grid-visible t
+  "non-nil means grid lines are displayed by default."
+  :group 'edraw-editor
+  :type 'boolean)
+
 (defcustom edraw-editor-default-grid-interval 20
   "The interval of grid lines."
   :group 'edraw-editor
   :type 'number)
 
-(defcustom edraw-editor-default-grid-visible t
-  "non-nil means grid lines are displayed by default."
+(defcustom edraw-editor-default-grid-major-period 5
+  "The number of minor grid lines between major grid lines.
+
+A major grid line is drawn every Nth minor grid line, where N is
+the value of this variable."
   :group 'edraw-editor
-  :type 'boolean)
+  :type 'integer)
 
 (defcustom edraw-editor-grid-pixel-align t
   "non-nil means grid lines are aligned to pixel grid."
@@ -524,7 +532,7 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
     (define-key km "S" 'edraw-editor-edit-tool-default-stroke)
     (define-key km "?" 'edraw-editor-show-help-for-selected-tool)
     (define-key km "#" 'edraw-editor-toggle-grid-visible)
-    (define-key km (kbd "M-#") 'edraw-editor-set-grid-interval)
+    (define-key km (kbd "M-#") 'edraw-editor-set-grid-interval-and-major-period)
     (define-key km "\"" 'edraw-editor-toggle-transparent-bg-visible)
     (define-key km "db" '("Background" . edraw-editor-set-background))
     (define-key km "dr" '("Resize" . edraw-editor-set-size))
@@ -702,6 +710,8 @@ line-prefix and wrap-prefix are used in org-indent.")
                           edraw-editor-default-grid-visible)
                     (cons 'grid-interval
                           edraw-editor-default-grid-interval)
+                    (cons 'grid-major-period
+                          edraw-editor-default-grid-major-period)
                     (cons 'transparent-bg-visible
                           edraw-editor-default-transparent-bg-visible)
                     (cons 'view-size-spec nil) ;;User specified view size
@@ -2328,13 +2338,18 @@ document size or view box."
 ;; https://gitlab.gnome.org/GNOME/librsvg/-/issues/607
 (defconst edraw-editor-ui-style "
 .edraw-ui-grid-line {
-  stroke: rgba(30, 150, 255, 0.75);
-  stroke-dasharray: 2;
+  stroke: rgba(130, 130, 130, 0.3);
+  stroke-dasharray: 1;
+  /*[Too Slow] mix-blend-mode: difference; */
+}
+.edraw-ui-major-grid-line {
+  stroke: rgba(130, 130, 130, 0.7);
+  /*stroke-dasharray: 1;*/
   /*[Too Slow] mix-blend-mode: difference; */
 }
 .edraw-ui-axis-line {
-  stroke: rgba(255, 50, 30, 0.75);
-  stroke-dasharray: 2;
+  stroke: rgba(255, 50, 30, 0.7);
+  stroke-dasharray: 1;
   /*[Too Slow] mix-blend-mode: difference; */
 }
 .edraw-ui-anchor-point {
@@ -2506,21 +2521,31 @@ document size or view box."
                (view-y-min 0)
                (view-x-max (edraw-scroll-view-width editor))
                (view-y-max (edraw-scroll-view-height editor))
+               (major-period (or (edraw-get-setting editor 'grid-major-period)
+                                 1000000))
+               (x0n (mod (round (/ x0 step-interval)) major-period))
+               (y0n (mod (round (/ y0 step-interval)) major-period))
                (pa (if edraw-editor-grid-pixel-align 0.5 0)))
           (cl-loop for x from x0 to x1 by step-interval
                    for xv = (+ (edraw-scroll-transform-x editor x) pa)
+                   for xn = x0n then (if (= (1+ xn) major-period) 0 (1+ xn))
                    do (edraw-svg-line xv view-y-min xv view-y-max
                                       :parent g
                                       :class (if (= x 0)
                                                  "edraw-ui-axis-line"
-                                               "edraw-ui-grid-line")))
+                                               (if (= xn 0)
+                                                   "edraw-ui-major-grid-line"
+                                                 "edraw-ui-grid-line"))))
           (cl-loop for y from y0 to y1 by step-interval
                    for yv = (+ (edraw-scroll-transform-y editor y) pa)
+                   for yn = y0n then (if (= (1+ yn) major-period) 0 (1+ yn))
                    do (edraw-svg-line view-x-min yv view-x-max yv
                                       :parent g
                                       :class (if (= y 0)
                                                  "edraw-ui-axis-line"
-                                               "edraw-ui-grid-line"))))))))
+                                               (if (= yn 0)
+                                                   "edraw-ui-major-grid-line"
+                                                 "edraw-ui-grid-line")))))))))
 
 (cl-defmethod edraw-set-grid-visible ((editor edraw-editor) visible)
   (edraw-set-setting editor 'grid-visible visible)
@@ -2533,6 +2558,21 @@ document size or view box."
   (edraw-set-grid-visible editor
                           (not (edraw-get-grid-visible editor))))
 
+(edraw-editor-defcmd edraw-set-grid-interval-and-major-period
+    ((editor edraw-editor) interval period)
+  (interactive
+   (let ((editor (edraw-current-editor)))
+     (list
+      editor
+      (read-number (edraw-msg "Grid Interval: ")
+                   (edraw-get-setting editor 'grid-interval))
+      (read-number (edraw-msg "Major Grid Every N Lines: ")
+                   (edraw-get-setting editor 'grid-major-period)))))
+
+  (edraw-set-setting editor 'grid-interval interval)
+  (edraw-set-setting editor 'grid-major-period period)
+  (edraw-invalidate-ui-parts editor 'grid))
+
 (edraw-editor-defcmd edraw-set-grid-interval ((editor edraw-editor) interval)
   (interactive
    (let ((editor (edraw-current-editor)))
@@ -2542,6 +2582,17 @@ document size or view box."
                    (edraw-get-setting editor 'grid-interval)))))
 
   (edraw-set-setting editor 'grid-interval interval)
+  (edraw-invalidate-ui-parts editor 'grid))
+
+(edraw-editor-defcmd edraw-set-grid-major-period ((editor edraw-editor) period)
+  (interactive
+   (let ((editor (edraw-current-editor)))
+     (list
+      editor
+      (read-number (edraw-msg "Major Grid Every N Lines: ")
+                   (edraw-get-setting editor 'grid-major-period)))))
+
+  (edraw-set-setting editor 'grid-major-period period)
   (edraw-invalidate-ui-parts editor 'grid))
 
 ;;;;;; Editor - View - Selection UI
@@ -4009,7 +4060,8 @@ to align with the pixel grid during creation and editing."
          :button (:toggle . ,(edraw-get-transparent-bg-visible editor)))
         ((edraw-msg "Grid") edraw-editor-toggle-grid-visible
          :button (:toggle . ,(edraw-get-grid-visible editor)))
-        ((edraw-msg "Set Grid Interval...") edraw-editor-set-grid-interval)
+        ((edraw-msg "Set Grid Interval...")
+         edraw-editor-set-grid-interval-and-major-period)
         ((edraw-msg "Set View Size...") edraw-editor-set-view-size-spec)
         ((edraw-msg "Reset View") edraw-editor-reset-view)
         ((edraw-msg "Zoom In") edraw-editor-zoom-in)

@@ -230,6 +230,7 @@
      "Load colors from file: " "色の読み込み元ファイル: "
      "Load..." "読み込み..."
      "Main Menu" "メインメニュー"
+     "Major Grid Every N Lines: " "主グリッド線の周期(本数): "
      "Make Corner" "角にする"
      "Make Smooth" "滑らかにする"
      "Marker Type" "マーカータイプ"
