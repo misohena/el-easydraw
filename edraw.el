@@ -700,7 +700,10 @@ line-prefix and wrap-prefix are used in org-indent.")
                     (cons 'transparent-bg-visible
                           edraw-editor-default-transparent-bg-visible)
                     (cons 'view-size-spec nil) ;;User specified view size
-                    (cons 'transform-method 'auto))
+                    (cons 'transform-method 'auto)
+                    (cons 'pixel-align
+                          (edraw-ui-state-get (edraw-ui-state-object-default)
+                                              'editor 'pixel-align t)))
     :documentation
     "Stores settings that should be kept separately for each editor.")
    (selection-ui-visible :initform t)
@@ -3873,7 +3876,8 @@ document size or view box."
 (defclass edraw-property-proxy-shape (edraw-alist-properties-holder)
   ())
 
-(cl-defmethod edraw-set-properties ((shape edraw-property-proxy-shape) _prop-list)
+(cl-defmethod edraw-set-properties ((shape edraw-property-proxy-shape)
+                                    _prop-alist)
   (prog1 (cl-call-next-method)
     ;;@todo Use change method?
     ;; update toolbar (fill & stroke)
@@ -3966,6 +3970,29 @@ document size or view box."
       :button (:toggle . ,(eq (edraw-get-transform-method obj)
                               'anchor-points))))))
 
+;;;;; Editor - Pixel Alignment
+
+(cl-defmethod edraw-pixel-align-enabled-p ((editor edraw-editor))
+  "Return non-nil if pixel alignment is enabled in EDITOR."
+  (edraw-get-setting editor 'pixel-align))
+
+(cl-defmethod edraw-set-pixel-align-enabled ((editor edraw-editor) enabled)
+  "Enable or disable pixel alignment in EDITOR.
+
+When ENABLED is non-nil, shapes are automatically adjusted
+to align with the pixel grid during creation and editing."
+  (setq enabled (not (null enabled)))
+  (edraw-set-setting editor 'pixel-align enabled)
+  (with-slots (ui-state) editor
+    (edraw-ui-state-set ui-state 'editor 'pixel-align enabled)
+    (edraw-ui-state-save ui-state)))
+
+(edraw-editor-defcmd edraw-toggle-pixel-align-enabled ((editor edraw-editor))
+  "Toggle pixel alignment in EDITOR."
+  (interactive (list (edraw-current-editor)))
+  (edraw-set-pixel-align-enabled editor
+                                 (not (edraw-pixel-align-enabled-p editor))))
+
 ;;;;; Editor - Main Menu
 
 (cl-defmethod edraw-menu-view ((editor edraw-editor))
@@ -3997,7 +4024,11 @@ document size or view box."
           ((edraw-msg "Path") edraw-editor-edit-default-path-props)))
         ((edraw-msg "Marker")
          (((edraw-msg "Arrow") edraw-editor-edit-default-marker-arrow-props)
-          ((edraw-msg "Circle") edraw-editor-edit-default-marker-circle-props)))))))
+          ((edraw-msg "Circle") edraw-editor-edit-default-marker-circle-props)))
+        ((edraw-msg "Adjust to Pixel Grid")
+         edraw-editor-toggle-pixel-align-enabled
+         :button (:toggle . ,(edraw-pixel-align-enabled-p editor)))
+        ))))
 
 (cl-defmethod edraw-menu-main ((editor edraw-editor))
   `(,(edraw-msg "Main Menu")
@@ -6760,12 +6791,12 @@ Only shape types registered in `edraw-shape-type-alist' are valid."
   (when (symbolp shape-type)
     (alist-get :class (alist-get shape-type edraw-shape-type-alist))))
 
-(defun edraw-shape-type-to-element (shape-type props-alist deftbl)
+(defun edraw-shape-type-to-element (shape-type prop-alist deftbl pixel-align)
   "Create a new SVG element of SHAPE-TYPE."
   (let ((shape-class (edraw-shape-type-to-class shape-type)))
     (unless shape-class
       (error "Unsupported shape type %s" shape-type))
-    (edraw-shape-create-element shape-class props-alist deftbl)))
+    (edraw-shape-create-element shape-class prop-alist deftbl pixel-align)))
 
 (defun edraw-shape-type-from-element (element)
   "Return a symbol that represents the shape type of the SVG ELEMENT."
@@ -6845,11 +6876,11 @@ markers) to the EDITOR."
     (edraw-get-default-shape-properties editor shape-type))))
 
 (defun edraw-create-shape-without-default (editor
-                                           parent index shape-type props-alist)
+                                           parent index shape-type prop-alist)
   "Create a new shape.
 
 The shape type is specified by SHAPE-TYPE and its initial
-properties are specified by PROPS-ALIST. Properties that are not
+properties are specified by PROP-ALIST. Properties that are not
 specified use values determined by the shape type and are not
 affected by the EDITOR state.
 
@@ -6863,9 +6894,10 @@ markers) to the EDITOR."
   ;; when loading an SVG and is easier to maintain consistency.
   (edraw-create-shape-from-inserted-new-element
    editor
-   (edraw-create-shape-svg-element shape-type props-alist
+   (edraw-create-shape-svg-element shape-type prop-alist
                                    (oref editor deftbl)
-                                   parent index)))
+                                   parent index
+                                   (edraw-pixel-align-enabled-p editor))))
 
 (defun edraw-create-shape-from-inserted-new-element (editor element)
   (let ((shape (edraw-shape-from-element element editor)))
@@ -6874,13 +6906,15 @@ markers) to the EDITOR."
       (edraw-on-shape-changed shape 'shape-create))
     shape))
 
-(defun edraw-create-shape-svg-element (shape-type props-alist deftbl
-                                                  parent index)
+(defun edraw-create-shape-svg-element (shape-type prop-alist deftbl
+                                                  parent index
+                                                  pixel-align)
   "Create an SVG element of the shape specified by SHAPE-TYPE."
   ;; First, create an SVG element determined for each SHAPE-TYPE. In
   ;; the future, we may construct more complex elements (for example,
   ;; a g element with several child elements).
-  (let ((element (edraw-shape-type-to-element shape-type props-alist deftbl)))
+  (let ((element (edraw-shape-type-to-element shape-type prop-alist deftbl
+                                              pixel-align)))
     ;; Then add the element to the PARENT.
     (when parent
       (if index
@@ -6889,10 +6923,10 @@ markers) to the EDITOR."
     element))
 
 (cl-defmethod edraw-shape-create-element ((shape-class (subclass edraw-shape))
-                                          props-alist deftbl)
+                                          prop-alist deftbl pixel-align)
   "Create a DOM element for the SHAPE-CLASS.
 
-PROPS-ALIST is an alist of initial properties. These are not
+PROP-ALIST is an alist of initial properties. These are not
 necessarily the same as SVG attributes. The attributes are set
 via the `edraw-svg-element-set-property' function.
 
@@ -6901,8 +6935,14 @@ passed to `edraw-svg-element-set-property'."
   (let* ((tag (edraw-shape-svg-tag shape-class))
          (prop-info-list (edraw-get-property-info-list shape-class)))
     (let ((element (edraw-dom-element tag)))
+
+      ;; Apply pixel alignment to PROP-ALIST
+      (when pixel-align
+        (setq prop-alist (edraw-adjust-prop-alist-for-pixel-align
+                          prop-alist element deftbl prop-info-list)))
+
       ;; Initialize attributes in the manner of the edraw-dom-svg.el library.
-      (dolist (prop props-alist)
+      (dolist (prop prop-alist)
         (let ((prop-name (car prop))
               (value (cdr prop)))
           (edraw-svg-element-set-property element prop-name value deftbl
@@ -7147,7 +7187,7 @@ e.g. rect, ellipse, path, image, text, group, generator."
     (message (edraw-msg "Unknown type of shape definition"))
     nil)))
 
-(defun edraw-shape-descriptor-to-svg-element (shape-descriptor)
+(defun edraw-shape-descriptor-to-svg-element (shape-descriptor pixel-align)
   (let* ((shape-type (alist-get :type shape-descriptor))
          (props (alist-get :properties shape-descriptor))
          (children-descriptor (alist-get :children shape-descriptor))
@@ -7160,12 +7200,12 @@ e.g. rect, ellipse, path, image, text, group, generator."
            deftbl
            nil ;;parent
            nil ;;index
-           )))
+           pixel-align)))
     (when children-descriptor
       (dolist (child-descriptor children-descriptor)
         (edraw-dom-append-child
          element
-         (edraw-shape-descriptor-to-svg-element child-descriptor))))
+         (edraw-shape-descriptor-to-svg-element child-descriptor pixel-align))))
     element))
 
 (defun edraw-shape-descriptor-to-svg-string (shape-descriptor &optional editor)
@@ -7174,7 +7214,10 @@ e.g. rect, ellipse, path, image, text, group, generator."
                                                             shape-descriptor)))
         (edraw-svg-string shape))
     (when-let* ((element
-                 (edraw-shape-descriptor-to-svg-element shape-descriptor)))
+                 (edraw-shape-descriptor-to-svg-element
+                  shape-descriptor
+                  (when editor
+                    (edraw-pixel-align-enabled-p editor)))))
       (edraw-svg-encode element nil nil))))
 
 (defun edraw-shape-descriptor-list-to-svg-string (shape-descriptor-list &optional editor)
@@ -7530,48 +7573,54 @@ return it."
                                        prop-name)
       (or default-value 0)))
 
-(cl-defmethod edraw-set-properties ((shape edraw-shape) prop-list)
+(cl-defmethod edraw-set-properties ((shape edraw-shape) prop-alist)
   "Returns t if the property is actually changed."
-  (edraw-set-properties-internal shape prop-list nil))
+  (edraw-set-properties-internal shape prop-alist nil))
 
-(cl-defmethod edraw-set-properties-internal ((shape edraw-shape) prop-list
-                                             old-prop-list)
+(cl-defmethod edraw-set-properties-internal ((shape edraw-shape) prop-alist
+                                             old-prop-alist)
   "Returns t if the property is actually changed."
   (let ((deftbl (edraw-get-deftbl shape))
-        (prop-info-list (edraw-get-property-info-list shape)))
-    (with-slots (element) shape
-      (dolist (prop prop-list)
-        (let* ((prop-name (car prop))
-               (new-value (cdr prop))
-               (old-value (edraw-svg-element-get-property element prop-name
-                                                          deftbl
-                                                          prop-info-list))
-               (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
-                                                              prop-name)))
-          (unless
-              ;; @todo Add equality information to `edraw-svg-prop-info'
-              (if (eq (edraw-svg-prop-info-type prop-info) 'text)
-                  (equal-including-properties new-value old-value)
-                (equal new-value old-value))
-            ;;(message "%s: %s to %s" prop-name old-value new-value)
-            (push (cons prop-name old-value) old-prop-list)
-            (edraw-svg-element-set-property element prop-name new-value
-                                            deftbl
-                                            prop-info-list)))))
-    (when old-prop-list
-      (let ((editor (oref shape editor)))
-        (edraw-make-undo-group editor 'shape-properties
-          (edraw-push-undo
-           editor
-           'shape-properties
-           (list #'edraw-set-properties shape old-prop-list))
-          (edraw-on-shape-properties-changed shape old-prop-list)
-          ;; NOTE: Other connected shapes may change.
-          (edraw-on-shape-changed shape 'shape-properties old-prop-list)))
-      t)))
+        (prop-info-list (edraw-get-property-info-list shape))
+        (element (edraw-element shape)))
+
+    ;; Apply pixel alignment to PROP-ALIST
+    (when (edraw-pixel-align-enabled-p (edraw-get-editor shape))
+      (setq prop-alist (edraw-adjust-prop-alist-for-pixel-align
+                        prop-alist element deftbl prop-info-list)))
+
+    (dolist (prop prop-alist)
+      (let* ((prop-name (car prop))
+             (new-value (cdr prop))
+             (old-value (edraw-svg-element-get-property element prop-name
+                                                        deftbl
+                                                        prop-info-list))
+             (prop-info (edraw-svg-prop-info-info-list-find prop-info-list
+                                                            prop-name)))
+        (unless
+            ;; @todo Add equality information to `edraw-svg-prop-info'
+            (if (eq (edraw-svg-prop-info-type prop-info) 'text)
+                (equal-including-properties new-value old-value)
+              (equal new-value old-value))
+          ;;(message "%s: %s to %s" prop-name old-value new-value)
+          (push (cons prop-name old-value) old-prop-alist)
+          (edraw-svg-element-set-property element prop-name new-value
+                                          deftbl
+                                          prop-info-list)))))
+  (when old-prop-alist
+    (let ((editor (oref shape editor)))
+      (edraw-make-undo-group editor 'shape-properties
+        (edraw-push-undo
+         editor
+         'shape-properties
+         (list #'edraw-set-properties shape old-prop-alist))
+        (edraw-on-shape-properties-changed shape old-prop-alist)
+        ;; NOTE: Other connected shapes may change.
+        (edraw-on-shape-changed shape 'shape-properties old-prop-alist)))
+    t))
 
 (cl-defmethod edraw-on-shape-properties-changed ((_shape edraw-shape)
-                                                 _old-prop-list)
+                                                 _old-prop-alist)
   )
 
 (cl-defmethod edraw-push-undo-properties ((shape edraw-shape) type prop-names)
@@ -7591,6 +7640,46 @@ return it."
   (edraw-set-default-shape-properties-from-shape
    (oref shape editor)
    shape))
+
+
+;;;;;; Pixel Align
+
+(defun edraw-adjust-prop-alist-for-pixel-align (prop-alist
+                                                element deftbl prop-info-list)
+  "Adjust PROP-ALIST to add pixel alignment transform if needed.
+Returns modified prop-alist."
+  (let ((new-stroke-width-cell (assq 'stroke-width prop-alist))
+        (new-stroke-cell (assq 'stroke prop-alist)))
+    (when (or new-stroke-width-cell new-stroke-cell) ;; Include transform change ?
+      (let* ((new-transform-cell (assq 'transform prop-alist))
+             (new-transform
+              (if new-transform-cell
+                  (cdr new-transform-cell)
+                (edraw-svg-element-get-property
+                 element 'transform deftbl prop-info-list)))
+             (new-stroke
+              (if new-stroke-cell
+                  (cdr new-stroke-cell)
+                (edraw-svg-element-get-property
+                 element 'stroke deftbl prop-info-list)))
+             (new-stroke-width
+              (if new-stroke-width-cell
+                  (edraw-svg-attr-length-to-number
+                   (cdr new-stroke-width-cell)
+                   element 'stroke-width)
+                (edraw-svg-attr-length-to-number
+                 (edraw-svg-element-get-property
+                  element 'stroke-width deftbl prop-info-list)
+                 element 'stroke-width))))
+        (if (and (numberp new-stroke-width)
+                 (and new-stroke (not (equal new-stroke "none")))
+                 (cl-oddp (round new-stroke-width)))
+            (when (null new-transform)
+              (edraw-alist-set-nd prop-alist 'transform "translate(0.5,0.5)"))
+          (when (equal new-transform "translate(0.5,0.5)")
+            (edraw-alist-set-nd prop-alist 'transform nil))))))
+  prop-alist)
+
 
 ;;;;;; Temporary State
 
@@ -8403,10 +8492,10 @@ may be replaced by another mechanism."
       (cons 'height (abs (- (cdar p0p1) (cddr p0p1))))))))
 
 (cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-rect)
-                                                 old-prop-list)
+                                                 old-prop-alist)
   (when (seq-find (lambda (name-value)
                     (memq (car name-value) '(x y width height)))
-                  old-prop-list)
+                  old-prop-alist)
     ;; Update p0p1 from x,y,width,height
     (let* ((left   (edraw-get-property-as-length shape 'x 0))
            (top    (edraw-get-property-as-length shape 'y 0))
@@ -8465,10 +8554,10 @@ may be replaced by another mechanism."
       (cons 'ry (* 0.5 (abs (- (cdar p0p1) (cddr p0p1)))))))))
 
 (cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-ellipse)
-                                                 old-prop-list)
+                                                 old-prop-alist)
   (when (seq-find (lambda (name-value)
                     (memq (car name-value) '(cx cy rx ry)))
-                  old-prop-list)
+                  old-prop-alist)
     ;; Update p0p1 from cx,cy,rx,ry
     (let* ((cx (edraw-get-property-as-length shape 'cx 0))
            (cy (edraw-get-property-as-length shape 'cy 0))
@@ -8577,10 +8666,10 @@ may be replaced by another mechanism."
                       (* 0.5 (abs (- (cdr p0) (cdr p1)))))))))))
 
 (cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-circle)
-                                                 old-prop-list)
+                                                 old-prop-alist)
   (when (seq-find (lambda (name-value)
                     (memq (car name-value) '(cx cy r)))
-                  old-prop-list)
+                  old-prop-alist)
     ;; Update p0p1 from cx,cy,r
     (let* ((cx (edraw-get-property-as-length shape 'cx 0))
            (cy (edraw-get-property-as-length shape 'cy 0))
@@ -8730,10 +8819,10 @@ may be replaced by another mechanism."
       (cons 'height (abs (- (cdar p0p1) (cddr p0p1))))))))
 
 (cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-image)
-                                                 old-prop-list)
+                                                 old-prop-alist)
   (when (seq-find (lambda (name-value)
                     (memq (car name-value) '(x y width height)))
-                  old-prop-list)
+                  old-prop-alist)
     ;; Update p0p1 from x,y,width,height
     (let* ((left   (edraw-get-property-as-length shape 'x 0))
            (top    (edraw-get-property-as-length shape 'y 0))
@@ -8785,9 +8874,9 @@ may be replaced by another mechanism."
       (edraw-path-data-to-string (oref shape path-data))
     (cl-call-next-method)))
 
-(cl-defmethod edraw-set-properties ((shape edraw-shape-path) prop-list)
-  (let (old-prop-list)
-    (when-let* ((d-cell (assq 'd prop-list)))
+(cl-defmethod edraw-set-properties ((shape edraw-shape-path) prop-alist)
+  (let (old-prop-alist)
+    (when-let* ((d-cell (assq 'd prop-alist)))
       (with-slots (path-data) shape
         (let ((new-d (or (cdr d-cell) ""))
               (old-d-attr (dom-attr (edraw-element shape) 'd))
@@ -8800,10 +8889,10 @@ may be replaced by another mechanism."
                                           (edraw-path-data-from-d new-d))
             ;; Update d= attribute
             (edraw-update-path-d-attr shape)
-            (push (cons 'd old-d-attr) old-prop-list))))
-      (setf (alist-get 'd prop-list nil 'remove) nil))
+            (push (cons 'd old-d-attr) old-prop-alist))))
+      (setf (alist-get 'd prop-alist nil 'remove) nil))
     ;; other properties
-    (edraw-set-properties-internal shape prop-list old-prop-list)))
+    (edraw-set-properties-internal shape prop-alist old-prop-alist)))
 
 (cl-defmethod edraw-get-actions ((shape edraw-shape-path))
   (let* ((items (copy-tree (cl-call-next-method)))
@@ -9857,9 +9946,9 @@ which is a list of `edraw-svg-prop-info' objects."
     prop-info-list-cache))
 
 (cl-defmethod edraw-on-shape-properties-changed ((shape edraw-shape-generator)
-                                                 old-prop-list)
+                                                 old-prop-alist)
   ;; Clear prop-info-list-cache if gen-type is changed
-  (when (assq 'gen-type old-prop-list)
+  (when (assq 'gen-type old-prop-alist)
     (with-slots (prop-info-list-cache) shape
       (setq prop-info-list-cache nil)))
   (cl-call-next-method))
@@ -11788,10 +11877,10 @@ Note that this does not return the common base class.")
             nil;;@todo represent invalid
           value)))))
 
-(cl-defmethod edraw-set-properties ((obj edraw-multiple-shapes) prop-list)
+(cl-defmethod edraw-set-properties ((obj edraw-multiple-shapes) prop-alist)
   (edraw-make-undo-group (oref obj editor) 'shape-properties
     (dolist (shape (oref obj shapes))
-      (edraw-set-properties shape prop-list))))
+      (edraw-set-properties shape prop-alist))))
 
 (cl-defmethod edraw-add-change-hook ((obj edraw-multiple-shapes)
                                      function &rest args)

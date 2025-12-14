@@ -49,6 +49,7 @@
      "(Initial %s Tool Default)" "(編集開始時の%sツールのデフォルト)"
      "<no name>" "<無名>"
      "Actions" "操作"
+     "Adjust to Pixel Grid" "ピクセルグリッドに合わせる"
      "Already an SVG for Edraw" "既にedraw用のSVGです"
      "Already glued" "すでに接着されています"
      "Amplitude: " "振幅: "

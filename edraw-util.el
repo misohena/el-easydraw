@@ -1330,9 +1330,27 @@ A non-nil REMOVE-NIL means to remove properties whose keys or values are nil."
 ;;;; Association List
 
 (defmacro edraw-alist-set (alist key value &optional testfn)
+  "Set VALUE for KEY in ALIST destructively.
+
+ALIST should be a generalized variable (place). This macro modifies ALIST
+in place using `setf'.
+
+TESTFN is the equality predicate used to compare keys (default is `eq').
+
+If an entry for KEY already exists, its cdr is replaced with VALUE.
+If KEY is not found, a new entry is added to ALIST."
   `(setf (alist-get ,key ,alist nil nil ,testfn) ,value))
 
 (defmacro edraw-alist-delete (alist key &optional testfn)
+  "Delete the entry for KEY from ALIST destructively.
+
+ALIST should be a generalized variable (place). This macro modifies ALIST
+in place using `setf'.
+
+TESTFN is the equality predicate used to compare keys (default is `eq').
+
+This is a wrapper around `alist-get' with `setf' that removes the entry
+for KEY if it exists."
   `(setf (alist-get ,key ,alist nil t ,testfn) nil))
 
 (defun edraw-alist-append (&rest alists)
@@ -1376,6 +1394,68 @@ Cons cells contained in the ALIST are reused in the returned plist."
   alist)
 ;; TEST: (edraw-n-alist-to-plist nil) => nil
 ;; TEST: (edraw-n-alist-to-plist (list (cons 'a 1) (cons 'b 2))) => (a 1 b 2)
+
+(defun edraw-alist-remove-first-key (alist key)
+  "Return a list with the first entry for KEY removed from ALIST.
+
+KEY is compared using `eq'.
+
+If KEY is not found, return ALIST unchanged (the same object).
+If KEY is found, return a list without that entry."
+  (let ((p alist))
+    (while (and p (not (eq (caar p) key)))
+      (setq p (cdr p)))
+    (if p
+        (nconc
+         (cl-loop for x on alist
+                  until (eq x p)
+                  collect (car x))
+         (cdr p))
+      alist)))
+;; TEST: (edraw-alist-remove-first-key nil 'a) => nil
+;; TEST: (edraw-alist-remove-first-key '((a . 1)) 'a) => nil
+;; TEST: (edraw-alist-remove-first-key '((b . 1) (a . 1)) 'a) => ((b . 1))
+;; TEST: (edraw-alist-remove-first-key '((a . 1) (b . 1)) 'a) => ((b . 1))
+;; TEST: (edraw-alist-remove-first-key '((c . 1) (a . 2) (b . 3)) 'a) => ((c . 1) (b . 3))
+;; TEST: (edraw-alist-remove-first-key '((c . 1) (a . 2) (b . 3) (a . 4)) 'a) => ((c . 1) (b . 3) (a . 4))
+
+(defun edraw-alist-put (alist key value)
+  "Return an alist with (KEY . VALUE) added and the first old KEY entry
+removed.
+
+If KEY already exists in ALIST, only the first occurrence is removed before
+adding the new entry. If ALIST contains duplicate entries for KEY, the
+duplicates after the first one will remain.
+
+This function does not modify the original ALIST."
+  (cons
+   (cons key value)
+   (edraw-alist-remove-first-key alist key)))
+
+(defmacro edraw-alist-set-nd (alist key value)
+  "Set VALUE for KEY in ALIST non-destructively.
+
+ALIST should be a generalized variable (place). This macro replaces ALIST
+with an alist containing the updated entry.
+
+This is the non-destructive version of `edraw-alist-set'. The original
+alist structure is not modified."
+  `(cl-callf edraw-alist-put ,alist ,key ,value))
+
+(defmacro edraw-alist-delete-nd (alist key)
+  "Delete the first entry for KEY from ALIST non-destructively.
+
+ALIST should be a generalized variable (place). This macro replaces ALIST
+with an alist that has the first entry for KEY removed.
+
+KEY is compared using `eq'.
+
+If KEY is not found, ALIST remains unchanged (the same object).
+If KEY is found, ALIST is replaced with a list without that entry.
+
+This is the non-destructive version of `edraw-alist-delete'."
+  `(cl-callf edraw-alist-remove-first-key ,alist ,key))
+
 
 ;;;; Max Image Size
 
