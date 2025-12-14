@@ -325,6 +325,11 @@ uses the value of `image-scaling-factor' variable."
   :group 'edraw-editor
   :type 'boolean)
 
+(defcustom edraw-editor-grid-pixel-align t
+  "non-nil means grid lines are aligned to pixel grid."
+  :group 'edraw-editor
+  :type 'boolean)
+
 (defcustom edraw-editor-move-distance-by-arrow-key
   '((nil . 1)
     ((shift) . 10)
@@ -2500,16 +2505,17 @@ document size or view box."
                (view-x-min 0)
                (view-y-min 0)
                (view-x-max (edraw-scroll-view-width editor))
-               (view-y-max (edraw-scroll-view-height editor)))
+               (view-y-max (edraw-scroll-view-height editor))
+               (pa (if edraw-editor-grid-pixel-align 0.5 0)))
           (cl-loop for x from x0 to x1 by step-interval
-                   for xv = (edraw-scroll-transform-x editor x)
+                   for xv = (+ (edraw-scroll-transform-x editor x) pa)
                    do (edraw-svg-line xv view-y-min xv view-y-max
                                       :parent g
                                       :class (if (= x 0)
                                                  "edraw-ui-axis-line"
                                                "edraw-ui-grid-line")))
           (cl-loop for y from y0 to y1 by step-interval
-                   for yv = (edraw-scroll-transform-y editor y)
+                   for yv = (+ (edraw-scroll-transform-y editor y) pa)
                    do (edraw-svg-line view-x-min yv view-x-max yv
                                       :parent g
                                       :class (if (= y 0)
