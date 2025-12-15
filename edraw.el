@@ -50,27 +50,56 @@
 (declare-function image-size "image.c")
 (declare-function image-flush "image.c")
 
+;; Classes:
+;; `edraw-editor'
+;;
+;; `edraw-editor-tool'
+;;   `edraw-editor-tool-select'
+;;   `edraw-editor-tool-rect'
+;;   `edraw-editor-tool-ellipse'
+;;   `edraw-editor-tool-text'
+;;   `edraw-editor-tool-image'
+;;   `edraw-editor-tool-path'
+;;   `edraw-editor-tool-freehand'
+;;   `edraw-editor-tool-custom-shape'
+;;   `edraw-editor-tool-generator'
+;;
+;; `edraw-properties-holder'
+;;   `edraw-property-proxy-shape'
+;;   `edraw-multiple-shapes'
+;;   `edraw-shape'
+;;     `edraw-shape-point-rect-boundary'
+;;       `edraw-shape-rect'
+;;       `edraw-shape-ellipse'
+;;       `edraw-shape-circle'
+;;       `edraw-shape-image'
+;;       `edraw-shape-group'
+;;         `edraw-shape-generator'
+;;     `edraw-shape-text'
+;;     `edraw-shape-path'
+;;
+;; `edraw-shape-point'
+;;   `edraw-shape-point-rect-boundary'
+;;   `edraw-shape-point-text'
+;;   `edraw-shape-point-path-base'
+;;     `edraw-shape-point-path-anchor'
+;;     `edraw-shape-point-path-handle'
+;;
+;; `edraw-point-connection'
+;; `edraw-point-connection-src'
+;;   `edraw-point-connection-src-anchor'
+;;   `edraw-point-connection-src-attrs'
+;;   `edraw-point-connection-src-aabb'
+;; `edraw-point-connection-dst'
+;;   `edraw-point-connection-dst-shape'
+;;   `edraw-point-connection-dst-shape-pt'
+;;   `edraw-point-connection-dst-shape-dir'
 
 ;;;; Editor
 
-;; edraw-editor------------------------------------------+
-;;  | |    |                                             |0..1 selected-handle
-;;  | |    |1                                            |0..1 selected-anchor
-;;  | |  svg-node *<-+ (<-SVG DOM Tree)               edraw-shape-point<|----+
-;;  | |    |1   1`---+                                                        |
-;;  | |    |0..1                                                              |
-;;  | | edraw-shape <|--+-edraw-shape-rect 1------8 edraw-shape-point-rect ---|
-;;  | | 0..1|sel-shape  |-edraw-shape-ellipse 1---8 edraw-shape-point-ellipse-|
-;;  | +-----+           |-edraw-shape-text 1------1 edraw-shape-point-text ---|
-;;  |                   `-edraw-shape-path 1------* edraw-shape-point-path ---+
-;;  | 1 tool
-;;  `---edraw-editor-tool <|--+-edraw-editor-tool-select
-;;                            |-edraw-editor-tool-rect
-;;                            |-edraw-editor-tool-ellipse
-;;                            |-edraw-editor-tool-text
-;;                            `-edraw-editor-tool-path
-
 ;;;;; Editor - Variables
+
+;;;;;; Group
 
 (defgroup edraw-editor nil
   "Drawing editor."
@@ -78,6 +107,7 @@
   :prefix "edraw-editor-"
   :group 'edraw)
 
+;;;;;; Document
 
 (defconst edraw-package-default-document-properties
   '((width . 560)
@@ -106,7 +136,7 @@ from the `edraw-package-default-document-properties' variable."
   (cdr (or (assq key edraw-default-document-properties)
            (assq key edraw-package-default-document-properties))))
 
-
+;;;;;; Shape Properties
 
 (defcustom edraw-editor-share-default-shape-properties nil
   "non-nil means that the editors change edraw-default-shape-properties directly."
@@ -281,7 +311,7 @@ If initial defaults are saved as presets, they will take precedence."
                       (copy-tree value)))
     tool-props))
 
-
+;;;;;; Marker Properties
 
 (defcustom edraw-default-marker-properties
   ;; '(("arrow" (markerWidth . "20") (markerHeight . "10")))
@@ -305,7 +335,7 @@ If initial defaults are saved as presets, they will take precedence."
 (defun edraw-default-marker-properties--get ()
   (copy-tree edraw-default-marker-properties))
 
-
+;;;;;; Image Scaling
 
 ;;NOTE: Referenced by edraw-property-editor.el, edraw-shape-picker.el for read color
 (defcustom edraw-editor-image-scaling-factor nil
@@ -314,6 +344,10 @@ uses the value of `image-scaling-factor' variable."
   :group 'edraw-editor
   :type '(choice number
                  (const :tag "Use `image-scaling-factor'" nil)))
+
+;;;;;; Grid
+
+(defconst edraw-grid-display-min-interval 4.0)
 
 (defcustom edraw-editor-default-grid-visible t
   "non-nil means grid lines are displayed by default."
@@ -378,38 +412,7 @@ Used by the `edraw-editor-move-selected-by-arrow-key' command."
                              (const :tag "Grid Intervals" grid)
                              (const :tag "Next Grid Line" snap)))))
 
-(defcustom edraw-editor-scroll-distance-by-arrow-key
-  '((nil . 50)
-    ((shift) . 100)
-    ((control) . 200)
-    ((control shift) . 400))
-  "Amount of scrolling using arrow keys.
-
-Specify with an alist whose key is the modifier key list and the
-amount of scrolling is the value.
-
-If the symbol `grid' is specified as the value, the grid interval
-setting will be used.
-
-Used by the `edraw-editor-scroll-by-arrow-key' command."
-  :group 'edraw-editor
-  :type '(list :tag "Modifiers-Distance" :extra-offset 2
-               (cons :format "No modifiers:\n    %v"
-                     (const :format "" nil)
-                     (choice (number :tag "Pixels")
-                             (const :tag "Grid Intervals" grid)))
-               (cons  :format "Shift:\n    %v"
-                      (const :format "" (shift))
-                      (choice (number :tag "Pixels")
-                              (const :tag "Grid Intervals" grid)))
-               (cons  :format "Control:\n    %v"
-                      (const :format "" (control))
-                      (choice (number :tag "Pixels")
-                              (const :tag "Grid Intervals" grid)))
-               (cons :format "Control+Shift:\n    %v"
-                     (const :format "" (control shift))
-                     (choice (number :tag "Pixels")
-                             (const :tag "Grid Intervals" grid)))))
+;;;;;; Transparent Background
 
 (defcustom edraw-editor-default-transparent-bg-visible t
   "non-nil means the transparent background is colored by default."
@@ -428,6 +431,15 @@ Used by the `edraw-editor-scroll-by-arrow-key' command."
   "The grid interval of the transparent background."
   :group 'edraw-editor
   :type 'number)
+
+;;;;;; Point View
+
+(defconst edraw-anchor-point-radius 3.5)
+(defconst edraw-handle-point-radius 3.0)
+(defconst edraw-anchor-point-input-radius (+ 1.0 edraw-anchor-point-radius))
+(defconst edraw-handle-point-input-radius (+ 2.0 edraw-handle-point-radius))
+
+;;;;;; View Area
 
 (defcustom edraw-editor-auto-view-enlargement-max-size
   (cons
@@ -476,21 +488,67 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
                                    (const :tag "max-image-size" nil)
                                    (integer :tag "Pixels" :value 2048)))))))
 
+;;;;;; Scroll Operation
+
+(defcustom edraw-editor-scroll-distance-by-arrow-key
+  '((nil . 50)
+    ((shift) . 100)
+    ((control) . 200)
+    ((control shift) . 400))
+  "Amount of scrolling using arrow keys.
+
+Specify with an alist whose key is the modifier key list and the
+amount of scrolling is the value.
+
+If the symbol `grid' is specified as the value, the grid interval
+setting will be used.
+
+Used by the `edraw-editor-scroll-by-arrow-key' command."
+  :group 'edraw-editor
+  :type '(list :tag "Modifiers-Distance" :extra-offset 2
+               (cons :format "No modifiers:\n    %v"
+                     (const :format "" nil)
+                     (choice (number :tag "Pixels")
+                             (const :tag "Grid Intervals" grid)))
+               (cons  :format "Shift:\n    %v"
+                      (const :format "" (shift))
+                      (choice (number :tag "Pixels")
+                              (const :tag "Grid Intervals" grid)))
+               (cons  :format "Control:\n    %v"
+                      (const :format "" (control))
+                      (choice (number :tag "Pixels")
+                              (const :tag "Grid Intervals" grid)))
+               (cons :format "Control+Shift:\n    %v"
+                     (const :format "" (control shift))
+                     (choice (number :tag "Pixels")
+                             (const :tag "Grid Intervals" grid)))))
+
+;;;;;; Misc
+
 (defcustom edraw-editor-show-help-when-selecting-tool-p t
   "Non-nil means display help for tool when it is selected."
   :group 'edraw-editor
   :type 'boolean)
 
-(defconst edraw-grid-display-min-interval 4.0)
-
-(defconst edraw-anchor-point-radius 3.5)
-(defconst edraw-handle-point-radius 3.0)
-(defconst edraw-anchor-point-input-radius (+ 1.0 edraw-anchor-point-radius))
-(defconst edraw-handle-point-input-radius (+ 2.0 edraw-handle-point-radius))
-
 (defvar edraw-snap-text-to-shape-center t)
 
 (defvar edraw-editor-move-point-on-click t)
+
+(defvar edraw-editor-disable-line-prefix t
+  "Disable line-prefix and wrap-prefix properties on editor overlays.
+
+There is a bug in Emacs where the coordinates of mouse events are
+misaligned when line-prefix is used and the image is at the top
+of the window.
+
+When this variable is t, the line-prefix and wrap-prefix
+properties of the editors are set to the empty string to
+disable the line-prefix and wrap-prefix already set in the
+buffer.
+
+line-prefix and wrap-prefix are used in org-indent.")
+
+;;;;;; Keymap
 
 (defun edraw-editor-make-default-keymap ()
   (let ((km (make-sparse-keymap)))
@@ -642,19 +700,6 @@ Note: All pixel counts are before applying the editor-wide scaling factor."
 
 (defvar edraw-editor-map (edraw-editor-make-default-keymap))
 
-(defvar edraw-editor-disable-line-prefix t
-  "Disable line-prefix and wrap-prefix properties on editor overlays.
-
-There is a bug in Emacs where the coordinates of mouse events are
-misaligned when line-prefix is used and the image is at the top
-of the window.
-
-When this variable is t, the line-prefix and wrap-prefix
-properties of the editors are set to the empty string to
-disable the line-prefix and wrap-prefix already set in the
-buffer.
-
-line-prefix and wrap-prefix are used in org-indent.")
 
 ;;;;; Editor - Constructor
 
@@ -748,9 +793,7 @@ used by the edraw-editor class.")
 
 (cl-defmethod edraw-initialize ((editor edraw-editor))
   "Do nothing.
-
 This method is defined for backward compatibility.
-
 edraw-editor initialization is now called automatically."
   editor)
 
