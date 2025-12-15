@@ -751,19 +751,6 @@ line-prefix and wrap-prefix are used in org-indent.")
  change slot names in the future). Settings are shared with other
  editors open at the same time without recreating the editor.")
    (settings
-    :initform (list (cons 'grid-visible
-                          edraw-editor-default-grid-visible)
-                    (cons 'grid-interval
-                          edraw-editor-default-grid-interval)
-                    (cons 'grid-major-period
-                          edraw-editor-default-grid-major-period)
-                    (cons 'transparent-bg-visible
-                          edraw-editor-default-transparent-bg-visible)
-                    (cons 'view-size-spec nil) ;;User specified view size
-                    (cons 'transform-method 'auto)
-                    (cons 'pixel-align
-                          (edraw-ui-state-get (edraw-ui-state-object-default)
-                                              'editor 'pixel-align t)))
     :documentation
     "Stores settings that should be kept separately for each editor.")
    (selection-ui-visible :initform t)
@@ -801,6 +788,10 @@ edraw-editor initialization is now called automatically."
   (edraw-editor-initialize editor))
 
 (defun edraw-editor-initialize (editor)
+  (oset editor settings (edraw-editor-load-settings (oref editor ui-state)))
+  (when-let ((wh (edraw-get-setting editor 'view-size-spec)))
+    (oset editor view-size wh))
+
   (edraw-editor-clear-undo-vars)
   (edraw-editor-clear-modified-vars)
 
@@ -893,17 +884,97 @@ edraw-editor initialization is now called automatically."
 
 ;;;;; Editor - User Settings
 
+(defconst edraw-editor-settings-info
+  '((grid-visible :var edraw-editor-default-grid-visible)
+    (grid-interval :var edraw-editor-default-grid-interval)
+    (grid-major-period :var edraw-editor-default-grid-major-period)
+    (transparent-bg-visible :var edraw-editor-default-transparent-bg-visible)
+    (view-size-spec :default nil :persistence nil) ;;User specified view size
+    (transform-method :default auto :persistence nil)
+    (pixel-align :default t)))
+
+(defcustom edraw-editor-setting-persistence-alist nil
+  "Alist that overrides the default persistence setting for each editor setting.
+
+Each element is a cons cell (KEY . PERSIST-P) where:
+- KEY is a setting name (symbol)
+- PERSIST-P is a boolean indicating whether to save/load the setting
+
+If a setting is not listed here, its default persistence value
+from `edraw-editor-settings-info' is used.  If no default is
+specified there, the setting is persistent by default.
+
+This allows you to prevent certain settings from being saved to
+or loaded from files, overriding their default behavior."
+  :group 'edraw-editor
+  :type `(set
+          ,@(mapcar (lambda (info) `(cons
+                                     :tag ,(symbol-name (car info))
+                                     :format "%{%t%}: %v"
+                                     (const :format "" ,(car info))
+                                     (choice :tag "Persistence"
+                                             (const :tag "Do not save" nil)
+                                             (const :tag "Save" t))))
+                    edraw-editor-settings-info)))
+
+(defun edraw-editor-persistent-setting-p (key)
+  "Return non-nil if the editor setting KEY should be saved and loaded.
+
+Consults `edraw-editor-setting-persistence-alist' first, then the
+:persistence property in `edraw-editor-settings-info', defaulting
+to t if neither is specified."
+  (if-let* ((cell (assq key edraw-editor-setting-persistence-alist)))
+      (cdr cell)
+    (if-let* ((lst (plist-member (alist-get key edraw-editor-settings-info)
+                                 :persistence)))
+        (cadr lst)
+      t)))
+
+(defun edraw-editor-load-settings (ui-state)
+  "Load editor settings from UI-STATE and return it."
+  (let ((saved-settings (edraw-ui-state-get ui-state 'editor 'settings nil)))
+    (cl-loop for (key . props) in edraw-editor-settings-info
+             collect
+             (or
+              (when (edraw-editor-persistent-setting-p key)
+                (when-let* ((cell (assq key saved-settings)))
+                  (cons key (copy-tree (cdr cell)))))
+              (when-let* ((var (plist-get props :var)))
+                (cons key (copy-tree (symbol-value var))))
+              (cons key (copy-tree (plist-get props :default)))))))
+;; EXAMPLE: (edraw-editor-load-settings (edraw-ui-state-object-default))
+
+(defun edraw-editor-save-setting (ui-state key value)
+  "Save editor setting KEY and VALUE to UI-STATE."
+  (when (edraw-editor-persistent-setting-p key)
+    (let ((saved-settings
+           (edraw-ui-state-get ui-state 'editor 'settings)))
+      (edraw-alist-set saved-settings key value)
+      (edraw-ui-state-set ui-state 'editor 'settings
+                          saved-settings)
+      (edraw-ui-state-save ui-state))))
+
 (cl-defmethod edraw-get-setting ((editor edraw-editor) key)
+  "Return the value of setting KEY in EDITOR."
   (alist-get key (oref editor settings)))
+
 (cl-defmethod edraw-set-setting ((editor edraw-editor) key value)
-  (setf (alist-get key (oref editor settings)) value))
+  "Set the value of setting KEY to VALUE in EDITOR.
+The value is saved if the setting is persistent."
+  (prog1 (edraw-alist-set (oref editor settings) key value)
+    (edraw-editor-save-setting (oref editor ui-state) key value)))
 
 ;;;;; Editor - Extra Properties
 
 (cl-defmethod edraw-get-extra-prop ((editor edraw-editor) key)
+  "Return the extra property KEY in EDITOR."
   (alist-get key (oref editor extra-properties)))
+
 (cl-defmethod edraw-set-extra-prop ((editor edraw-editor) key value)
-  (setf (alist-get key (oref editor extra-properties)) value))
+  "Set the extra property KEY to VALUE in EDITOR.
+Extra properties are a key-value store that library users can
+freely use without being used by edraw-editor itself."
+  (edraw-alist-set (oref editor extra-properties) key value))
 
 ;;;;; Editor - Hooks
 
@@ -4082,10 +4153,7 @@ document size or view box."
 When ENABLED is non-nil, shapes are automatically adjusted
 to align with the pixel grid during creation and editing."
   (setq enabled (not (null enabled)))
-  (edraw-set-setting editor 'pixel-align enabled)
-  (with-slots (ui-state) editor
-    (edraw-ui-state-set ui-state 'editor 'pixel-align enabled)
-    (edraw-ui-state-save ui-state)))
+  (edraw-set-setting editor 'pixel-align enabled))
 
 (edraw-editor-defcmd edraw-toggle-pixel-align-enabled ((editor edraw-editor))
   "Toggle pixel alignment in EDITOR."
