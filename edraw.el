@@ -2458,7 +2458,7 @@ document size or view box."
 }
 .edraw-ui-major-grid-line {
   stroke: rgba(130, 130, 130, 0.7);
-  /*stroke-dasharray: 1;*/
+  stroke-dasharray: 1;
   /*[Too Slow] mix-blend-mode: difference; */
 }
 .edraw-ui-axis-line {
@@ -2615,51 +2615,64 @@ document size or view box."
     (when-let* ((g (edraw-dom-get-by-id svg "edraw-ui-grid")))
       (edraw-dom-remove-all-children g)
       (when (edraw-get-setting editor 'grid-visible)
-        (let* ((interval (edraw-get-setting editor 'grid-interval))
-               (scaled-interval (* interval (edraw-scroll-scale editor)))
-               (step-lines (if (< scaled-interval edraw-grid-display-min-interval)
-                               (ceiling
-                                (/ (float edraw-grid-display-min-interval)
-                                   scaled-interval))
-                             1))
-               (step-interval (* step-lines interval))
-               (x0 (edraw-grid-ceil (edraw-scroll-visible-area-left editor)
-                                    step-interval))
-               (y0 (edraw-grid-ceil (edraw-scroll-visible-area-top editor)
-                                    step-interval))
-               (x1 (edraw-grid-ceil (edraw-scroll-visible-area-right editor)
-                                    step-interval))
-               (y1 (edraw-grid-ceil (edraw-scroll-visible-area-bottom editor)
-                                    step-interval))
-               (view-x-min 0)
-               (view-y-min 0)
-               (view-x-max (edraw-scroll-view-width editor))
-               (view-y-max (edraw-scroll-view-height editor))
-               (major-period (or (edraw-get-setting editor 'grid-major-period)
-                                 1000000))
-               (x0n (mod (round (/ x0 step-interval)) major-period))
-               (y0n (mod (round (/ y0 step-interval)) major-period))
-               (pa (if edraw-editor-grid-pixel-align 0.5 0)))
-          (cl-loop for x from x0 to x1 by step-interval
-                   for xv = (+ (edraw-scroll-transform-x editor x) pa)
-                   for xn = x0n then (if (= (1+ xn) major-period) 0 (1+ xn))
-                   do (edraw-svg-line xv view-y-min xv view-y-max
-                                      :parent g
-                                      :class (if (= x 0)
-                                                 "edraw-ui-axis-line"
-                                               (if (= xn 0)
-                                                   "edraw-ui-major-grid-line"
-                                                 "edraw-ui-grid-line"))))
-          (cl-loop for y from y0 to y1 by step-interval
-                   for yv = (+ (edraw-scroll-transform-y editor y) pa)
-                   for yn = y0n then (if (= (1+ yn) major-period) 0 (1+ yn))
-                   do (edraw-svg-line view-x-min yv view-x-max yv
-                                      :parent g
-                                      :class (if (= y 0)
-                                                 "edraw-ui-axis-line"
-                                               (if (= yn 0)
-                                                   "edraw-ui-major-grid-line"
-                                                 "edraw-ui-grid-line")))))))))
+        (let ((interval (or (edraw-get-setting editor 'grid-interval) 0)))
+          (when (> interval 0)
+            (let* ((scaled-interval (* interval (edraw-scroll-scale editor)))
+                   (step-lines (if (< scaled-interval
+                                      edraw-grid-display-min-interval)
+                                   (ceiling
+                                    (/ (float edraw-grid-display-min-interval)
+                                       scaled-interval))
+                                 1))
+                   (step-interval (* step-lines interval))
+                   (x0
+                    (edraw-grid-ceil
+                     (edraw-scroll-visible-area-left editor) step-interval))
+                   (y0
+                    (edraw-grid-ceil
+                     (edraw-scroll-visible-area-top editor) step-interval))
+                   (x1
+                    (edraw-grid-ceil
+                     (edraw-scroll-visible-area-right editor) step-interval))
+                   (y1
+                    (edraw-grid-ceil
+                     (edraw-scroll-visible-area-bottom editor) step-interval))
+                   (view-x-min 0)
+                   (view-y-min 0)
+                   (view-x-max (edraw-scroll-view-width editor))
+                   (view-y-max (edraw-scroll-view-height editor))
+                   (major-period (or
+                                  (edraw-get-setting editor 'grid-major-period)
+                                  0))
+                   (x0n (if (> major-period 0)
+                            (mod (round (/ x0 step-interval)) major-period)
+                          1))
+                   (y0n (if (> major-period 0)
+                            (mod (round (/ y0 step-interval)) major-period)
+                          1))
+                   (pa (if edraw-editor-grid-pixel-align 0.5 0)))
+              (cl-loop for x from x0 to x1 by step-interval
+                       for xv = (+ (edraw-scroll-transform-x editor x) pa)
+                       for xn = x0n then (if (= (1+ xn) major-period) 0 (1+ xn))
+                       do (edraw-svg-line xv view-y-min xv view-y-max
+                                          :parent g
+                                          :class
+                                          (if (= x 0)
+                                              "edraw-ui-axis-line"
+                                            (if (= xn 0)
+                                                "edraw-ui-major-grid-line"
+                                              "edraw-ui-grid-line"))))
+              (cl-loop for y from y0 to y1 by step-interval
+                       for yv = (+ (edraw-scroll-transform-y editor y) pa)
+                       for yn = y0n then (if (= (1+ yn) major-period) 0 (1+ yn))
+                       do (edraw-svg-line view-x-min yv view-x-max yv
+                                          :parent g
+                                          :class
+                                          (if (= y 0)
+                                              "edraw-ui-axis-line"
+                                            (if (= yn 0)
+                                                "edraw-ui-major-grid-line"
+                                              "edraw-ui-grid-line")))))))))))
 
 (cl-defmethod edraw-set-grid-visible ((editor edraw-editor) visible)
   (edraw-set-setting editor 'grid-visible visible)
