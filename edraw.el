@@ -4178,8 +4178,12 @@ object where the DOWN-EVENT occurred, and returned."
         ;;(message "area=%s x-y=%s object-x-y=%s" (posn-area move-pos) (posn-x-y move-pos) (posn-object-x-y move-pos))
         new-event))))
 
-(cl-defmethod edraw-mouse-event-to-xy-snapped ((editor edraw-editor) event)
-  (edraw-snap-xy editor (edraw-mouse-event-to-xy-raw editor event)))
+(cl-defmethod edraw-mouse-event-to-xy-snapped ((editor edraw-editor) event
+                                               &optional offset)
+  (let ((xy (edraw-mouse-event-to-xy-raw editor event)))
+    (when offset
+      (edraw-xy-inc xy offset))
+    (edraw-snap-xy editor xy)))
 
 ;; For object search purposes, you should use non-snap version.
 ;; This version may return non-integer coordinates due to zoom
@@ -4717,7 +4721,8 @@ position where the EVENT occurred."
                        (edraw-selectable-handles editor)
                        down-xy))))
     (when handle
-      (let ((anchor-xy (edraw-get-xy (edraw-parent-anchor handle)))
+      (let ((shape (edraw-parent-shape handle))
+            (anchor-xy (edraw-get-xy (edraw-parent-anchor handle)))
             (shift-p (memq 'shift (event-modifiers down-event)))
             (meta-p (or (memq 'meta (event-modifiers down-event))
                         (memq 'alt (event-modifiers down-event))))
@@ -4727,9 +4732,12 @@ position where the EVENT occurred."
            down-event
            (lambda (move-event)
              (edraw-undo-all editor) ;; Cancel previous move
-             (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+             (setq move-xy (edraw-mouse-event-to-xy-snapped
+                            editor move-event
+                            (edraw-pixel-align-offset shape t)))
              (when shift-p
                (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
+             (setq move-xy (edraw-adjust-spt-xy-for-pixel-grid move-xy handle))
              ;; If selected handle, move it alone
              (if (or meta-p
                      (and selected-handle
@@ -4761,7 +4769,8 @@ position where the EVENT occurred."
                              (edraw-pick-anchor-point shp down-xy))
                            (edraw-selected-shapes editor))))
     (when anchor
-      (let* ((original-xy (edraw-get-xy-transformed anchor))
+      (let* ((shape (edraw-parent-shape anchor))
+             (original-xy (edraw-get-xy-transformed anchor))
              (shift-p (memq 'shift (event-modifiers down-event)))
              (opposite-vecs (when shift-p
                               (edraw-get-opposite-point-vectors anchor)))
@@ -4771,12 +4780,15 @@ position where the EVENT occurred."
            down-event
            (lambda (move-event)
              (edraw-undo-all editor) ;; Cancel previous move
-             (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+             (setq move-xy (edraw-mouse-event-to-xy-snapped
+                            editor move-event
+                            (edraw-pixel-align-offset shape t)))
              (when shift-p
                (setq move-xy
                      (if opposite-vecs
                          (edraw-xy-snap-to-rect-diagonal move-xy original-xy (car opposite-vecs) (cdr opposite-vecs))
                        (edraw-xy-snap-to-45deg move-xy original-xy))))
+             (setq move-xy (edraw-adjust-spt-xy-for-pixel-grid move-xy anchor))
              (edraw-move-on-transformed anchor move-xy)))) ;;notify modification
         (if move-xy
             ;; Fix position
@@ -5255,7 +5267,10 @@ to down-mouse-1 and processes drag and click."
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-rect)
                                      down-event)
   (with-slots (editor) tool
-    (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+    (let ((down-xy (edraw-mouse-event-to-xy-snapped
+                    editor down-event
+                    (edraw-pixel-align-offset-for-new-shape-type
+                     editor 'rect t)))
           (move-xy nil)
           (shift-p (memq 'shift (event-modifiers down-event))))
       ;; Preview
@@ -5276,7 +5291,9 @@ to down-mouse-1 and processes drag and click."
                  down-event
                  (lambda (move-event)
                    (setq move-xy
-                         (edraw-mouse-event-to-xy-snapped editor move-event))
+                         (edraw-mouse-event-to-xy-snapped
+                          editor move-event
+                          (edraw-pixel-align-offset shape t)))
                    (when shift-p
                      (setq move-xy (edraw-xy-snap-to-square move-xy down-xy)))
                    (edraw-set-rect shape down-xy move-xy)))) ;;notify modification
@@ -5329,7 +5346,10 @@ to down-mouse-1 and processes drag and click."
                                      down-event)
   (with-slots (editor) tool
     (edraw-deselect-all-shapes editor)
-    (let ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+    (let ((down-xy (edraw-mouse-event-to-xy-snapped
+                    editor down-event
+                    (edraw-pixel-align-offset-for-new-shape-type
+                     editor 'ellipse t)))
           (move-xy nil)
           (shift-p (memq 'shift (event-modifiers down-event))))
       ;; Preview
@@ -5348,7 +5368,9 @@ to down-mouse-1 and processes drag and click."
                  down-event
                  (lambda (move-event)
                    (setq move-xy
-                         (edraw-mouse-event-to-xy-snapped editor move-event))
+                         (edraw-mouse-event-to-xy-snapped
+                          editor move-event
+                          (edraw-pixel-align-offset shape t)))
                    (when shift-p
                      (setq move-xy (edraw-xy-snap-to-square move-xy down-xy)))
                    (edraw-set-rect shape down-xy move-xy)))) ;;notify modification
@@ -5647,7 +5669,9 @@ to down-mouse-1 and processes drag and click."
              ;; Calculate coordinates
              (shift-p (memq 'shift (event-modifiers down-event)))
              (last-xy (when last-anchor (edraw-get-xy last-anchor)))
-             (down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+             (down-xy (edraw-mouse-event-to-xy-snapped
+                       editor down-event
+                       (edraw-pixel-align-offset shape t)))
              (new-xy (if (and shift-p last-xy)
                          (edraw-xy-snap-to-45deg down-xy last-xy)
                        down-xy))
@@ -5778,7 +5802,8 @@ specify nil.
 
 When OPPOSITE-P is non-nil, the input coordinates are the point
 symmetrical to the mouse coordinates."
-  (let ((shift-p (memq 'shift (event-modifiers down-event)))
+  (let ((shape (edraw-parent-shape anchor))
+        (shift-p (memq 'shift (event-modifiers down-event)))
         (anchor-xy (edraw-get-xy-transformed anchor))
         (backward-p
          (if from-anchor
@@ -5791,7 +5816,9 @@ symmetrical to the mouse coordinates."
       (edraw-track-drag
        down-event
        (lambda (move-event)
-         (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+         (setq move-xy (edraw-mouse-event-to-xy-snapped
+                        editor move-event
+                        (edraw-pixel-align-offset shape t)))
          (when shift-p
            (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
          (unless dragged-handle
@@ -5799,6 +5826,7 @@ symmetrical to the mouse coordinates."
                  (if backward-p
                      (edraw-get-backward-handle anchor)
                    (edraw-get-forward-handle anchor))))
+         (setq move-xy (edraw-adjust-spt-xy-for-pixel-grid move-xy dragged-handle))
          (edraw-move-with-opposite-handle-on-transformed ;;notify modification
           dragged-handle
           (if opposite-p
@@ -5824,12 +5852,15 @@ down in path tool."
   (let (move-xy dragged-handle)
     ;; Drag handle points of the ANCHOR
     (let ((anchor-xy (edraw-get-xy anchor))
-          (backward-p (not (edraw-last-anchor-p anchor))))
+          (backward-p (not (edraw-last-anchor-p anchor)))
+          (shape (edraw-parent-shape anchor)))
       (edraw-editor-with-temp-modifications editor
         (edraw-track-drag
          down-event
          (lambda (move-event)
-           (setq move-xy (edraw-mouse-event-to-xy-snapped editor move-event))
+           (setq move-xy (edraw-mouse-event-to-xy-snapped
+                          editor move-event
+                          (edraw-pixel-align-offset shape t)))
            (when shift-p
              (setq move-xy (edraw-xy-snap-to-45deg move-xy anchor-xy)))
 
@@ -5839,6 +5870,7 @@ down in path tool."
                        (edraw-get-backward-handle anchor)
                      (edraw-get-forward-handle anchor))))
 
+           (setq move-xy (edraw-adjust-spt-xy-for-pixel-grid move-xy dragged-handle))
            (edraw-move-with-opposite-handle-symmetry-on-transformed
             dragged-handle
             move-xy);;notify modification
@@ -5978,7 +6010,10 @@ check the difference before and after smoothing."
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-freehand)
                                      down-event)
   (with-slots (editor) tool
-    (let* ((down-xy (edraw-mouse-event-to-xy-snapped editor down-event))
+    (let* ((down-xy (edraw-mouse-event-to-xy-snapped
+                     editor down-event
+                     (edraw-pixel-align-offset-for-new-shape-type
+                      editor 'path t)))
            (last-xy down-xy)
            points)
       ;; Deselect
@@ -6005,7 +6040,8 @@ check the difference before and after smoothing."
                                (edraw-convert-mouse-event-on-down-object
                                 move-event
                                 down-event)
-                             move-event))))
+                             move-event)
+                           (edraw-pixel-align-offset preview-path t))))
                      ;;@todo realtime simplification & smoothing the path
 
                      ;; Clip
@@ -7700,7 +7736,31 @@ return it."
    shape))
 
 
-;;;;;; Pixel Align
+;;;;;; Pixel Grid Alignment
+
+;; 本当はストロークの外枠がピクセルグリッドに合うように調整すべき。
+;; 例えばrectであれば、変形を全て適用した最終的な四隅の座標がピクセル
+;; グリッドの交点になるように調整すべき。
+
+;; しかし面倒なので、簡易的な方法を使う。
+;; stroke-widthが奇数幅の時だけ0.5pxずらす。
+;; この方法は全く不正確だが、整数サイズの図形を整数座標に配置するだけなら
+;; それなりにうまく機能する。
+
+;; ずらす条件:
+;; - (cl-oddp (round stroke-width))
+;; - strokeが有効でnoneではない
+;; - transformが空 (変形が指定されていたら調整せず、その指定を優先する)
+
+;; ずらす方法:
+;; - transformにtranslate(0.5,0.5)を入れる
+
+;; `edraw-set-properties-internal'はstroke-widthの変化を監視してずらす。
+;; 他にもマウスで座標を入力する場所はこのずらす量を考慮しなければならない。
+;; 0.5pxのわずかな差だが、ずれると線がぼやけるし、ズームしてアイコンを
+;; 書くときには大きなズレとなる。
+
+(defconst edraw-pixel-align-transform-value "translate(0.5,0.5)")
 
 (defun edraw-adjust-prop-alist-for-pixel-align (prop-alist
                                                 element deftbl prop-info-list)
@@ -7708,7 +7768,8 @@ return it."
 Returns modified prop-alist."
   (let ((new-stroke-width-cell (assq 'stroke-width prop-alist))
         (new-stroke-cell (assq 'stroke prop-alist)))
-    (when (or new-stroke-width-cell new-stroke-cell) ;; Include transform change ?
+    (when (or new-stroke-width-cell
+              new-stroke-cell) ;;Include transform change?
       (let* ((new-transform-cell (assq 'transform prop-alist))
              (new-transform
               (if new-transform-cell
@@ -7729,15 +7790,74 @@ Returns modified prop-alist."
                  (edraw-svg-element-get-property
                   element 'stroke-width deftbl prop-info-list)
                  element 'stroke-width))))
-        (if (and (numberp new-stroke-width)
-                 (and new-stroke (not (equal new-stroke "none")))
-                 (cl-oddp (round new-stroke-width)))
+        (if (edraw-pixel-align-needed--props new-stroke-width new-stroke)
             (when (null new-transform)
-              (edraw-alist-set-nd prop-alist 'transform "translate(0.5,0.5)"))
-          (when (equal new-transform "translate(0.5,0.5)")
+              (edraw-alist-set-nd prop-alist 'transform
+                                  edraw-pixel-align-transform-value))
+          (when (equal new-transform edraw-pixel-align-transform-value)
             (edraw-alist-set-nd prop-alist 'transform nil))))))
   prop-alist)
 
+(defun edraw-adjust-spt-xy-for-pixel-grid (xy spt)
+  "Adjust the coordinate XY of SPT to align with the pixel grid."
+  (when-let* ((offset-xy (edraw-pixel-align-offset
+                          (edraw-parent-shape spt))))
+    (setq xy (edraw-xy-add xy offset-xy)))
+  xy)
+
+(cl-defmethod edraw-pixel-align-offset ((shape edraw-shape)
+                                        &optional negative)
+  "Return the translation amount for pixel alignment currently applied to
+SHAPE.
+
+If NEGATIVE is non-nil, return the opposite direction vector."
+  (let ((editor (edraw-get-editor shape)))
+    (when (and editor (edraw-pixel-align-enabled-p editor))
+      (when-let* ((stroke-width (edraw-get-property-as-length shape
+                                                              'stroke-width))
+                  (stroke (edraw-get-property shape 'stroke)))
+        (when (and (edraw-pixel-align-needed--props stroke-width stroke)
+                   ;; The pixel alignment is now being applied.
+                   (equal (edraw-get-property shape 'transform)
+                          edraw-pixel-align-transform-value))
+          (if negative
+              (edraw-xy -0.5 -0.5)
+            (edraw-xy 0.5 0.5)))))))
+
+(defun edraw-pixel-align-offset-for-new-shape-type (editor type
+                                                           &optional negative)
+  "Return the translation amount for pixel alignment that should be applied
+when creating a shape of TYPE on EDITOR.
+
+If NEGATIVE is non-nil, return the opposite direction vector."
+  (edraw-pixel-align-offset-for-new-shape
+   editor (edraw-get-default-shape-properties editor type) negative))
+
+(defun edraw-pixel-align-offset-for-new-shape (editor prop-alist
+                                                      &optional negative)
+  "Return the translation amount for pixel alignment that should be applied
+when creating a shape with PROP-ALIST properties on EDITOR.
+
+If NEGATIVE is non-nil, return the opposite direction vector."
+  (when (and editor (edraw-pixel-align-enabled-p editor))
+    (when-let* ((stroke-width (edraw-svg-attr-length-to-number
+                               (alist-get 'stroke-width prop-alist)
+                               nil
+                               'stroke-width))
+                (stroke (alist-get 'stroke prop-alist)))
+      (when (and (edraw-pixel-align-needed--props stroke-width stroke)
+                 ;; Does not contain a user-specified transform.
+                 (null (alist-get 'transform prop-alist)))
+        (if negative
+            (edraw-xy -0.5 -0.5)
+          (edraw-xy 0.5 0.5))))))
+
+(defun edraw-pixel-align-needed--props (stroke-width stroke)
+  "Return non-nil if STROKE-WIDTH and STROKE require pixel alignment
+adjustment."
+  (when (and (numberp stroke-width) stroke)
+    (and (cl-oddp (round stroke-width))
+         (not (equal stroke "none")))))
 
 ;;;;;; Temporary State
 
@@ -8140,6 +8260,10 @@ check for either using `edraw-rect-empty-p'.")
 (cl-defmethod edraw-transform-prop-exists-p ((shape edraw-shape))
   (edraw-has-property-p shape 'transform))
 
+(cl-defmethod edraw-transform-prop-translate-only-p ((shape edraw-shape))
+  (when-let* ((mat (edraw-transform-prop-get-matrix shape)))
+    (edraw-matrix-translation-only-p mat)))
+
 (cl-defmethod edraw-transform-prop-get-matrix ((shape edraw-shape))
   (when-let* ((transform-str (edraw-get-property shape 'transform)))
     (ignore-errors
@@ -8487,7 +8611,10 @@ may be replaced by another mechanism."
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
-    (edraw-transform-prop-multiply shape matrix))
+    (if (and (edraw-transform-prop-translate-only-p shape)
+             (edraw-matrix-translation-only-p matrix))
+        (edraw-transform-anchor-points-local shape matrix)
+      (edraw-transform-prop-multiply shape matrix)))
    ;; Rotation (including Skew) cannot be expressed only by moving
    ;; anchor points, so use the transform property.
    ((edraw-matrix-contains-rotation-p matrix)
@@ -8795,7 +8922,10 @@ may be replaced by another mechanism."
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
-    (edraw-transform-prop-multiply shape matrix))
+    (if (and (edraw-transform-prop-translate-only-p shape)
+             (edraw-matrix-translation-only-p matrix))
+        (edraw-transform-anchor-points-local shape matrix)
+      (edraw-transform-prop-multiply shape matrix)))
    ;; Scaling and rotation (including skew) cannot be expressed only
    ;; by moving anchor points, so use the transform property.
    ((not (edraw-matrix-translation-only-p matrix))
@@ -8985,7 +9115,10 @@ may be replaced by another mechanism."
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
-    (edraw-transform-prop-multiply shape matrix))
+    (if (and (edraw-transform-prop-translate-only-p shape)
+             (edraw-matrix-translation-only-p matrix))
+        (edraw-transform-anchor-points-local shape matrix)
+      (edraw-transform-prop-multiply shape matrix)))
    ;; Move anchor points.
    (t
     (edraw-transform-anchor-points-local shape matrix))))
@@ -9693,7 +9826,10 @@ result replaces the path itself."
   (cond
    ;; `transform' property already used.
    ((edraw-transform-prop-exists-p shape)
-    (edraw-transform-prop-multiply shape matrix))
+    (if (and (edraw-transform-prop-translate-only-p shape)
+             (edraw-matrix-translation-only-p matrix))
+        (edraw-transform-anchor-points-local shape matrix)
+      (edraw-transform-prop-multiply shape matrix)))
    ;; Transform child shapes. (No transform property)
    (t
     (edraw-transform-local shape matrix))))

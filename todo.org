@@ -1,10 +1,9 @@
 
 * Inbox
-** TODO ピクセルグリッド合わせの問題を何とかする。
-[[*細い線を描くために0.5pxずらす][細い線を描くために0.5pxずらす]]で生じた問題。
-図形やアンカーポイントを動かすとせっかくずらしたのがグリッドに吸い寄せられ無駄になってしまう。
-また、図形の移動はtransform(0.5,0.5)があるせいでtransformを使った移動になってしまうようだ。
+** TODO plistやalistに関する関数を改善する
+edraw-alist-やedraw-plist-を使うようにする。
 
+** TODO パスを複数選択して終端マーカー→その他を選んでも何も表示されない。
 ** TODO ユーザー設定を保存・復元すべき
 グリッド線の表示や間隔等を保存・復元すべき。
 
@@ -6938,3 +6937,30 @@ CLOSED: [2025-12-14 Sun 22:05]
 Adobe製品始め多くの製品は主グリッド線の間隔を設定し、その中を何分割するかを指定しているみたい。
 しかし私は誤差が怖いし面倒なので、グリッド線何本毎に主グリッド線を入れるかを指定させることにする。
 ついでに線の色や濃さも調整する。間隔は10pxにしようとおもったけど重くなるので20pxのままにした。
+** DONE ピクセルグリッド合わせの問題を何とかする。
+CLOSED: [2025-12-15 Mon 21:15]
+[[*細い線を描くために0.5pxずらす][細い線を描くために0.5pxずらす]]で生じた問題。
+図形やアンカーポイントを動かすとせっかくずらしたのがグリッドに吸い寄せられ無駄になってしまう。
+また、図形の移動はtransform(0.5,0.5)があるせいでtransformを使った移動になってしまうようだ。ドラッグでも矢印キーでもそうなる。
+
+おそらくあちこちに条件を満たしていたら0.5ピクセルずらす処理を入れれば良いのだと思う。
+
+とりあえずドラッグするところを全部見てみよう。
+
+- ハンドルやアンカーの移動
+  - [[elisp-function:edraw-mouse-down-handle-point;method-args=(nil edraw-editor t)]]
+  - [[elisp-function:edraw-mouse-down-anchor-point;method-args=(nil edraw-editor t)]]
+  - [[elisp-function:edraw-drag-handle-on-click-anchor]]
+  - [[elisp-function:edraw-create-symmetrical-handles-on-anchor]]
+- shapeの移動(対処不要)
+  - [[elisp-function:edraw-mouse-down-shape;method-args=(nil edraw-editor t)]]
+  - [[elisp-function:edraw-mouse-drag-shape-duplicate;method-args=(nil edraw-editor t)]]
+- edraw-shape-transformer系(対処不要)
+  - [[elisp-function:edraw-scale-by-dragging;method-args=(nil edraw-shape-transformer t)]]
+  - [[elisp-function:edraw-set-transform-origin-by-dragging;method-args=(nil edraw-shape-transformer t)]]
+  - [[elisp-function:edraw-translate-by-dragging;method-args=(nil edraw-shape-transformer t)]]
+  - [[elisp-function:edraw-rotate-by-dragging;method-args=(nil edraw-shape-transformer t)]]
+
+shape全体を平行移動する部分は対処不要だが、edraw-transform-autoを改良する必要がある。平行移動のみの行列が設定されている場合は、アンカーポイントを平行移動すべき。
+
+後はドラッグ以外にも問題があるかどうか。見当たらないのでとりあえずここまで。

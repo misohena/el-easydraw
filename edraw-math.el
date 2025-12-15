@@ -264,6 +264,26 @@ exponential notation."
         (- ,@(cl-loop for var in vars collect `(car ,var)))
         (- ,@(cl-loop for var in vars collect `(cdr ,var)))))))
 
+(defmacro edraw-xy-inc (dst src)
+  (let ((dst-var (gensym 'dst))
+        (src-var (gensym 'src)))
+    `(let ((,dst-var ,dst)
+           (,src-var ,src))
+       (when ,src-var
+         (setcar ,dst-var (+ (car ,dst-var) (car ,src-var)))
+         (setcdr ,dst-var (+ (cdr ,dst-var) (cdr ,src-var))))
+       ,dst-var)))
+
+(defmacro edraw-xy-dec (dst src)
+  (let ((dst-var (gensym 'dst))
+        (src-var (gensym 'src)))
+    `(let ((,dst-var ,dst)
+           (,src-var ,src))
+       (when ,src-var
+         (setcar ,dst-var (- (car ,dst-var) (car ,src-var)))
+         (setcdr ,dst-var (- (cdr ,dst-var) (cdr ,src-var))))
+       ,dst-var)))
+
 (defsubst edraw-xy-neg (xy)
   (cons (- (car xy)) (- (cdr xy))))
 
