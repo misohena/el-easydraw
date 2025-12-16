@@ -7924,17 +7924,16 @@ Returns modified prop-alist."
 
 (defun edraw-adjust-spt-xy-for-pixel-grid (xy spt)
   "Adjust the coordinate XY of SPT to align with the pixel grid."
-  (when-let* ((offset-xy (edraw-pixel-align-offset
-                          (edraw-parent-shape spt))))
+  (edraw-adjust-shape-xy-for-pixel-grid xy (edraw-parent-shape spt)))
+
+(defun edraw-adjust-shape-xy-for-pixel-grid (xy shape)
+  "Adjust the coordinate XY of SHAPE to align with the pixel grid."
+  (when-let* ((offset-xy (edraw-pixel-align-offset shape)))
     (setq xy (edraw-xy-add xy offset-xy)))
   xy)
 
-(cl-defmethod edraw-pixel-align-offset ((shape edraw-shape)
-                                        &optional negative)
-  "Return the translation amount for pixel alignment currently applied to
-SHAPE.
-
-If NEGATIVE is non-nil, return the opposite direction vector."
+(cl-defmethod edraw-pixel-align-applied-p ((shape edraw-shape))
+  "Return non-nil if SHAPE has a pixel align transform applied."
   (let ((editor (edraw-get-editor shape)))
     (when (and editor (edraw-pixel-align-enabled-p editor))
       (when-let* ((stroke-width (edraw-get-property-as-length shape
@@ -7944,9 +7943,18 @@ If NEGATIVE is non-nil, return the opposite direction vector."
                    ;; The pixel alignment is now being applied.
                    (equal (edraw-get-property shape 'transform)
                           edraw-pixel-align-transform-value))
-          (if negative
-              (edraw-xy -0.5 -0.5)
-            (edraw-xy 0.5 0.5)))))))
+          t)))))
+
+(cl-defmethod edraw-pixel-align-offset ((shape edraw-shape)
+                                        &optional negative)
+  "Return the translation amount for pixel alignment currently applied to
+SHAPE.
+
+If NEGATIVE is non-nil, return the opposite direction vector."
+  (when (edraw-pixel-align-applied-p shape)
+    (if negative
+        (edraw-xy -0.5 -0.5)
+      (edraw-xy 0.5 0.5))))
 
 (defun edraw-pixel-align-offset-for-new-shape-type (editor type
                                                            &optional negative)
@@ -11344,6 +11352,11 @@ Even if a handle is valid, it may not have any effect as a
   "Return non-nil if SRC targets the entire shape."
   nil)
 
+(defun edraw-adjust-point-connection-xy-for-pixel-align (xy src)
+  (when-let* ((offset (edraw-pixel-align-offset (oref src shape))))
+    (setq xy (edraw-xy-round (edraw-xy-sub xy offset))))
+  xy)
+
 ;;;;;; Point Connection Source Path Anchor Point
 
 (defclass edraw-point-connection-src-anchor (edraw-point-connection-src)
@@ -11528,6 +11541,9 @@ Even if a handle is valid, it may not have any effect as a
   "A class that represents where to glue the connection source point."
   :abstruct t)
 
+(cl-defmethod edraw-get-editor ((dst edraw-point-connection-dst))
+  (edraw-get-editor (oref dst shape)))
+
 (cl-defmethod edraw-dst-position ((dst edraw-point-connection-dst))
   (when-let* ((aabb (edraw-point-connection-aabb (oref dst shape))))
     (edraw-rect-center aabb)))
@@ -11643,9 +11659,13 @@ Even if a handle is valid, it may not have any effect as a
                                                    (/ gap dist-dstc-to-src)
                                                    dir)))))))
                    ;;(message "Compute dst %s to %s (dir=%s) = %s" dst-pos xy-src-next-inside dir xy)
+                   (setq xy (edraw-adjust-point-connection-xy-for-pixel-align
+                             xy src))
                    (edraw-set-xy src xy)
                    xy))))
            (progn
+             (setq dst-pos (edraw-adjust-point-connection-xy-for-pixel-align
+                            dst-pos src))
              (edraw-set-xy src dst-pos)
              dst-pos))))))))
 
@@ -11675,6 +11695,8 @@ of the shape.")
 (cl-defmethod edraw-update-src ((dst edraw-point-connection-dst-shape-pt)
                                 (src edraw-point-connection-src))
   (let ((dst-pos (edraw-dst-position dst))) ;; xy or nil
+    (setq dst-pos (edraw-adjust-point-connection-xy-for-pixel-align
+                   dst-pos src))
     (edraw-set-xy src dst-pos)
     dst-pos))
 
@@ -11703,6 +11725,7 @@ of the shape.")
                            (edraw-element (oref dst shape))
                            dst-shape-center
                            dir)))))
+      (setq xy (edraw-adjust-point-connection-xy-for-pixel-align xy src))
       (edraw-set-xy src xy)
       xy)))
 
