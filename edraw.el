@@ -3794,6 +3794,10 @@ document size or view box."
                                                               edraw-editor))
   (edraw-set-marker-start-circle (edraw-selected-multiple-shapes editor)))
 
+(edraw-editor-defcmd edraw-set-marker-start-by-menu-selected ((editor
+                                                               edraw-editor))
+  (edraw-set-marker-start-by-menu (edraw-selected-multiple-shapes editor)))
+
 (edraw-editor-defcmd edraw-set-marker-end-none-selected ((editor
                                                           edraw-editor))
   (edraw-set-marker-end-none (edraw-selected-multiple-shapes editor)))
@@ -3805,6 +3809,10 @@ document size or view box."
 (edraw-editor-defcmd edraw-set-marker-end-circle-selected ((editor
                                                             edraw-editor))
   (edraw-set-marker-end-circle (edraw-selected-multiple-shapes editor)))
+
+(edraw-editor-defcmd edraw-set-marker-end-by-menu-selected ((editor
+                                                             edraw-editor))
+  (edraw-set-marker-end-by-menu (edraw-selected-multiple-shapes editor)))
 
 (edraw-editor-defcmd edraw-set-marker-start-next-selected ((editor
                                                             edraw-editor))
@@ -8250,7 +8258,7 @@ match all selected shapes in the editor."
                                         (edraw-get-property shape 'marker-start))
                                        "circle")))
            ((edraw-msg "More...") edraw-set-marker-start-by-menu
-            :cmd-for-selected edraw-editor-set-marker-start-by-menu)
+            :cmd-for-selected edraw-editor-set-marker-start-by-menu-selected)
            ("--single-line")
            ((edraw-msg "Next Type") edraw-set-marker-start-next
             :cmd-for-selected edraw-editor-set-marker-start-next-selected))
@@ -8270,7 +8278,7 @@ match all selected shapes in the editor."
                                         (edraw-get-property shape 'marker-end))
                                        "circle")))
            ((edraw-msg "More...") edraw-set-marker-end-by-menu
-            :cmd-for-selected edraw-editor-set-marker-end-by-menu)
+            :cmd-for-selected edraw-editor-set-marker-end-by-menu-selected)
            ("--single-line")
            ((edraw-msg "Next Type") edraw-set-marker-end-next
             :cmd-for-selected edraw-editor-set-marker-end-next-selected))
