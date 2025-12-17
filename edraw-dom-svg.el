@@ -3265,7 +3265,7 @@ variable."
    (cons 'markerHeight (alist-get 'markerHeight marker-attrs "100"))
    (cons 'refX (alist-get 'refX marker-attrs "0"))))
 
-(defun edraw-svg-marker-path-overhang (marker stroke-width tip-pos)
+(defun edraw-svg-marker-path-overhang (marker stroke-width tip-pos stroke)
   (let ((tip-pos-without-stroke
          (cond
           ((numberp tip-pos) tip-pos)
@@ -3281,7 +3281,9 @@ variable."
            (edraw-svg-marker-prop-number marker 'markerWidth 100))
         ;; viewBox width
         100.0)
-     (* stroke-width tip-stroke-width))))
+     (if stroke
+         (* stroke-width tip-stroke-width)
+       0))))
 
 (defun edraw-svg-marker-path-create (prop-name
                                      element marker
@@ -3293,8 +3295,10 @@ variable."
                       (plist-get path-props :d)))
          (default-w (or (car default-size) 100))
          (default-h (or (cdr default-size) 100))
-         (marker-w (edraw-svg-marker-prop-number marker 'markerWidth default-w))
-         (marker-h (edraw-svg-marker-prop-number marker 'markerHeight default-h))
+         (marker-w (edraw-svg-marker-prop-number marker 'markerWidth
+                                                 default-w))
+         (marker-h (edraw-svg-marker-prop-number marker 'markerHeight
+                                                 default-h))
          (scale-x (/ (float marker-w) default-w))
          (scale-y (/ (float marker-h) default-h))
          (path-stroke (plist-get path-props :stroke))
@@ -3377,80 +3381,36 @@ variable."
         (when path-transform (list :transform path-transform)))))))
 
 
-(defconst edraw-svg-marker-arrow-overhang
-  (/ (*
-      6 ;;markerWidth
-      4) ;;arrow tip position
-     20.0)) ;;viewBox width
-
-(defun edraw-svg-marker-arrow-overhang (marker stroke-width)
-  (/ (*
-      stroke-width
-      (edraw-svg-marker-prop-number marker 'markerWidth 6)
-      4) ;;arrow tip position
-     20.0)) ;;viewBox width
-
-(defun edraw-svg-marker-arrow-props (marker-attrs)
-  (list
-   (cons 'markerWidth (alist-get 'markerWidth marker-attrs "6"))
-   (cons 'markerHeight (alist-get 'markerHeight marker-attrs "6"))
-   (cons 'refX (alist-get 'refX marker-attrs "0"))))
-
-(defun edraw-svg-marker-arrow-create (prop-name element marker)
-  (edraw-svg-marker-path-create
-   prop-name element marker
-   (list :d "M-10,-7 -10,7 4,0Z" :fill "context-stroke")
-   (edraw-rect-xywh -10 -10 20 20)
-   (cons 6 6)))
-
-(defun edraw-svg-marker-circle-props (marker-attrs)
-  (list
-   (cons 'markerWidth (alist-get 'markerWidth marker-attrs "4"))
-   (cons 'markerHeight (alist-get 'markerHeight marker-attrs "4"))
-   (cons 'refX (alist-get 'refX marker-attrs "0"))))
-
-(defun edraw-svg-marker-circle-create (prop-name element marker)
-  (edraw-svg-marker-path-create
-   prop-name element marker
-   (list :cx 0 :cy 0 :cr 4 :fill "context-stroke")
-   (edraw-rect-xywh -5 -5 10 10)
-   (cons 4 4)))
-
-
-
 (defconst edraw-svg-marker-types
   ;; Use "user-*" for user customizations.
   ;; Do not use "" or "none".
   `(("arrow"
-     :overhang edraw-svg-marker-arrow-overhang
-     :creator edraw-svg-marker-arrow-create
-     :get-props edraw-svg-marker-arrow-props
-     :prop-info-list ,edraw-svg-marker-path-prop-info-list)
+     :path-data (:d "M-10,-7 -10,7 4,0Z" :fill "context-stroke")
+     :overhang (4 . 0))
     ("circle"
-     :creator edraw-svg-marker-circle-create
-     :get-props edraw-svg-marker-circle-props
-     :prop-info-list ,edraw-svg-marker-path-prop-info-list)
+     :path-data (:cx 0 :cy 0 :cr 4 :fill "context-stroke")
+     :overhang (0 . 0))
     ("open-arrow"
-     :path-data (:d "M-6,-3 0,0 -6,3" :stroke "context-stroke")
+     :path-data (:d "M-12,-6 0,0 -12,6" :stroke "context-stroke")
      :overhang (0 . 1))
     ("hollow-diamond"
-     :path-data (:d "M0,0 4,-3 8,0 4,3Z" :stroke "context-stroke")
-     :overhang (8 . 0.83333333)) ;; (* 0.5 (/ (sqrt (+ (* 4 4) (* 3 3))) 3))
+     :path-data (:d "M0,0 8,-6 16,0 8,6Z" :stroke "context-stroke")
+     :overhang (16 . 0.83333333)) ;; (* 0.5 (/ (sqrt (+ (* 4 4) (* 3 3))) 3))
     ("filled-diamond"
-     :path-data (:d "M0,0 4,-3 8,0 4,3Z" :stroke "context-stroke" :fill "context-stroke")
-     :overhang (8 . 0.83333333))
+     :path-data (:d "M0,0 8,-6 16,0 8,6Z" :stroke "context-stroke" :fill "context-stroke")
+     :overhang (16 . 0.83333333))
     ("hollow-triangle"
-     :path-data (:d "M0,-3 6,0 0,3Z" :stroke "context-stroke")
-     :overhang (6 . 1))
+     :path-data (:d "M0,-6 12,0 0,6Z" :stroke "context-stroke")
+     :overhang (12 . 1))
     ("filled-triangle"
-     :path-data (:d "M0,-3 6,0 0,3Z" :stroke "context-stroke" :fill "context-stroke")
-     :overhang (6 . 1))
+     :path-data (:d "M0,-6 12,0 0,6Z" :stroke "context-stroke" :fill "context-stroke")
+     :overhang (12 . 1))
     ("hollow-circle"
-     :path-data (:cx 2 :cy 0 :cr 2 :stroke "context-stroke")
-     :overhang (4 . 0.5))
+     :path-data (:cx 4 :cy 0 :cr 4 :stroke "context-stroke")
+     :overhang (8 . 0.5))
     ("filled-circle"
-     :path-data (:cx 2 :cy 0 :cr 2 :stroke "context-stroke" :fill "context-stroke")
-     :overhang (4 . 0.5))
+     :path-data (:cx 4 :cy 0 :cr 4 :stroke "context-stroke" :fill "context-stroke")
+     :overhang (8 . 0.5))
     ))
 
 (defun edraw-svg-marker-type-all ()
@@ -3546,16 +3506,17 @@ TYPE."
               (type (edraw-svg-marker-type marker))
               (type-props (edraw-svg-marker-type-props type)))
     (let ((overhang (plist-get type-props :overhang))
+          (stroke (plist-get (plist-get type-props :path-data) :stroke))
           (stroke-width
            ;;@todo support group stroke-width
            (or (edraw-svg-attr-length element 'stroke-width) 1)))
       (cond
-       ((functionp overhang)
+       ((functionp overhang) ;; obsolete
         (funcall overhang marker stroke-width))
-       ((numberp overhang)
-        (edraw-svg-marker-path-overhang marker stroke-width overhang))
+       ((numberp overhang) ;; obsolete
+        (edraw-svg-marker-path-overhang marker stroke-width overhang stroke))
        ((consp overhang)
-        (edraw-svg-marker-path-overhang marker stroke-width overhang))))))
+        (edraw-svg-marker-path-overhang marker stroke-width overhang stroke))))))
 
 
 (defun edraw-svg-marker (marker-type props)
