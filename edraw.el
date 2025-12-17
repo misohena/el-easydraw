@@ -11361,8 +11361,10 @@ Even if a handle is valid, it may not have any effect as a
   nil)
 
 (defun edraw-adjust-point-connection-xy-for-pixel-align (xy src)
-  (when-let* ((offset (edraw-pixel-align-offset (oref src shape))))
-    (setq xy (edraw-xy-round (edraw-xy-sub xy offset))))
+  (if-let* ((offset (edraw-pixel-align-offset (oref src shape))))
+      (setq xy (edraw-xy-round (edraw-xy-sub xy offset)))
+    (when (edraw-pixel-align-enabled-p (edraw-get-editor (oref src shape)))
+      (setq xy (edraw-xy-round xy))))
   xy)
 
 ;;;;;; Point Connection Source Path Anchor Point
