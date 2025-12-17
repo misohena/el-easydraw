@@ -2884,6 +2884,33 @@ are validated by `edraw-path-data-from-d'."
 ;; TEST: (edraw-path-d-translate "M 10 20 L 30 40 50 60" '(100 . 200)) => "M110 220L130 240 150 260"
 ;; TEST: (edraw-path-d-translate "M 10 20 H 30 40 V 50 60" '(100 . 200)) => "M110 220H130 140V250 260"
 
+(defun edraw-path-d-scale (d sx sy ox oy)
+  (edraw-path-d-from-command-list
+   (cl-loop for cmd in (edraw-path-d-parse d)
+            collect (let ((type (car cmd))
+                          (args (cdr cmd)))
+                      (cons
+                       type
+                       (pcase type
+                         ((or 'M 'L 'C 'S 'Q 'T)
+                          (seq-map-indexed (lambda (n idx)
+                                             (if (= (% idx 2) 0)
+                                                 (+ (* (- n ox) sx) ox)
+                                               (+ (* (- n oy) sy) oy)))
+                                           args))
+                         ((or 'm 'l 'c 's 'q 't)
+                          (seq-map-indexed (lambda (n idx)
+                                             (* n (if (= (% idx 2) 0) sx sy)))
+                                           args))
+                         ((or 'H 'h)
+                          (mapcar (lambda (n) (+ n sx)) args))
+                         ((or 'V 'v)
+                          (mapcar (lambda (n) (+ n sy)) args))
+                         ;;('A)
+                         (_ args)))))))
+;; TEST: (edraw-path-d-scale "M 10 20 L 30 40 50 60" 2 3 0 0) => "M20 60L60 120 100 180"
+;; TEST: (edraw-path-d-scale "M 10 20 l 20 20 20 20" 2 3 0 0) => "M20 60l40 60 40 60"
+
 
 (provide 'edraw-path)
 ;;; edraw-path.el ends here

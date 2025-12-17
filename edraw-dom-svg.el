@@ -2094,6 +2094,7 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 ;; Source:
 ;; - attr
 ;; - attr-fill-stroke
+;; - attr-stroke-width
 ;; - attr-marker
 ;; - attr-update-text
 ;; - attr-data
@@ -2320,7 +2321,7 @@ other purposes."
     (fill-opacity attr opacity nil)
     (stroke attr-fill-stroke paint nil)
     (stroke-opacity attr opacity nil)
-    (stroke-width attr length nil)
+    (stroke-width attr-stroke-width length nil)
     (stroke-dasharray attr string nil)
     (stroke-dashoffset attr length nil)
     (style attr string nil)
@@ -2514,6 +2515,14 @@ other purposes."
 (defun edraw-svg-element-set-attr-fill-stroke (element prop-name value deftbl)
   (edraw-svg-element-set-attr element prop-name value deftbl)
   (edraw-svg-update-marker-properties element deftbl))
+
+(defun edraw-svg-element-get-attr-stroke-width (element prop-name deftbl)
+  (edraw-svg-element-get-attr element prop-name deftbl))
+
+(defun edraw-svg-element-set-attr-stroke-width (element prop-name value deftbl)
+  (edraw-svg-element-set-attr element prop-name value deftbl)
+  (when (edraw-svg-marker-size-independent-of-stroke-width)
+    (edraw-svg-update-marker-properties element deftbl)))
 
 (defun edraw-svg-element-get-attr-data (element prop-name deftbl)
   (edraw-svg-element-get-attr
@@ -3225,6 +3234,25 @@ the properties."
 
 ;;;; SVG Marker
 
+(defcustom edraw-svg-marker-size-independent-of-stroke-width t
+  "Non-nil means marker size is not affected by stroke-width.
+
+When non-nil, marker sizes remain constant regardless of stroke-width,
+making markers appear at a consistent visual size even when paths have
+different stroke widths.  Note that stroke-width still affects the
+thickness of lines within the marker itself.
+
+When nil, marker sizes scale proportionally with the stroke-width of
+the path they are attached to, following the SVG specification's
+default behavior."
+  :type 'boolean
+  :group 'edraw-editor)
+
+(defun edraw-svg-marker-size-independent-of-stroke-width ()
+  "Return the value of `edraw-svg-marker-size-independent-of-stroke-width'
+variable."
+  edraw-svg-marker-size-independent-of-stroke-width)
+
 (defconst edraw-svg-marker-path-prop-info-list
   ;; Name Source Type Flags
   `(,(edraw-svg-prop-info 'markerWidth nil 'number nil)
@@ -3238,10 +3266,22 @@ the properties."
    (cons 'refX (alist-get 'refX marker-attrs "0"))))
 
 (defun edraw-svg-marker-path-overhang (marker stroke-width tip-pos)
-  (/ (* stroke-width
-        tip-pos ;; tip position
-        (edraw-svg-marker-prop-number marker 'markerWidth 100))
-     100.0)) ;; viewBox width
+  (let ((tip-pos-without-stroke
+         (cond
+          ((numberp tip-pos) tip-pos)
+          ((consp tip-pos) (car tip-pos))
+          (t 0)))
+        (tip-stroke-width
+         (cond
+          ((consp tip-pos) (cdr tip-pos))
+          (t 0))))
+    (+
+     (/ (* (if edraw-svg-marker-size-independent-of-stroke-width 1 stroke-width)
+           tip-pos-without-stroke
+           (edraw-svg-marker-prop-number marker 'markerWidth 100))
+        ;; viewBox width
+        100.0)
+     (* stroke-width tip-stroke-width))))
 
 (defun edraw-svg-marker-path-create (prop-name
                                      element marker
@@ -3251,8 +3291,12 @@ the properties."
          (path-data (if (stringp path-info)
                         path-info
                       (plist-get path-props :d)))
-         (default-w (or (car default-size) "100"))
-         (default-h (or (cdr default-size) "100"))
+         (default-w (or (car default-size) 100))
+         (default-h (or (cdr default-size) 100))
+         (marker-w (edraw-svg-marker-prop-number marker 'markerWidth default-w))
+         (marker-h (edraw-svg-marker-prop-number marker 'markerHeight default-h))
+         (scale-x (/ (float marker-w) default-w))
+         (scale-y (/ (float marker-h) default-h))
          (path-stroke (plist-get path-props :stroke))
          (path-fill (plist-get path-props :fill))
          (path-transform
@@ -3261,22 +3305,33 @@ the properties."
           (when (eq prop-name 'marker-start) "rotate(180)"))
          (cx (plist-get path-props :cx))
          (cy (plist-get path-props :cy))
-         (cr (plist-get path-props :cr)))
+         (cr (plist-get path-props :cr))
+         (ref-x (edraw-svg-marker-prop-number marker 'refX 0))
+         (stroke-width (or
+                        (when edraw-svg-marker-size-independent-of-stroke-width
+                          (edraw-svg-attr-length element 'stroke-width))
+                        1)))
+
+    ;; viewbox
+    (unless viewbox
+      (setq viewbox (edraw-rect-xywh -50 -50 100 100)))
+    (when (stringp viewbox)
+      (setq viewbox (apply #'edraw-rect-xywh
+                           (mapcar #'string-to-number
+                                   (split-string viewbox)))))
+    (setq viewbox (edraw-rect-scale viewbox scale-x scale-y))
+
     (edraw-dom-element
      'marker
      :markerWidth (edraw-svg-marker-prop-str marker 'markerWidth default-w)
      :markerHeight (edraw-svg-marker-prop-str marker 'markerHeight default-h)
      :preserveAspectRatio "none"
-     :viewBox (cond
-               ((stringp viewbox) viewbox)
-               ((and (consp viewbox) (consp (car viewbox)) (consp (cdr viewbox)))
-                (format "%s %s %s %s"
-                        (edraw-rect-left viewbox)
-                        (edraw-rect-top viewbox)
-                        (edraw-rect-width viewbox)
-                        (edraw-rect-height viewbox)))
-               (t "-50 -50 100 100"))
-     :refX (edraw-svg-marker-prop-str marker 'refX "0")
+     :viewBox (concat
+               (edraw-svg-numstr (edraw-rect-left viewbox)) " "
+               (edraw-svg-numstr (edraw-rect-top viewbox)) " "
+               (edraw-svg-numstr (edraw-rect-width viewbox)) " "
+               (edraw-svg-numstr (edraw-rect-height viewbox)))
+     :refX (edraw-svg-numstr ref-x)
      :refY "0"
      :orient "auto"
      :stroke
@@ -3290,7 +3345,7 @@ the properties."
                  stroke))
            path-stroke)
        "none")
-     :stroke-width "1"
+     :stroke-width stroke-width
      :fill
      (if path-fill
          ;; @todo I want to use context-stroke and remove `edraw-svg-update-marker-properties'
@@ -3302,15 +3357,22 @@ the properties."
                  stroke))
            path-fill)
        "none")
+     :attributes (when edraw-svg-marker-size-independent-of-stroke-width
+                   (list :markerUnits "userSpaceOnUse"))
      ;; Children
      (when (and cx cy cr)
-       (edraw-svg-circle
-        cx cy cr
-        :attributes
-        (when path-transform (list :transform path-transform))))
+       (if (= scale-x scale-y)
+           (edraw-svg-circle
+            (+ (* scale-x (- cx ref-x)) ref-x) cy (* cr scale-x)
+            :attributes
+            (when path-transform (list :transform path-transform)))
+         (edraw-svg-ellipse
+          (+ (* scale-x (- cx ref-x)) ref-x) cy (* cr scale-x) (* cr scale-y)
+          :attributes
+          (when path-transform (list :transform path-transform)))))
      (when path-data
        (edraw-svg-path
-        path-data
+        (edraw-path-d-scale path-data scale-x scale-y ref-x 0)
         :attributes
         (when path-transform (list :transform path-transform)))))))
 
@@ -3338,7 +3400,7 @@ the properties."
   (edraw-svg-marker-path-create
    prop-name element marker
    (list :d "M-10,-7 -10,7 4,0Z" :fill "context-stroke")
-   "-10 -10 20 20"
+   (edraw-rect-xywh -10 -10 20 20)
    (cons 6 6)))
 
 (defun edraw-svg-marker-circle-props (marker-attrs)
@@ -3351,7 +3413,7 @@ the properties."
   (edraw-svg-marker-path-create
    prop-name element marker
    (list :cx 0 :cy 0 :cr 4 :fill "context-stroke")
-   "-5 -5 10 10"
+   (edraw-rect-xywh -5 -5 10 10)
    (cons 4 4)))
 
 
@@ -3370,25 +3432,25 @@ the properties."
      :prop-info-list ,edraw-svg-marker-path-prop-info-list)
     ("open-arrow"
      :path-data (:d "M-6,-3 0,0 -6,3" :stroke "context-stroke")
-     :overhang 1)
+     :overhang (0 . 1))
     ("hollow-diamond"
      :path-data (:d "M0,0 4,-3 8,0 4,3Z" :stroke "context-stroke")
-     :overhang 8.83333333) ;; (+ 8 (* 0.5 (/ (sqrt (+ (* 4 4) (* 3 3))) 3)))
+     :overhang (8 . 0.83333333)) ;; (* 0.5 (/ (sqrt (+ (* 4 4) (* 3 3))) 3))
     ("filled-diamond"
      :path-data (:d "M0,0 4,-3 8,0 4,3Z" :stroke "context-stroke" :fill "context-stroke")
-     :overhang 8.83333333)
+     :overhang (8 . 0.83333333))
     ("hollow-triangle"
      :path-data (:d "M0,-3 6,0 0,3Z" :stroke "context-stroke")
-     :overhang 7)
+     :overhang (6 . 1))
     ("filled-triangle"
      :path-data (:d "M0,-3 6,0 0,3Z" :stroke "context-stroke" :fill "context-stroke")
-     :overhang 7)
+     :overhang (6 . 1))
     ("hollow-circle"
      :path-data (:cx 2 :cy 0 :cr 2 :stroke "context-stroke")
-     :overhang 4.5)
+     :overhang (4 . 0.5))
     ("filled-circle"
      :path-data (:cx 2 :cy 0 :cr 2 :stroke "context-stroke" :fill "context-stroke")
-     :overhang 4.5)
+     :overhang (4 . 0.5))
     ))
 
 (defun edraw-svg-marker-type-all ()
@@ -3491,6 +3553,8 @@ TYPE."
        ((functionp overhang)
         (funcall overhang marker stroke-width))
        ((numberp overhang)
+        (edraw-svg-marker-path-overhang marker stroke-width overhang))
+       ((consp overhang)
         (edraw-svg-marker-path-overhang marker stroke-width overhang))))))
 
 
