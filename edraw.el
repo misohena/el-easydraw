@@ -6139,6 +6139,8 @@ check the difference before and after smoothing."
   :group 'edraw-editor
   :type 'boolean)
 
+(defconst edraw-editor-tool-freehand-optimize-add-anchor t)
+
 (cl-defmethod edraw-on-down-mouse-1 ((tool edraw-editor-tool-freehand)
                                      down-event)
   (with-slots (editor) tool
@@ -6153,13 +6155,24 @@ check the difference before and after smoothing."
       ;; Preview
       (edraw-editor-with-silent-modifications
         ;; Add a new path shape
-        (let ((preview-path (edraw-create-shape-default
-                             editor (edraw-svg-body editor) 'path)))
+        (let* ((preview-path (edraw-create-shape-default
+                              editor (edraw-svg-body editor) 'path))
+               (preview-element (edraw-element preview-path))
+               (preview-d "")
+               (preview-d-attr
+                (progn
+                  (dom-set-attribute preview-element 'd preview-d)
+                  (assq 'd (dom-attributes preview-element)))))
           (unwind-protect
               (progn
                 ;; Add the first point of the path
                 (push down-xy points)
-                (edraw-add-anchor preview-path down-xy)
+                (if edraw-editor-tool-freehand-optimize-add-anchor
+                    (progn
+                      (setcdr preview-d-attr
+                              (setq preview-d (edraw-path-cmdstr-move down-xy)))
+                      (edraw-on-shape-changed preview-path 'anchor-add))
+                  (edraw-add-anchor preview-path down-xy))
 
                 ;; Add new points on dragging
                 (edraw-track-drag
@@ -6193,7 +6206,15 @@ check the difference before and after smoothing."
                      ;; Add point
                      (unless (edraw-xy-equal-p move-xy last-xy)
                        (push move-xy points)
-                       (edraw-add-anchor preview-path move-xy)
+                       (if edraw-editor-tool-freehand-optimize-add-anchor
+                           (progn
+                             (setcdr preview-d-attr
+                                     (setq preview-d
+                                           (concat
+                                            preview-d " "
+                                            (edraw-path-cmdstr-xy move-xy))))
+                             (edraw-on-shape-changed preview-path 'anchor-add))
+                         (edraw-add-anchor preview-path move-xy))
                        (setq last-xy move-xy))))
                  :need-intermediate-points t
                  :allow-out-of-target-p

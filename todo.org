@@ -1,5 +1,20 @@
 
 * Inbox
+** TODO 変形時にpixel-alignを解除した方が良いのでは？
+pixel-alignが適用されている図形は解除してから変形すべきでは？
+で、変形後に再適用する？
+
+** TODO ビュー/アンカー等やAABB表示の線がぼやけるのを改善する
+これはこれである意味座標を正確に表しているから無理に直す必要は無いかもしれない。
+
+** TODO ビュー/グリッドを最背面に表示するオプションを追加する
+うーん、正直私は要らない。
+最背面と言っても背景よりは手前にしたいかな？
+そう考えるとそんなに良いものじゃないよね。
+
+** TODO ビュー/定規を表示する
+** TODO ビュー/ドラッグで表示領域をリサイズしたい
+枠を表示して、その右下をドラッグすることでリサイズしたい。
 ** TODO plistやalistに関する関数を改善する
 edraw-alist-やedraw-plist-を使うようにする。
 
@@ -94,6 +109,15 @@ text要素のspace属性(xml:space)がpreserveのときは連続する空白を�
 debug-on-errorだとバックトレースが出てしまうので少々大げさな気がする。
 その他errorを使うかどうかは色々な場所でよく迷う。
 何か基準が欲しい。
+
+** TODO テキストツールで接着するときのUIを改善する
+ミニバッファから接着場所を指定するのは少しつらい。
+もう少しGUIでできないものか。
+点接続設定UIがあれば良いのだろうか。
+
+** TODO テキスト/テキスト指定で区切り線を引けないだろうか
+"--"のような行があったらそこに横線を引くようなことはできないだろうか。
+もちろん接着図形があればその辺との交点を結ぶ必要がある。
 
 ** TODO edraw-svg-prop-infoに等価判定方法に関する情報を追加する
 [[*テキストの装飾(書式・下線や斜体など)を編集できないか][テキストの装飾(書式・下線や斜体など)を編集できないか]]を実装したときに、テキストプロパティも比較するかどうかで困った。
@@ -6919,12 +6943,17 @@ shapeの方を補正する機能を追加したので、それに合わせてこ
 
 線の太さはCSSで指定するから分からない。
 単純にずらすかどうかを指定するカスタマイズ変数を追加する。
+edraw-editor-grid-pixel-alignを追加。
+
 ** DONE 太い(濃い)グリッド線を描画する
 CLOSED: [2025-12-14 Sun 22:05]
 濃い線を主グリッド線(major grid lines)/薄い線を副グリッド線(minor grid lines)と呼ぶことにする。
 Adobe製品始め多くの製品は主グリッド線の間隔を設定し、その中を何分割するかを指定しているみたい。
 しかし私は誤差が怖いし面倒なので、グリッド線何本毎に主グリッド線を入れるかを指定させることにする。
 ついでに線の色や濃さも調整する。間隔は10pxにしようとおもったけど重くなるので20pxのままにした。
+
+edraw-editor-default-grid-major-periodを追加。
+
 ** DONE ピクセルグリッド合わせの問題を何とかする。
 CLOSED: [2025-12-15 Mon 21:15]
 [[*細い線を描くために0.5pxずらす][細い線を描くために0.5pxずらす]]で生じた問題。
@@ -7050,3 +7079,9 @@ CLOSED: [2025-12-17 Wed 15:23]
 点接続のpixel align処理は edraw-adjust-point-connection-xy-for-pixel-align で行われている。ここでは接続元図形がpixel align適用済みなら移動先座標を調整し、それ以外の時は調整していない。editorがpixel alignを要求するなら、最低限整数座標に丸めるべきだろう。
 
 [[edraw:data=H4sIAEhLQmkAA62TW2/CIBSA/wrBl5rYAnXWYsTEPS1Llr3tnQq9xAqGMlv//Wi7pi7RmG2GcDsX+A7nsK5OGWgOpaoYzK09rhCq6zqo54E2GQoxxshZwN5k1ZSF2l8zJJRS1GkhqAthcwbDEEOQyyLLLYPkyW1O0lSFVm4XELhZG7mzoGHQac7deNOxEAxKYXjtJ3y3z4z+VAKCyhq9lwwqrSQEaVGWDE7SNIUAbdbZpZMW5+E+wS33e3FrIBIacYKT0T9u23j4hOC2DQL/m5GMhPORfNmH0vI3/WQNV1WqzYHBbllyKz0cLGauTzvQa1RxEkc0XkYPpaL/pQopEXJJxWOooh9v1aX5PtaR2/wS66gLZf2dVsrxutJyRbz1fDJdvT+/egPvdLb1cC8a0u1OcwG9UQzm0Ut3dx9SX0p34gl/jzIk9DbKIgIL/EH/QoIy190n3XwBf0KRhswDAAA=]]
+** DONE 手書きツール/速度の改善をする
+CLOSED: [2025-12-22 Mon 17:38]
+一筆で長い線を描いているとだんだん遅くなってくる。飛び飛びの線になっていく。
+プロファイルしたところedraw-add-anchor→edraw-update-path-d-attr→edraw-path-data-to-string→edraw-path-data-to-string→edraw-path-data-stringize-concat-cmdのあたりが遅い。
+
+1点追加する毎にd=属性をまるごと再生成して最適化するのだから遅いに決まっている。単純に座標だけを文字列の末尾に追加すべきだ。それでもだんだん遅くなる(長い文字列の末尾に何かを追加するのは遅いはず)なら手頃なところでpath要素自体を分ければ良い(おそらくそこまではする必要は無い。どのみちSVG全体の文字列結合は避けられないし、それが発生してもそこまでパフォーマンスは悪化していないのだから)。
