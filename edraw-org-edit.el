@@ -228,7 +228,11 @@ use `edraw:' link type and want to use the regular `file:' link type
                     (lambda (_ok _svg)
                       ;; Restore org-mode inline image
                       ;;@todo Add settings?
-                      (org-display-inline-images nil t beg end))
+                      (cond
+                       ((fboundp 'org-link-preview-region) ;; Org9.8~
+                        (org-link-preview-region nil t beg end))
+                       ((fboundp 'org-display-inline-images) ;; ~Org9.7
+                        (org-display-inline-images nil t beg end))))
                     (lambda (svg)
                       (edraw-svg-write-to-file svg path nil)
                       t)
@@ -236,14 +240,17 @@ use `edraw:' link type and want to use the regular `file:' link type
                     t)))
 
 (defun edraw-org--remove-org-inline-images (beg end)
-  (if (version<= "9.6" (org-version))
-      (with-no-warnings
-        (org-remove-inline-images beg end)) ;; Can pass BEG and END
+  (cond
+   ((fboundp 'org-link-preview-clear) ;; Org9.8~
+    (org-link-preview-clear beg end))
+   ((fboundp 'org-remove-inline-images) ;; Org9.6~
+    (org-remove-inline-images beg end)) ;; Can pass BEG and END
+   ((boundp 'org-inline-image-overlays)
     ;; Can't pass BEG and END in 9.5 or earlier
     (dolist (ov (overlays-in beg end))
       (when (memq ov org-inline-image-overlays)
         (setq org-inline-image-overlays (delq ov org-inline-image-overlays))
-        (delete-overlay ov)))))
+        (delete-overlay ov))))))
 
 
 ;;;; Link Tools

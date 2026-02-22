@@ -7085,3 +7085,25 @@ CLOSED: [2025-12-22 Mon 17:38]
 プロファイルしたところedraw-add-anchor→edraw-update-path-d-attr→edraw-path-data-to-string→edraw-path-data-to-string→edraw-path-data-stringize-concat-cmdのあたりが遅い。
 
 1点追加する毎にd=属性をまるごと再生成して最適化するのだから遅いに決まっている。単純に座標だけを文字列の末尾に追加すべきだ。それでもだんだん遅くなる(長い文字列の末尾に何かを追加するのは遅いはず)なら手頃なところでpath要素自体を分ければ良い(おそらくそこまではする必要は無い。どのみちSVG全体の文字列結合は避けられないし、それが発生してもそこまでパフォーマンスは悪化していないのだから)。
+
+** DONE org-mode 9.8に対応する。
+CLOSED: [2026-02-22 Sun 13:53]
+edraw-org-edit.elで警告が出る:
+
+: In edraw-org-edit-regular-file-link:
+: edraw-org-edit.el:231:24: Warning: ‘org-display-inline-images’ is an
+:     obsolete function (as of 9.8); use ‘org-link-preview-region’ instead.
+:
+: In edraw-org--remove-org-inline-images:
+: edraw-org-edit.el:244:22: Warning: ‘org-inline-image-overlays’ is an
+:     obsolete variable (as of 9.8); use ‘org-link-preview-overlays’ instead.
+: edraw-org-edit.el:245:50: Warning: ‘org-inline-image-overlays’ is an
+:     obsolete variable (as of 9.8); use ‘org-link-preview-overlays’ instead.
+: edraw-org-edit.el:245:15: Warning: ‘org-inline-image-overlays’ is an
+:     obsolete variable (as of 9.8); use ‘org-link-preview-overlays’ instead.
+
+インライン画像機能がより一般化されたリンクプレビュー機能に置き換わったことが原因。
+
+基本的に edraw-org-edit-regular-file-link にしか影響しない。この関数はfileリンクでedrawを使うときのための関数。私は普段使っていない。
+
+一応直しておく。
