@@ -243,7 +243,8 @@ use `edraw:' link type and want to use the regular `file:' link type
   (cond
    ((fboundp 'org-link-preview-clear) ;; Org9.8~
     (org-link-preview-clear beg end))
-   ((fboundp 'org-remove-inline-images) ;; Org9.6~
+   ((and (fboundp 'org-remove-inline-images)
+         (version<= "9.6" org-version)) ;; Org9.6~9.7
     (org-remove-inline-images beg end)) ;; Can pass BEG and END
    ((boundp 'org-inline-image-overlays)
     ;; Can't pass BEG and END in 9.5 or earlier
