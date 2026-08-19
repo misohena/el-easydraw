@@ -789,7 +789,7 @@ edraw-editor initialization is now called automatically."
 
 (defun edraw-editor-initialize (editor)
   (oset editor settings (edraw-editor-load-settings (oref editor ui-state)))
-  (when-let ((wh (edraw-get-setting editor 'view-size-spec)))
+  (when-let* ((wh (edraw-get-setting editor 'view-size-spec)))
     (oset editor view-size wh))
 
   (edraw-editor-clear-undo-vars)

@@ -7107,3 +7107,9 @@ edraw-org-edit.elで警告が出る:
 基本的に edraw-org-edit-regular-file-link にしか影響しない。この関数はfileリンクでedrawを使うときのための関数。私は普段使っていない。
 
 一応直しておく。
+
+** DONE Emacs31での警告に対処する。
+CLOSED: [2026-08-19 Wed 20:02]
+
+- dom-text => dom-inner-text  (textオブジェクトのSummaryにしか使っていない。dom-inner-textはEmacs31からしか使えないので注意)
+- when-let => when-let* (1箇所残っていた)

@@ -2072,7 +2072,16 @@ See `edraw-dom-element' for more information about ATTR-PLIST-AND-CHILDREN."
 
 (defun edraw-svg-text-summary (element)
   (format "text (%s)"
-          (truncate-string-to-width (dom-text element) 20 nil nil "...")))
+          (truncate-string-to-width
+           (cond
+            ;; Emacs 31~
+            ((fboundp 'dom-inner-text)
+             (dom-inner-text element))
+            ;; Emacs ~30
+            ((fboundp 'dom-text)
+             (dom-text element))
+            (t "text"))
+           20 nil nil "...")))
 
 (defun edraw-svg-image-summary (element)
   (format "image (%s,%s,%s,%s,%s)"
