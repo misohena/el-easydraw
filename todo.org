@@ -7113,3 +7113,6 @@ CLOSED: [2026-08-19 Wed 20:02]
 
 - dom-text => dom-inner-text  (textオブジェクトのSummaryにしか使っていない。dom-inner-textはEmacs31からしか使えないので注意)
 - when-let => when-let* (1箇所残っていた)
+** DONE 色/edraw-color-picker-modeのメニューをread-onlyバッファで非表示にする
+CLOSED: [2026-10-04 Sun 14:44]
+read-onlyなバッファにおいて、コンテキストメニューに Insert Color や Replace Color のメニュー項目を出す必要はない。
